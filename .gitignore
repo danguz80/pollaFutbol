@@ -1,0 +1,45 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.local
+.env.*.local
+
+# Editor folders
+.vscode/
+.idea/
+.DS_Store
+
+# Build outputs
+dist/
+build/
+coverage/
+out/
+.next/
+.vercel/
+
+# React/Vite
+*.local
+*.env.*
+*.env
+
+# Logs
+logs/
+*.log
+
+# OS/Editor trash
+Thumbs.db
+*.swp
+
+# PostgreSQL dump (si haces backups locales)
+*.sql
+
+# Misc
+*.tgz
+*.gz
+
+# Test coverage
+coverage/
