@@ -1,6 +1,10 @@
 // components/JornadaSelector.jsx
 import { useEffect, useState } from "react";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
+
 export default function JornadaSelector({ onSelect }) {
   const [jornadas, setJornadas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -9,7 +13,8 @@ export default function JornadaSelector({ onSelect }) {
   useEffect(() => {
     async function fetchJornadas() {
       try {
-        const res = await fetch("http://localhost:3001/api/jornadas");
+        // Usar la variable de entorno para la URL del backend
+        const res = await fetch(`${API_BASE_URL}/api/jornadas`);
         const data = await res.json();
         setJornadas(data);
       } catch (err) {

@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import JornadaSelector from "../components/JornadaSelector";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
+
 // Hook local para obtener usuario desde localStorage
 function useAuth() {
   try {
@@ -35,7 +39,8 @@ export default function Jornada() {
 
   // Cargar jornadas disponibles
   useEffect(() => {
-    fetch("http://localhost:3001/api/jornadas")
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/jornadas`)
       .then((res) => res.json())
       .then(setJornadas)
       .catch((err) => console.error("Error al cargar jornadas", err));
@@ -51,7 +56,8 @@ export default function Jornada() {
     setJornadaIdSeleccionada(jornadaObj ? jornadaObj.id : null);
 
     // 1. Cargar partidos
-    fetch(`http://localhost:3001/api/jornadas/${jornadaSeleccionada}/partidos`)
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/partidos`)
       .then((res) => res.json())
       .then(setPartidos)
       .catch((err) => {
@@ -61,7 +67,8 @@ export default function Jornada() {
 
     // 2. Cargar pronósticos guardados
     const token = localStorage.getItem("token");
-    fetch(`http://localhost:3001/api/pronosticos/${jornadaSeleccionada}`, {
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/pronosticos/${jornadaSeleccionada}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -82,7 +89,8 @@ export default function Jornada() {
       });
 
     // 3. Cargar si está cerrada
-    fetch(`http://localhost:3001/api/jornadas/${jornadaSeleccionada}`)
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}`)
       .then(res => res.json())
       .then(j => setCerrada(!!j.cerrada))
       .catch(() => setCerrada(false));
@@ -112,7 +120,8 @@ export default function Jornada() {
 
       const respuestas = await Promise.all(
         partidos.map((partido) =>
-          fetch("http://localhost:3001/api/pronosticos", {
+          // Usar la variable de entorno para la URL del backend
+          fetch(`${API_BASE_URL}/api/pronosticos`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

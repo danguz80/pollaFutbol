@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
+
 export default function MisPronosticos() {
   const [pronosticos, setPronosticos] = useState([]);
   const [jornadas, setJornadas] = useState([]);
@@ -8,7 +12,8 @@ export default function MisPronosticos() {
 
   // Cargar jornadas disponibles
   useEffect(() => {
-    fetch("http://localhost:3001/api/jornadas")
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/jornadas`)
       .then(res => res.json())
       .then(data => {
         setJornadas(data);
@@ -20,7 +25,8 @@ export default function MisPronosticos() {
   // Cargar pronósticos propios
   useEffect(() => {
     const token = localStorage.getItem("token");
-    fetch("http://localhost:3001/api/pronosticos/mis", {
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/pronosticos/mis`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())

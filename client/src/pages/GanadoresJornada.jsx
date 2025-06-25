@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
 // Iconos
 const Xroja = () => <span style={{ color: "red", fontSize: "1.7em" }}>✖️</span>;
 const VistoVerde = () => <span style={{ color: "green", fontSize: "1.7em" }}>✅</span>;
@@ -11,13 +14,19 @@ export default function GanadoresJornada() {
 
   useEffect(() => {
     async function fetchData() {
-      const jornadasRes = await fetch("http://localhost:3001/api/jornadas");
-      const jornadasData = await jornadasRes.json();
-      const jugadoresRes = await fetch("http://localhost:3001/api/usuarios");
-      const jugadoresData = await jugadoresRes.json();
-      setJornadas(jornadasData);
-      setJugadores(jugadoresData.map(j => j.nombre));
-      setLoading(false);
+      try {
+        // Usar la variable de entorno para las URLs del backend
+        const jornadasRes = await fetch(`${API_BASE_URL}/api/jornadas`);
+        const jornadasData = await jornadasRes.json();
+        const jugadoresRes = await fetch(`${API_BASE_URL}/api/usuarios`);
+        const jugadoresData = await jugadoresRes.json();
+        setJornadas(jornadasData);
+        setJugadores(jugadoresData.map(j => j.nombre));
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        setLoading(false); // O manejar el error de otra manera
+      }
     }
     fetchData();
   }, []);

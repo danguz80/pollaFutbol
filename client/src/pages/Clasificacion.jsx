@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
 export default function Clasificacion() {
   const [jornadas, setJornadas] = useState([]);
   const [jornadaActual, setJornadaActual] = useState("");
@@ -9,7 +12,8 @@ export default function Clasificacion() {
 
   // Cargar jornadas y definir por defecto la última
   useEffect(() => {
-    fetch("http://localhost:3001/api/jornadas")
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/jornadas`) // Asumo que tienes un endpoint para obtener jornadas
       .then(res => res.json())
       .then(jornadas => {
         setJornadas(jornadas);
@@ -23,15 +27,16 @@ export default function Clasificacion() {
   // Cargar datos según jornada
   useEffect(() => {
     if (!jornadaActual) return;
-    fetch(`http://localhost:3001/api/pronosticos/jornada/${jornadaActual}`)
+    // Usar la variable de entorno para todas las llamadas al backend
+    fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
       .then(res => res.json())
       .then(setDetallePuntos);
 
-    fetch(`http://localhost:3001/api/pronosticos/ranking/jornada/${jornadaActual}`)
+    fetch(`${API_BASE_URL}/api/pronosticos/ranking/jornada/${jornadaActual}`)
       .then(res => res.json())
       .then(setRankingJornada);
 
-    fetch("http://localhost:3001/api/pronosticos/ranking/general")
+    fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
       .then(setRankingAcumulado);
   }, [jornadaActual]);

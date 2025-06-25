@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
+
 function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -25,7 +29,8 @@ function Register() {
     }
 
     try {
-      const res = await fetch("http://localhost:3001/api/usuarios/register", {
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/usuarios/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
