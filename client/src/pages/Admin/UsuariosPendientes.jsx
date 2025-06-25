@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
+
 function UsuariosPendientes() {
   const [usuarios, setUsuarios] = useState([]);
 
   const fetchUsuarios = async () => {
     const token = localStorage.getItem("token");
-    const res = await fetch("http://localhost:3001/api/usuarios/pendientes", {
+    // Usar la variable de entorno para la URL del backend
+    const res = await fetch(`${API_BASE_URL}/api/usuarios/pendientes`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
@@ -14,7 +19,8 @@ function UsuariosPendientes() {
 
   const activarUsuario = async (id) => {
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:3001/api/admin/activar-usuario/${id}`, {
+    // Usar la variable de entorno para la URL del backend
+    const res = await fetch(`${API_BASE_URL}/api/admin/activar-usuario/${id}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` }
     });

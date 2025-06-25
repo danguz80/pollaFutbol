@@ -1,5 +1,9 @@
 import { useState } from "react";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
+
 function ChileFixtures() {
     const [modo, setModo] = useState("fecha"); // "fecha" o "jornada"
     const [from, setFrom] = useState("");
@@ -18,13 +22,15 @@ function ChileFixtures() {
                 setLoading(false);
                 return alert("Debes seleccionar ambas fechas");
             }
-            url = `http://localhost:3001/api/chile/fixtures?from=${from}&to=${to}`;
+            // Usar la variable de entorno para la URL del backend
+            url = `${API_BASE_URL}/api/chile/fixtures?from=${from}&to=${to}`;
         } else if (modo === "jornada") {
             if (!jornada) {
                 setLoading(false);
                 return alert("Debes seleccionar una jornada");
             }
-            url = `http://localhost:3001/api/chile/fixtures?jornada=${jornada}`;
+            // Usar la variable de entorno para la URL del backend
+            url = `${API_BASE_URL}/api/chile/fixtures?jornada=${jornada}`;
         }
 
         try {

@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+// Accede a la variable de entorno
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
+
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [jornadas, setJornadas] = useState([]);
@@ -10,7 +14,8 @@ export default function AdminPanel() {
 
   // Obtener jornadas al montar
   useEffect(() => {
-    fetch("http://localhost:3001/api/jornadas")
+    // Usar la variable de entorno para la URL del backend
+    fetch(`${API_BASE_URL}/api/jornadas`)
       .then((res) => res.json())
       .then((data) => setJornadas(data))
       .catch((err) => console.error("Error al cargar jornadas:", err));
@@ -25,7 +30,8 @@ export default function AdminPanel() {
 
   const fetchPartidos = async (numero) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/jornadas/${numero}/partidos`);
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/${numero}/partidos`);
       const data = await res.json();
       const partidosConGoles = data.map(p => ({
         id: p.id,
@@ -44,11 +50,12 @@ export default function AdminPanel() {
   // Nuevo: traer info si está cerrada la jornada
   const fetchJornadaInfo = async (numero) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/jornadas/${numero}`);
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/${numero}`);
       const data = await res.json();
-      setJornadaCerrada(!!data.cerrada);
+      setCerrada(!!data.cerrada); // Usando setCerrada que ya existe para el estado
     } catch (err) {
-      setJornadaCerrada(false);
+      setCerrada(false);
     }
   };
 
@@ -68,7 +75,8 @@ export default function AdminPanel() {
   const guardarResultados = async () => {
     if (!jornadaSeleccionada) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/jornadas/${jornadaSeleccionada}/partidos`, {
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/partidos`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ partidos }),
@@ -86,7 +94,8 @@ export default function AdminPanel() {
   const actualizarDesdeAPI = async () => {
     if (!jornadaSeleccionada) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/jornadas/${jornadaSeleccionada}/resultados`, {
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/resultados`, {
         method: "PATCH"
       });
       const data = await res.json();
@@ -98,11 +107,12 @@ export default function AdminPanel() {
     }
   };
 
-  // PATCH para calcular puntajes de la jornada seleccionada
+  // POST para calcular puntajes de la jornada seleccionada
   const calcularPuntajes = async () => {
     if (!jornadaSeleccionada) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/pronosticos/calcular/${jornadaSeleccionada}`, {
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/pronosticos/calcular/${jornadaSeleccionada}`, {
         method: "POST"
       });
       const data = await res.json();
@@ -117,12 +127,14 @@ export default function AdminPanel() {
   const actualizarResultadosYPuntajes = async () => {
     if (!jornadaSeleccionada) return;
     try {
-      const res1 = await fetch(`http://localhost:3001/api/jornadas/${jornadaSeleccionada}/resultados`, {
+      // Usar la variable de entorno para la URL del backend
+      const res1 = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/resultados`, {
         method: "PATCH"
       });
       const data1 = await res1.json();
 
-      const res2 = await fetch(`http://localhost:3001/api/pronosticos/calcular/${jornadaSeleccionada}`, {
+      // Usar la variable de entorno para la URL del backend
+      const res2 = await fetch(`${API_BASE_URL}/api/pronosticos/calcular/${jornadaSeleccionada}`, {
         method: "POST"
       });
       const data2 = await res2.json();
@@ -148,13 +160,14 @@ export default function AdminPanel() {
         alert("No se encontró la jornada");
         return;
       }
-      const res = await fetch(`http://localhost:3001/api/jornadas/${jornada.id}/cerrar`, {
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornada.id}/cerrar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cerrada: !jornadaCerrada })
       });
       const data = await res.json();
-      setJornadaCerrada(!!data.jornada?.cerrada);
+      setCerrada(!!data.jornada?.cerrada); // Usando setCerrada que ya existe para el estado
       if (data.jornada?.cerrada) {
         alert("🔒 Jornada cerrada");
       } else {
@@ -166,10 +179,12 @@ export default function AdminPanel() {
     }
   };
 
+  // PATCH actualizar ganadores
   const actualizarGanadores = async () => {
     if (!jornadaSeleccionada) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/jornadas/${jornadaSeleccionada}/ganadores`, {
+      // Usar la variable de entorno para la URL del backend
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/ganadores`, {
         method: "PATCH"
       });
       const data = await res.json();
@@ -183,6 +198,7 @@ export default function AdminPanel() {
       console.error(error);
     }
   };
+
 
   return (
     <div className="container mt-4">
@@ -217,10 +233,10 @@ export default function AdminPanel() {
       {jornadaSeleccionada && (
         <div className="mb-3">
           <button
-            className={`btn ${jornadaCerrada ? "btn-danger" : "btn-outline-success"}`}
+            className={`btn ${cerrada ? "btn-danger" : "btn-outline-success"}`} // Usando el estado 'cerrada'
             onClick={toggleCierreJornada}
           >
-            {jornadaCerrada ? "🔓 Abrir Jornada" : "🔒 Cerrar Jornada"}
+            {cerrada ? "🔓 Abrir Jornada" : "🔒 Cerrar Jornada"} // Usando el estado 'cerrada'
           </button>
         </div>
       )}
