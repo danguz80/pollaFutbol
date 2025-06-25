@@ -3,40 +3,50 @@ import React, { useEffect, useState } from "react";
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
-
 export default function MisPronosticos() {
   const [pronosticos, setPronosticos] = useState([]);
   const [jornadas, setJornadas] = useState([]);
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState("");
   const [loading, setLoading] = useState(true);
+  const [sinToken, setSinToken] = useState(false);
 
-  // Cargar jornadas disponibles
+  // Cargar jornadas disponibles (NO necesita token)
   useEffect(() => {
-    // Usar la variable de entorno para la URL del backend
     fetch(`${API_BASE_URL}/api/jornadas`)
       .then(res => res.json())
       .then(data => {
         setJornadas(data);
-        // Por defecto: muestra la última jornada si hay
         if (data.length) setJornadaSeleccionada(data[data.length - 1].numero);
       });
   }, []);
 
-  // Cargar pronósticos propios
+  // Cargar pronósticos propios SOLO si hay token
   useEffect(() => {
     const token = localStorage.getItem("token");
-    // Usar la variable de entorno para la URL del backend
+    if (!token) {
+      setSinToken(true);
+      setLoading(false);
+      return;
+    }
+
     fetch(`${API_BASE_URL}/api/pronosticos/mis`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      }
     })
       .then(res => res.json())
       .then(data => {
         setPronosticos(data);
         setLoading(false);
+      }).catch(() => {
+        setPronosticos([]);
+        setLoading(false);
       });
-  }, []);
+  }, []); // Si quieres recargar si cambia token, pon [localStorage.getItem("token")]
 
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
+  if (sinToken) return <div className="alert alert-warning text-center mt-4">Debes iniciar sesión para ver tus pronósticos.</div>;
 
   // Eliminar duplicados: solo último pronóstico por partido y jornada
   const pronosticosUnicos = [];
