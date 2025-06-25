@@ -16,7 +16,13 @@ dotenv.config(); // ✅ asegúrate de que esto esté antes de usar process.env
 
 const app = express();
 
-app.use(cors());
+const netlifyUrl = "https://pollafutbol.netlify.app"; // <<--- Aquí va tu dominio Netlify
+
+app.use(cors({
+  origin: netlifyUrl,
+  credentials: true
+}));
+
 app.use(express.json());
 
 app.use("/api/jornadas", jornadasRoutes);
