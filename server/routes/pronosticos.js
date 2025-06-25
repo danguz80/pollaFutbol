@@ -1,3 +1,4 @@
+// routes/pronosticos.js
 import express from "express";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { pool } from "../db/pool.js";
@@ -5,7 +6,7 @@ import fetch from "node-fetch";
 
 const router = express.Router();
 
-// GUARDAR O ACTUALIZAR PRONÓSTICO (UPSERT) — ahora bloquea si la jornada está cerrada
+// GUARDAR O ACTUALIZAR PRONÓSTICO (UPSERT) — bloquea si la jornada está cerrada
 router.post("/", verifyToken, async (req, res) => {
   const usuarioId = req.usuario.id;
   const { jornada_id, partido_id, goles_local, goles_visita } = req.body;
@@ -74,23 +75,27 @@ router.post("/calcular/:jornada", async (req, res) => {
 
       // Si faltan resultados, intentamos obtenerlos desde la API
       if (goles_local === null || goles_visita === null) {
-        const response = await fetch(`https://api-football-v1.p.rapidapi.com/v3/fixtures?id=${p.partido_id}`, {
-          headers: {
-            "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
-            "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
-          }
-        });
-        const data = await response.json();
-        const partido = data.response[0];
+        try {
+          const response = await fetch(`https://api-football-v1.p.rapidapi.com/v3/fixtures?id=${p.partido_id}`, {
+            headers: {
+              "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
+              "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+            }
+          });
+          const data = await response.json();
+          const partido = data.response[0];
 
-        if (partido && partido.goals.home !== null && partido.goals.away !== null) {
-          goles_local = partido.goals.home;
-          goles_visita = partido.goals.away;
-          // Actualizar tabla partidos con los goles obtenidos
-          await pool.query(
-            `UPDATE partidos SET goles_local = $1, goles_visita = $2 WHERE id = $3`,
-            [goles_local, goles_visita, p.partido_id]
-          );
+          if (partido && partido.goals.home !== null && partido.goals.away !== null) {
+            goles_local = partido.goals.home;
+            goles_visita = partido.goals.away;
+            // Actualizar tabla partidos con los goles obtenidos
+            await pool.query(
+              `UPDATE partidos SET goles_local = $1, goles_visita = $2 WHERE id = $3`,
+              [goles_local, goles_visita, p.partido_id]
+            );
+          }
+        } catch (apiErr) {
+          console.warn(`No se pudo obtener resultado de partido ${p.partido_id} desde la API`);
         }
       }
 
@@ -134,7 +139,7 @@ router.post("/calcular/:jornada", async (req, res) => {
   }
 });
 
-// GET /api/pronosticos/mis
+// GET /api/pronosticos/mis (tus pronósticos)
 router.get("/mis", verifyToken, async (req, res) => {
   const usuarioId = req.usuario.id;
   try {
@@ -163,7 +168,7 @@ router.get("/mis", verifyToken, async (req, res) => {
   }
 });
 
-// GET /api/pronosticos/:jornada
+// GET /api/pronosticos/:jornada (tus pronósticos para una jornada)
 router.get("/:jornada", verifyToken, async (req, res) => {
   const usuarioId = req.usuario.id;
   const { jornada } = req.params;
@@ -195,7 +200,7 @@ router.get("/:jornada", verifyToken, async (req, res) => {
   }
 });
 
-// 1. Pronósticos de todos los usuarios en una jornada (por partido)
+// Pronósticos de todos los usuarios en una jornada
 router.get("/jornada/:jornada", async (req, res) => {
   const { jornada } = req.params;
   try {
@@ -231,10 +236,7 @@ router.get("/jornada/:jornada", async (req, res) => {
   }
 });
 
-
-// 2. Detalle de puntos por partido de la jornada actual (por jugador y partido)
-// (Ya cubierto por el endpoint anterior; puedes usarlo para armar la tabla de detalle en frontend)
-
+// Ranking jornada
 router.get("/ranking/jornada/:jornada", async (req, res) => {
   const { jornada } = req.params;
   try {
@@ -258,7 +260,7 @@ router.get("/ranking/jornada/:jornada", async (req, res) => {
   }
 });
 
-// 4. Ranking acumulado general (puntaje sumado de todas las jornadas)
+// Ranking general
 router.get("/ranking/general", async (req, res) => {
   try {
     const result = await pool.query(

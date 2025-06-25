@@ -1,3 +1,4 @@
+// middleware/verifyToken.js
 import jwt from "jsonwebtoken";
 import { pool } from "../db/pool.js";
 
@@ -13,6 +14,8 @@ export async function verifyToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Busca el usuario por el id del token
     const result = await pool.query("SELECT * FROM usuarios WHERE id = $1", [decoded.id]);
     const usuario = result.rows[0];
 
@@ -20,7 +23,7 @@ export async function verifyToken(req, res, next) {
       return res.status(401).json({ error: "Usuario no encontrado" });
     }
 
-    // ⚠️ Permitir acceso solo si está activo o es admin
+    // Permitir acceso solo si está activo o es admin
     if (!usuario.activo && usuario.rol !== "admin") {
       return res.status(403).json({ error: "Tu cuenta aún no ha sido activada por un administrador" });
     }
@@ -34,6 +37,7 @@ export async function verifyToken(req, res, next) {
 
     next();
   } catch (err) {
+    // Puede ser por token vencido, mal formado, etc.
     return res.status(403).json({ error: "Token inválido o expirado" });
   }
 }
