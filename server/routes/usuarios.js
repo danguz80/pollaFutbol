@@ -113,4 +113,42 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.patch("/cambiar-password", verifyToken, async (req, res) => {
+  const { actual, nueva } = req.body;
+  const usuarioId = req.usuario.id;
+
+  if (!actual || !nueva) {
+    return res.status(400).json({ error: "Debes ingresar ambas contraseñas." });
+  }
+
+  try {
+    // Obtener el hash actual de la DB
+    const result = await pool.query(
+      "SELECT password FROM usuarios WHERE id = $1",
+      [usuarioId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    const hashActual = result.rows[0].password;
+
+    // Comparar actual
+    const esValida = await bcrypt.compare(actual, hashActual);
+    if (!esValida) {
+      return res.status(401).json({ error: "La contraseña actual no es correcta." });
+    }
+
+    // Hash de la nueva contraseña
+    const nuevaHash = await bcrypt.hash(nueva, 10);
+    await pool.query(
+      "UPDATE usuarios SET password = $1 WHERE id = $2",
+      [nuevaHash, usuarioId]
+    );
+
+    res.json({ mensaje: "Contraseña actualizada correctamente." });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al cambiar la contraseña." });
+  }
+});
+
 export default router;
