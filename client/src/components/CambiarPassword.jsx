@@ -5,12 +5,20 @@ const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 export default function CambiarPassword() {
   const [actual, setActual] = useState("");
   const [nueva, setNueva] = useState("");
+  const [repetir, setRepetir] = useState(""); // Nuevo campo
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMensaje("");
+
+    // Validación: que coincidan las contraseñas nuevas
+    if (nueva !== repetir) {
+      setMensaje("❌ Las contraseñas nuevas no coinciden.");
+      return;
+    }
+
     setLoading(true);
     const token = localStorage.getItem("token");
 
@@ -28,6 +36,7 @@ export default function CambiarPassword() {
         setMensaje(data.mensaje || "Contraseña cambiada correctamente.");
         setActual("");
         setNueva("");
+        setRepetir(""); // Limpiar también este campo
       } else {
         setMensaje(data.error || "Error al cambiar la contraseña.");
       }
@@ -58,6 +67,17 @@ export default function CambiarPassword() {
           className="form-control"
           value={nueva}
           onChange={e => setNueva(e.target.value)}
+          required
+          minLength={6}
+        />
+      </div>
+      <div className="mb-3">
+        <label className="form-label">Reingresa la nueva contraseña</label>
+        <input
+          type="password"
+          className="form-control"
+          value={repetir}
+          onChange={e => setRepetir(e.target.value)}
           required
           minLength={6}
         />
