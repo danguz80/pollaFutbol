@@ -3,6 +3,8 @@ import { pool } from "../db/pool.js";
 
 const router = express.Router();
 
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL || "http://localhost:3001";
+
 // 🔹 Obtener todas las jornadas
 router.get("/", async (req, res) => {
   try {
@@ -203,7 +205,7 @@ router.patch("/:numero/ganadores", async (req, res) => {
 const actualizarGanadores = async () => {
   if (!jornadaSeleccionada) return;
   try {
-    const res = await fetch(`http://localhost:3001/api/jornadas/${jornadaSeleccionada}/ganadores`, {
+    const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/ganadores`, {
       method: "PATCH"
     });
     const data = await res.json();
@@ -217,5 +219,6 @@ const actualizarGanadores = async () => {
     console.error(error);
   }
 };
+
 
 export default router;
