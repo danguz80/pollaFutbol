@@ -66,3 +66,29 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Puedes poner esto en index.css o App.css */
+
+@media (max-width: 600px) {
+  .tabla-pronosticos {
+    font-size: 11px !important;
+  }
+  .tabla-pronosticos th,
+  .tabla-pronosticos td {
+    padding: 3px !important;
+    min-width: 45px !important;
+    max-width: 80px !important;
+    text-align: center !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+  }
+  .tabla-pronosticos th:nth-child(2),
+  .tabla-pronosticos td:nth-child(2) {
+    max-width: 100px !important;
+  }
+  /* Elimina margen lateral del container en móvil */
+  .container {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+}
