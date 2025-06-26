@@ -120,3 +120,44 @@ button:focus-visible {
     padding: 3px !important;
   }
 }
+
+/* --- Ultra compacto para móvil: GanadoresJornada --- */
+@media (max-width: 600px) {
+  .ganadores-jornada-tbl {
+    font-size: 0.68rem !important;
+    min-width: unset !important;
+    width: 100% !important;
+  }
+  .ganadores-jornada-tbl th,
+  .ganadores-jornada-tbl td {
+    padding: 0.15em 0.18em !important;
+    min-width: 24px !important;
+    max-width: 44px !important;
+    text-align: center !important;
+    line-height: 1.1 !important;
+    font-size: 0.73em !important;
+    word-break: break-word;
+  }
+  .ganadores-jornada-tbl th {
+    font-size: 0.73em !important;
+    padding: 0.12em 0.18em !important;
+  }
+  .ganadores-header {
+    font-size: 1em !important;
+    padding: 5px !important;
+  }
+  .ganadores-totales {
+    font-size: 0.99em !important;
+    padding: 2px !important;
+  }
+  .icon-cell {
+    font-size: 1em !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+  }
+  .table {
+    margin-bottom: 0.6rem !important;
+  }
+}

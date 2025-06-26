@@ -3,9 +3,9 @@ import React, { useEffect, useState } from "react";
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
-// Iconos
-const Xroja = () => <span className="icon-cell" style={{ color: "red", fontSize: "1.7em" }}>✖️</span>;
-const VistoVerde = () => <span className="icon-cell" style={{ color: "green", fontSize: "1.7em" }}>✅</span>;
+// Íconos:
+const Xroja = () => <span className="icon-cell" style={{ color: "red" }}>✖️</span>;
+const VistoVerde = () => <span className="icon-cell" style={{ color: "green" }}>✅</span>;
 
 export default function GanadoresJornada() {
   const [jornadas, setJornadas] = useState([]);
