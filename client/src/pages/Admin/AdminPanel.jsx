@@ -4,15 +4,17 @@ import { useNavigate } from "react-router-dom";
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
+
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [jornadas, setJornadas] = useState([]);
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState("");
   const [partidos, setPartidos] = useState([]);
-  const [jornadaCerrada, setJornadaCerrada] = useState(false); // <--- CORREGIDO
+  const [jornadaCerrada, setJornadaCerrada] = useState(false);
 
   // Obtener jornadas al montar
   useEffect(() => {
+    // Usar la variable de entorno para la URL del backend
     fetch(`${API_BASE_URL}/api/jornadas`)
       .then((res) => res.json())
       .then((data) => setJornadas(data))
@@ -28,6 +30,7 @@ export default function AdminPanel() {
 
   const fetchPartidos = async (numero) => {
     try {
+      // Usar la variable de entorno para la URL del backend
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${numero}/partidos`);
       const data = await res.json();
       const partidosConGoles = data.map(p => ({
@@ -44,14 +47,15 @@ export default function AdminPanel() {
     }
   };
 
-  // Traer info si está cerrada la jornada
+  // Nuevo: traer info si está cerrada la jornada
   const fetchJornadaInfo = async (numero) => {
     try {
+      // Usar la variable de entorno para la URL del backend
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${numero}`);
       const data = await res.json();
-      setJornadaCerrada(!!data.cerrada); // <--- CORREGIDO
+      setCerrada(!!data.cerrada); // Usando setCerrada que ya existe para el estado
     } catch (err) {
-      setJornadaCerrada(false); // <--- CORREGIDO
+      setCerrada(false);
     }
   };
 
@@ -71,6 +75,7 @@ export default function AdminPanel() {
   const guardarResultados = async () => {
     if (!jornadaSeleccionada) return;
     try {
+      // Usar la variable de entorno para la URL del backend
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/partidos`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -89,6 +94,7 @@ export default function AdminPanel() {
   const actualizarDesdeAPI = async () => {
     if (!jornadaSeleccionada) return;
     try {
+      // Usar la variable de entorno para la URL del backend
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/resultados`, {
         method: "PATCH"
       });
@@ -105,6 +111,7 @@ export default function AdminPanel() {
   const calcularPuntajes = async () => {
     if (!jornadaSeleccionada) return;
     try {
+      // Usar la variable de entorno para la URL del backend
       const res = await fetch(`${API_BASE_URL}/api/pronosticos/calcular/${jornadaSeleccionada}`, {
         method: "POST"
       });
@@ -120,11 +127,13 @@ export default function AdminPanel() {
   const actualizarResultadosYPuntajes = async () => {
     if (!jornadaSeleccionada) return;
     try {
+      // Usar la variable de entorno para la URL del backend
       const res1 = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/resultados`, {
         method: "PATCH"
       });
       const data1 = await res1.json();
 
+      // Usar la variable de entorno para la URL del backend
       const res2 = await fetch(`${API_BASE_URL}/api/pronosticos/calcular/${jornadaSeleccionada}`, {
         method: "POST"
       });
@@ -145,18 +154,20 @@ export default function AdminPanel() {
   const toggleCierreJornada = async () => {
     if (!jornadaSeleccionada) return;
     try {
+      // Buscar el ID real de la jornada según el número (ya que el endpoint PATCH requiere ID)
       const jornada = jornadas.find(j => String(j.numero) === String(jornadaSeleccionada));
       if (!jornada) {
         alert("No se encontró la jornada");
         return;
       }
+      // Usar la variable de entorno para la URL del backend
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornada.id}/cerrar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cerrada: !jornadaCerrada }) // <--- CORREGIDO
+        body: JSON.stringify({ cerrada: !jornadaCerrada })
       });
       const data = await res.json();
-      setJornadaCerrada(!!data.jornada?.cerrada); // <--- CORREGIDO
+      setCerrada(!!data.jornada?.cerrada); // Usando setCerrada que ya existe para el estado
       if (data.jornada?.cerrada) {
         alert("🔒 Jornada cerrada");
       } else {
@@ -172,6 +183,7 @@ export default function AdminPanel() {
   const actualizarGanadores = async () => {
     if (!jornadaSeleccionada) return;
     try {
+      // Usar la variable de entorno para la URL del backend
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/ganadores`, {
         method: "PATCH"
       });
@@ -186,6 +198,7 @@ export default function AdminPanel() {
       console.error(error);
     }
   };
+
 
   return (
     <div className="container mt-4">
@@ -220,10 +233,10 @@ export default function AdminPanel() {
       {jornadaSeleccionada && (
         <div className="mb-3">
           <button
-            className={`btn ${jornadaCerrada ? "btn-danger" : "btn-outline-success"}`}
+            className={`btn ${cerrada ? "btn-danger" : "btn-outline-success"}`} // Usando el estado 'cerrada'
             onClick={toggleCierreJornada}
           >
-            {jornadaCerrada ? "🔓 Abrir Jornada" : "🔒 Cerrar Jornada"}
+            {cerrada ? "🔓 Abrir Jornada" : "🔒 Cerrar Jornada"} // Usando el estado 'cerrada'
           </button>
         </div>
       )}
@@ -293,8 +306,7 @@ export default function AdminPanel() {
             <button className="btn btn-dark" onClick={actualizarGanadores}>
               🏆 Actualizar Ganadores de la Jornada
             </button>
-          </div>
-        </>
+          </div>  </>
       )}
     </div>
   );
