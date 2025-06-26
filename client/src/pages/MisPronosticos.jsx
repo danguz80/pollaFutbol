@@ -74,7 +74,7 @@ export default function MisPronosticos() {
     };
 
     return (
-        <div className="container mt-4">
+        <div className="container mt-4" style={{ padding: 0 }}>
             <h2 className="mb-4 text-center">📊 Mis Pronósticos y Puntajes</h2>
 
             <div className="mb-4 text-center">
@@ -95,13 +95,9 @@ export default function MisPronosticos() {
             </div>
 
             {/* --- WRAP de la tabla para scroll horizontal en mobile --- */}
-            <div style={{
-                overflowX: "auto",
-                WebkitOverflowScrolling: "touch"
-            }}>
-                <table className="table table-bordered table-striped mt-3 mb-0"
-                    style={tableStyle}
-                >
+            <div>
+                <table className="table table-bordered table-striped mt-3 mb-0 tabla-pronosticos">
+
                     <thead style={{ background: "#f8f9fa" }}>
                         <tr>
                             <th style={{ minWidth: 75 }}>Jor.</th>
