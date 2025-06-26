@@ -7,10 +7,10 @@ const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
 // Íconos:
 const Xroja = () => (
-  <span style={{ color: "red", fontSize: isMobile ? "1.05em" : "1.7em" }}>✖️</span>
+  <span style={{ color: "red", fontSize: isMobile ? "0.7em" : "1.7em" }}>✖️</span>
 );
 const VistoVerde = () => (
-  <span style={{ color: "green", fontSize: isMobile ? "1.05em" : "1.7em" }}>✅</span>
+  <span style={{ color: "green", fontSize: isMobile ? "0.7em" : "1.7em" }}>✅</span>
 );
 
 export default function GanadoresJornada() {
@@ -104,9 +104,9 @@ export default function GanadoresJornada() {
         <table
           className="table table-bordered text-center"
           style={{
-            minWidth: isMobile ? 400 : 900,
+            minWidth: isMobile ? 200 : 900,
             maxWidth: "100%",
-            fontSize: isMobile ? "0.86em" : "1em"
+            fontSize: isMobile ? "0.7em" : "1em"
           }}
         >
           <thead>
@@ -115,24 +115,24 @@ export default function GanadoresJornada() {
                 background: "#3ab0c8",
                 color: "#222",
                 fontWeight: "bold",
-                fontSize: isMobile ? "1em" : "1.25em"
+                fontSize: isMobile ? "0.7em" : "1.25em"
               }}
             >
-              <th style={{ padding: isMobile ? "5px" : "12px" }}>Participantes</th>
+              <th style={{ padding: isMobile ? "1px" : "12px" }}>Participantes</th>
               {jornadasConGanadores.map(j => (
-                <th key={j.numero} style={{ padding: isMobile ? "5px" : "12px" }}>{`J${j.numero}`}</th>
+                <th key={j.numero} style={{ padding: isMobile ? "1px" : "12px" }}>{`J${j.numero}`}</th>
               ))}
-              <th style={{ padding: isMobile ? "5px" : "12px" }}>Totales</th>
+              <th style={{ padding: isMobile ? "1px" : "12px" }}>Totales</th>
             </tr>
           </thead>
           <tbody>
             {jugadores.map((jugador, idx) => (
               <tr key={jugador} style={{ background: idx % 2 === 0 ? "#fff" : "#f6f6f6" }}>
-                <td style={{ fontWeight: "bold", padding: isMobile ? "6px 3px" : "9px 8px", fontSize: isMobile ? "0.93em" : undefined }}>
+                <td style={{ fontWeight: "bold", padding: isMobile ? "1px 2px" : "9px 8px", fontSize: isMobile ? "0.7em" : undefined }}>
                   {jugador}
                 </td>
                 {jornadasConGanadores.map(j =>
-                  <td key={j.numero} style={{ fontSize: isMobile ? "1em" : "1.4em", padding: isMobile ? "4px" : "8px" }}>
+                  <td key={j.numero} style={{ fontSize: isMobile ? "0.7em" : "1.4em", padding: isMobile ? "1px" : "8px" }}>
                     {ganadoresPorJornada[j.numero]?.includes(jugador) ? <VistoVerde /> : <Xroja />}
                   </td>
                 )}
@@ -140,9 +140,9 @@ export default function GanadoresJornada() {
                   fontWeight: "bold",
                   background: esLider(jugador) ? "#fc5858" : "white",
                   color: esLider(jugador) ? "white" : "black",
-                  fontSize: isMobile ? "1em" : "1.2em",
+                  fontSize: isMobile ? "0.7em" : "1.2em",
                   textAlign: "center",
-                  padding: isMobile ? "6px 3px" : "9px 8px"
+                  padding: isMobile ? "1px 2px" : "9px 8px"
                 }}>
                   {totales[jugador]}
                 </td>
