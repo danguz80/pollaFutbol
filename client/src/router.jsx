@@ -15,6 +15,7 @@ import Login from "./pages/Login";
 import UsuariosPendientes from "./pages/Admin/UsuariosPendientes";
 import RutaProtegidaAdmin from "./components/RutaProtegidaAdmin";
 import MisPronosticos from "./pages/MisPronosticos";
+import CambiarPassword from "./pages/CambiarPassword";
 
 export default function AppRouter() {
   return (
@@ -48,6 +49,7 @@ export default function AppRouter() {
         <Route path="/sudamericana" element={<Sudamericana />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/cambiar-password" element={<CambiarPassword />} />
         <Route path="/mis-pronosticos" element={<MisPronosticos />} />
         <Route path="*" element={<h1 className="text-center mt-4">404 - Página no encontrada</h1>} />
       </Routes>
