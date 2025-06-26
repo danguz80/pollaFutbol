@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-// Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
 export default function MisPronosticos() {
@@ -10,7 +9,6 @@ export default function MisPronosticos() {
     const [loading, setLoading] = useState(true);
     const [sinToken, setSinToken] = useState(false);
 
-    // Cargar jornadas disponibles (NO necesita token)
     useEffect(() => {
         fetch(`${API_BASE_URL}/api/jornadas`)
             .then(res => res.json())
@@ -20,7 +18,6 @@ export default function MisPronosticos() {
             });
     }, []);
 
-    // Cargar pronósticos propios SOLO si hay token
     useEffect(() => {
         const token = localStorage.getItem("token");
         if (!token) {
@@ -32,9 +29,8 @@ export default function MisPronosticos() {
         fetch(`${API_BASE_URL}/api/pronosticos/mis`, {
             method: "GET",
             headers: { Authorization: `Bearer ${token}` },
-            credentials: "include"  // <-- ¡AGREGA ESTO!
+            credentials: "include"
         })
-
             .then(res => res.json())
             .then(data => {
                 setPronosticos(data);
@@ -43,12 +39,11 @@ export default function MisPronosticos() {
                 setPronosticos([]);
                 setLoading(false);
             });
-    }, []); // Si quieres recargar si cambia token, pon [localStorage.getItem("token")]
+    }, []);
 
     if (loading) return <div className="text-center mt-4">Cargando...</div>;
     if (sinToken) return <div className="alert alert-warning text-center mt-4">Debes iniciar sesión para ver tus pronósticos.</div>;
 
-    // Eliminar duplicados: solo último pronóstico por partido y jornada
     const pronosticosUnicos = [];
     const seen = new Set();
     for (let i = pronosticos.length - 1; i >= 0; i--) {
@@ -60,23 +55,28 @@ export default function MisPronosticos() {
         }
     }
 
-    // Filtrar por jornada seleccionada, o mostrar todos si vacío
     const pronosticosFiltrados = jornadaSeleccionada
         ? pronosticosUnicos.filter(p => `${p.jornada}` === `${jornadaSeleccionada}`)
         : pronosticosUnicos;
 
-    // Agrupar por jornada
     const jornadasAgrupadas = {};
     pronosticosFiltrados.forEach(p => {
         if (!jornadasAgrupadas[p.jornada]) jornadasAgrupadas[p.jornada] = [];
         jornadasAgrupadas[p.jornada].push(p);
     });
 
+    // --- ESTILOS RESPONSIVOS EN LÍNEA PARA LA TABLA ---
+    const tableStyle = {
+        minWidth: "600px", // for scroll
+        fontSize: "clamp(12px, 2.5vw, 16px)",
+        textAlign: "center",
+        verticalAlign: "middle"
+    };
+
     return (
         <div className="container mt-4">
             <h2 className="mb-4 text-center">📊 Mis Pronósticos y Puntajes</h2>
 
-            {/* --- Selector de jornadas --- */}
             <div className="mb-4 text-center">
                 <label className="form-label fw-bold">Filtrar por Jornada:&nbsp;</label>
                 <select
@@ -94,65 +94,79 @@ export default function MisPronosticos() {
                 </select>
             </div>
 
-            <table className="table table-bordered table-striped mt-3">
-                <thead>
-                    <tr>
-                        <th>Jornada</th>
-                        <th>Partido</th>
-                        <th>Mi Pronóstico</th>
-                        <th>Resultado Real</th>
-                        <th>Bonus</th>
-                        <th>Puntos</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {Object.entries(jornadasAgrupadas).length === 0 ? (
+            {/* --- WRAP de la tabla para scroll horizontal en mobile --- */}
+            <div style={{
+                overflowX: "auto",
+                WebkitOverflowScrolling: "touch"
+            }}>
+                <table className="table table-bordered table-striped mt-3 mb-0"
+                    style={tableStyle}
+                >
+                    <thead style={{ background: "#f8f9fa" }}>
                         <tr>
-                            <td colSpan={6} className="text-center">No hay pronósticos para esta jornada.</td>
+                            <th style={{ minWidth: 75 }}>Jor.</th>
+                            <th style={{ minWidth: 120 }}>Partido</th>
+                            <th style={{ minWidth: 65 }}>Mi Pronóstico</th>
+                            <th style={{ minWidth: 80 }}>Real</th>
+                            <th style={{ minWidth: 55 }}>Bonus</th>
+                            <th style={{ minWidth: 55 }}>Puntos</th>
                         </tr>
-                    ) : (
-                        Object.entries(jornadasAgrupadas).map(([jornada, pronos]) => {
-                            const totalJornada = pronos.reduce((acc, cur) => acc + (cur.puntos || 0), 0);
-                            return (
-                                <React.Fragment key={jornada}>
-                                    {pronos.map((p, idx) => (
-                                        <tr key={idx}>
-                                            <td>{p.jornada}</td>
-                                            <td>{p.nombre_local} vs {p.nombre_visita}</td>
-                                            <td>
-                                                {(p.goles_local !== null && p.goles_visita !== null && p.goles_local !== undefined && p.goles_visita !== undefined)
-                                                    ? `${p.goles_local} - ${p.goles_visita}`
-                                                    : "-"}
+                    </thead>
+                    <tbody>
+                        {Object.entries(jornadasAgrupadas).length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="text-center">No hay pronósticos para esta jornada.</td>
+                            </tr>
+                        ) : (
+                            Object.entries(jornadasAgrupadas).map(([jornada, pronos]) => {
+                                const totalJornada = pronos.reduce((acc, cur) => acc + (cur.puntos || 0), 0);
+                                return (
+                                    <React.Fragment key={jornada}>
+                                        {pronos.map((p, idx) => (
+                                            <tr key={idx}>
+                                                <td>{p.jornada}</td>
+                                                <td style={{ fontSize: "0.98em" }}>
+                                                    <span className="d-block">{p.nombre_local}</span>
+                                                    <span style={{ fontWeight: 600 }}>vs</span>
+                                                    <span className="d-block">{p.nombre_visita}</span>
+                                                </td>
+                                                <td>
+                                                    {(p.goles_local !== null && p.goles_visita !== null && p.goles_local !== undefined && p.goles_visita !== undefined)
+                                                        ? `${p.goles_local} - ${p.goles_visita}`
+                                                        : "-"}
+                                                </td>
+                                                <td>
+                                                    {(p.real_local !== null && p.real_visita !== null && p.real_local !== undefined && p.real_visita !== undefined)
+                                                        ? `${p.real_local} - ${p.real_visita}`
+                                                        : "Pendiente"}
+                                                </td>
+                                                <td>
+                                                    {p.bonus !== undefined && p.bonus !== null ? `x${p.bonus}` : "x1"}
+                                                </td>
+                                                <td>{p.puntos ?? 0}</td>
+                                            </tr>
+                                        ))}
+                                        <tr
+                                            style={{
+                                                background: "#ffe680",
+                                                fontWeight: "bold",
+                                                borderTop: "3px solid #aaa"
+                                            }}
+                                        >
+                                            <td colSpan={5} className="text-end">
+                                                Total Jornada {jornada}:
                                             </td>
-                                            <td>
-                                                {(p.real_local !== null && p.real_visita !== null && p.real_local !== undefined && p.real_visita !== undefined)
-                                                    ? `${p.real_local} - ${p.real_visita}`
-                                                    : "Pendiente"}
-                                            </td>
-                                            <td>
-                                                {p.bonus !== undefined && p.bonus !== null ? `x${p.bonus}` : "x1"}
-                                            </td>
-                                            <td>{p.puntos ?? 0}</td>
+                                            <td>{totalJornada}</td>
                                         </tr>
-                                    ))}
-                                    <tr
-                                        style={{
-                                            background: "#ffe680",
-                                            fontWeight: "bold",
-                                            borderTop: "3px solid #aaa"
-                                        }}
-                                    >
-                                        <td colSpan={5} className="text-end">
-                                            Total Jornada {jornada}:
-                                        </td>
-                                        <td>{totalJornada}</td>
-                                    </tr>
-                                </React.Fragment>
-                            );
-                        })
-                    )}
-                </tbody>
-            </table>
+                                    </React.Fragment>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            {/* --- Si quieres más margen abajo en mobile --- */}
+            <div className="mb-4"></div>
         </div>
     );
 }
