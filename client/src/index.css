@@ -92,3 +92,31 @@ button:focus-visible {
     padding-right: 2px !important;
   }
 }
+
+/* Responsivo para GanadoresJornada */
+@media (max-width: 600px) {
+  .ganadores-jornada-tbl {
+    font-size: 0.81rem !important;
+  }
+  .ganadores-jornada-tbl th,
+  .ganadores-jornada-tbl td {
+    padding: 0.24em 0.28em !important;
+    min-width: 38px !important;
+    max-width: 70px !important;
+    text-align: center !important;
+  }
+  .ganadores-jornada-tbl .icon-cell {
+    font-size: 1.1em !important;
+  }
+  .ganadores-jornada-tbl th {
+    font-size: 0.95em !important;
+  }
+  .ganadores-header {
+    font-size: 1.1em !important;
+    padding: 6px !important;
+  }
+  .ganadores-totales {
+    font-size: 1em !important;
+    padding: 3px !important;
+  }
+}

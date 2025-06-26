@@ -96,7 +96,7 @@ export default function MisPronosticos() {
 
             {/* --- WRAP de la tabla para scroll horizontal en mobile --- */}
             <div>
-                <table className="table table-bordered table-striped mt-3 mb-0 tabla-pronosticos">
+                <table className="table table-bordered table-striped mt-3 mb-0 tabla-pronosticos text-center">
 
                     <thead style={{ background: "#f8f9fa" }}>
                         <tr>
