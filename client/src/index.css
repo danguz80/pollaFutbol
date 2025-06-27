@@ -24,11 +24,11 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  /* Quita display:flex y place-items:center */
 }
+
 
 h1 {
   font-size: 3.2em;
@@ -94,7 +94,7 @@ button:focus-visible {
 }
 
 /* --- Ultra compacto para móvil: GanadoresJornada --- */
-/* @media (max-width: 600px) {
+ @media (max-width: 600px) {
   .ganadores-jornada-tbl {
     font-size: 0.68rem !important;
     min-width: unset !important;
