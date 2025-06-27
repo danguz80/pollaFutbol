@@ -94,7 +94,7 @@ button:focus-visible {
 }
 
 /* --- Ultra compacto para móvil: GanadoresJornada --- */
-@media (max-width: 600px) {
+/* @media (max-width: 600px) {
   .ganadores-jornada-tbl {
     font-size: 0.68rem !important;
     min-width: unset !important;
