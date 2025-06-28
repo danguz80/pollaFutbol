@@ -1,6 +1,7 @@
 import express from "express";
 import { pool } from "../db/pool.js";
 import { importarFixtureSudamericana } from '../services/importarSudamericana.js';
+import ganadoresRouter from "./ganadores.js";
 
 const router = express.Router();
 
@@ -320,5 +321,6 @@ const actualizarGanadores = async () => {
   }
 };
 
+router.use("/ganadores", ganadoresRouter);
 
 export default router;

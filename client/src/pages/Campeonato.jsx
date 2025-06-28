@@ -59,12 +59,11 @@ export default function Campeonato() {
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
       .then(data => setRankingGeneral(data));
-    // Obtener usuarios ganadores (ganador: true)
-    fetch(`${API_BASE_URL}/api/usuarios`)
+    // Obtener resumen de títulos de ganadores
+    fetch(`${API_BASE_URL}/api/ganadores/titulos`)
       .then(res => res.json())
       .then(data => {
-        const ganadores = data.filter(j => j.ganador === true);
-        setGanadoresRanking(ganadores);
+        setGanadoresRanking(data);
         // Mapear fotos
         const map = {};
         data.forEach(j => { map[j.nombre] = j.foto_perfil; });
@@ -156,30 +155,48 @@ export default function Campeonato() {
     </div>
   );
 
-  // --- Resumen de Ganadores (solo foto, nombre y estrella) ---
+  // --- Resumen de Ganadores (foto, nombre, estrella y títulos) ---
   const resumenGanadores = (
     ganadoresRanking.length > 0 && (
       <div className="mb-4">
         <h4 className="text-center">⭐ Ganadores</h4>
         <div className="d-flex justify-content-center gap-4 flex-wrap">
           {ganadoresRanking.map(g => (
-            <div key={g.nombre} className="text-center" style={{ minWidth: 120 }}>
+            <div key={g.nombre} className="text-center" style={{ minWidth: 120, position: 'relative' }}>
               {fotoPerfilMap[g.nombre] && (
-                <img
-                  src={fotoPerfilMap[g.nombre].startsWith('/') ? fotoPerfilMap[g.nombre] : `/perfil/${fotoPerfilMap[g.nombre]}`}
-                  alt={`Foto de ${g.nombre}`}
-                  style={{
-                    width: 60,
-                    height: 60,
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <img
+                    src={fotoPerfilMap[g.nombre].startsWith('/') ? fotoPerfilMap[g.nombre] : `/perfil/${fotoPerfilMap[g.nombre]}`}
+                    alt={`Foto de ${g.nombre}`}
+                    style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid #ddd',
+                      objectPosition: 'center 30%'
+                    }}
+                  />
+                  <span style={{
+                    position: 'absolute',
+                    bottom: -8,
+                    right: -8,
+                    background: '#fff',
                     borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '2px solid #ddd',
-                    objectPosition: 'center 30%'
-                  }}
-                />
+                    border: '2px solid #f7c948',
+                    width: 32,
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
+                  }}>
+                    <span style={{ color: '#f7c948', fontSize: '1.3em', marginRight: 3 }}>★</span>
+                    <span style={{ fontWeight: 'bold', fontSize: '1.1em', color: '#333' }}>{g.titulos}</span>
+                  </span>
+                </div>
               )}
               <div style={{ fontWeight: 'bold', fontSize: '1.1em', marginTop: 6 }}>{g.nombre}</div>
-              <div><span style={{ display: 'inline-block', marginTop: 2, color: '#f7c948', fontSize: '1.5em' }}>⭐</span></div>
             </div>
           ))}
         </div>
