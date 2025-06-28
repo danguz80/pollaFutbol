@@ -218,30 +218,33 @@ export default function Clasificacion() {
             </tr>
           </thead>
           <tbody>
-            {rankingJornada.map((p, i) => (
-              <tr key={i} className="text-center">
-                <td style={getJornadaCellStyle(i)}>{i + 1}</td>
-                <td style={getJornadaCellStyle(i)}>
-                  <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <img
-                      src={p.foto_perfil ? (p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`) : '/perfil/default.jpg'}
-                      alt={`Foto de ${p.usuario}`}
-                      style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                        marginRight: "10px",
-                        border: "2px solid #ddd"
-                      }}
-                      onError={e => { e.target.onerror = null; e.target.src = '/perfil/default.jpg'; }}
-                    />
-                    {p.usuario}
-                  </span>
-                </td>
-                <td style={getJornadaCellStyle(i)}>{p.puntaje_jornada ?? 0}</td>
-              </tr>
-            ))}
+            {rankingJornada.map((p, i) => {
+              console.log('foto_perfil', p.foto_perfil, 'url final', p.foto_perfil ? (p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`) : '/perfil/default.jpg');
+              return (
+                <tr key={i} className="text-center">
+                  <td style={getJornadaCellStyle(i)}>{i + 1}</td>
+                  <td style={getJornadaCellStyle(i)}>
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <img
+                        src={p.foto_perfil ? (p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`) : '/perfil/default.jpg'}
+                        alt={`Foto de ${p.usuario}`}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          marginRight: "10px",
+                          border: "2px solid #ddd"
+                        }}
+                        onError={e => { e.target.onerror = null; e.target.src = '/perfil/default.jpg'; }}
+                      />
+                      {p.usuario}
+                    </span>
+                  </td>
+                  <td style={getJornadaCellStyle(i)}>{p.puntaje_jornada ?? 0}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         <a href="#top" className="btn btn-link">Volver arriba</a>
