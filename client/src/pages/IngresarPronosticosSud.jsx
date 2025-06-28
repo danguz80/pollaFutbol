@@ -7,7 +7,7 @@ export default function IngresarPronosticosSud() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/sudamericana/fixture`)
+    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
       .then(res => res.json())
       .then(data => {
         setFixture(data);
