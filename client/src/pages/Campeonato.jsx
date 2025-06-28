@@ -23,7 +23,7 @@ export default function Campeonato() {
     // VISITA
     return (
       <div className="container text-center mt-5">
-        <h2>🏆 Campeonato Nacional</h2>
+        <h2>🏆 Campeonato Itaú</h2>
         <p>Para participar, debes estar registrado.</p>
         <div className="d-flex justify-content-center gap-3">
           <button className="btn btn-primary" onClick={() => navigate("/register")}>
@@ -37,21 +37,34 @@ export default function Campeonato() {
     );
   }
 
+  // Submenú para todos los usuarios logueados
+  const subMenu = (
+    <div className="d-flex flex-wrap gap-2 justify-content-center my-4">
+      <button className="btn btn-info" onClick={() => navigate("/clasificacion")}>
+        Clasificación
+      </button>
+      <button className="btn btn-success" onClick={() => navigate("/jornada/1")}>
+        Ingresar Pronósticos
+      </button>
+      <button className="btn btn-primary" onClick={() => navigate("/mis-pronosticos")}>
+        Mis Pronósticos
+      </button>
+      <button className="btn btn-warning" onClick={() => navigate("/cuadro-final")}>
+        Cuadro Final
+      </button>
+      <button className="btn btn-danger" onClick={() => navigate("/ganadores-jornada")}>
+        Ganadores
+      </button>
+    </div>
+  );
+
   if (usuario.rol === "jugador") {
     // JUGADOR
     return (
       <div className="container mt-5">
         <h2>🎮 Bienvenido, {usuario.nombre}</h2>
         <p>Aquí puedes ingresar tus pronósticos y ver tus resultados.</p>
-        {/* Agrega navegación a jornadas, tabla, etc. */}
-        <div className="d-flex flex-column gap-2 mt-3">
-          <button className="btn btn-success" onClick={() => navigate("/jornada/1")}>
-            Ver Jornada Actual
-          </button>
-          <button className="btn btn-info" onClick={() => navigate("/clasificacion")}>
-            Ver Clasificación General
-          </button>
-        </div>
+        {subMenu}
       </div>
     );
   }
@@ -62,12 +75,10 @@ export default function Campeonato() {
       <div className="container mt-5">
         <h2>👑 Panel de Administrador</h2>
         <p>Accede a herramientas administrativas del campeonato.</p>
+        {subMenu}
         <div className="d-flex flex-column gap-2 mt-3">
           <button className="btn btn-warning" onClick={() => navigate("/admin")}>
             Panel Admin
-          </button>
-          <button className="btn btn-info" onClick={() => navigate("/clasificacion")}>
-            Ver Clasificación
           </button>
         </div>
       </div>

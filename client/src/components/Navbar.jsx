@@ -17,26 +17,11 @@ export default function NavigationBar() {
   return (
     <Navbar bg="dark" variant="dark" expand="lg">
       <Container>
-        <Navbar.Brand as={Link} to="/">Campeonato Itaú</Navbar.Brand>
+        <Navbar.Brand as={Link} to="/">Home - Bienvenido a Polla de Torneos</Navbar.Brand>
         <Navbar.Toggle aria-controls="main-navbar" />
         <Navbar.Collapse id="main-navbar">
           <Nav className="me-auto">
             <Nav.Link as={NavLink} to="/">Inicio</Nav.Link>
-            <Nav.Link as={NavLink} to="/clasificacion">Clasificación</Nav.Link>
-
-            {rol === "jugador" && (
-              <>
-                <Nav.Link as={NavLink} to="/jornada/1">Ingresar Pronósticos</Nav.Link>
-                <Nav.Link as={NavLink} to="/mis-pronosticos">Mis Pronósticos</Nav.Link>
-              </>
-            )}
-
-            {rol === "admin" && (
-              <Nav.Link as={NavLink} to="/admin">Panel Admin</Nav.Link>
-            )}
-
-            <Nav.Link as={NavLink} to="/cuadro-final">Cuadro Final</Nav.Link>
-            <Nav.Link as={NavLink} to="/ganadores-jornada">Ganadores</Nav.Link>
           </Nav>
 
           <Nav>
