@@ -1,31 +1,25 @@
 import { useState } from "react";
 
 export default function ConfigurarCuentaRegresiva({ onConfigurar, loading }) {
-  const [dias, setDias] = useState(0);
-  const [horas, setHoras] = useState(0);
-  const [minutos, setMinutos] = useState(0);
-  const [segundos, setSegundos] = useState(0);
+  const [fecha, setFecha] = useState("");
+  const [hora, setHora] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onConfigurar({ dias, horas, minutos, segundos });
+    if (!fecha || !hora) return;
+    const fechaHora = new Date(`${fecha}T${hora}:00`);
+    onConfigurar({ fechaHora });
   };
 
   return (
     <form className="mb-4" onSubmit={handleSubmit} style={{ maxWidth: 400, margin: "0 auto" }}>
-      <h5 className="mb-3">Configurar cuenta regresiva para cierre de jornada</h5>
+      <h5 className="mb-3">Configurar fecha y hora de cierre de jornada</h5>
       <div className="row g-2 mb-2">
-        <div className="col">
-          <input type="number" className="form-control" min="0" value={dias} onChange={e => setDias(Number(e.target.value))} placeholder="Días" />
+        <div className="col-6">
+          <input type="date" className="form-control" value={fecha} onChange={e => setFecha(e.target.value)} required />
         </div>
-        <div className="col">
-          <input type="number" className="form-control" min="0" max="23" value={horas} onChange={e => setHoras(Number(e.target.value))} placeholder="Horas" />
-        </div>
-        <div className="col">
-          <input type="number" className="form-control" min="0" max="59" value={minutos} onChange={e => setMinutos(Number(e.target.value))} placeholder="Minutos" />
-        </div>
-        <div className="col">
-          <input type="number" className="form-control" min="0" max="59" value={segundos} onChange={e => setSegundos(Number(e.target.value))} placeholder="Segundos" />
+        <div className="col-6">
+          <input type="time" className="form-control" value={hora} onChange={e => setHora(e.target.value)} required />
         </div>
       </div>
       <button className="btn btn-primary w-100" type="submit" disabled={loading}>

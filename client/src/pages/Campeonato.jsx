@@ -51,16 +51,9 @@ export default function Campeonato() {
   }, [reload]);
 
   // Handler para configurar cuenta regresiva
-  const handleConfigurarCuenta = async ({ dias, horas, minutos, segundos }) => {
+  const handleConfigurarCuenta = async ({ fechaHora }) => {
     setLoadingConfig(true);
-    const ahora = new Date();
-    const fechaCierre = new Date(ahora.getTime() +
-      dias * 24 * 60 * 60 * 1000 +
-      horas * 60 * 60 * 1000 +
-      minutos * 60 * 1000 +
-      segundos * 1000
-    );
-    const fechaISO = fechaCierre.toISOString();
+    const fechaISO = fechaHora.toISOString();
     await fetch(`${API_BASE_URL}/api/jornadas/proxima/fecha-cierre`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
