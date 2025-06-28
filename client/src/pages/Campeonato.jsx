@@ -174,31 +174,35 @@ export default function Campeonato() {
     </div>
   );
 
-  // --- Resumen de Ganadores de Jornadas ---
+  // --- Resumen de Ganadores de Jornadas (solo los que tienen más de 1) ---
   const resumenGanadores = (
     <div className="mb-4">
       <h4 className="text-center">⭐ Ranking de Ganadores de Jornadas</h4>
       <div className="d-flex justify-content-center gap-4 flex-wrap">
-        {ganadoresRanking.map(g => (
-          <div key={g.nombre} className="text-center" style={{ minWidth: 120 }}>
-            {fotoPerfilMap[g.nombre] && (
-              <img
-                src={fotoPerfilMap[g.nombre].startsWith('/') ? fotoPerfilMap[g.nombre] : `/perfil/${fotoPerfilMap[g.nombre]}`}
-                alt={`Foto de ${g.nombre}`}
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2px solid #ddd',
-                  objectPosition: 'center 30%'
-                }}
-              />
-            )}
-            <div style={{ fontWeight: 'bold', fontSize: '1.1em', marginTop: 6 }}>{g.nombre}</div>
-            <div><span style={{ display: 'inline-block', marginTop: 2 }}><StarWithNumber number={g.total} /></span></div>
-          </div>
-        ))}
+        {ganadoresRanking.filter(g => g.total > 1).length === 0 ? (
+          <div className="text-center text-muted">Aún no hay jugadores con más de una jornada ganada.</div>
+        ) : (
+          ganadoresRanking.filter(g => g.total > 1).map(g => (
+            <div key={g.nombre} className="text-center" style={{ minWidth: 120 }}>
+              {fotoPerfilMap[g.nombre] && (
+                <img
+                  src={fotoPerfilMap[g.nombre].startsWith('/') ? fotoPerfilMap[g.nombre] : `/perfil/${fotoPerfilMap[g.nombre]}`}
+                  alt={`Foto de ${g.nombre}`}
+                  style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #ddd',
+                    objectPosition: 'center 30%'
+                  }}
+                />
+              )}
+              <div style={{ fontWeight: 'bold', fontSize: '1.1em', marginTop: 6 }}>{g.nombre}</div>
+              <div><span style={{ display: 'inline-block', marginTop: 2 }}><StarWithNumber number={g.total} /></span></div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -210,7 +214,6 @@ export default function Campeonato() {
         {subMenu}
         {ultimoGanador && (
           <div className="alert alert-success text-center mb-4" style={{ fontWeight: 'bold', fontSize: '1.1em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-            {/* Mostrar todas las fotos de los ganadores en una sola alerta */}
             {ultimoGanador.filter((nombre, idx, arr) => arr.indexOf(nombre) === idx).map(nombre => (
               fotoPerfilMap[nombre] && (
                 <img
@@ -221,14 +224,16 @@ export default function Campeonato() {
                 />
               )
             ))}
-            {/* Mostrar los nombres juntos */}
             <span>
               Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.filter((nombre, idx, arr) => arr.indexOf(nombre) === idx).join(', ')} en la Jornada {ultimaJornada}
             </span>
           </div>
         )}
+        {/* Top 3 Ranking General */}
         {resumenRanking}
+        {/* Ganadores con más de 1 jornada ganada */}
         {resumenGanadores}
+        {/* Cuenta regresiva global */}
         <CuentaRegresivaGlobal />
       </div>
     );
@@ -254,7 +259,9 @@ export default function Campeonato() {
             Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.join(', ')} en la Jornada {ultimaJornada}
           </div>
         )}
+        {/* Top 3 Ranking General */}
         {resumenRanking}
+        {/* Ganadores con más de 1 jornada ganada */}
         {resumenGanadores}
         {proximaJornada && proximaJornada.fecha_cierre && (
           <CuentaRegresiva
