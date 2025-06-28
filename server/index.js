@@ -11,6 +11,7 @@ import importarJornadasRoutes from "./routes/importarJornadas.js";
 import asignarJornadas240 from "./routes/asignarJornadas240.js";
 import usuariosRoutes from "./routes/usuarios.js";
 import adminRoutes from "./routes/admin.js";
+import ganadoresRouter from "./routes/ganadores.js";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use("/api/admin", importarJornadasRoutes);
 app.use("/api/admin", asignarJornadas240);
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/ganadores", ganadoresRouter);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");

@@ -56,18 +56,29 @@ export default function Campeonato() {
 
   // Ranking general y fotos
   useEffect(() => {
+    // Ranking general
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
-      .then(data => setRankingGeneral(data));
-    // Obtener resumen de títulos de ganadores
+      .then(data => {
+        setRankingGeneral(data);
+        // Mapear fotos de ranking general
+        setFotoPerfilMap(prev => {
+          const map = { ...prev };
+          data.forEach(u => { map[u.usuario] = u.foto_perfil; });
+          return map;
+        });
+      });
+    // Resumen de títulos de ganadores
     fetch(`${API_BASE_URL}/api/ganadores/titulos`)
       .then(res => res.json())
       .then(data => {
         setGanadoresRanking(data);
-        // Mapear fotos
-        const map = {};
-        data.forEach(j => { map[j.nombre] = j.foto_perfil; });
-        setFotoPerfilMap(map);
+        // Mapear fotos de ganadores (por si hay alguno que no está en ranking)
+        setFotoPerfilMap(prev => {
+          const map = { ...prev };
+          data.forEach(j => { map[j.nombre] = j.foto_perfil; });
+          return map;
+        });
       });
   }, []);
 
