@@ -206,8 +206,6 @@ export default function Clasificacion() {
         </div>
       )}
 
-// ...código existente...
-
       {/* 2. Ranking por jornada */}
       <div id="ranking-jornada" className="mt-5">
         <h4 className="text-center">🏆 Ranking Jornada {jornadaActual}</h4>
@@ -225,20 +223,19 @@ export default function Clasificacion() {
                 <td style={getJornadaCellStyle(i)}>{i + 1}</td>
                 <td style={getJornadaCellStyle(i)}>
                   <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {p.foto_perfil && (
-                      <img
-                        src={p.foto_perfil}
-                        alt={`Foto de ${p.usuario}`}
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "50%",
-                          objectFit: "cover",
-                          marginRight: "10px",
-                          border: "2px solid #ddd"
-                        }}
-                      />
-                    )}
+                    <img
+                      src={p.foto_perfil ? (p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`) : '/perfil/default.jpg'}
+                      alt={`Foto de ${p.usuario}`}
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        marginRight: "10px",
+                        border: "2px solid #ddd"
+                      }}
+                      onError={e => { e.target.onerror = null; e.target.src = '/perfil/default.jpg'; }}
+                    />
                     {p.usuario}
                   </span>
                 </td>
@@ -267,20 +264,19 @@ export default function Clasificacion() {
                 <td style={getAcumuladoCellStyle(i)}>{i + 1}</td>
                 <td style={getAcumuladoCellStyle(i)}>
                   <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {p.foto_perfil && (
-                      <img
-                        src={p.foto_perfil}
-                        alt={`Foto de ${p.usuario}`}
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "50%",
-                          objectFit: "cover",
-                          marginRight: "10px",
-                          border: "2px solid #ddd"
-                        }}
-                      />
-                    )}
+                    <img
+                      src={p.foto_perfil ? (p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`) : '/perfil/default.jpg'}
+                      alt={`Foto de ${p.usuario}`}
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        marginRight: "10px",
+                        border: "2px solid #ddd"
+                      }}
+                      onError={e => { e.target.onerror = null; e.target.src = '/perfil/default.jpg'; }}
+                    />
                     {p.usuario}
                   </span>
                 </td>
