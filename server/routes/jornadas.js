@@ -252,6 +252,16 @@ router.post('/sudamericana/importar-fixture', async (req, res) => {
   }
 });
 
+// GET /api/sudamericana/fixture
+router.get('/sudamericana/fixture', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, ronda FROM sudamericana_fixtures ORDER BY fecha ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener el fixture' });
+  }
+});
+
 // PATCH para actualizar ganadores de la jornada seleccionada
 const actualizarGanadores = async () => {
   if (!jornadaSeleccionada) return;
