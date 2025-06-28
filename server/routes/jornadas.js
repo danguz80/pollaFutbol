@@ -246,7 +246,7 @@ router.patch("/:numero/ganadores", async (req, res) => {
 router.post('/sudamericana/importar-fixture', async (req, res) => {
   const result = await importarFixtureSudamericana();
   if (result.ok) {
-    res.json({ ok: true, total: result.total });
+    res.json({ ok: true, total: result.total, insertados: result.insertados, detalles: result.detalles });
   } else {
     res.status(500).json({ ok: false, error: result.error });
   }

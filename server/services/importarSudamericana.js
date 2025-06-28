@@ -15,9 +15,10 @@ export async function importarFixtureSudamericana() {
     const response = await fetch(url, options);
     const data = await response.json();
     if (!data.response) throw new Error('No se recibieron partidos');
+    let insertados = 0;
+    const detalles = [];
     for (const fixture of data.response) {
-      // Ajusta los campos según tu modelo de tabla partidos/fixtures
-      await pool.query(
+      const res = await pool.query(
         `INSERT INTO sudamericana_fixtures (fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, status, ronda)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (fixture_id) DO NOTHING`,
@@ -32,8 +33,16 @@ export async function importarFixtureSudamericana() {
           fixture.league.round
         ]
       );
+      if (res.rowCount > 0) insertados++;
+      detalles.push({
+        fixture_id: fixture.fixture.id,
+        fecha: fixture.fixture.date,
+        local: fixture.teams.home.name,
+        visita: fixture.teams.away.name,
+        ronda: fixture.league.round
+      });
     }
-    return { ok: true, total: data.response.length };
+    return { ok: true, total: data.response.length, insertados, detalles };
   } catch (error) {
     console.error(error);
     return { ok: false, error: error.message };
