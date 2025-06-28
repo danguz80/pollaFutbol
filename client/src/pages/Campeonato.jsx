@@ -210,7 +210,8 @@ export default function Campeonato() {
         {subMenu}
         {ultimoGanador && (
           <div className="alert alert-success text-center mb-4" style={{ fontWeight: 'bold', fontSize: '1.1em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-            {ultimoGanador.map(nombre => (
+            {/* Mostrar todas las fotos de los ganadores en una sola alerta */}
+            {ultimoGanador.filter((nombre, idx, arr) => arr.indexOf(nombre) === idx).map(nombre => (
               fotoPerfilMap[nombre] && (
                 <img
                   key={nombre}
@@ -220,7 +221,10 @@ export default function Campeonato() {
                 />
               )
             ))}
-            Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.join(', ')} en la Jornada {ultimaJornada}
+            {/* Mostrar los nombres juntos */}
+            <span>
+              Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.filter((nombre, idx, arr) => arr.indexOf(nombre) === idx).join(', ')} en la Jornada {ultimaJornada}
+            </span>
           </div>
         )}
         {resumenRanking}
