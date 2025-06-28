@@ -59,7 +59,7 @@ router.get("/proxima-abierta", async (req, res) => {
 });
 
 // 🔹 Obtener una jornada específica con su estado (cerrada)
-router.get(":/numero", async (req, res) => {
+router.get("/:numero", async (req, res) => {
   const { numero } = req.params;
   try {
     const result = await pool.query(
