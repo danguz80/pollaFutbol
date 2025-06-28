@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import FireworksEffect from "../components/FireworksEffect";
 
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
@@ -10,6 +11,8 @@ export default function Clasificacion() {
   const [rankingJornada, setRankingJornada] = useState([]);
   const [rankingAcumulado, setRankingAcumulado] = useState([]);
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
+  const [ganadoresJornada, setGanadoresJornada] = useState([]);
+  const [showFireworks, setShowFireworks] = useState(false);
 
   // Cargar jornadas y definir por defecto la última
   useEffect(() => {
@@ -48,6 +51,24 @@ export default function Clasificacion() {
       .then(res => res.json())
       .then(setRankingAcumulado);
   }, [jornadaActual, jornadaCerrada]);
+
+  // Obtener ganadores de la jornada seleccionada si está cerrada y hay puntajes
+  useEffect(() => {
+    if (!jornadaActual || !jornadaCerrada) {
+      setGanadoresJornada([]);
+      setShowFireworks(false);
+      return;
+    }
+    // Buscar la jornada seleccionada en el array de jornadas
+    const jornadaSel = jornadas.find(j => String(j.numero) === String(jornadaActual));
+    if (jornadaSel && Array.isArray(jornadaSel.ganadores) && jornadaSel.ganadores.length > 0) {
+      setGanadoresJornada(jornadaSel.ganadores);
+      setShowFireworks(true);
+    } else {
+      setGanadoresJornada([]);
+      setShowFireworks(false);
+    }
+  }, [jornadaActual, jornadaCerrada, jornadas]);
 
   // Estilos de ranking
   function getJornadaCellStyle(i) {
@@ -192,6 +213,16 @@ export default function Clasificacion() {
         </table>
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
+
+      {/* Ganador de la jornada */}
+      {jornadaCerrada && ganadoresJornada.length > 0 && (
+        <div className="ganador-jornada-container" style={{ position: 'relative', margin: '2rem 0' }}>
+          <h3 className="text-center" style={{ color: '#e67e22', fontWeight: 'bold' }}>
+            Ganador{ganadoresJornada.length > 1 ? 'es' : ''} de la Jornada {jornadaActual}: {ganadoresJornada.join(', ')} ¡Felicitaciones!
+          </h3>
+          {showFireworks && <FireworksEffect />}
+        </div>
+      )}
 
       {/* 3. Ranking acumulado */}
       <div id="ranking-acumulado" className="mt-5">
