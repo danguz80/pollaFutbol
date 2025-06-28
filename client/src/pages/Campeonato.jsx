@@ -179,10 +179,10 @@ export default function Campeonato() {
     <div className="mb-4">
       <h4 className="text-center">⭐ Ranking de Ganadores de Jornadas</h4>
       <div className="d-flex justify-content-center gap-4 flex-wrap">
-        {ganadoresRanking.filter(g => g.total > 1).length === 0 ? (
+        {ganadoresRanking.filter(g => g.total >= 1).length === 0 ? (
           <div className="text-center text-muted">Aún no hay jugadores con más de una jornada ganada.</div>
         ) : (
-          ganadoresRanking.filter(g => g.total > 1).map(g => (
+          ganadoresRanking.filter(g => g.total >= 1).map(g => (
             <div key={g.nombre} className="text-center" style={{ minWidth: 120 }}>
               {fotoPerfilMap[g.nombre] && (
                 <img
