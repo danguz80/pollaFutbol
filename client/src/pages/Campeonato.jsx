@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ConfigurarCuentaRegresiva from "../components/ConfigurarCuentaRegresiva";
+import CuentaRegresiva from "../components/CuentaRegresiva";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
@@ -8,6 +10,9 @@ export default function Campeonato() {
   const [usuario, setUsuario] = useState(null);
   const [ultimoGanador, setUltimoGanador] = useState(null);
   const [ultimaJornada, setUltimaJornada] = useState(null);
+  const [proximaJornada, setProximaJornada] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     // Intentar obtener el usuario desde localStorage
@@ -36,6 +41,45 @@ export default function Campeonato() {
         }
       });
   }, []);
+
+  // Obtener próxima jornada abierta
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/jornadas/proxima-abierta`)
+      .then(res => res.json())
+      .then(setProximaJornada)
+      .catch(() => setProximaJornada(null));
+  }, [reload]);
+
+  // Handler para configurar cuenta regresiva
+  const handleConfigurarCuenta = async ({ dias, horas, minutos, segundos }) => {
+    setLoadingConfig(true);
+    const ahora = new Date();
+    const fechaCierre = new Date(ahora.getTime() +
+      dias * 24 * 60 * 60 * 1000 +
+      horas * 60 * 60 * 1000 +
+      minutos * 60 * 1000 +
+      segundos * 1000
+    );
+    const fechaISO = fechaCierre.toISOString();
+    await fetch(`${API_BASE_URL}/api/jornadas/proxima/fecha-cierre`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fecha_cierre: fechaISO })
+    });
+    setLoadingConfig(false);
+    setReload(r => r + 1);
+  };
+
+  // Handler para cerrar jornada automáticamente
+  const cerrarJornada = async () => {
+    if (!proximaJornada) return;
+    await fetch(`${API_BASE_URL}/api/jornadas/${proximaJornada.id}/cerrar`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cerrada: true })
+    });
+    setReload(r => r + 1);
+  };
 
   if (!usuario) {
     // VISITA
@@ -99,10 +143,16 @@ export default function Campeonato() {
         <h2>👑 Panel de Administrador</h2>
         <p>Accede a herramientas administrativas del campeonato.</p>
         {subMenu}
+        {proximaJornada && proximaJornada.fecha_cierre && (
+          <CuentaRegresiva
+            fechaCierre={proximaJornada.fecha_cierre}
+            numeroJornada={proximaJornada.numero}
+            onCero={cerrarJornada}
+          />
+        )}
+        <ConfigurarCuentaRegresiva onConfigurar={handleConfigurarCuenta} loading={loadingConfig} />
         <div className="d-flex flex-column gap-2 mt-3">
-          <button className="btn btn-warning" onClick={() => navigate("/admin")}>
-            Panel Admin
-          </button>
+          <button className="btn btn-warning" onClick={() => navigate("/admin")}>Panel Admin</button>
         </div>
       </div>
     );

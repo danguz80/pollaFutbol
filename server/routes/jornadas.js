@@ -218,5 +218,47 @@ const actualizarGanadores = async () => {
   }
 };
 
+// PATCH /api/jornadas/proxima/fecha-cierre
+router.patch("/proxima/fecha-cierre", async (req, res) => {
+  const { fecha_cierre } = req.body;
+  if (!fecha_cierre) {
+    return res.status(400).json({ error: "Se requiere fecha_cierre" });
+  }
+  try {
+    // Busca la próxima jornada abierta (no cerrada, menor número)
+    const result = await pool.query(
+      "SELECT id FROM jornadas WHERE cerrada = false ORDER BY numero ASC LIMIT 1"
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "No hay jornadas abiertas" });
+    }
+    const jornadaId = result.rows[0].id;
+    await pool.query(
+      "UPDATE jornadas SET fecha_cierre = $1 WHERE id = $2",
+      [fecha_cierre, jornadaId]
+    );
+    res.json({ ok: true, message: "Fecha de cierre actualizada", jornadaId });
+  } catch (err) {
+    console.error("Error al actualizar fecha de cierre:", err);
+    res.status(500).json({ error: "Error al actualizar fecha de cierre" });
+  }
+});
+
+// GET /api/jornadas/proxima-abierta
+router.get("/proxima-abierta", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, numero, fecha_cierre FROM jornadas WHERE cerrada = false ORDER BY numero ASC LIMIT 1"
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "No hay jornadas abiertas" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error al obtener próxima jornada abierta:", err);
+    res.status(500).json({ error: "Error al obtener próxima jornada abierta" });
+  }
+});
+
 
 export default router;
