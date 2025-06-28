@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import AccesosDirectos from "../components/AccesosDirectos";
 
 const isMobile = window.innerWidth <= 480;
 
@@ -87,6 +88,7 @@ export default function GanadoresJornada() {
 
   return (
     <div className="container mt-4">
+      <AccesosDirectos />
       <h2
         className="text-center ganadores-header"
         style={{

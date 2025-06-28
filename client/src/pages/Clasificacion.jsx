@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import FireworksEffect from "../components/FireworksEffect";
+import AccesosDirectos from "../components/AccesosDirectos";
 
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
@@ -142,6 +143,9 @@ export default function Clasificacion() {
     <div id="top" className="container mt-4">
       <h2 className="text-center">🎖️ Clasificación</h2>
 
+      {/* Menú de accesos directos */}
+      <AccesosDirectos />
+
       {/* --- SELECTOR DE JORNADA --- */}
       <div className="mb-4 text-center">
         <label className="form-label fw-bold">Selecciona Jornada:</label>
@@ -156,13 +160,6 @@ export default function Clasificacion() {
             <option key={j.numero} value={j.numero}>Jornada {j.numero}</option>
           ))}
         </select>
-      </div>
-
-      {/* Menú de accesos directos */}
-      <div className="mb-3 d-flex flex-wrap gap-2 justify-content-center">
-        <a href="#detalle-jornada" className="btn btn-outline-primary btn-sm">Detalle de Pronósticos</a>
-        <a href="#ranking-jornada" className="btn btn-outline-primary btn-sm">Ranking Jornada</a>
-        <a href="#ranking-acumulado" className="btn btn-outline-primary btn-sm">Ranking Acumulado</a>
       </div>
 
       {/* 1. Detalle de pronósticos por jugador */}
@@ -190,6 +187,16 @@ export default function Clasificacion() {
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
 
+      {/* Ganador de la jornada */}
+      {jornadaCerrada && ganadoresJornada.length > 0 && (
+        <div className="ganador-jornada-container" style={{ position: 'relative', margin: '2rem 0' }}>
+          <h3 className="text-center" style={{ color: '#e67e22', fontWeight: 'bold', position: 'relative', zIndex: 2 }}>
+            Ganador{ganadoresJornada.length > 1 ? 'es' : ''} de la Jornada {jornadaActual}: {ganadoresJornada.join(', ')} ¡Felicitaciones!
+          </h3>
+          {showFireworks && <FireworksEffect targetSelector=".ganador-jornada-container" />}
+        </div>
+      )}
+
       {/* 2. Ranking por jornada */}
       <div id="ranking-jornada" className="mt-5">
         <h4 className="text-center">🏆 Ranking Jornada {jornadaActual}</h4>
@@ -213,16 +220,6 @@ export default function Clasificacion() {
         </table>
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
-
-      {/* Ganador de la jornada */}
-      {jornadaCerrada && ganadoresJornada.length > 0 && (
-        <div className="ganador-jornada-container" style={{ position: 'relative', margin: '2rem 0' }}>
-          <h3 className="text-center" style={{ color: '#e67e22', fontWeight: 'bold' }}>
-            Ganador{ganadoresJornada.length > 1 ? 'es' : ''} de la Jornada {jornadaActual}: {ganadoresJornada.join(', ')} ¡Felicitaciones!
-          </h3>
-          {showFireworks && <FireworksEffect />}
-        </div>
-      )}
 
       {/* 3. Ranking acumulado */}
       <div id="ranking-acumulado" className="mt-5">

@@ -1,19 +1,35 @@
 import { useEffect } from "react";
 
-export default function FireworksEffect() {
+export default function FireworksEffect({ targetSelector }) {
   useEffect(() => {
-    // Simple efecto de fuegos artificiales usando canvas
+    let target = null;
+    let rect = null;
+    if (targetSelector) {
+      target = document.querySelector(targetSelector);
+      rect = target?.getBoundingClientRect();
+    }
     const canvas = document.createElement("canvas");
-    canvas.style.position = "fixed";
-    canvas.style.left = 0;
-    canvas.style.top = 0;
-    canvas.style.width = "100vw";
-    canvas.style.height = "100vh";
-    canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = 9999;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    document.body.appendChild(canvas);
+    if (rect) {
+      canvas.style.position = "absolute";
+      canvas.style.left = 0;
+      canvas.style.top = 0;
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      canvas.style.pointerEvents = "none";
+      canvas.style.zIndex = 10;
+      target.appendChild(canvas);
+    } else {
+      canvas.style.position = "fixed";
+      canvas.style.left = 0;
+      canvas.style.top = 0;
+      canvas.style.width = "100vw";
+      canvas.style.height = "100vh";
+      canvas.style.pointerEvents = "none";
+      canvas.style.zIndex = 9999;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      document.body.appendChild(canvas);
+    }
     const ctx = canvas.getContext("2d");
     let running = true;
 
@@ -54,8 +70,12 @@ export default function FireworksEffect() {
     animate();
     return () => {
       running = false;
-      document.body.removeChild(canvas);
+      if (rect && target) {
+        target.removeChild(canvas);
+      } else {
+        document.body.removeChild(canvas);
+      }
     };
-  }, []);
+  }, [targetSelector]);
   return null;
 }
