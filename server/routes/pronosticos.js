@@ -244,13 +244,14 @@ router.get("/ranking/jornada/:jornada", async (req, res) => {
       `SELECT 
         u.id as usuario_id,
         u.nombre as usuario,
+        u.foto_perfil,
         SUM(p.puntos) as puntaje_jornada
       FROM usuarios u
       JOIN pronosticos p ON p.usuario_id = u.id
       JOIN partidos pa ON p.partido_id = pa.id
       JOIN jornadas j ON pa.jornada_id = j.id
       WHERE j.numero = $1
-      GROUP BY u.id, u.nombre
+      GROUP BY u.id, u.nombre, u.foto_perfil
       ORDER BY puntaje_jornada DESC, usuario ASC`,
       [jornada]
     );
@@ -267,10 +268,11 @@ router.get("/ranking/general", async (req, res) => {
       `SELECT 
         u.id as usuario_id,
         u.nombre as usuario,
+        u.foto_perfil,
         COALESCE(SUM(p.puntos),0) as puntaje_total
       FROM usuarios u
       LEFT JOIN pronosticos p ON p.usuario_id = u.id
-      GROUP BY u.id, u.nombre
+      GROUP BY u.id, u.nombre, u.foto_perfil
       ORDER BY puntaje_total DESC, usuario ASC`
     );
     res.json(result.rows);
