@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import ConfigurarCuentaRegresiva from "../components/ConfigurarCuentaRegresiva";
 import CuentaRegresiva from "../components/CuentaRegresiva";
 import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
-import StarWithNumber from "./GanadoresJornada";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
@@ -174,39 +173,6 @@ export default function Campeonato() {
     </div>
   );
 
-  // --- Resumen de Ganadores de Jornadas (solo los que tienen más de 1) ---
-  const resumenGanadores = (
-    <div className="mb-4">
-      <h4 className="text-center">⭐ Ranking de Ganadores de Jornadas</h4>
-      <div className="d-flex justify-content-center gap-4 flex-wrap">
-        {ganadoresRanking.filter(g => g.total >= 1).length === 0 ? (
-          <div className="text-center text-muted">Aún no hay jugadores con más de una jornada ganada.</div>
-        ) : (
-          ganadoresRanking.filter(g => g.total >= 1).map(g => (
-            <div key={g.nombre} className="text-center" style={{ minWidth: 120 }}>
-              {fotoPerfilMap[g.nombre] && (
-                <img
-                  src={fotoPerfilMap[g.nombre].startsWith('/') ? fotoPerfilMap[g.nombre] : `/perfil/${fotoPerfilMap[g.nombre]}`}
-                  alt={`Foto de ${g.nombre}`}
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '2px solid #ddd',
-                    objectPosition: 'center 30%'
-                  }}
-                />
-              )}
-              <div style={{ fontWeight: 'bold', fontSize: '1.1em', marginTop: 6 }}>{g.nombre}</div>
-              <div><span style={{ display: 'inline-block', marginTop: 2 }}><StarWithNumber number={g.total} /></span></div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-
   if (usuario.rol === "jugador") {
     // JUGADOR
     return (
@@ -231,8 +197,6 @@ export default function Campeonato() {
         )}
         {/* Top 3 Ranking General */}
         {resumenRanking}
-        {/* Ganadores con más de 1 jornada ganada */}
-        {resumenGanadores}
         {/* Cuenta regresiva global */}
         <CuentaRegresivaGlobal />
       </div>
@@ -261,8 +225,6 @@ export default function Campeonato() {
         )}
         {/* Top 3 Ranking General */}
         {resumenRanking}
-        {/* Ganadores con más de 1 jornada ganada */}
-        {resumenGanadores}
         {proximaJornada && proximaJornada.fecha_cierre && (
           <CuentaRegresiva
             fechaCierre={proximaJornada.fecha_cierre}
