@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import JornadaSelector from "../components/JornadaSelector";
 import AccesosDirectos from "../components/AccesosDirectos";
+import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
@@ -150,6 +151,7 @@ export default function Jornada() {
     <div className="container mt-4">
       <h2>📅 Ingresar Pronósticos</h2>
       <AccesosDirectos />
+      <CuentaRegresivaGlobal />
       <JornadaSelector
         jornadas={jornadas}
         onSelect={setJornadaSeleccionada}

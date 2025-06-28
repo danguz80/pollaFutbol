@@ -1,4 +1,5 @@
 import AccesosDirectos from "../components/AccesosDirectos";
+import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 export default function CuadroFinal() {
   const predicciones = [
@@ -23,6 +24,7 @@ export default function CuadroFinal() {
   return (
     <div className="container mt-4">
       <AccesosDirectos />
+      <CuentaRegresivaGlobal />
       <h2>🏆 Predicciones Finales</h2>
       <div className="table-responsive mt-3">
         <table className="table table-bordered align-middle text-center">

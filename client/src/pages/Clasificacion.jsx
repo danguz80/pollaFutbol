@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import FireworksEffect from "../components/FireworksEffect";
 import AccesosDirectos from "../components/AccesosDirectos";
+import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
@@ -145,6 +146,7 @@ export default function Clasificacion() {
 
       {/* Menú de accesos directos */}
       <AccesosDirectos />
+      <CuentaRegresivaGlobal />
 
       {/* Menú de accesos directos internos de la página */}
       <div className="mb-3 d-flex flex-wrap gap-2 justify-content-center">

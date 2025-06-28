@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import AccesosDirectos from "../components/AccesosDirectos";
+import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
@@ -79,6 +80,7 @@ export default function MisPronosticos() {
             <h2 className="mb-4 text-center">📊 Mis Pronósticos y Puntajes</h2>
 
             <AccesosDirectos />
+            <CuentaRegresivaGlobal />
 
             <div className="mb-4 text-center">
                 <label className="form-label fw-bold">Filtrar por Jornada:&nbsp;</label>

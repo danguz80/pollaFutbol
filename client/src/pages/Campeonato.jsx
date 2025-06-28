@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ConfigurarCuentaRegresiva from "../components/ConfigurarCuentaRegresiva";
 import CuentaRegresiva from "../components/CuentaRegresiva";
+import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
@@ -125,6 +126,7 @@ export default function Campeonato() {
             Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.join(', ')} en la Jornada {ultimaJornada}
           </div>
         )}
+        <CuentaRegresivaGlobal />
       </div>
     );
   }
