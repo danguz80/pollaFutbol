@@ -235,6 +235,39 @@ router.patch("/:numero/ganadores", async (req, res) => {
       WHERE numero = $1
     `, [numero]);
 
+    // 3. Guardar en ganadores_jornada
+    // Obtener id de la jornada
+    const jornadaRes = await pool.query(
+      "SELECT id FROM jornadas WHERE numero = $1",
+      [numero]
+    );
+    const jornadaId = jornadaRes.rows[0]?.id;
+
+    // Obtener los ids de los ganadores
+    const ganadoresIdsRes = await pool.query(`
+      WITH ranking AS (
+        SELECT u.id, SUM(p.puntos) AS puntos
+        FROM pronosticos p
+        JOIN usuarios u ON p.usuario_id = u.id
+        JOIN partidos pa ON p.partido_id = pa.id
+        JOIN jornadas j ON pa.jornada_id = j.id
+        WHERE j.numero = $1
+        GROUP BY u.id
+      )
+      SELECT id FROM ranking WHERE puntos = (SELECT MAX(puntos) FROM ranking)
+    `, [numero]);
+    const ganadoresIds = ganadoresIdsRes.rows.map(r => r.id);
+
+    // Insertar los nuevos ganadores acumulando títulos (sin eliminar los anteriores)
+    for (const jugadorId of ganadoresIds) {
+      await pool.query(
+        `INSERT INTO ganadores_jornada (jornada_id, jugador_id, acierto)
+         VALUES ($1, $2, true)
+         ON CONFLICT (jornada_id, jugador_id) DO NOTHING`,
+        [jornadaId, jugadorId]
+      );
+    }
+
     res.json({ ok: true, message: "Ganadores guardados para la jornada" });
   } catch (err) {
     console.error(err);
