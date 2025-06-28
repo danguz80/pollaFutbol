@@ -242,6 +242,9 @@ router.patch("/:numero/ganadores", async (req, res) => {
       [numero]
     );
     const jornadaId = jornadaRes.rows[0]?.id;
+    if (!jornadaId) {
+      return res.status(404).json({ error: "Jornada no encontrada para guardar ganadores" });
+    }
 
     // Obtener los ids de los ganadores
     const ganadoresIdsRes = await pool.query(`
