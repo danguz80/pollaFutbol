@@ -206,6 +206,8 @@ export default function Clasificacion() {
         </div>
       )}
 
+// ...código existente...
+
       {/* 2. Ranking por jornada */}
       <div id="ranking-jornada" className="mt-5">
         <h4 className="text-center">🏆 Ranking Jornada {jornadaActual}</h4>
@@ -221,7 +223,25 @@ export default function Clasificacion() {
             {rankingJornada.map((p, i) => (
               <tr key={i} className="text-center">
                 <td style={getJornadaCellStyle(i)}>{i + 1}</td>
-                <td style={getJornadaCellStyle(i)}>{p.usuario}</td>
+                <td style={getJornadaCellStyle(i)}>
+                  <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {p.foto_perfil && (
+                      <img
+                        src={p.foto_perfil}
+                        alt={`Foto de ${p.usuario}`}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          marginRight: "10px",
+                          border: "2px solid #ddd"
+                        }}
+                      />
+                    )}
+                    {p.usuario}
+                  </span>
+                </td>
                 <td style={getJornadaCellStyle(i)}>{p.puntaje_jornada ?? 0}</td>
               </tr>
             ))}
@@ -245,7 +265,25 @@ export default function Clasificacion() {
             {rankingAcumulado.map((p, i) => (
               <tr key={i} className="text-center">
                 <td style={getAcumuladoCellStyle(i)}>{i + 1}</td>
-                <td style={getAcumuladoCellStyle(i)}>{p.usuario}</td>
+                <td style={getAcumuladoCellStyle(i)}>
+                  <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {p.foto_perfil && (
+                      <img
+                        src={p.foto_perfil}
+                        alt={`Foto de ${p.usuario}`}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          marginRight: "10px",
+                          border: "2px solid #ddd"
+                        }}
+                      />
+                    )}
+                    {p.usuario}
+                  </span>
+                </td>
                 <td style={getAcumuladoCellStyle(i)}>{p.puntaje_total ?? 0}</td>
               </tr>
             ))}
