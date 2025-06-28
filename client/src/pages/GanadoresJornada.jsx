@@ -53,6 +53,7 @@ const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 export default function GanadoresJornada() {
   const [jornadas, setJornadas] = useState([]);
   const [jugadores, setJugadores] = useState([]);
+  const [fotoPerfilMap, setFotoPerfilMap] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -63,8 +64,9 @@ export default function GanadoresJornada() {
         // Relacionar nombre de usuario con foto_perfil
         const jugadoresRes = await fetch(`${API_BASE_URL}/api/usuarios`);
         const jugadoresData = await jugadoresRes.json();
-        const fotoPerfilMap = {};
-        jugadoresData.forEach(j => { fotoPerfilMap[j.nombre] = j.foto_perfil; });
+        const map = {};
+        jugadoresData.forEach(j => { map[j.nombre] = j.foto_perfil; });
+        setFotoPerfilMap(map);
         setJugadores(jugadoresData.map(j => j.nombre));
         setJornadas(jornadasData);
         setLoading(false);
