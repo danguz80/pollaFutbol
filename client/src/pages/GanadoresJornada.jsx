@@ -1,17 +1,54 @@
 import React, { useEffect, useState } from "react";
+import AccesosDirectos from "../components/AccesosDirectos";
+import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 const isMobile = window.innerWidth <= 480;
+// Estrella decorativa (al lado del nombre)
+const Star = () => (
+  <span style={{
+    color: '#f7c948',
+    marginLeft: 6,
+    fontSize: isMobile ? '1.5em' : '2em',
+    verticalAlign: 'middle',
+    display: 'inline-flex',
+    alignItems: 'center',
+    position: 'relative',
+    top: '2px'
+  }}>
+    <svg width={isMobile ? 20 : 28} height={isMobile ? 20 : 28} viewBox="0 0 20 20" fill="currentColor" style={{ display: 'block' }}>
+      <polygon points="10,1 12.5,7.5 19,7.5 13.5,12 15.5,18.5 10,14.5 4.5,18.5 6.5,12 1,7.5 7.5,7.5" />
+    </svg>
+  </span>
+);
+// Estrella con número centrado (para ranking)
+const StarWithNumber = ({ number }) => (
+  <span style={{
+    display: 'inline-block',
+    position: 'relative',
+    width: isMobile ? 28 : 38,
+    height: isMobile ? 28 : 38,
+    verticalAlign: 'middle',
+    margin: '0 2px'
+  }}>
+    <svg width={isMobile ? 28 : 38} height={isMobile ? 28 : 38} viewBox="0 0 20 20" fill="#f7c948" style={{ display: 'block' }}>
+      <polygon points="10,1 12.5,7.5 19,7.5 13.5,12 15.5,18.5 10,14.5 4.5,18.5 6.5,12 1,7.5 7.5,7.5" />
+    </svg>
+    <span style={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -55%)',
+      fontWeight: 700,
+      color: '#222',
+      fontSize: isMobile ? '1em' : '1.25em',
+      pointerEvents: 'none',
+      userSelect: 'none',
+      lineHeight: 1
+    }}>{number}</span>
+  </span>
+);
 
-// Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
-
-// Íconos:
-const Xroja = () => (
-  <span style={{ color: "red", fontSize: isMobile ? "0.7em" : "1.7em" }}>✖️</span>
-);
-const VistoVerde = () => (
-  <span style={{ color: "green", fontSize: isMobile ? "0.7em" : "1.7em" }}>✅</span>
-);
 
 export default function GanadoresJornada() {
   const [jornadas, setJornadas] = useState([]);
@@ -38,10 +75,57 @@ export default function GanadoresJornada() {
 
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
+  // --- Tabla de ganadores por jornada ---
   const jornadasConGanadores = jornadas
     .filter(j => Array.isArray(j.ganadores) && j.ganadores.length > 0)
     .sort((a, b) => a.numero - b.numero);
 
+  // --- Encabezados estilos ---
+  const headerStyle = {
+    background: '#111',
+    color: '#fff',
+    fontWeight: 700,
+    fontSize: isMobile ? '1.1em' : '1.3em',
+    letterSpacing: 1,
+    textAlign: 'center',
+    borderRadius: 6,
+    padding: isMobile ? 7 : 10,
+    marginBottom: 0
+  };
+
+  // Tabla: Jornada | Ganador(es)
+  // Solo jornadas con ganadores
+  const tablaGanadores = (
+    <div style={{ maxWidth: 500, margin: '0 auto', marginBottom: 40 }}>
+      <h4 className="text-center mt-4 mb-2" style={headerStyle}>Ganadores por Jornada</h4>
+      <table className="table table-bordered text-center">
+        <thead>
+          <tr style={{ background: '#3ab0c8', color: '#222', fontWeight: 'bold', fontSize: isMobile ? '0.9em' : '1.1em' }}>
+            <th style={{ width: 80 }}>Jornada</th>
+            <th>Ganador(es)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jornadasConGanadores.map(j => (
+            <tr key={j.numero}>
+              <td style={{ fontWeight: 600 }}>{j.numero}</td>
+              <td>
+                {j.ganadores.map((g, idx) => (
+                  <span key={g} style={{ marginRight: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center' }}>
+                    {g}
+                    <Star />
+                    {idx < j.ganadores.length - 1 && <span>, </span>}
+                  </span>
+                ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  // --- Ranking de ganadores ---
   const ganadoresPorJornada = {};
   jornadasConGanadores.forEach(j => {
     ganadoresPorJornada[j.numero] = j.ganadores || [];
@@ -85,95 +169,31 @@ export default function GanadoresJornada() {
     return { textAlign: "center", fontWeight: "normal" };
   }
 
+  // --- Render ---
   return (
     <div className="container mt-4">
-      <h2
-        className="text-center ganadores-header"
-        style={{
-          background: "#000",
-          color: "#fff",
-          padding: 8,
-          borderRadius: 6,
-          marginBottom: 0
-        }}
-      >
-        GANADORES POR JORNADA
-      </h2>
-
-      <div style={{ overflowX: "auto", marginTop: 0 }}>
-        <table
-          className="table table-bordered text-center"
-          style={{
-            minWidth: isMobile ? 200 : 900,
-            maxWidth: "100%",
-            fontSize: isMobile ? "0.7em" : "1em"
-          }}
-        >
-          <thead>
-            <tr
-              style={{
-                background: "#3ab0c8",
-                color: "#222",
-                fontWeight: "bold",
-                fontSize: isMobile ? "0.7em" : "1.25em"
-              }}
-            >
-              <th style={{ padding: isMobile ? "1px" : "12px" }}>Participantes</th>
-              {jornadasConGanadores.map(j => (
-                <th key={j.numero} style={{ padding: isMobile ? "1px" : "12px" }}>{`J${j.numero}`}</th>
-              ))}
-              <th style={{ padding: isMobile ? "1px" : "12px" }}>Totales</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jugadores.map((jugador, idx) => (
-              <tr key={jugador} style={{ background: idx % 2 === 0 ? "#fff" : "#f6f6f6" }}>
-                <td style={{ fontWeight: "bold", padding: isMobile ? "1px 2px" : "9px 8px", fontSize: isMobile ? "0.7em" : undefined }}>
-                  {jugador}
-                </td>
-                {jornadasConGanadores.map(j =>
-                  <td key={j.numero} style={{ fontSize: isMobile ? "0.7em" : "1.4em", padding: isMobile ? "1px" : "8px" }}>
-                    {ganadoresPorJornada[j.numero]?.includes(jugador) ? <VistoVerde /> : <Xroja />}
-                  </td>
-                )}
-                <td style={{
-                  fontWeight: "bold",
-                  background: esLider(jugador) ? "#fc5858" : "white",
-                  color: esLider(jugador) ? "white" : "black",
-                  fontSize: isMobile ? "0.7em" : "1.2em",
-                  textAlign: "center",
-                  padding: isMobile ? "1px 2px" : "9px 8px"
-                }}>
-                  {totales[jugador]}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Tabla resumen de ganadores */}
-      <h4 className="mt-5 text-center" style={{ fontSize: "1.09em" }}>Tabla de Ganadores</h4>
+      <AccesosDirectos />
+      <CuentaRegresivaGlobal />
+      <h2 className="text-center" style={headerStyle}>GANADORES POR JORNADA</h2>
+      {tablaGanadores}
+      <h4 className="mt-5 text-center" style={headerStyle}>Ranking de Ganadores</h4>
       <div style={{ maxWidth: 470, margin: "0 auto" }}>
         <table className="table table-bordered text-center ganadores-jornada-tbl">
           <thead>
-            <tr style={{
-              background: "#55c0cf",
-              color: "#404040",
-              fontWeight: "bold",
-              fontSize: "1.13em"
-            }}>
+            <tr style={{ background: "#55c0cf", color: "#404040", fontWeight: "bold", fontSize: isMobile ? '1.13em' : '1.25em' }}>
               <th>Posición</th>
-              <th>Participantes</th>
-              <th>Totales</th>
+              <th>Participante</th>
+              <th>Jornadas Ganadas</th>
             </tr>
           </thead>
           <tbody>
             {ranking.map((jugador, idx) => (
               <tr key={jugador.nombre}>
-                <td style={getRankingGanadoresCellStyle(posiciones[idx])}>{posiciones[idx]}°</td>
-                <td style={getRankingGanadoresCellStyle(posiciones[idx])}>{jugador.nombre}</td>
-                <td style={getRankingGanadoresCellStyle(posiciones[idx])}>{jugador.total}</td>
+                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>{posiciones[idx]}°</td>
+                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>{jugador.nombre}</td>
+                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>
+                  <StarWithNumber number={jugador.total} />
+                </td>
               </tr>
             ))}
           </tbody>

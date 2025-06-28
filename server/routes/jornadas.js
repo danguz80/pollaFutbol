@@ -1,5 +1,6 @@
 import express from "express";
 import { pool } from "../db/pool.js";
+import { importarFixtureSudamericana } from '../services/importarSudamericana.js';
 
 const router = express.Router();
 
@@ -7,12 +8,54 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, numero, ganadores FROM jornadas ORDER BY numero ASC"
+      "SELECT id, numero, ganadores, cerrada FROM jornadas ORDER BY numero ASC"
     );
     res.json(result.rows);
   } catch (err) {
     console.error("Error al obtener jornadas:", err);
     res.status(500).json({ error: "Error al obtener jornadas" });
+  }
+});
+
+// 🔹 PATCH /api/jornadas/proxima/fecha-cierre (antes de rutas dinámicas)
+router.patch("/proxima/fecha-cierre", async (req, res) => {
+  const { fecha_cierre } = req.body;
+  if (!fecha_cierre) {
+    return res.status(400).json({ error: "Se requiere fecha_cierre" });
+  }
+  try {
+    // Busca la próxima jornada abierta (no cerrada, menor número)
+    const result = await pool.query(
+      "SELECT id FROM jornadas WHERE cerrada = false ORDER BY numero ASC LIMIT 1"
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "No hay jornadas abiertas" });
+    }
+    const jornadaId = result.rows[0].id;
+    await pool.query(
+      "UPDATE jornadas SET fecha_cierre = $1 WHERE id = $2",
+      [fecha_cierre, jornadaId]
+    );
+    res.json({ ok: true, message: "Fecha de cierre actualizada", jornadaId });
+  } catch (err) {
+    console.error("Error al actualizar fecha de cierre:", err);
+    res.status(500).json({ error: "Error al actualizar fecha de cierre" });
+  }
+});
+
+// 🔹 GET /api/jornadas/proxima-abierta (antes de rutas dinámicas)
+router.get("/proxima-abierta", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, numero, fecha_cierre FROM jornadas WHERE cerrada = false ORDER BY numero ASC LIMIT 1"
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "No hay jornadas abiertas" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error al obtener próxima jornada abierta:", err);
+    res.status(500).json({ error: "Error al obtener próxima jornada abierta" });
   }
 });
 
@@ -196,6 +239,26 @@ router.patch("/:numero/ganadores", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error calculando ganadores" });
+  }
+});
+
+// POST /api/sudamericana/importar-fixture
+router.post('/sudamericana/importar-fixture', async (req, res) => {
+  const result = await importarFixtureSudamericana();
+  if (result.ok) {
+    res.json({ ok: true, total: result.total, insertados: result.insertados, detalles: result.detalles });
+  } else {
+    res.status(500).json({ ok: false, error: result.error });
+  }
+});
+
+// GET /api/sudamericana/fixture
+router.get('/sudamericana/fixture', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, ronda FROM sudamericana_fixtures ORDER BY fecha ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener el fixture' });
   }
 });
 

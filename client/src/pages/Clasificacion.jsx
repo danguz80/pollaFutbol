@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import FireworksEffect from "../components/FireworksEffect";
+import AccesosDirectos from "../components/AccesosDirectos";
+import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
@@ -9,11 +12,13 @@ export default function Clasificacion() {
   const [detallePuntos, setDetallePuntos] = useState([]);
   const [rankingJornada, setRankingJornada] = useState([]);
   const [rankingAcumulado, setRankingAcumulado] = useState([]);
+  const [jornadaCerrada, setJornadaCerrada] = useState(false);
+  const [ganadoresJornada, setGanadoresJornada] = useState([]);
+  const [showFireworks, setShowFireworks] = useState(false);
 
   // Cargar jornadas y definir por defecto la última
   useEffect(() => {
-    // Usar la variable de entorno para la URL del backend
-    fetch(`${API_BASE_URL}/api/jornadas`) // Asumo que tienes un endpoint para obtener jornadas
+    fetch(`${API_BASE_URL}/api/jornadas`)
       .then(res => res.json())
       .then(jornadas => {
         setJornadas(jornadas);
@@ -21,13 +26,21 @@ export default function Clasificacion() {
           setJornadaActual(jornadas[jornadas.length - 1].numero);
         }
       });
-    // eslint-disable-next-line
   }, []);
 
-  // Cargar datos según jornada
+  // Actualizar si la jornada está cerrada cuando cambia la jornada actual o la lista de jornadas
   useEffect(() => {
-    if (!jornadaActual) return;
-    // Usar la variable de entorno para todas las llamadas al backend
+    if (!jornadaActual || !jornadas.length) {
+      setJornadaCerrada(false);
+      return;
+    }
+    const jornadaSel = jornadas.find(j => String(j.numero) === String(jornadaActual));
+    setJornadaCerrada(jornadaSel?.cerrada === true);
+  }, [jornadaActual, jornadas]);
+
+  // Cargar datos según jornada solo si está cerrada
+  useEffect(() => {
+    if (!jornadaActual || !jornadaCerrada) return;
     fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
       .then(res => res.json())
       .then(setDetallePuntos);
@@ -39,7 +52,25 @@ export default function Clasificacion() {
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
       .then(setRankingAcumulado);
-  }, [jornadaActual]);
+  }, [jornadaActual, jornadaCerrada]);
+
+  // Obtener ganadores de la jornada seleccionada si está cerrada y hay puntajes
+  useEffect(() => {
+    if (!jornadaActual || !jornadaCerrada) {
+      setGanadoresJornada([]);
+      setShowFireworks(false);
+      return;
+    }
+    // Buscar la jornada seleccionada en el array de jornadas
+    const jornadaSel = jornadas.find(j => String(j.numero) === String(jornadaActual));
+    if (jornadaSel && Array.isArray(jornadaSel.ganadores) && jornadaSel.ganadores.length > 0) {
+      setGanadoresJornada(jornadaSel.ganadores);
+      setShowFireworks(true);
+    } else {
+      setGanadoresJornada([]);
+      setShowFireworks(false);
+    }
+  }, [jornadaActual, jornadaCerrada, jornadas]);
 
   // Estilos de ranking
   function getJornadaCellStyle(i) {
@@ -113,6 +144,17 @@ export default function Clasificacion() {
     <div id="top" className="container mt-4">
       <h2 className="text-center">🎖️ Clasificación</h2>
 
+      {/* Menú de accesos directos */}
+      <AccesosDirectos />
+      <CuentaRegresivaGlobal />
+
+      {/* Menú de accesos directos internos de la página */}
+      <div className="mb-3 d-flex flex-wrap gap-2 justify-content-center">
+        <a href="#detalle-pronosticos" className="btn btn-outline-primary btn-sm">Detalle de Pronósticos</a>
+        <a href="#ranking-jornada" className="btn btn-outline-primary btn-sm">Ranking Jornada</a>
+        <a href="#ranking-acumulado" className="btn btn-outline-primary btn-sm">Ranking Acumulado</a>
+      </div>
+
       {/* --- SELECTOR DE JORNADA --- */}
       <div className="mb-4 text-center">
         <label className="form-label fw-bold">Selecciona Jornada:</label>
@@ -129,34 +171,40 @@ export default function Clasificacion() {
         </select>
       </div>
 
-      {/* Menú de accesos directos */}
-      <div className="mb-3 d-flex flex-wrap gap-2 justify-content-center">
-        <a href="#detalle-jornada" className="btn btn-outline-primary btn-sm">Detalle de Pronósticos</a>
-        <a href="#ranking-jornada" className="btn btn-outline-primary btn-sm">Ranking Jornada</a>
-        <a href="#ranking-acumulado" className="btn btn-outline-primary btn-sm">Ranking Acumulado</a>
-      </div>
-
       {/* 1. Detalle de pronósticos por jugador */}
       <div id="detalle-pronosticos" className="mt-5">
         <h4 className="text-center">📝 Detalle de Todos los Pronósticos (Jornada {jornadaActual})</h4>
-        <table className="table table-bordered table-sm text-center">
-          <thead className="table-secondary text-center">
-            <tr>
-              <th className="text-center">Jugador</th>
-              <th className="text-center">Partido</th>
-              <th className="text-center">Resultado real</th>
-              <th className="text-center">Mi resultado</th>
-              <th className="text-center">Bonus</th>
-              <th className="text-center">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filasDetalleUnificado(detallePuntos)}
-          </tbody>
-        </table>
+        {!jornadaCerrada ? (
+          <div className="alert alert-warning text-center">Esperando el cierre de jornada para mostrar resultados</div>
+        ) : (
+          <table className="table table-bordered table-sm text-center">
+            <thead className="table-secondary text-center">
+              <tr>
+                <th className="text-center">Jugador</th>
+                <th className="text-center">Partido</th>
+                <th className="text-center">Resultado real</th>
+                <th className="text-center">Mi resultado</th>
+                <th className="text-center">Bonus</th>
+                <th className="text-center">Puntos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filasDetalleUnificado(detallePuntos)}
+            </tbody>
+          </table>
+        )}
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
 
+      {/* Ganador de la jornada */}
+      {jornadaCerrada && ganadoresJornada.length > 0 && (
+        <div className="ganador-jornada-container" style={{ position: 'relative', margin: '2rem 0' }}>
+          <h3 className="text-center" style={{ color: '#e67e22', fontWeight: 'bold', position: 'relative', zIndex: 2 }}>
+            Ganador{ganadoresJornada.length > 1 ? 'es' : ''} de la Jornada {jornadaActual}: {ganadoresJornada.join(', ')} ¡Felicitaciones!
+          </h3>
+          {showFireworks && <FireworksEffect targetSelector=".ganador-jornada-container" />}
+        </div>
+      )}
 
       {/* 2. Ranking por jornada */}
       <div id="ranking-jornada" className="mt-5">

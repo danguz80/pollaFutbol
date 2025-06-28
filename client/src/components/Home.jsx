@@ -13,7 +13,7 @@ export default function Home() {
 
     return (
         <div className="container text-center mt-5">
-            <h1 className="mb-4">🏟️ Página Principal – Campeonato Itaú</h1>
+            <h1 className="mb-4">🏠 Home - Bienvenido a Polla de Torneos</h1>
 
             <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3">
                 <button
