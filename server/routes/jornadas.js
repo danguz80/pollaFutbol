@@ -1,5 +1,6 @@
 import express from "express";
 import { pool } from "../db/pool.js";
+import { importarFixtureSudamericana } from '../services/importarSudamericana.js';
 
 const router = express.Router();
 
@@ -238,6 +239,16 @@ router.patch("/:numero/ganadores", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error calculando ganadores" });
+  }
+});
+
+// POST /api/sudamericana/importar-fixture
+router.post('/sudamericana/importar-fixture', async (req, res) => {
+  const result = await importarFixtureSudamericana();
+  if (result.ok) {
+    res.json({ ok: true, total: result.total });
+  } else {
+    res.status(500).json({ ok: false, error: result.error });
   }
 });
 
