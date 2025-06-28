@@ -9,11 +9,11 @@ export default function Clasificacion() {
   const [detallePuntos, setDetallePuntos] = useState([]);
   const [rankingJornada, setRankingJornada] = useState([]);
   const [rankingAcumulado, setRankingAcumulado] = useState([]);
+  const [jornadaCerrada, setJornadaCerrada] = useState(false);
 
   // Cargar jornadas y definir por defecto la última
   useEffect(() => {
-    // Usar la variable de entorno para la URL del backend
-    fetch(`${API_BASE_URL}/api/jornadas`) // Asumo que tienes un endpoint para obtener jornadas
+    fetch(`${API_BASE_URL}/api/jornadas`)
       .then(res => res.json())
       .then(jornadas => {
         setJornadas(jornadas);
@@ -21,13 +21,21 @@ export default function Clasificacion() {
           setJornadaActual(jornadas[jornadas.length - 1].numero);
         }
       });
-    // eslint-disable-next-line
   }, []);
 
-  // Cargar datos según jornada
+  // Actualizar si la jornada está cerrada cuando cambia la jornada actual o la lista de jornadas
   useEffect(() => {
-    if (!jornadaActual) return;
-    // Usar la variable de entorno para todas las llamadas al backend
+    if (!jornadaActual || !jornadas.length) {
+      setJornadaCerrada(false);
+      return;
+    }
+    const jornadaSel = jornadas.find(j => String(j.numero) === String(jornadaActual));
+    setJornadaCerrada(jornadaSel?.cerrada === true);
+  }, [jornadaActual, jornadas]);
+
+  // Cargar datos según jornada solo si está cerrada
+  useEffect(() => {
+    if (!jornadaActual || !jornadaCerrada) return;
     fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
       .then(res => res.json())
       .then(setDetallePuntos);
@@ -39,7 +47,7 @@ export default function Clasificacion() {
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
       .then(setRankingAcumulado);
-  }, [jornadaActual]);
+  }, [jornadaActual, jornadaCerrada]);
 
   // Estilos de ranking
   function getJornadaCellStyle(i) {
@@ -139,24 +147,27 @@ export default function Clasificacion() {
       {/* 1. Detalle de pronósticos por jugador */}
       <div id="detalle-pronosticos" className="mt-5">
         <h4 className="text-center">📝 Detalle de Todos los Pronósticos (Jornada {jornadaActual})</h4>
-        <table className="table table-bordered table-sm text-center">
-          <thead className="table-secondary text-center">
-            <tr>
-              <th className="text-center">Jugador</th>
-              <th className="text-center">Partido</th>
-              <th className="text-center">Resultado real</th>
-              <th className="text-center">Mi resultado</th>
-              <th className="text-center">Bonus</th>
-              <th className="text-center">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filasDetalleUnificado(detallePuntos)}
-          </tbody>
-        </table>
+        {!jornadaCerrada ? (
+          <div className="alert alert-warning text-center">Esperando el cierre de jornada para mostrar resultados</div>
+        ) : (
+          <table className="table table-bordered table-sm text-center">
+            <thead className="table-secondary text-center">
+              <tr>
+                <th className="text-center">Jugador</th>
+                <th className="text-center">Partido</th>
+                <th className="text-center">Resultado real</th>
+                <th className="text-center">Mi resultado</th>
+                <th className="text-center">Bonus</th>
+                <th className="text-center">Puntos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filasDetalleUnificado(detallePuntos)}
+            </tbody>
+          </table>
+        )}
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
-
 
       {/* 2. Ranking por jornada */}
       <div id="ranking-jornada" className="mt-5">
