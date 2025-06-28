@@ -81,10 +81,11 @@ export default function Campeonato() {
             });
           }
         });
-        // Eliminar duplicados en el ranking final
+        // Construir array único y ordenado por total desc
         const rankingUnico = Object.entries(totales)
           .filter(([_, total]) => total > 0)
-          .map(([nombre, total]) => ({ nombre, total }));
+          .map(([nombre, total]) => ({ nombre, total }))
+          .sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre));
         setGanadoresRanking(rankingUnico);
       });
   }, []);
