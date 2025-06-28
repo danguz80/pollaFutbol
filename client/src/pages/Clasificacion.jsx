@@ -146,6 +146,13 @@ export default function Clasificacion() {
       {/* Menú de accesos directos */}
       <AccesosDirectos />
 
+      {/* Menú de accesos directos internos de la página */}
+      <div className="mb-3 d-flex flex-wrap gap-2 justify-content-center">
+        <a href="#detalle-pronosticos" className="btn btn-outline-primary btn-sm">Detalle de Pronósticos</a>
+        <a href="#ranking-jornada" className="btn btn-outline-primary btn-sm">Ranking Jornada</a>
+        <a href="#ranking-acumulado" className="btn btn-outline-primary btn-sm">Ranking Acumulado</a>
+      </div>
+
       {/* --- SELECTOR DE JORNADA --- */}
       <div className="mb-4 text-center">
         <label className="form-label fw-bold">Selecciona Jornada:</label>
