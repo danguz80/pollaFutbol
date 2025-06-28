@@ -80,11 +80,24 @@ export default function GanadoresJornada() {
     .filter(j => Array.isArray(j.ganadores) && j.ganadores.length > 0)
     .sort((a, b) => a.numero - b.numero);
 
+  // --- Encabezados estilos ---
+  const headerStyle = {
+    background: '#111',
+    color: '#fff',
+    fontWeight: 700,
+    fontSize: isMobile ? '1.1em' : '1.3em',
+    letterSpacing: 1,
+    textAlign: 'center',
+    borderRadius: 6,
+    padding: isMobile ? 7 : 10,
+    marginBottom: 0
+  };
+
   // Tabla: Jornada | Ganador(es)
   // Solo jornadas con ganadores
   const tablaGanadores = (
     <div style={{ maxWidth: 500, margin: '0 auto', marginBottom: 40 }}>
-      <h4 className="text-center mt-4 mb-2" style={{ fontWeight: 600 }}>Ganadores por Jornada</h4>
+      <h4 className="text-center mt-4 mb-2" style={headerStyle}>Ganadores por Jornada</h4>
       <table className="table table-bordered text-center">
         <thead>
           <tr style={{ background: '#3ab0c8', color: '#222', fontWeight: 'bold', fontSize: isMobile ? '0.9em' : '1.1em' }}>
@@ -161,12 +174,13 @@ export default function GanadoresJornada() {
     <div className="container mt-4">
       <AccesosDirectos />
       <CuentaRegresivaGlobal />
+      <h2 className="text-center" style={headerStyle}>GANADORES POR JORNADA</h2>
       {tablaGanadores}
-      <h4 className="mt-5 text-center" style={{ fontSize: "1.09em" }}>Ranking de Ganadores</h4>
+      <h4 className="mt-5 text-center" style={headerStyle}>Ranking de Ganadores</h4>
       <div style={{ maxWidth: 470, margin: "0 auto" }}>
         <table className="table table-bordered text-center ganadores-jornada-tbl">
           <thead>
-            <tr style={{ background: "#55c0cf", color: "#404040", fontWeight: "bold", fontSize: "1.13em" }}>
+            <tr style={{ background: "#55c0cf", color: "#404040", fontWeight: "bold", fontSize: isMobile ? '1.13em' : '1.25em' }}>
               <th>Posición</th>
               <th>Participante</th>
               <th>Jornadas Ganadas</th>
@@ -175,9 +189,9 @@ export default function GanadoresJornada() {
           <tbody>
             {ranking.map((jugador, idx) => (
               <tr key={jugador.nombre}>
-                <td style={getRankingGanadoresCellStyle(posiciones[idx])}>{posiciones[idx]}°</td>
-                <td style={getRankingGanadoresCellStyle(posiciones[idx])}>{jugador.nombre}</td>
-                <td style={getRankingGanadoresCellStyle(posiciones[idx])}>
+                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>{posiciones[idx]}°</td>
+                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>{jugador.nombre}</td>
+                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>
                   <StarWithNumber number={jugador.total} />
                 </td>
               </tr>
