@@ -230,12 +230,13 @@ export default function Clasificacion() {
                           src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
                           alt={`Foto de ${p.usuario}`}
                           style={{
-                            width: "36px",
-                            height: "36px",
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                            marginRight: "10px",
-                            border: "2px solid #ddd"
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            marginRight: '10px',
+                            border: '2px solid #ddd',
+                            objectPosition: 'center 30%'
                           }}
                         />
                       )}
@@ -273,12 +274,13 @@ export default function Clasificacion() {
                         src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
                         alt={`Foto de ${p.usuario}`}
                         style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "50%",
-                          objectFit: "cover",
-                          marginRight: "10px",
-                          border: "2px solid #ddd"
+                          width: '60px',
+                          height: '60px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          marginRight: '10px',
+                          border: '2px solid #ddd',
+                          objectPosition: 'center 30%'
                         }}
                       />
                     )}

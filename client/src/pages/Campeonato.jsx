@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ConfigurarCuentaRegresiva from "../components/ConfigurarCuentaRegresiva";
 import CuentaRegresiva from "../components/CuentaRegresiva";
 import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
+import StarWithNumber from "./GanadoresJornada";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
@@ -14,6 +15,9 @@ export default function Campeonato() {
   const [proximaJornada, setProximaJornada] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [reload, setReload] = useState(0);
+  const [rankingGeneral, setRankingGeneral] = useState([]);
+  const [fotoPerfilMap, setFotoPerfilMap] = useState({});
+  const [ganadoresRanking, setGanadoresRanking] = useState([]);
 
   useEffect(() => {
     // Intentar obtener el usuario desde localStorage
@@ -50,6 +54,34 @@ export default function Campeonato() {
       .then(setProximaJornada)
       .catch(() => setProximaJornada(null));
   }, [reload]);
+
+  // Ranking general y fotos
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
+      .then(res => res.json())
+      .then(data => setRankingGeneral(data));
+    fetch(`${API_BASE_URL}/api/usuarios`)
+      .then(res => res.json())
+      .then(data => {
+        const map = {};
+        data.forEach(j => { map[j.nombre] = j.foto_perfil; });
+        setFotoPerfilMap(map);
+      });
+    // Ranking de ganadores
+    fetch(`${API_BASE_URL}/api/jornadas`)
+      .then(res => res.json())
+      .then(jornadas => {
+        const totales = {};
+        jornadas.forEach(j => {
+          if (Array.isArray(j.ganadores)) {
+            j.ganadores.forEach(g => {
+              totales[g] = (totales[g] || 0) + 1;
+            });
+          }
+        });
+        setGanadoresRanking(Object.entries(totales).filter(([_, total]) => total > 0).map(([nombre, total]) => ({ nombre, total })));
+      });
+  }, []);
 
   // Handler para configurar cuenta regresiva
   const handleConfigurarCuenta = async ({ fechaHora }) => {
@@ -104,11 +136,71 @@ export default function Campeonato() {
     </div>
   );
 
+  // --- Resumen de Ranking General ---
+  const top3 = rankingGeneral.slice(0, 3);
+  const resumenRanking = (
+    <div className="mb-4">
+      <h4 className="text-center">🏅 Top 3 Ranking General</h4>
+      <div className="d-flex justify-content-center gap-4 flex-wrap">
+        {top3.map((p, idx) => (
+          <div key={p.usuario_id} className="text-center" style={{ minWidth: 120 }}>
+            {fotoPerfilMap[p.usuario] && (
+              <img
+                src={fotoPerfilMap[p.usuario].startsWith('/') ? fotoPerfilMap[p.usuario] : `/perfil/${fotoPerfilMap[p.usuario]}`}
+                alt={`Foto de ${p.usuario}`}
+                style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid #ddd',
+                  objectPosition: 'center 30%'
+                }}
+              />
+            )}
+            <div style={{ fontWeight: 'bold', fontSize: '1.1em', marginTop: 6 }}>{p.usuario}</div>
+            <div style={{ color: '#888' }}>{p.puntaje_total} pts</div>
+            <div style={{ fontSize: '1.2em', color: '#f7c948', fontWeight: 'bold' }}>{idx + 1}°</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // --- Resumen de Ganadores de Jornadas ---
+  const resumenGanadores = (
+    <div className="mb-4">
+      <h4 className="text-center">⭐ Ranking de Ganadores de Jornadas</h4>
+      <div className="d-flex justify-content-center gap-4 flex-wrap">
+        {ganadoresRanking.map(g => (
+          <div key={g.nombre} className="text-center" style={{ minWidth: 120 }}>
+            {fotoPerfilMap[g.nombre] && (
+              <img
+                src={fotoPerfilMap[g.nombre].startsWith('/') ? fotoPerfilMap[g.nombre] : `/perfil/${fotoPerfilMap[g.nombre]}`}
+                alt={`Foto de ${g.nombre}`}
+                style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid #ddd',
+                  objectPosition: 'center 30%'
+                }}
+              />
+            )}
+            <div style={{ fontWeight: 'bold', fontSize: '1.1em', marginTop: 6 }}>{g.nombre}</div>
+            <div><span style={{ display: 'inline-block', marginTop: 2 }}><StarWithNumber number={g.total} /></span></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   if (usuario.rol === "jugador") {
     // JUGADOR
     return (
       <div className="container mt-5">
-        <h2>🎮 Bienvenido, {usuario.nombre}</h2>
+        <h2>🎮 Bienvenido, {usuario.nombre} al Campeonato Itaú</h2>
         <p>Aquí puedes ingresar tus pronósticos y ver tus resultados.</p>
         {subMenu}
         {ultimoGanador && (
@@ -116,6 +208,8 @@ export default function Campeonato() {
             Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.join(', ')} en la Jornada {ultimaJornada}
           </div>
         )}
+        {resumenRanking}
+        {resumenGanadores}
         <CuentaRegresivaGlobal />
       </div>
     );
@@ -127,6 +221,8 @@ export default function Campeonato() {
       <div className="container mt-5">
         <h2>👑 Panel de Administrador</h2>
         <p>Accede a herramientas administrativas del campeonato.</p>
+        {resumenRanking}
+        {resumenGanadores}
         {subMenu}
         {proximaJornada && proximaJornada.fecha_cierre && (
           <CuentaRegresiva
