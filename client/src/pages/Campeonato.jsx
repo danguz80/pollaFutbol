@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+
 export default function Campeonato() {
   const navigate = useNavigate();
   const [usuario, setUsuario] = useState(null);
+  const [ultimoGanador, setUltimoGanador] = useState(null);
+  const [ultimaJornada, setUltimaJornada] = useState(null);
 
   useEffect(() => {
     // Intentar obtener el usuario desde localStorage
@@ -17,6 +21,20 @@ export default function Campeonato() {
         console.error("Error al parsear usuario", err);
       }
     }
+  }, []);
+
+  // Obtener último ganador de la última jornada cerrada
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/jornadas`)
+      .then(res => res.json())
+      .then(jornadas => {
+        const cerradas = jornadas.filter(j => j.cerrada && Array.isArray(j.ganadores) && j.ganadores.length > 0);
+        if (cerradas.length > 0) {
+          const ultima = cerradas[cerradas.length - 1];
+          setUltimaJornada(ultima.numero);
+          setUltimoGanador(ultima.ganadores);
+        }
+      });
   }, []);
 
   if (!usuario) {
@@ -65,6 +83,11 @@ export default function Campeonato() {
         <h2>🎮 Bienvenido, {usuario.nombre}</h2>
         <p>Aquí puedes ingresar tus pronósticos y ver tus resultados.</p>
         {subMenu}
+        {ultimoGanador && (
+          <div className="alert alert-success text-center mb-4" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
+            Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.join(', ')} en la Jornada {ultimaJornada}
+          </div>
+        )}
       </div>
     );
   }
