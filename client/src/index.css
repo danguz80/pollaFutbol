@@ -102,17 +102,18 @@ button:focus-visible {
   }
   .ganadores-jornada-tbl th,
   .ganadores-jornada-tbl td {
-    padding: 0.15em 0.18em !important;
+    font-size: 1.15em !important;
+    vertical-align: middle !important;
+    padding: 0.32em 0.18em !important;
     min-width: 24px !important;
     max-width: 44px !important;
     text-align: center !important;
-    line-height: 1.1 !important;
-    font-size: 0.73em !important;
+    line-height: 1.2 !important;
     word-break: break-word;
   }
   .ganadores-jornada-tbl th {
-    font-size: 0.73em !important;
-    padding: 0.12em 0.18em !important;
+    font-size: 1.15em !important;
+    padding: 0.22em 0.18em !important;
   }
   .ganadores-header {
     font-size: 1em !important;
