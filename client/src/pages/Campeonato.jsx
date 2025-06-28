@@ -59,33 +59,16 @@ export default function Campeonato() {
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
       .then(data => setRankingGeneral(data));
+    // Obtener usuarios ganadores (ganador: true)
     fetch(`${API_BASE_URL}/api/usuarios`)
       .then(res => res.json())
       .then(data => {
+        const ganadores = data.filter(j => j.ganador === true);
+        setGanadoresRanking(ganadores);
+        // Mapear fotos
         const map = {};
         data.forEach(j => { map[j.nombre] = j.foto_perfil; });
         setFotoPerfilMap(map);
-      });
-    // Ranking de ganadores
-    fetch(`${API_BASE_URL}/api/jornadas`)
-      .then(res => res.json())
-      .then(jornadas => {
-        const totales = {};
-        jornadas.forEach(j => {
-          if (Array.isArray(j.ganadores)) {
-            // Usar Set para evitar duplicados en una misma jornada
-            const ganadoresUnicos = Array.from(new Set(j.ganadores));
-            ganadoresUnicos.forEach(g => {
-              totales[g] = (totales[g] || 0) + 1;
-            });
-          }
-        });
-        // Construir array único y ordenado por total desc
-        const rankingUnico = Object.entries(totales)
-          .filter(([_, total]) => total > 0)
-          .map(([nombre, total]) => ({ nombre, total }))
-          .sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre));
-        setGanadoresRanking(rankingUnico);
       });
   }, []);
 
@@ -173,6 +156,37 @@ export default function Campeonato() {
     </div>
   );
 
+  // --- Resumen de Ganadores (solo foto, nombre y estrella) ---
+  const resumenGanadores = (
+    ganadoresRanking.length > 0 && (
+      <div className="mb-4">
+        <h4 className="text-center">⭐ Ganadores</h4>
+        <div className="d-flex justify-content-center gap-4 flex-wrap">
+          {ganadoresRanking.map(g => (
+            <div key={g.nombre} className="text-center" style={{ minWidth: 120 }}>
+              {fotoPerfilMap[g.nombre] && (
+                <img
+                  src={fotoPerfilMap[g.nombre].startsWith('/') ? fotoPerfilMap[g.nombre] : `/perfil/${fotoPerfilMap[g.nombre]}`}
+                  alt={`Foto de ${g.nombre}`}
+                  style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #ddd',
+                    objectPosition: 'center 30%'
+                  }}
+                />
+              )}
+              <div style={{ fontWeight: 'bold', fontSize: '1.1em', marginTop: 6 }}>{g.nombre}</div>
+              <div><span style={{ display: 'inline-block', marginTop: 2, color: '#f7c948', fontSize: '1.5em' }}>⭐</span></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  );
+
   if (usuario.rol === "jugador") {
     // JUGADOR
     return (
@@ -197,6 +211,8 @@ export default function Campeonato() {
         )}
         {/* Top 3 Ranking General */}
         {resumenRanking}
+        {/* Resumen de ganadores */}
+        {resumenGanadores}
         {/* Cuenta regresiva global */}
         <CuentaRegresivaGlobal />
       </div>
@@ -225,6 +241,8 @@ export default function Campeonato() {
         )}
         {/* Top 3 Ranking General */}
         {resumenRanking}
+        {/* Resumen de ganadores */}
+        {resumenGanadores}
         {proximaJornada && proximaJornada.fecha_cierre && (
           <CuentaRegresiva
             fechaCierre={proximaJornada.fecha_cierre}
