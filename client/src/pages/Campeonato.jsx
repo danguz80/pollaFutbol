@@ -200,11 +200,19 @@ export default function Campeonato() {
     // JUGADOR
     return (
       <div className="container mt-5">
-        <h2>🎮 Bienvenido, {usuario.nombre} al Campeonato Itaú</h2>
-        <p>Aquí puedes ingresar tus pronósticos y ver tus resultados.</p>
         {subMenu}
         {ultimoGanador && (
-          <div className="alert alert-success text-center mb-4" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
+          <div className="alert alert-success text-center mb-4" style={{ fontWeight: 'bold', fontSize: '1.1em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            {ultimoGanador.map(nombre => (
+              fotoPerfilMap[nombre] && (
+                <img
+                  key={nombre}
+                  src={fotoPerfilMap[nombre].startsWith('/') ? fotoPerfilMap[nombre] : `/perfil/${fotoPerfilMap[nombre]}`}
+                  alt={`Foto de ${nombre}`}
+                  style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid #ddd', objectPosition: 'center 30%' }}
+                />
+              )
+            ))}
             Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.join(', ')} en la Jornada {ultimaJornada}
           </div>
         )}
@@ -219,11 +227,24 @@ export default function Campeonato() {
     // ADMIN
     return (
       <div className="container mt-5">
-        <h2>👑 Panel de Administrador</h2>
-        <p>Accede a herramientas administrativas del campeonato.</p>
+        {subMenu}
+        {ultimoGanador && (
+          <div className="alert alert-success text-center mb-4" style={{ fontWeight: 'bold', fontSize: '1.1em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            {ultimoGanador.map(nombre => (
+              fotoPerfilMap[nombre] && (
+                <img
+                  key={nombre}
+                  src={fotoPerfilMap[nombre].startsWith('/') ? fotoPerfilMap[nombre] : `/perfil/${fotoPerfilMap[nombre]}`}
+                  alt={`Foto de ${nombre}`}
+                  style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid #ddd', objectPosition: 'center 30%' }}
+                />
+              )
+            ))}
+            Último ganador{ultimoGanador.length > 1 ? 'es' : ''}: {ultimoGanador.join(', ')} en la Jornada {ultimaJornada}
+          </div>
+        )}
         {resumenRanking}
         {resumenGanadores}
-        {subMenu}
         {proximaJornada && proximaJornada.fecha_cierre && (
           <CuentaRegresiva
             fechaCierre={proximaJornada.fecha_cierre}
