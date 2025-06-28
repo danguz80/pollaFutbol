@@ -60,10 +60,13 @@ export default function GanadoresJornada() {
       try {
         const jornadasRes = await fetch(`${API_BASE_URL}/api/jornadas`);
         const jornadasData = await jornadasRes.json();
+        // Relacionar nombre de usuario con foto_perfil
         const jugadoresRes = await fetch(`${API_BASE_URL}/api/usuarios`);
         const jugadoresData = await jugadoresRes.json();
-        setJornadas(jornadasData);
+        const fotoPerfilMap = {};
+        jugadoresData.forEach(j => { fotoPerfilMap[j.nombre] = j.foto_perfil; });
         setJugadores(jugadoresData.map(j => j.nombre));
+        setJornadas(jornadasData);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -112,6 +115,21 @@ export default function GanadoresJornada() {
               <td>
                 {j.ganadores.map((g, idx) => (
                   <span key={g} style={{ marginRight: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center' }}>
+                    {fotoPerfilMap[g] && (
+                      <img
+                        src={fotoPerfilMap[g].startsWith('/') ? fotoPerfilMap[g] : `/perfil/${fotoPerfilMap[g]}`}
+                        alt={`Foto de ${g}`}
+                        style={{
+                          width: isMobile ? '44px' : '60px',
+                          height: isMobile ? '44px' : '60px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          marginRight: '8px',
+                          border: '2px solid #ddd',
+                          objectPosition: 'center 30%'
+                        }}
+                      />
+                    )}
                     {g}
                     <Star />
                     {idx < j.ganadores.length - 1 && <span>, </span>}
@@ -190,7 +208,26 @@ export default function GanadoresJornada() {
             {ranking.map((jugador, idx) => (
               <tr key={jugador.nombre}>
                 <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>{posiciones[idx]}°</td>
-                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>{jugador.nombre}</td>
+                <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {fotoPerfilMap[jugador.nombre] && (
+                      <img
+                        src={fotoPerfilMap[jugador.nombre].startsWith('/') ? fotoPerfilMap[jugador.nombre] : `/perfil/${fotoPerfilMap[jugador.nombre]}`}
+                        alt={`Foto de ${jugador.nombre}`}
+                        style={{
+                          width: isMobile ? '44px' : '60px',
+                          height: isMobile ? '44px' : '60px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          marginRight: '8px',
+                          border: '2px solid #ddd',
+                          objectPosition: 'center 30%'
+                        }}
+                      />
+                    )}
+                    {jugador.nombre}
+                  </span>
+                </td>
                 <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>
                   <StarWithNumber number={jugador.total} />
                 </td>
