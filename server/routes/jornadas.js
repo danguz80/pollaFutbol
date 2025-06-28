@@ -242,6 +242,7 @@ router.patch("/:numero/ganadores", async (req, res) => {
       [numero]
     );
     const jornadaId = jornadaRes.rows[0]?.id;
+    console.log('JORNADA PATCH GANADORES:', { numero, jornadaId });
     if (!jornadaId) {
       return res.status(404).json({ error: "Jornada no encontrada para guardar ganadores" });
     }
@@ -260,9 +261,11 @@ router.patch("/:numero/ganadores", async (req, res) => {
       SELECT id FROM ranking WHERE puntos = (SELECT MAX(puntos) FROM ranking)
     `, [numero]);
     const ganadoresIds = ganadoresIdsRes.rows.map(r => r.id);
+    console.log('GANADORES PATCH GANADORES:', ganadoresIds);
 
     // Insertar los nuevos ganadores acumulando títulos (sin eliminar los anteriores)
     for (const jugadorId of ganadoresIds) {
+      console.log('INSERTANDO GANADOR:', { jornadaId, jugadorId });
       await pool.query(
         `INSERT INTO ganadores_jornada (jornada_id, jugador_id, acierto)
          VALUES ($1, $2, true)
