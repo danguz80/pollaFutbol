@@ -74,12 +74,18 @@ export default function Campeonato() {
         const totales = {};
         jornadas.forEach(j => {
           if (Array.isArray(j.ganadores)) {
-            j.ganadores.forEach(g => {
+            // Usar Set para evitar duplicados en una misma jornada
+            const ganadoresUnicos = Array.from(new Set(j.ganadores));
+            ganadoresUnicos.forEach(g => {
               totales[g] = (totales[g] || 0) + 1;
             });
           }
         });
-        setGanadoresRanking(Object.entries(totales).filter(([_, total]) => total > 0).map(([nombre, total]) => ({ nombre, total })));
+        // Eliminar duplicados en el ranking final
+        const rankingUnico = Object.entries(totales)
+          .filter(([_, total]) => total > 0)
+          .map(([nombre, total]) => ({ nombre, total }));
+        setGanadoresRanking(rankingUnico);
       });
   }, []);
 
