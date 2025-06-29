@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 const ROUNDS = [
-  "Playoffs",
+  "Knockout Round Play-offs",
   "Octavos de Final",
   "Cuartos de Final",
   "Semifinales",

@@ -18,6 +18,11 @@ export async function importarFixtureSudamericana() {
     let insertados = 0;
     const detalles = [];
     for (const fixture of data.response) {
+      // Normalizar nombre de ronda para Playoffs
+      let ronda = fixture.league.round;
+      if (ronda === 'Knockout Round Play-offs') {
+        ronda = 'Playoffs';
+      }
       const res = await pool.query(
         `INSERT INTO sudamericana_fixtures (fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, status, ronda)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -30,7 +35,7 @@ export async function importarFixtureSudamericana() {
           fixture.goals.home,
           fixture.goals.away,
           fixture.fixture.status.short,
-          fixture.league.round
+          ronda
         ]
       );
       if (res.rowCount > 0) insertados++;
