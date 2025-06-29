@@ -296,7 +296,7 @@ router.post('/sudamericana/importar-fixture', async (req, res) => {
 // GET /api/sudamericana/fixture
 router.get('/sudamericana/fixture', async (req, res) => {
   try {
-    const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, ronda FROM sudamericana_fixtures ORDER BY fecha ASC');
+    const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener el fixture' });
