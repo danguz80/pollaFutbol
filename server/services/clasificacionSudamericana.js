@@ -1,7 +1,7 @@
 import { pool } from '../db/pool.js';
 
 // Lógica para determinar y actualizar los clasificados de cada cruce de Playoffs
-definirClasificadosPlayoffs = async () => {
+export const definirClasificadosPlayoffs = async () => {
   // 1. Obtener todos los cruces de Playoffs agrupados por sigla
   const { rows: cruces } = await pool.query(`
     SELECT clasificado, array_agg(fixture_id ORDER BY fecha) as fixtures
@@ -59,5 +59,3 @@ definirClasificadosPlayoffs = async () => {
     }
   }
 };
-
-export { definirClasificadosPlayoffs };
