@@ -1,6 +1,7 @@
 import express from "express";
 import { pool } from "../db/pool.js";
 import { importarFixtureSudamericana } from '../services/importarSudamericana.js';
+import { definirClasificadosPlayoffs } from '../services/clasificacionSudamericana.js';
 import ganadoresRouter from "./ganadores.js";
 
 const router = express.Router();
@@ -299,6 +300,51 @@ router.get('/sudamericana/fixture', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener el fixture' });
+  }
+});
+
+// Endpoint para actualizar clasificados de Playoffs y avanzar cruces
+router.post('/sudamericana/actualizar-clasificados', async (req, res) => {
+  try {
+    await definirClasificadosPlayoffs();
+    res.json({ ok: true, message: 'Clasificados actualizados y cruces avanzados.' });
+  } catch (error) {
+    console.error('Error al actualizar clasificados:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Guardar pronósticos y penales para Sudamericana
+router.post('/sudamericana/guardar-pronosticos', async (req, res) => {
+  const { pronosticos, penales } = req.body;
+  try {
+    // Guardar goles
+    for (const fixtureId in pronosticos) {
+      const goles = pronosticos[fixtureId];
+      await pool.query(
+        `UPDATE sudamericana_fixtures SET goles_local = $1, goles_visita = $2 WHERE fixture_id = $3`,
+        [goles.local ?? null, goles.visita ?? null, fixtureId]
+      );
+    }
+    // Guardar penales
+    for (const sigla in penales) {
+      const p = penales[sigla];
+      // Buscar los dos partidos de ese cruce
+      const { rows: partidos } = await pool.query(
+        `SELECT fixture_id, equipo_local, equipo_visita FROM sudamericana_fixtures WHERE clasificado = $1`,
+        [sigla]
+      );
+      for (const partido of partidos) {
+        await pool.query(
+          `UPDATE sudamericana_fixtures SET penales_local = $1, penales_visita = $2 WHERE fixture_id = $3`,
+          [p[partido.equipo_local] ?? null, p[partido.equipo_visita] ?? null, partido.fixture_id]
+        );
+      }
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error al guardar pronósticos:', error);
+    res.status(500).json({ ok: false, error: error.message });
   }
 });
 

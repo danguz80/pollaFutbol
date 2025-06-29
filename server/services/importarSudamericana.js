@@ -17,15 +17,29 @@ export async function importarFixtureSudamericana() {
     if (!data.response) throw new Error('No se recibieron partidos');
     let insertados = 0;
     const detalles = [];
+    // Obtener todos los fixture_id de Playoffs y ordenarlos
+    const playoffsFixtures = data.response
+      .filter(f => f.league.round === 'Knockout Round Play-offs')
+      .map(f => f.fixture.id)
+      .sort((a, b) => a - b);
+    // Crear un mapeo automático de fixture_id a WPOx
+    const clasificadosPlayoffs = {};
+    for (let i = 0; i < playoffsFixtures.length; i += 2) {
+      const sigla = `WPO${(i / 2) + 1}`;
+      clasificadosPlayoffs[playoffsFixtures[i]] = sigla;
+      clasificadosPlayoffs[playoffsFixtures[i + 1]] = sigla;
+    }
     for (const fixture of data.response) {
       // Normalizar nombre de ronda para Playoffs
       let ronda = fixture.league.round;
+      let clasificado = null;
       if (ronda === 'Knockout Round Play-offs') {
         ronda = 'Playoffs';
+        clasificado = clasificadosPlayoffs[fixture.fixture.id] || null;
       }
       const res = await pool.query(
-        `INSERT INTO sudamericana_fixtures (fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, status, ronda)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO sudamericana_fixtures (fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, status, ronda, clasificado)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (fixture_id) DO NOTHING`,
         [
           fixture.fixture.id,
@@ -35,7 +49,8 @@ export async function importarFixtureSudamericana() {
           fixture.goals.home,
           fixture.goals.away,
           fixture.fixture.status.short,
-          ronda
+          ronda,
+          clasificado
         ]
       );
       if (res.rowCount > 0) insertados++;
