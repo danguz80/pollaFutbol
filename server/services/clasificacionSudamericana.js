@@ -56,6 +56,7 @@ export const definirClasificadosPlayoffs = async () => {
          WHERE ronda IN ('Octavos de Final', 'Cuartos de Final', 'Semifinales', 'Final')`,
         [cruce.clasificado, ganador]
       );
+      // NO actualizar el campo clasificado en la siguiente ronda, solo los nombres de equipo
     }
   }
 };
