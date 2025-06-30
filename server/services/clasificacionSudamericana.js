@@ -58,13 +58,18 @@ export const definirClasificadosPlayoffs = async () => {
 
       // 3. En la ronda siguiente, buscar partidos donde equipo_local o equipo_visita sea igual a la sigla (clasificado) y reemplazar por el club ganador
       if (ganador) {
-        await pool.query(
+        const updateRes = await pool.query(
           `UPDATE sudamericana_fixtures
            SET equipo_local = CASE WHEN equipo_local = $1 THEN $2 ELSE equipo_local END,
                equipo_visita = CASE WHEN equipo_visita = $1 THEN $2 ELSE equipo_visita END
            WHERE ronda = $3 AND (equipo_local = $1 OR equipo_visita = $1)`,
           [cruce.clasificado, ganador, ronda.siguiente]
         );
+        if (updateRes.rowCount === 0) {
+          console.warn(`[AVANCE CRUCES] No se encontró la sigla '${cruce.clasificado}' en la ronda '${ronda.siguiente}' para reemplazar por '${ganador}'`);
+        } else {
+          console.log(`[AVANCE CRUCES] Reemplazada sigla '${cruce.clasificado}' por '${ganador}' en ${updateRes.rowCount} partido(s) de '${ronda.siguiente}'`);
+        }
       }
     }
   }
