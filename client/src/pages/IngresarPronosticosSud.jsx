@@ -9,16 +9,18 @@ const ROUNDS = [
   "Final"
 ];
 
-// Agrupa partidos por sigla de cruce (clasificado), ordena por sigla y por fecha
+// Agrupa partidos por sigla de cruce (clasificado), o por equipos si no existe
 function agruparPorSigla(partidos) {
   const grupos = {};
   for (const p of partidos) {
-    if (!grupos[p.clasificado]) grupos[p.clasificado] = [];
-    grupos[p.clasificado].push(p);
+    // Usa clasificado si existe, si no, usa un identificador por equipos
+    const key = p.clasificado || `${p.equipo_local} vs ${p.equipo_visita}`;
+    if (!grupos[key]) grupos[key] = [];
+    grupos[key].push(p);
   }
   // Ordenar partidos dentro de cada grupo por fecha
   Object.values(grupos).forEach(arr => arr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha)));
-  // Retornar un array de [sigla, partidos] ordenado por sigla ascendente (WPO1, WPO2...)
+  // Retornar un array de [sigla, partidos] ordenado por sigla ascendente
   return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 }
 
