@@ -9,12 +9,17 @@ const ROUNDS = [
   "Final"
 ];
 
-// Agrupa partidos por sigla de cruce (clasificado), o por equipos si no existe
+// Agrupa partidos por sigla de cruce (clasificado), o por equipos involucrados si no existe o es inconsistente
 function agruparPorSigla(partidos) {
   const grupos = {};
   for (const p of partidos) {
-    // Usa clasificado si existe, si no, usa un identificador por equipos
-    const key = p.clasificado || `${p.equipo_local} vs ${p.equipo_visita}`;
+    // Si hay clasificado y es string, úsalo; si no, agrupa por equipos ordenados
+    let key = p.clasificado;
+    if (!key || typeof key !== 'string' || key.trim() === '') {
+      // Crea una clave única para el cruce, sin importar el orden local/visita
+      const equipos = [p.equipo_local, p.equipo_visita].sort();
+      key = equipos.join(' vs ');
+    }
     if (!grupos[key]) grupos[key] = [];
     grupos[key].push(p);
   }
