@@ -56,20 +56,24 @@ export const definirClasificadosPlayoffs = async () => {
         // Si sigue empate, puedes agregar lógica extra aquí
       }
 
-      // 3. En la ronda siguiente, buscar partidos donde equipo_local o equipo_visita sea igual a la sigla (clasificado) y reemplazar por el club ganador
+      // 3. En la ronda siguiente, reemplazar la sigla por el club y eliminar la otra sigla si queda
       if (ganador) {
-        const updateRes = await pool.query(
+        // Reemplaza la sigla por el club
+        await pool.query(
           `UPDATE sudamericana_fixtures
-           SET equipo_local = CASE WHEN equipo_local = $1 THEN $2 ELSE equipo_local END,
-               equipo_visita = CASE WHEN equipo_visita = $1 THEN $2 ELSE equipo_visita END
-           WHERE ronda = $3 AND (equipo_local = $1 OR equipo_visita = $1)`,
+           SET equipo_local = REPLACE(equipo_local, $1, $2),
+               equipo_visita = REPLACE(equipo_visita, $1, $2)
+           WHERE ronda = $3 AND (equipo_local LIKE '%' || $1 || '%' OR equipo_visita LIKE '%' || $1 || '%')`,
           [cruce.clasificado, ganador, ronda.siguiente]
         );
-        if (updateRes.rowCount === 0) {
-          console.warn(`[AVANCE CRUCES] No se encontró la sigla '${cruce.clasificado}' en la ronda '${ronda.siguiente}' para reemplazar por '${ganador}'`);
-        } else {
-          console.log(`[AVANCE CRUCES] Reemplazada sigla '${cruce.clasificado}' por '${ganador}' en ${updateRes.rowCount} partido(s) de '${ronda.siguiente}'`);
-        }
+        // Elimina cualquier sigla que quede (WO., WC., WS., WPO) si ya no es el club
+        await pool.query(
+          `UPDATE sudamericana_fixtures
+           SET equipo_local = REGEXP_REPLACE(equipo_local, '(WO\\.[A-H]|WC[1-4]|WS[1-2]|WPO[1-8])', '', 'g'),
+               equipo_visita = REGEXP_REPLACE(equipo_visita, '(WO\\.[A-H]|WC[1-4]|WS[1-2]|WPO[1-8])', '', 'g')
+           WHERE ronda = $1`,
+          [ronda.siguiente]
+        );
       }
     }
   }
