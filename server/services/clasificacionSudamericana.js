@@ -56,13 +56,13 @@ export const definirClasificadosPlayoffs = async () => {
         // Si sigue empate, puedes agregar lógica extra aquí
       }
 
-      // 3. Actualizar la siguiente ronda reemplazando la sigla por el nombre del clasificado
+      // 3. En la ronda siguiente, buscar partidos donde equipo_local o equipo_visita sea igual a la sigla (clasificado) y reemplazar por el club ganador
       if (ganador) {
         await pool.query(
           `UPDATE sudamericana_fixtures
            SET equipo_local = CASE WHEN equipo_local = $1 THEN $2 ELSE equipo_local END,
                equipo_visita = CASE WHEN equipo_visita = $1 THEN $2 ELSE equipo_visita END
-           WHERE ronda = $3`,
+           WHERE ronda = $3 AND (equipo_local = $1 OR equipo_visita = $1)`,
           [cruce.clasificado, ganador, ronda.siguiente]
         );
       }
