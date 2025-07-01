@@ -183,6 +183,7 @@ export default function IngresarPronosticosSud() {
         };
       })
       .filter(Boolean); // Elimina los null
+    console.log("Pronósticos a enviar:", pronosticosArray);
     const payload = { usuario_id: usuario.id, pronosticos: pronosticosArray };
     const res = await fetch(`${API_BASE_URL}/api/sudamericana/guardar-pronosticos-elim`, {
       method: "POST",
@@ -263,18 +264,18 @@ export default function IngresarPronosticosSud() {
                           min="0"
                           className="form-control d-inline-block w-25 mx-1"
                           style={{ width: 45, display: 'inline-block' }}
-                          value={pronosticos[partido.fixture_id]?.local || partido.goles_local || ""}
-                          onChange={e => handleInput(partido.fixture_id, "local", e.target.value)}
-                        />
+                          value={pronosticos[partido.fixture_id]?.local !== undefined ? pronosticos[partido.fixture_id]?.local : (partido.goles_local !== null && partido.goles_local !== undefined ? partido.goles_local : "")}
+                          onChange={e => handleInput(partido.fixture_id, "local", e.target.value === "" ? "" : Number(e.target.value))}
+/>
                         <span> - </span>
                         <input
                           type="number"
                           min="0"
                           className="form-control d-inline-block w-25 mx-1"
                           style={{ width: 45, display: 'inline-block' }}
-                          value={pronosticos[partido.fixture_id]?.visita || partido.goles_visita || ""}
-                          onChange={e => handleInput(partido.fixture_id, "visita", e.target.value)}
-                        />
+                          value={pronosticos[partido.fixture_id]?.visita !== undefined ? pronosticos[partido.fixture_id]?.visita : (partido.goles_visita !== null && partido.goles_visita !== undefined ? partido.goles_visita : "")}
+                          onChange={e => handleInput(partido.fixture_id, "visita", e.target.value === "" ? "" : Number(e.target.value))}
+/>
                       </td>
                       <td>{partido.equipo_visita}</td>
                     </tr>
