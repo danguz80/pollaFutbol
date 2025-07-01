@@ -321,10 +321,25 @@ router.post('/sudamericana/guardar-pronosticos', async (req, res) => {
     // Guardar goles
     for (const fixtureId in pronosticos) {
       const goles = pronosticos[fixtureId];
-      await pool.query(
-        `UPDATE sudamericana_fixtures SET goles_local = $1, goles_visita = $2 WHERE fixture_id = $3`,
-        [goles.local ?? null, goles.visita ?? null, fixtureId]
-      );
+      // Solo actualiza si hay valores válidos (no null, undefined ni string vacío)
+      const updateFields = [];
+      const updateValues = [];
+      let idx = 1;
+      if (goles.local !== undefined && goles.local !== null && goles.local !== "") {
+        updateFields.push(`goles_local = $${idx++}`);
+        updateValues.push(goles.local);
+      }
+      if (goles.visita !== undefined && goles.visita !== null && goles.visita !== "") {
+        updateFields.push(`goles_visita = $${idx++}`);
+        updateValues.push(goles.visita);
+      }
+      if (updateFields.length > 0) {
+        updateValues.push(fixtureId);
+        await pool.query(
+          `UPDATE sudamericana_fixtures SET ${updateFields.join(", ")} WHERE fixture_id = $${idx}`,
+          updateValues
+        );
+      }
     }
     // Guardar penales
     for (const sigla in penales) {
@@ -335,10 +350,24 @@ router.post('/sudamericana/guardar-pronosticos', async (req, res) => {
         [sigla]
       );
       for (const partido of partidos) {
-        await pool.query(
-          `UPDATE sudamericana_fixtures SET penales_local = $1, penales_visita = $2 WHERE fixture_id = $3`,
-          [p[partido.equipo_local] ?? null, p[partido.equipo_visita] ?? null, partido.fixture_id]
-        );
+        const penalesUpdateFields = [];
+        const penalesUpdateValues = [];
+        let pidx = 1;
+        if (p[partido.equipo_local] !== undefined && p[partido.equipo_local] !== null && p[partido.equipo_local] !== "") {
+          penalesUpdateFields.push(`penales_local = $${pidx++}`);
+          penalesUpdateValues.push(p[partido.equipo_local]);
+        }
+        if (p[partido.equipo_visita] !== undefined && p[partido.equipo_visita] !== null && p[partido.equipo_visita] !== "") {
+          penalesUpdateFields.push(`penales_visita = $${pidx++}`);
+          penalesUpdateValues.push(p[partido.equipo_visita]);
+        }
+        if (penalesUpdateFields.length > 0) {
+          penalesUpdateValues.push(partido.fixture_id);
+          await pool.query(
+            `UPDATE sudamericana_fixtures SET ${penalesUpdateFields.join(", ")} WHERE fixture_id = $${pidx}`,
+            penalesUpdateValues
+          );
+        }
       }
     }
     res.json({ ok: true });
@@ -368,5 +397,17 @@ const actualizarGanadores = async () => {
 };
 
 router.use("/ganadores", ganadoresRouter);
+
+// Endpoint para avanzar ganadores de Sudamericana (fixture de eliminación directa)
+router.post('/sudamericana/avanzar-ganadores', async (req, res) => {
+  try {
+    const { avanzarGanadoresSudamericana } = await import('../services/clasificacionSudamericana.js');
+    await avanzarGanadoresSudamericana();
+    res.json({ ok: true, message: 'Ganadores avanzados correctamente en el fixture.' });
+  } catch (error) {
+    console.error('Error al avanzar ganadores:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
 
 export default router;
