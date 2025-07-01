@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import useAuth from "../hooks/UseAuth";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 const ROUNDS = [
@@ -88,6 +89,7 @@ export default function IngresarPronosticosSud() {
   const [pronosticos, setPronosticos] = useState({});
   const [penales, setPenales] = useState({});
   const [mensaje, setMensaje] = useState("");
+  const usuario = useAuth();
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
@@ -270,7 +272,10 @@ export default function IngresarPronosticosSud() {
           );
         })}
         <button className="btn btn-primary me-2" onClick={handleGuardar}>Guardar pronósticos</button>
-        <button className="btn btn-success" onClick={handleAvanzarCruces}>Avanzar cruces</button>
+        {/* Solo mostrar botón Avanzar cruces si el usuario es admin */}
+        {usuario?.rol === 'admin' && (
+          <button className="btn btn-success" onClick={handleAvanzarCruces}>Avanzar cruces</button>
+        )}
         <div className="mt-4">
           <h3>Avance de Cruces</h3>
           {ROUNDS.map(ronda => (
