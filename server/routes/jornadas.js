@@ -299,7 +299,7 @@ router.get('/sudamericana/fixture', async (req, res) => {
     const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener el fixture' });
+    res.status(500).json({ error: 'Error al obtener el fixture de la Copa Sudamericana. Por favor, revisa la base de datos o la lógica de avance de cruces.' });
   }
 });
 
