@@ -148,17 +148,32 @@ export default function IngresarPronosticosSud() {
     // Adaptar el formato para la API de pronósticos por usuario
     const pronosticosArray = Object.entries(pronosticos).map(([fixture_id, goles]) => {
       const partido = fixture.find(f => f.fixture_id === Number(fixture_id));
-      const ronda = partido?.ronda || "";
-      const equipo_local = partido?.equipo_local || "";
-      const equipo_visita = partido?.equipo_visita || "";
-      const sigla = partido?.clasificado || "";
+      const ronda = partido?.ronda || null;
+      const equipo_local = partido?.equipo_local || null;
+      const equipo_visita = partido?.equipo_visita || null;
+      const sigla = partido?.clasificado || null;
+      // Calcular ganador si hay goles
+      let ganador = null;
+      if (goles.local !== undefined && goles.visita !== undefined && goles.local !== null && goles.visita !== null && goles.local !== "" && goles.visita !== "") {
+        if (Number(goles.local) > Number(goles.visita)) ganador = equipo_local;
+        else if (Number(goles.visita) > Number(goles.local)) ganador = equipo_visita;
+        else {
+          // Empate: definir por penales si existen
+          const penA = penales[sigla]?.[equipo_local] ?? null;
+          const penB = penales[sigla]?.[equipo_visita] ?? null;
+          if (penA !== null && penB !== null) {
+            if (Number(penA) > Number(penB)) ganador = equipo_local;
+            else if (Number(penB) > Number(penA)) ganador = equipo_visita;
+          }
+        }
+      }
       return {
         usuario_id: usuario.id,
         fixture_id: Number(fixture_id),
         ronda,
         equipo_local,
         equipo_visita,
-        ganador: null, // El frontend puede calcularlo si se requiere
+        ganador,
         goles_local: goles.local ?? null,
         goles_visita: goles.visita ?? null,
         penales_local: penales[sigla]?.[equipo_local] ?? null,
