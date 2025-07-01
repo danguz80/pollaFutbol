@@ -3,6 +3,7 @@ import { pool } from "../db/pool.js";
 import { importarFixtureSudamericana } from '../services/importarSudamericana.js';
 import { definirClasificadosPlayoffs } from '../services/clasificacionSudamericana.js';
 import ganadoresRouter from "./ganadores.js";
+import pronosticosSudamericanaRouter from "./pronosticosSudamericana.js";
 
 const router = express.Router();
 
@@ -397,6 +398,7 @@ const actualizarGanadores = async () => {
 };
 
 router.use("/ganadores", ganadoresRouter);
+router.use("/sudamericana", pronosticosSudamericanaRouter);
 
 // Endpoint para avanzar ganadores de Sudamericana (fixture de eliminación directa)
 router.post('/sudamericana/avanzar-ganadores', async (req, res) => {
