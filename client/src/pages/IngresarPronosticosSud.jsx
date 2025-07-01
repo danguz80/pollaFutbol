@@ -138,11 +138,35 @@ export default function IngresarPronosticosSud() {
     }));
   };
 
-  // Guardar pronósticos y penales
+  // Guardar pronósticos y penales SOLO en la tabla por usuario
   const handleGuardar = async () => {
     setMensaje("");
-    const payload = { pronosticos, penales };
-    const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/guardar-pronosticos`, {
+    if (!usuario || !usuario.id) {
+      setMensaje("Debes iniciar sesión para guardar tus pronósticos");
+      return;
+    }
+    // Adaptar el formato para la API de pronósticos por usuario
+    const pronosticosArray = Object.entries(pronosticos).map(([fixture_id, goles]) => {
+      const partido = fixture.find(f => f.fixture_id === Number(fixture_id));
+      const ronda = partido?.ronda || "";
+      const equipo_local = partido?.equipo_local || "";
+      const equipo_visita = partido?.equipo_visita || "";
+      const sigla = partido?.clasificado || "";
+      return {
+        usuario_id: usuario.id,
+        fixture_id: Number(fixture_id),
+        ronda,
+        equipo_local,
+        equipo_visita,
+        ganador: null, // El frontend puede calcularlo si se requiere
+        goles_local: goles.local ?? null,
+        goles_visita: goles.visita ?? null,
+        penales_local: penales[sigla]?.[equipo_local] ?? null,
+        penales_visita: penales[sigla]?.[equipo_visita] ?? null
+      };
+    });
+    const payload = { usuario_id: usuario.id, pronosticos: pronosticosArray };
+    const res = await fetch(`${API_BASE_URL}/api/sudamericana/guardar-pronosticos-elim`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)

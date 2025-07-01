@@ -320,69 +320,6 @@ router.post('/sudamericana/actualizar-clasificados', verifyToken, authorizeRoles
   }
 });
 
-// Guardar pronósticos y penales para Sudamericana
-router.post('/sudamericana/guardar-pronosticos', async (req, res) => {
-  const { pronosticos, penales } = req.body;
-  try {
-    // Guardar goles
-    for (const fixtureId in pronosticos) {
-      const goles = pronosticos[fixtureId];
-      // Solo actualiza si hay valores válidos (no null, undefined ni string vacío)
-      const updateFields = [];
-      const updateValues = [];
-      let idx = 1;
-      if (goles.local !== undefined && goles.local !== null && goles.local !== "") {
-        updateFields.push(`goles_local = $${idx++}`);
-        updateValues.push(goles.local);
-      }
-      if (goles.visita !== undefined && goles.visita !== null && goles.visita !== "") {
-        updateFields.push(`goles_visita = $${idx++}`);
-        updateValues.push(goles.visita);
-      }
-      if (updateFields.length > 0) {
-        updateValues.push(fixtureId);
-        await pool.query(
-          `UPDATE sudamericana_fixtures SET ${updateFields.join(", ")} WHERE fixture_id = $${idx}`,
-          updateValues
-        );
-      }
-    }
-    // Guardar penales
-    for (const sigla in penales) {
-      const p = penales[sigla];
-      // Buscar los dos partidos de ese cruce
-      const { rows: partidos } = await pool.query(
-        `SELECT fixture_id, equipo_local, equipo_visita FROM sudamericana_fixtures WHERE clasificado = $1`,
-        [sigla]
-      );
-      for (const partido of partidos) {
-        const penalesUpdateFields = [];
-        const penalesUpdateValues = [];
-        let pidx = 1;
-        if (p[partido.equipo_local] !== undefined && p[partido.equipo_local] !== null && p[partido.equipo_local] !== "") {
-          penalesUpdateFields.push(`penales_local = $${pidx++}`);
-          penalesUpdateValues.push(p[partido.equipo_local]);
-        }
-        if (p[partido.equipo_visita] !== undefined && p[partido.equipo_visita] !== null && p[partido.equipo_visita] !== "") {
-          penalesUpdateFields.push(`penales_visita = $${pidx++}`);
-          penalesUpdateValues.push(p[partido.equipo_visita]);
-        }
-        if (penalesUpdateFields.length > 0) {
-          penalesUpdateValues.push(partido.fixture_id);
-          await pool.query(
-            `UPDATE sudamericana_fixtures SET ${penalesUpdateFields.join(", ")} WHERE fixture_id = $${pidx}`,
-            penalesUpdateValues
-          );
-        }
-      }
-    }
-    res.json({ ok: true });
-  } catch (error) {
-    console.error('Error al guardar pronósticos:', error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
 // PATCH para actualizar ganadores de la jornada seleccionada
 const actualizarGanadores = async () => {
   if (!jornadaSeleccionada) return;
