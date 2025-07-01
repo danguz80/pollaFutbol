@@ -4,6 +4,8 @@ import { importarFixtureSudamericana } from '../services/importarSudamericana.js
 import { definirClasificadosPlayoffs } from '../services/clasificacionSudamericana.js';
 import ganadoresRouter from "./ganadores.js";
 import pronosticosSudamericanaRouter from "./pronosticosSudamericana.js";
+import { verifyToken } from "../middleware/verifyToken.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
 
 const router = express.Router();
 
@@ -284,8 +286,11 @@ router.patch("/:numero/ganadores", async (req, res) => {
   }
 });
 
-// POST /api/sudamericana/importar-fixture
-router.post('/sudamericana/importar-fixture', async (req, res) => {
+// 🔹 ENDPOINTS SUDAMERICANA (SOLO ADMIN, NO USUARIOS NORMALES)
+// Los siguientes endpoints solo deben ser accesibles por administradores. Se protege con verifyToken y authorizeRoles('admin').
+
+// POST /api/sudamericana/importar-fixture (solo admin)
+router.post('/sudamericana/importar-fixture', verifyToken, authorizeRoles('admin'), async (req, res) => {
   const result = await importarFixtureSudamericana();
   if (result.ok) {
     res.json({ ok: true, total: result.total, insertados: result.insertados, detalles: result.detalles });
@@ -294,7 +299,7 @@ router.post('/sudamericana/importar-fixture', async (req, res) => {
   }
 });
 
-// GET /api/sudamericana/fixture
+// GET /api/sudamericana/fixture (puede ser público)
 router.get('/sudamericana/fixture', async (req, res) => {
   try {
     const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
@@ -304,8 +309,8 @@ router.get('/sudamericana/fixture', async (req, res) => {
   }
 });
 
-// Endpoint para actualizar clasificados de Playoffs y avanzar cruces
-router.post('/sudamericana/actualizar-clasificados', async (req, res) => {
+// POST /api/sudamericana/actualizar-clasificados (solo admin)
+router.post('/sudamericana/actualizar-clasificados', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     await definirClasificadosPlayoffs();
     res.json({ ok: true, message: 'Clasificados actualizados y cruces avanzados.' });
@@ -400,8 +405,8 @@ const actualizarGanadores = async () => {
 router.use("/ganadores", ganadoresRouter);
 router.use("/sudamericana", pronosticosSudamericanaRouter);
 
-// Endpoint para avanzar ganadores de Sudamericana (fixture de eliminación directa)
-router.post('/sudamericana/avanzar-ganadores', async (req, res) => {
+// Endpoint para avanzar ganadores de Sudamericana (fixture de eliminación directa) SOLO ADMIN
+router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const { avanzarGanadoresSudamericana } = await import('../services/clasificacionSudamericana.js');
     await avanzarGanadoresSudamericana();
