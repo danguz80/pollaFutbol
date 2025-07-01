@@ -6,16 +6,23 @@ const router = express.Router();
 // POST /api/sudamericana/guardar-pronosticos-elim
 router.post("/guardar-pronosticos-elim", async (req, res) => {
   const { usuario_id, pronosticos } = req.body;
-  console.log("[PRONOSTICOS][BODY]", JSON.stringify(req.body, null, 2)); // Log completo del body recibido
+  console.log("[PRONOSTICOS][BODY RECIBIDO]", JSON.stringify(req.body, null, 2));
   if (!usuario_id || !pronosticos || !Array.isArray(pronosticos)) {
     return res.status(400).json({ error: "Faltan datos obligatorios" });
+  }
+  if (pronosticos.length === 0) {
+    console.log("[PRONOSTICOS][VACIO] El array de pronosticos está vacío");
+  } else {
+    console.log(`[PRONOSTICOS][CANTIDAD] Se recibieron ${pronosticos.length} pronosticos`);
+    pronosticos.forEach((p, i) => {
+      console.log(`[PRONOSTICO #${i+1}]`, JSON.stringify(p));
+    });
   }
   let exitos = 0;
   let errores = [];
   try {
     for (const p of pronosticos) {
       try {
-        console.log("[PRONOSTICO][GUARDAR]", JSON.stringify(p));
         await pool.query(
           `INSERT INTO pronosticos_sudamericana (usuario_id, fixture_id, ronda, equipo_local, equipo_visita, ganador, goles_local, goles_visita, penales_local, penales_visita)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
