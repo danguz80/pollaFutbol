@@ -150,13 +150,25 @@ export default function IngresarPronosticosSud() {
     else setMensaje("Error al guardar");
   };
 
-  // Avanzar cruces (llama al backend)
+  // Avanzar cruces (llama al backend y refresca el fixture)
   const handleAvanzarCruces = async () => {
     setMensaje("");
     const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/actualizar-clasificados`, { method: "POST" });
     const data = await res.json();
-    if (data.ok) setMensaje("Cruces avanzados correctamente");
-    else setMensaje("Error al avanzar cruces");
+    if (data.ok) {
+      setMensaje("Cruces avanzados correctamente");
+      // Refresca el fixture para ver los equipos actualizados
+      setLoading(true);
+      fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+        .then(res => res.json())
+        .then(data => {
+          setFixture(data);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    } else {
+      setMensaje("Error al avanzar cruces");
+    }
   };
 
   // Ejemplo: calcular avance de cruces según pronósticos del usuario
