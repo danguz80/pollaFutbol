@@ -29,6 +29,58 @@ function agruparPorSigla(partidos) {
   return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 }
 
+// Utilidad: calcula los equipos que avanzan ronda a ronda según los pronósticos del usuario
+function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
+  // Agrupa partidos por ronda y por sigla de cruce
+  const rondas = {};
+  for (const partido of fixture) {
+    if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
+    const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
+    if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
+    rondas[partido.ronda][sigla].push(partido);
+  }
+  // Ordena las rondas según el orden de ROUNDS
+  const avance = {};
+  let equiposPorSigla = {};
+  for (const ronda of ROUNDS) {
+    avance[ronda] = [];
+    const cruces = rondas[ronda] || {};
+    for (const [sigla, partidos] of Object.entries(cruces)) {
+      // Determina equipos
+      const eqA = partidos[0].equipo_local;
+      const eqB = partidos[0].equipo_visita;
+      // Goles ida y vuelta (usa pronóstico si existe, si no, goles reales, si no, 0)
+      let gA = 0, gB = 0;
+      if (partidos.length === 2) {
+        const p1 = partidos[0], p2 = partidos[1];
+        gA = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0) + Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
+        gB = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0) + Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
+      } else {
+        // Partido único
+        const p = partidos[0];
+        gA = Number(pronosticos[p.fixture_id]?.local ?? p.goles_local ?? 0);
+        gB = Number(pronosticos[p.fixture_id]?.visita ?? p.goles_visita ?? 0);
+      }
+      let ganador = null;
+      if (gA > gB) ganador = eqA;
+      else if (gB > gA) ganador = eqB;
+      else {
+        // Empate: define por penales si existen
+        const penA = Number(penales[sigla]?.[eqA] ?? 0);
+        const penB = Number(penales[sigla]?.[eqB] ?? 0);
+        if (penA > penB) ganador = eqA;
+        else if (penB > penA) ganador = eqB;
+        else ganador = null; // No definido
+      }
+      avance[ronda].push({ sigla, eqA, eqB, gA, gB, ganador });
+      // Guarda para la siguiente ronda
+      if (!equiposPorSigla[ronda]) equiposPorSigla[ronda] = {};
+      equiposPorSigla[ronda][sigla] = { eqA, eqB, ganador };
+    }
+  }
+  return avance;
+}
+
 export default function IngresarPronosticosSud() {
   const [fixture, setFixture] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +158,9 @@ export default function IngresarPronosticosSud() {
     if (data.ok) setMensaje("Cruces avanzados correctamente");
     else setMensaje("Error al avanzar cruces");
   };
+
+  // Ejemplo: calcular avance de cruces según pronósticos del usuario
+  const avance = calcularAvanceEliminatoria(fixture, pronosticos, penales);
 
   return (
     <div className="container mt-4">
@@ -204,6 +259,25 @@ export default function IngresarPronosticosSud() {
         })}
         <button className="btn btn-primary me-2" onClick={handleGuardar}>Guardar pronósticos</button>
         <button className="btn btn-success" onClick={handleAvanzarCruces}>Avanzar cruces</button>
+        <div className="mt-4">
+          <h3>Avance de Cruces</h3>
+          {ROUNDS.map(ronda => (
+            <div key={ronda} className="mb-3">
+              <h4>{ronda}</h4>
+              <ul>
+                {avance[ronda]?.map(cruce => (
+                  <li key={cruce.sigla}>
+                    {cruce.eqA} ({cruce.gA}) vs {cruce.eqB} ({cruce.gB})
+                    {cruce.ganador && (
+                      <span className="ms-2 text-success">→ Avanza: <strong>{cruce.ganador}</strong></span>
+                    )}
+                    {!cruce.ganador && <span className="ms-2 text-warning">(Sin definir)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
         </>
       )}
     </div>
