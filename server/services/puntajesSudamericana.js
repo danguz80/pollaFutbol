@@ -79,4 +79,4 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados) {
   return { total, detalle };
 }
 
-module.exports = { calcularPuntajesSudamericana };
+export { calcularPuntajesSudamericana };
