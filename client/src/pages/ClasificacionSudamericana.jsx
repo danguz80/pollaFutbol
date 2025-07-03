@@ -11,12 +11,12 @@ function SudamericanaSubMenu() {
   );
 }
 
-export default function Sudamericana() {
+export default function ClasificacionSudamericana() {
   return (
     <div className="container mt-4">
-      <h2 className="text-2xl p-4">🌎 Copa Sudamericana</h2>
       <SudamericanaSubMenu />
-      {/* Aquí irá el fixture y contenido futuro */}
+      <h2 className="mb-4">Clasificación Sudamericana</h2>
+      <div className="alert alert-info">Próximamente: ranking y tabla de posiciones de la Copa Sudamericana.</div>
     </div>
   );
 }

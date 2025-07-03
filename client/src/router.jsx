@@ -17,6 +17,8 @@ import RutaProtegidaAdmin from "./components/RutaProtegidaAdmin";
 import MisPronosticos from "./pages/MisPronosticos";
 import CambiarPassword from "./pages/CambiarPassword";
 import IngresarPronosticosSud from "./pages/IngresarPronosticosSud.jsx";
+import MisPronosticosSud from "./pages/MisPronosticosSud";
+import ClasificacionSudamericana from "./pages/ClasificacionSudamericana";
 
 export default function AppRouter() {
   return (
@@ -53,6 +55,8 @@ export default function AppRouter() {
         <Route path="/cambiar-password" element={<CambiarPassword />} />
         <Route path="/mis-pronosticos" element={<MisPronosticos />} />
         <Route path="/ingresar-pronosticos-sud" element={<IngresarPronosticosSud />} />
+        <Route path="/clasificacion-sudamericana" element={<ClasificacionSudamericana />} />
+        <Route path="/mis-pronosticos-sud" element={<MisPronosticosSud />} />
         <Route path="*" element={<h1 className="text-center mt-4">404 - Página no encontrada</h1>} />
       </Routes>
     </BrowserRouter>
