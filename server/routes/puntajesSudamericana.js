@@ -1,6 +1,6 @@
 // Endpoint para puntajes de Sudamericana
 import express from 'express';
-import pool from '../db/pool.js';
+import { pool } from '../db/pool.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
 
 const router = express.Router();
