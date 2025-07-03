@@ -101,6 +101,33 @@ export default function IngresarPronosticosSud() {
       .catch(() => setLoading(false));
   }, []);
 
+  // Cargar pronósticos guardados del usuario
+  useEffect(() => {
+    if (!usuario || !usuario.id) return;
+    fetch(`${API_BASE_URL}/api/sudamericana/pronosticos-elim/${usuario.id}`)
+      .then(res => res.json())
+      .then(data => {
+        // Mapear a formato { fixture_id: { local, visita }, ... }
+        const pronos = {};
+        const pens = {};
+        data.forEach(p => {
+          pronos[p.fixture_id] = {
+            local: p.goles_local !== null ? Number(p.goles_local) : "",
+            visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
+          };
+          // Penales por sigla de cruce
+          const sigla = p.clasificado || null;
+          if (sigla) {
+            if (!pens[sigla]) pens[sigla] = {};
+            if (p.penales_local !== null) pens[sigla][p.equipo_local] = p.penales_local;
+            if (p.penales_visita !== null) pens[sigla][p.equipo_visita] = p.penales_visita;
+          }
+        });
+        setPronosticos(pronos);
+        setPenales(pens);
+      });
+  }, [usuario]);
+
   const partidosFiltrados = fixture.filter(p => p.ronda === selectedRound);
   const grupos = agruparPorSigla(partidosFiltrados);
 
