@@ -31,8 +31,11 @@ export default function MisPronosticosSud() {
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
   if (!puntaje) return <div className="alert alert-info mt-4">No hay puntaje disponible.</div>;
 
-  // Filtrar por ronda
-  const detalleFiltrado = puntaje.detalle.filter(p => p.partido.ronda === selectedRound);
+  // Filtrar por ronda y agrupar por fixture_id ascendente
+  let detalleFiltrado = puntaje.detalle.filter(p => p.partido.ronda === selectedRound);
+  detalleFiltrado = detalleFiltrado
+    .filter(d => d.real.goles_local !== null && d.real.goles_visita !== null) // solo partidos con resultado real
+    .sort((a, b) => a.fixture_id - b.fixture_id);
 
   return (
     <div className="container mt-4">

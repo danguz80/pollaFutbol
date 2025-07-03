@@ -14,6 +14,7 @@ import adminRoutes from "./routes/admin.js";
 import ganadoresRouter from "./routes/ganadores.js";
 import pronosticosSudamericanaRouter from "./routes/pronosticosSudamericana.js";
 import puntajesSudamericanaRouter from "./routes/puntajesSudamericana.js";
+import clasificacionSudamericanaRouter from './routes/clasificacionSudamericana.js';
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/ganadores", ganadoresRouter);
 app.use("/api/sudamericana", pronosticosSudamericanaRouter);
 app.use('/api/sudamericana', puntajesSudamericanaRouter);
+app.use('/api/sudamericana', clasificacionSudamericanaRouter);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");
