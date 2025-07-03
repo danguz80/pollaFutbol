@@ -33,9 +33,12 @@ export default function MisPronosticosSud() {
 
   // Filtrar por ronda y agrupar por fixture_id ascendente
   let detalleFiltrado = puntaje.detalle.filter(p => p.partido.ronda === selectedRound);
-  detalleFiltrado = detalleFiltrado
-    .filter(d => d.real.goles_local !== null && d.real.goles_visita !== null) // solo partidos con resultado real
-    .sort((a, b) => a.fixture_id - b.fixture_id);
+  detalleFiltrado = detalleFiltrado.sort((a, b) => a.fixture_id - b.fixture_id);
+
+  // Calcular puntaje total solo de partidos con resultado real
+  const puntajeTotal = detalleFiltrado.reduce((acc, d) => (
+    d.real.goles_local !== null && d.real.goles_visita !== null ? acc + d.pts : acc
+  ), 0);
 
   return (
     <div className="container mt-4">
@@ -52,7 +55,7 @@ export default function MisPronosticosSud() {
           ))}
         </select>
       </div>
-      <div className="mb-3 text-end fw-bold">Puntaje total: <span className="text-primary">{puntaje.total}</span></div>
+      <div className="mb-3 text-end fw-bold">Puntaje total: <span className="text-primary">{puntajeTotal}</span></div>
       <div className="table-responsive">
         <table className="table table-bordered table-striped text-center">
           <thead>
@@ -73,9 +76,13 @@ export default function MisPronosticosSud() {
                 <td>{d.partido.ronda}</td>
                 <td>{d.partido.equipo_local} vs {d.partido.equipo_visita}</td>
                 <td>{d.pron.goles_local} - {d.pron.goles_visita} {d.pron.ganador ? `(Avanza: ${d.pron.ganador})` : ""}</td>
-                <td>{d.real.goles_local} - {d.real.goles_visita} {d.real.ganador ? `(Avanza: ${d.real.ganador})` : ""}</td>
+                <td>{
+                  d.real.goles_local !== null && d.real.goles_visita !== null
+                    ? `${d.real.goles_local} - ${d.real.goles_visita} ${d.real.ganador ? `(Avanza: ${d.real.ganador})` : ""}`
+                    : "--"
+                }</td>
                 <td>{d.partido.bonus || 1}</td>
-                <td><strong>{d.pts}</strong></td>
+                <td><strong>{d.real.goles_local !== null && d.real.goles_visita !== null ? d.pts : 0}</strong></td>
               </tr>
             ))}
           </tbody>
