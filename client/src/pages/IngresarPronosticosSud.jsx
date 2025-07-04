@@ -40,21 +40,54 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
     rondas[partido.ronda].push({ ...partido });
   }
 
-  // Orden de rondas
-  const avance = {};
-
   // Copia profunda de los partidos para no mutar el fixture original
   const rondasCopia = {};
   for (const ronda of ROUNDS) {
     rondasCopia[ronda] = (rondas[ronda] || []).map(p => ({ ...p }));
   }
 
+  // 1. Calcular ganadores de la ronda anterior a Octavos
+  let ganadoresPlayoff = {};
+  const playoff = rondasCopia[ROUNDS[0]] || [];
+  for (const partido of playoff) {
+    let eqA = partido.equipo_local;
+    let eqB = partido.equipo_visita;
+    let gA = 0, gB = 0;
+    if (partido.fixture_id && pronosticos[partido.fixture_id]) {
+      gA = Number(pronosticos[partido.fixture_id]?.local ?? partido.goles_local ?? 0);
+      gB = Number(pronosticos[partido.fixture_id]?.visita ?? partido.goles_visita ?? 0);
+    } else {
+      gA = Number(partido.goles_local ?? 0);
+      gB = Number(partido.goles_visita ?? 0);
+    }
+    let ganador = null;
+    if (gA > gB) ganador = eqA;
+    else if (gB > gA) ganador = eqB;
+    else {
+      const penA = Number(penales[partido.clasificado]?.[eqA] ?? 0);
+      const penB = Number(penales[partido.clasificado]?.[eqB] ?? 0);
+      if (penA > penB) ganador = eqA;
+      else if (penB > penA) ganador = eqB;
+      else ganador = null;
+    }
+    if (partido.clasificado && ganador) {
+      ganadoresPlayoff[partido.clasificado] = ganador;
+    }
+  }
+
+  // 2. Reemplazar en Octavos de Final los equipos que sean sigla de Playoff por el ganador
+  const octavos = rondasCopia[ROUNDS[1]] || [];
+  for (const partido of octavos) {
+    if (ganadoresPlayoff[partido.equipo_local]) partido.equipo_local = ganadoresPlayoff[partido.equipo_local];
+    if (ganadoresPlayoff[partido.equipo_visita]) partido.equipo_visita = ganadoresPlayoff[partido.equipo_visita];
+  }
+
+  // 3. Calcular avance normal para todas las rondas (para mostrar avance de cruces)
+  const avance = {};
   for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     avance[ronda] = [];
     const partidos = rondasCopia[ronda] || [];
-    // Calcular ganadores y guardar siglas a reemplazar
-    let reemplazos = [];
     for (const partido of partidos) {
       let eqA = partido.equipo_local;
       let eqB = partido.equipo_visita;
@@ -70,7 +103,6 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
       if (gA > gB) ganador = eqA;
       else if (gB > gA) ganador = eqB;
       else {
-        // Empate: define por penales si existen
         const penA = Number(penales[partido.clasificado]?.[eqA] ?? 0);
         const penB = Number(penales[partido.clasificado]?.[eqB] ?? 0);
         if (penA > penB) ganador = eqA;
@@ -78,20 +110,6 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
         else ganador = null;
       }
       avance[ronda].push({ sigla: partido.clasificado, eqA, eqB, gA, gB, ganador });
-      // Si hay sigla y ganador, guardar para reemplazo en la siguiente ronda
-      if (partido.clasificado && ganador) {
-        reemplazos.push({ sigla: partido.clasificado, ganador });
-      }
-    }
-    // Reemplazar en la siguiente ronda
-    if (i + 1 < ROUNDS.length) {
-      const siguiente = rondasCopia[ROUNDS[i + 1]] || [];
-      for (const partido of siguiente) {
-        for (const { sigla, ganador } of reemplazos) {
-          if (partido.equipo_local === sigla) partido.equipo_local = ganador;
-          if (partido.equipo_visita === sigla) partido.equipo_visita = ganador;
-        }
-      }
     }
   }
   return avance;
