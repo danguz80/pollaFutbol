@@ -30,48 +30,50 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioI
     if (!regla) continue;
     const pron = proMap[partido.fixture_id];
     const real = resMap[partido.fixture_id];
-    // Solo sumar puntos si hay resultado real (no null)
-    if (!pron || !real || real.goles_local === null || real.goles_visita === null) continue;
+    if (!pron || !real) continue;
+    // Mostrar SIEMPRE el detalle, pero solo sumar puntos si hay goles reales
     let pts = 0;
     let tipo = '';
     // Bonus
     const bonus = partido.bonus ? Number(partido.bonus) : 1;
-    // Signo
-    const signoPron = Math.sign(pron.goles_local - pron.goles_visita);
-    const signoReal = Math.sign(real.goles_local - real.goles_visita);
-    if (signoPron === signoReal) {
-      pts += regla.signo * bonus;
-      tipo += 'S';
-    }
-    // Diferencia de gol
-    if ((pron.goles_local - pron.goles_visita) === (real.goles_local - real.goles_visita)) {
-      pts += regla.dif * bonus;
-      tipo += 'D';
-    }
-    // Marcador exacto
-    if (pron.goles_local === real.goles_local && pron.goles_visita === real.goles_visita) {
-      pts += regla.exacto * bonus;
-      tipo += 'E';
-    }
-    // Clasificado (excepto final)
-    if (partido.ronda !== 'Final' && regla.clasificado) {
-      if (pron.ganador && real.ganador && pron.ganador === real.ganador) {
-        pts += regla.clasificado;
-        tipo += 'C';
-      }
-    }
-    // Final: campeón y subcampeón
-    if (partido.ronda === 'Final') {
-      if (pron.ganador && real.ganador && pron.ganador === real.ganador) {
-        pts += regla.campeon;
-        tipo += 'F';
-      }
-      // Subcampeón: el perdedor
-      const perdedorPron = pron.ganador === partido.equipo_local ? partido.equipo_visita : partido.equipo_local;
-      const perdedorReal = real.ganador === partido.equipo_local ? partido.equipo_visita : partido.equipo_local;
-      if (perdedorPron && perdedorReal && perdedorPron === perdedorReal) {
-        pts += regla.subcampeon;
+    if (real.goles_local !== null && real.goles_visita !== null) {
+      // Signo
+      const signoPron = Math.sign(pron.goles_local - pron.goles_visita);
+      const signoReal = Math.sign(real.goles_local - real.goles_visita);
+      if (signoPron === signoReal) {
+        pts += regla.signo * bonus;
         tipo += 'S';
+      }
+      // Diferencia de gol
+      if ((pron.goles_local - pron.goles_visita) === (real.goles_local - real.goles_visita)) {
+        pts += regla.dif * bonus;
+        tipo += 'D';
+      }
+      // Marcador exacto
+      if (pron.goles_local === real.goles_local && pron.goles_visita === real.goles_visita) {
+        pts += regla.exacto * bonus;
+        tipo += 'E';
+      }
+      // Clasificado (excepto final)
+      if (partido.ronda !== 'Final' && regla.clasificado) {
+        if (pron.ganador && real.ganador && pron.ganador === real.ganador) {
+          pts += regla.clasificado;
+          tipo += 'C';
+        }
+      }
+      // Final: campeón y subcampeón
+      if (partido.ronda === 'Final') {
+        if (pron.ganador && real.ganador && pron.ganador === real.ganador) {
+          pts += regla.campeon;
+          tipo += 'F';
+        }
+        // Subcampeón: el perdedor
+        const perdedorPron = pron.ganador === partido.equipo_local ? partido.equipo_visita : partido.equipo_local;
+        const perdedorReal = real.ganador === partido.equipo_local ? partido.equipo_visita : partido.equipo_local;
+        if (perdedorPron && perdedorReal && perdedorPron === perdedorReal) {
+          pts += regla.subcampeon;
+          tipo += 'S';
+        }
       }
     }
     detalle.push({ fixture_id: partido.fixture_id, ronda: partido.ronda, pts, tipo, partido, pron, real });
