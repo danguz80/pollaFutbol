@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getSudamericanaCellStyle } from '../utils/sudamericanaRankingStyle';
+import { getFotoPerfilUrl } from '../utils/fotoPerfil';
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 const ROUNDS = [
@@ -24,6 +26,7 @@ function SudamericanaSubMenu() {
 export default function ClasificacionSudamericana() {
   const [selectedRound, setSelectedRound] = useState(ROUNDS[0]);
   const [clasificacion, setClasificacion] = useState([]);
+  const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +37,10 @@ export default function ClasificacionSudamericana() {
         setClasificacion(data);
         setLoading(false);
       });
+    // Fetch ranking acumulado Sudamericana
+    fetch(`${API_BASE_URL}/api/sudamericana/ranking`)
+      .then(res => res.json())
+      .then(data => setRanking(data));
   }, [selectedRound]);
 
   // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
@@ -43,6 +50,10 @@ export default function ClasificacionSudamericana() {
     <div className="container mt-4">
       <SudamericanaSubMenu />
       <h2 className="mb-4">Clasificación Sudamericana</h2>
+      {/* Link interno para ir directo a la tabla acumulada */}
+      <div className="mb-3 d-flex flex-wrap gap-2 justify-content-center">
+        <a href="#ranking-acumulado-sud" className="btn btn-outline-primary btn-sm">Ir a Ranking Acumulado</a>
+      </div>
       <div className="mb-3 text-center">
         <label className="me-2 fw-bold">Filtrar por ronda:</label>
         <select
@@ -104,6 +115,50 @@ export default function ClasificacionSudamericana() {
           </table>
         </div>
       )}
+      {/* Tabla de ranking acumulado Sudamericana al final */}
+      <div id="ranking-acumulado-sud" className="mt-5">
+        <h4 className="text-center">📊 Ranking Acumulado Sudamericana</h4>
+        <div className="table-responsive">
+          <table className="table table-bordered text-center" style={{ marginBottom: "2rem" }}>
+            <thead>
+              <tr>
+                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Posición</th>
+                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Jugador</th>
+                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Puntaje Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranking.map((p, i) => (
+                <tr key={p.usuario_id} className="text-center">
+                  <td style={getSudamericanaCellStyle(i)}>{i + 1}</td>
+                  <td style={getSudamericanaCellStyle(i)}>
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {p.foto_perfil && (
+                        <img
+                          src={getFotoPerfilUrl(p.foto_perfil)}
+                          alt={`Foto de ${p.nombre_usuario}`}
+                          style={{
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            marginRight: '10px',
+                            border: '2px solid #ddd',
+                            objectPosition: 'center 30%'
+                          }}
+                        />
+                      )}
+                      {p.nombre_usuario}
+                    </span>
+                  </td>
+                  <td style={getSudamericanaCellStyle(i)}>{p.total ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <a href="#top" className="btn btn-link">Volver arriba</a>
+      </div>
     </div>
   );
 }
