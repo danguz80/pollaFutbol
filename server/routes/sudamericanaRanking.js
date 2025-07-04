@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db/pool.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
+import { basePoints } from '../utils/sudamericanaBasePoints.js';
 
 const router = express.Router();
 
@@ -31,15 +32,19 @@ router.get('/ranking', async (req, res) => {
       ronda: f.ronda,
       bonus: f.bonus
     }));
-    // Calcular puntaje total por usuario
+    // Calcular puntaje total por usuario (puntaje base + puntos obtenidos)
     const ranking = usuarios.map(u => {
       const pronosUsuario = pronos.filter(p => p.usuario_id === u.usuario_id);
       const puntaje = calcularPuntajesSudamericana(fixture, pronosUsuario, resultados, u.usuario_id);
+      // Buscar puntaje base por nombre (case-insensitive)
+      const base = basePoints[(u.nombre_usuario || '').toUpperCase()] || 0;
       return {
         usuario_id: u.usuario_id,
         nombre_usuario: u.nombre_usuario,
         foto_perfil: u.foto_perfil,
-        total: puntaje.total
+        total: base + puntaje.total,
+        base,
+        puntos_sudamericana: puntaje.total
       };
     });
     // Ordenar por puntaje descendente y nombre ascendente

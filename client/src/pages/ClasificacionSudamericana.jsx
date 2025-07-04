@@ -125,6 +125,8 @@ export default function ClasificacionSudamericana() {
                 <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Posición</th>
                 <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Jugador</th>
                 <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Puntaje Total</th>
+                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Base</th>
+                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Puntos Sudamericana</th>
               </tr>
             </thead>
             <tbody>
@@ -152,6 +154,8 @@ export default function ClasificacionSudamericana() {
                     </span>
                   </td>
                   <td style={getSudamericanaCellStyle(i)}>{p.total ?? 0}</td>
+                  <td style={getSudamericanaCellStyle(i)}>{p.base ?? 0}</td>
+                  <td style={getSudamericanaCellStyle(i)}>{p.puntos_sudamericana ?? 0}</td>
                 </tr>
               ))}
             </tbody>
