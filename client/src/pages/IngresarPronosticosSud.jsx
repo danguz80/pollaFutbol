@@ -36,89 +36,60 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
   // Agrupa partidos por ronda y por sigla de cruce
   const rondas = {};
   for (const partido of fixture) {
-    if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
-    const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
-    if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
-    rondas[partido.ronda][sigla].push({ ...partido });
+    if (!rondas[partido.ronda]) rondas[partido.ronda] = [];
+    rondas[partido.ronda].push({ ...partido });
   }
 
-  // Mapa para propagar ganadores: sigla => nombre equipo
-  let siglaGanadorMap = {};
+  // Orden de rondas
   const avance = {};
 
-  // Utilidad: reemplazo recursivo de siglas por nombre real, con logs
-  function resolveNombre(equipo) {
-    let iter = equipo;
-    let maxDepth = 10; // Previene loops infinitos
-    let path = [equipo];
-    while (siglaGanadorMap[iter] && maxDepth-- > 0) {
-      iter = siglaGanadorMap[iter];
-      path.push(iter);
-    }
-    return iter;
+  // Copia profunda de los partidos para no mutar el fixture original
+  const rondasCopia = {};
+  for (const ronda of ROUNDS) {
+    rondasCopia[ronda] = (rondas[ronda] || []).map(p => ({ ...p }));
   }
 
-  // --- NUEVO: Propagación robusta de ganadores a todas las rondas siguientes ---
-  // Para cada ronda, después de calcular ganadores, propagamos el nombre real a todas las siglas futuras
   for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     avance[ronda] = [];
-    const cruces = rondas[ronda] || {};
-
-    // Primero, reemplaza las siglas por nombres reales en los partidos de esta ronda (recursivo)
-    for (const [sigla, partidos] of Object.entries(cruces)) {
-      for (const partido of partidos) {
-        partido.equipo_local = resolveNombre(partido.equipo_local);
-        partido.equipo_visita = resolveNombre(partido.equipo_visita);
-      }
-    }
-
-    // Ahora calcula ganadores y propaga para la siguiente ronda
-    let ganadoresRonda = [];
-    for (const [sigla, partidos] of Object.entries(cruces)) {
-      let eqA = partidos[0].equipo_local;
-      let eqB = partidos[0].equipo_visita;
-      // Goles ida y vuelta (usa pronóstico si existe, si no, goles reales, si no, 0)
+    const partidos = rondasCopia[ronda] || [];
+    // Calcular ganadores y guardar siglas a reemplazar
+    let reemplazos = [];
+    for (const partido of partidos) {
+      let eqA = partido.equipo_local;
+      let eqB = partido.equipo_visita;
       let gA = 0, gB = 0;
-      if (partidos.length === 2) {
-        const p1 = partidos[0], p2 = partidos[1];
-        gA = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0) + Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
-        gB = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0) + Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
+      if (partido.fixture_id && pronosticos[partido.fixture_id]) {
+        gA = Number(pronosticos[partido.fixture_id]?.local ?? partido.goles_local ?? 0);
+        gB = Number(pronosticos[partido.fixture_id]?.visita ?? partido.goles_visita ?? 0);
       } else {
-        // Partido único
-        const p = partidos[0];
-        gA = Number(pronosticos[p.fixture_id]?.local ?? p.goles_local ?? 0);
-        gB = Number(pronosticos[p.fixture_id]?.visita ?? p.goles_visita ?? 0);
+        gA = Number(partido.goles_local ?? 0);
+        gB = Number(partido.goles_visita ?? 0);
       }
       let ganador = null;
       if (gA > gB) ganador = eqA;
       else if (gB > gA) ganador = eqB;
       else {
         // Empate: define por penales si existen
-        const penA = Number(penales[sigla]?.[eqA] ?? 0);
-        const penB = Number(penales[sigla]?.[eqB] ?? 0);
+        const penA = Number(penales[partido.clasificado]?.[eqA] ?? 0);
+        const penB = Number(penales[partido.clasificado]?.[eqB] ?? 0);
         if (penA > penB) ganador = eqA;
         else if (penB > penA) ganador = eqB;
-        else ganador = null; // No definido
+        else ganador = null;
       }
-      avance[ronda].push({ sigla, eqA, eqB, gA, gB, ganador });
-      // Si hay sigla (clasificado) y ganador, propagar para la siguiente ronda
-      if (sigla && ganador) {
-        siglaGanadorMap[sigla] = ganador;
-        ganadoresRonda.push({ sigla, ganador });
+      avance[ronda].push({ sigla: partido.clasificado, eqA, eqB, gA, gB, ganador });
+      // Si hay sigla y ganador, guardar para reemplazo en la siguiente ronda
+      if (partido.clasificado && ganador) {
+        reemplazos.push({ sigla: partido.clasificado, ganador });
       }
     }
-
-    // --- Propagación: reemplaza todas las siglas ganadoras en las rondas siguientes ---
-    for (let j = i + 1; j < ROUNDS.length; j++) {
-      const rondaFutura = ROUNDS[j];
-      const crucesFuturos = rondas[rondaFutura] || {};
-      for (const [siglaFutura, partidosFuturos] of Object.entries(crucesFuturos)) {
-        for (const partido of partidosFuturos) {
-          for (const { sigla: siglaGanada, ganador } of ganadoresRonda) {
-            if (partido.equipo_local === siglaGanada) partido.equipo_local = ganador;
-            if (partido.equipo_visita === siglaGanada) partido.equipo_visita = ganador;
-          }
+    // Reemplazar en la siguiente ronda
+    if (i + 1 < ROUNDS.length) {
+      const siguiente = rondasCopia[ROUNDS[i + 1]] || [];
+      for (const partido of siguiente) {
+        for (const { sigla, ganador } of reemplazos) {
+          if (partido.equipo_local === sigla) partido.equipo_local = ganador;
+          if (partido.equipo_visita === sigla) partido.equipo_visita = ganador;
         }
       }
     }
