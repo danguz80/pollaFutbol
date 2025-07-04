@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import useAuth from "../hooks/UseAuth";
+import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 const ROUNDS = [
@@ -9,6 +10,17 @@ const ROUNDS = [
   "Semifinales",
   "Final"
 ];
+
+function SudamericanaSubMenu() {
+  const navigate = useNavigate();
+  return (
+    <div className="d-flex flex-wrap gap-2 justify-content-center my-4 sticky-top bg-white py-2 shadow-sm" style={{ zIndex: 1020 }}>
+      <button className="btn btn-info" onClick={() => navigate("/clasificacion-sudamericana")}>Clasificación</button>
+      <button className="btn btn-success" onClick={() => navigate("/ingresar-pronosticos-sud")}>Ingresar Pronósticos</button>
+      <button className="btn btn-primary" onClick={() => navigate("/mis-pronosticos-sud")}>Mis Pronósticos</button>
+    </div>
+  );
+}
 
 export default function MisPronosticosSud() {
   const usuario = useAuth();
@@ -42,6 +54,7 @@ export default function MisPronosticosSud() {
 
   return (
     <div className="container mt-4">
+      <SudamericanaSubMenu />
       <h2 className="mb-4 text-center">Mis Pronósticos Sudamericana</h2>
       <div className="mb-3 text-center">
         <label className="me-2 fw-bold">Filtrar por ronda:</label>
@@ -75,10 +88,10 @@ export default function MisPronosticosSud() {
               <tr key={d.fixture_id || i}>
                 <td>{d.partido.ronda}</td>
                 <td>{d.partido.equipo_local} vs {d.partido.equipo_visita}</td>
-                <td>{d.pron.goles_local} - {d.pron.goles_visita} {d.pron.ganador ? `(Avanza: ${d.pron.ganador})` : ""}</td>
+                <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
                 <td>{
                   d.real.goles_local !== null && d.real.goles_visita !== null
-                    ? `${d.real.goles_local} - ${d.real.goles_visita} ${d.real.ganador ? `(Avanza: ${d.real.ganador})` : ""}`
+                    ? `${d.real.goles_local} - ${d.real.goles_visita}`
                     : "--"
                 }</td>
                 <td>{d.partido.bonus || 1}</td>

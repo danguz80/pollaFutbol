@@ -36,6 +36,9 @@ export default function ClasificacionSudamericana() {
       });
   }, [selectedRound]);
 
+  // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
+  const getNombreUsuario = (jug) => jug.nombre_usuario || jug.usuario_id;
+
   return (
     <div className="container mt-4">
       <SudamericanaSubMenu />
@@ -74,17 +77,21 @@ export default function ClasificacionSudamericana() {
               ) : (
                 clasificacion.map((jug, idx) => [
                   ...jug.detalle
-                    .filter(d => d.real.goles_local !== null && d.real.goles_visita !== null)
+                    // Mostrar todos los pronósticos entregados, sin filtrar por resultado real
                     .sort((a, b) => a.fixture_id - b.fixture_id)
                     .map((d, i) => (
                       <tr key={d.fixture_id + '-' + jug.usuario_id}>
-                        <td rowSpan={jug.detalle.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{jug.usuario_id}</td>
+                        <td rowSpan={jug.detalle.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
                         <td>{d.partido.ronda}</td>
                         <td>{d.partido.equipo_local} vs {d.partido.equipo_visita}</td>
-                        <td>{d.pron.goles_local} - {d.pron.goles_visita} {d.pron.ganador ? `(Avanza: ${d.pron.ganador})` : ""}</td>
-                        <td>{d.real.goles_local} - {d.real.goles_visita} {d.real.ganador ? `(Avanza: ${d.real.ganador})` : ""}</td>
+                        <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
+                        <td>{
+                          d.real.goles_local !== null && d.real.goles_visita !== null
+                            ? `${d.real.goles_local} - ${d.real.goles_visita}`
+                            : "--"
+                        }</td>
                         <td>{d.partido.bonus || 1}</td>
-                        <td><strong>{d.pts}</strong></td>
+                        <td><strong>{d.real.goles_local !== null && d.real.goles_visita !== null ? d.pts : 0}</strong></td>
                       </tr>
                     )),
                   <tr key={jug.usuario_id + '-total'} style={{ borderTop: '3px solid black', background: '#e6f7ff' }}>
