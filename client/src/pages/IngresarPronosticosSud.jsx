@@ -39,21 +39,33 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
     if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
     const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
     if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
-    rondas[partido.ronda][sigla].push({...partido});
+    rondas[partido.ronda][sigla].push({ ...partido });
   }
-  // Propagar ganadores a la siguiente ronda reemplazando siglas por nombre
+
+  // Mapa para propagar ganadores: sigla => nombre equipo
+  let siglaGanadorMap = {};
+  // Mapa para reemplazar siglas en equipos en todas las rondas futuras
+  let reemplazoSiglas = {};
+
   const avance = {};
-  let siglaGanadorMap = {}; // sigla => nombre ganador
+
   for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     avance[ronda] = [];
     const cruces = rondas[ronda] || {};
+
+    // Primero, reemplaza las siglas por nombres reales en los partidos de esta ronda
     for (const [sigla, partidos] of Object.entries(cruces)) {
-      // Determina equipos (reemplaza si corresponde)
+      for (const partido of partidos) {
+        if (reemplazoSiglas[partido.equipo_local]) partido.equipo_local = reemplazoSiglas[partido.equipo_local];
+        if (reemplazoSiglas[partido.equipo_visita]) partido.equipo_visita = reemplazoSiglas[partido.equipo_visita];
+      }
+    }
+
+    // Ahora calcula ganadores y propaga para la siguiente ronda
+    for (const [sigla, partidos] of Object.entries(cruces)) {
       let eqA = partidos[0].equipo_local;
       let eqB = partidos[0].equipo_visita;
-      if (siglaGanadorMap[eqA]) eqA = siglaGanadorMap[eqA];
-      if (siglaGanadorMap[eqB]) eqB = siglaGanadorMap[eqB];
       // Goles ida y vuelta (usa pronóstico si existe, si no, goles reales, si no, 0)
       let gA = 0, gB = 0;
       if (partidos.length === 2) {
@@ -83,14 +95,16 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
         siglaGanadorMap[sigla] = ganador;
       }
     }
-    // Antes de la siguiente ronda, reemplazar en los partidos las siglas por el nombre del ganador
+
+    // Antes de la siguiente ronda, prepara el reemplazo de siglas para equipos
     if (i + 1 < ROUNDS.length) {
       const siguiente = ROUNDS[i + 1];
       if (rondas[siguiente]) {
         for (const [sigla, partidos] of Object.entries(rondas[siguiente])) {
           for (const partido of partidos) {
-            if (siglaGanadorMap[partido.equipo_local]) partido.equipo_local = siglaGanadorMap[partido.equipo_local];
-            if (siglaGanadorMap[partido.equipo_visita]) partido.equipo_visita = siglaGanadorMap[partido.equipo_visita];
+            // Si el equipo es una sigla y ya hay ganador para esa sigla, reemplaza
+            if (siglaGanadorMap[partido.equipo_local]) reemplazoSiglas[partido.equipo_local] = siglaGanadorMap[partido.equipo_local];
+            if (siglaGanadorMap[partido.equipo_visita]) reemplazoSiglas[partido.equipo_visita] = siglaGanadorMap[partido.equipo_visita];
           }
         }
       }
