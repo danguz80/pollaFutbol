@@ -8,12 +8,15 @@ const router = express.Router();
 router.get('/clasificacion/:ronda', async (req, res) => {
   const { ronda } = req.params;
   try {
-    // Obtener todos los usuarios con pronósticos en esa ronda
+    // Obtener todos los usuarios con pronósticos en esa ronda y sus nombres
     const usuariosRes = await pool.query(
-      `SELECT DISTINCT usuario_id FROM pronosticos_sudamericana WHERE ronda = $1`,
+      `SELECT DISTINCT u.id as usuario_id, u.nombre as nombre_usuario
+       FROM pronosticos_sudamericana p
+       JOIN usuarios u ON p.usuario_id = u.id
+       WHERE p.ronda = $1`,
       [ronda]
     );
-    const usuarios = usuariosRes.rows.map(u => u.usuario_id);
+    const usuarios = usuariosRes.rows; // [{usuario_id, nombre_usuario}]
     // Obtener fixture y resultados
     const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures WHERE ronda = $1', [ronda]);
     const fixture = fixtureRes.rows;
@@ -31,11 +34,13 @@ router.get('/clasificacion/:ronda', async (req, res) => {
       ronda: f.ronda,
       bonus: f.bonus
     }));
-    // Calcular puntaje por usuario
-    const clasificacion = usuarios.map(uid => {
-      const pronosUsuario = pronos.filter(p => p.usuario_id === uid);
+    // Calcular puntaje por usuario SOLO de la ronda seleccionada
+    const clasificacion = usuarios.map(u => {
+      const pronosUsuario = pronos.filter(p => p.usuario_id === u.usuario_id);
       const puntaje = calcularPuntajesSudamericana(fixture, pronosUsuario, resultados);
-      return { usuario_id: uid, total: puntaje.total, detalle: puntaje.detalle };
+      // Sumar solo los puntos de partidos de la ronda seleccionada
+      const totalRonda = puntaje.detalle.reduce((acc, d) => d.partido.ronda === ronda ? acc + d.pts : acc, 0);
+      return { usuario_id: u.usuario_id, nombre_usuario: u.nombre_usuario, total: totalRonda, detalle: puntaje.detalle };
     });
     res.json(clasificacion);
   } catch (error) {
