@@ -291,23 +291,69 @@ export default function IngresarPronosticosSud() {
   // Ejemplo: calcular avance de cruces según pronósticos del usuario
   const avance = avanceUsuario || calcularAvanceEliminatoria(fixture, pronosticos, penales);
 
-  // USAR LOS PARTIDOS MODIFICADOS (con nombres reales) para la ronda seleccionada
-  const partidosRondaMod = (avance[selectedRound] || []).map(cruce => ({
-    fixture_id: fixture.find(f => f.ronda === selectedRound && (
-      (f.equipo_local === cruce.eqA && f.equipo_visita === cruce.eqB) ||
-      (f.equipo_local === cruce.eqB && f.equipo_visita === cruce.eqA)
-    ))?.fixture_id || Math.random(), // fallback para evitar key duplicada
-    fecha: fixture.find(f => f.ronda === selectedRound && (
-      (f.equipo_local === cruce.eqA && f.equipo_visita === cruce.eqB) ||
-      (f.equipo_local === cruce.eqB && f.equipo_visita === cruce.eqA)
-    ))?.fecha || '',
-    equipo_local: cruce.eqA,
-    equipo_visita: cruce.eqB,
-    goles_local: cruce.gA,
-    goles_visita: cruce.gB,
-    clasificado: cruce.sigla
-  }));
-  const grupos = agruparPorSigla(partidosRondaMod);
+  // --- FIXTURE VIRTUAL DEL USUARIO: genera partidos con equipos propagados según sus pronósticos ---
+  function getFixtureVirtual(fixture, pronosticos, penales) {
+    // Agrupa partidos por ronda y sigla
+    const rondas = {};
+    for (const partido of fixture) {
+      if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
+      const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
+      if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
+      rondas[partido.ronda][sigla].push({ ...partido });
+    }
+    // Mapa de sigla a equipo real
+    let siglaGanadorMap = {};
+    // Propaga ronda a ronda
+    for (let i = 0; i < ROUNDS.length; i++) {
+      const ronda = ROUNDS[i];
+      const cruces = rondas[ronda] || {};
+      for (const [sigla, partidos] of Object.entries(cruces)) {
+        for (const partido of partidos) {
+          // Reemplaza nombres por ganadores previos
+          if (siglaGanadorMap[partido.equipo_local]) partido.equipo_local = siglaGanadorMap[partido.equipo_local];
+          if (siglaGanadorMap[partido.equipo_visita]) partido.equipo_visita = siglaGanadorMap[partido.equipo_visita];
+        }
+        // Calcular ganador de este cruce
+        let eqA = partidos[0].equipo_local;
+        let eqB = partidos[0].equipo_visita;
+        let gA = 0, gB = 0;
+        if (partidos.length === 2) {
+          const p1 = partidos[0], p2 = partidos[1];
+          gA = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0) + Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
+          gB = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0) + Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
+        } else {
+          const p = partidos[0];
+          gA = Number(pronosticos[p.fixture_id]?.local ?? p.goles_local ?? 0);
+          gB = Number(pronosticos[p.fixture_id]?.visita ?? p.goles_visita ?? 0);
+        }
+        let ganador = null;
+        if (gA > gB) ganador = eqA;
+        else if (gB > gA) ganador = eqB;
+        else {
+          const penA = Number(penales[sigla]?.[eqA] ?? 0);
+          const penB = Number(penales[sigla]?.[eqB] ?? 0);
+          if (penA > penB) ganador = eqA;
+          else if (penB > penA) ganador = eqB;
+          else ganador = null;
+        }
+        if (sigla && ganador) siglaGanadorMap[sigla] = ganador;
+      }
+    }
+    // Devuelve partidos de la ronda seleccionada con equipos propagados
+    const partidosRonda = [];
+    const crucesRonda = rondas[selectedRound] || {};
+    for (const [sigla, partidos] of Object.entries(crucesRonda)) {
+      for (const partido of partidos) {
+        // Reemplaza nombres por ganadores previos (por si acaso)
+        let eqA = siglaGanadorMap[partido.equipo_local] || partido.equipo_local;
+        let eqB = siglaGanadorMap[partido.equipo_visita] || partido.equipo_visita;
+        partidosRonda.push({ ...partido, equipo_local: eqA, equipo_visita: eqB });
+      }
+    }
+    return partidosRonda;
+  }
+  const partidosVirtual = getFixtureVirtual(fixture, pronosticos, penales);
+  const grupos = agruparPorSigla(partidosVirtual);
 
   return (
     <div className="container mt-4">
@@ -331,7 +377,6 @@ export default function IngresarPronosticosSud() {
       ) : (
         <>
         {grupos.map(([sigla, partidos]) => {
-          const { eqA, eqB, totalA, totalB, empate } = getGlobalYEmpate(partidos);
           return (
             <div key={sigla} className="mb-4 border p-2 rounded">
               <h5 className="mb-2">Cruce {sigla}</h5>
@@ -357,7 +402,7 @@ export default function IngresarPronosticosSud() {
                           style={{ width: 45, display: 'inline-block' }}
                           value={pronosticos[partido.fixture_id]?.local !== undefined ? pronosticos[partido.fixture_id]?.local : (partido.goles_local !== null && partido.goles_local !== undefined ? partido.goles_local : "")}
                           onChange={e => handleInput(partido.fixture_id, "local", e.target.value === "" ? "" : Number(e.target.value))}
-/>
+                        />
                         <span> - </span>
                         <input
                           type="number"
@@ -366,7 +411,7 @@ export default function IngresarPronosticosSud() {
                           style={{ width: 45, display: 'inline-block' }}
                           value={pronosticos[partido.fixture_id]?.visita !== undefined ? pronosticos[partido.fixture_id]?.visita : (partido.goles_visita !== null && partido.goles_visita !== undefined ? partido.goles_visita : "")}
                           onChange={e => handleInput(partido.fixture_id, "visita", e.target.value === "" ? "" : Number(e.target.value))}
-/>
+                        />
                       </td>
                       <td>{partido.equipo_visita}</td>
                     </tr>
