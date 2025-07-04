@@ -2,6 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
 import { basePoints } from '../utils/sudamericanaBasePoints.js';
+import { basePlayers } from '../utils/sudamericanaBasePlayers.js';
 
 const router = express.Router();
 
@@ -32,19 +33,27 @@ router.get('/ranking', async (req, res) => {
       ronda: f.ronda,
       bonus: f.bonus
     }));
-    // Calcular puntaje total por usuario (puntaje base + puntos obtenidos)
-    const ranking = usuarios.map(u => {
-      const pronosUsuario = pronos.filter(p => p.usuario_id === u.usuario_id);
-      const puntaje = calcularPuntajesSudamericana(fixture, pronosUsuario, resultados, u.usuario_id);
-      // Buscar puntaje base por nombre (case-insensitive)
-      const base = basePoints[(u.nombre_usuario || '').toUpperCase()] || 0;
+    // Obtener fotos de perfil de todos los jugadores base
+    const fotosRes = await pool.query(
+      `SELECT nombre, foto_perfil, id as usuario_id FROM usuarios WHERE upper(nombre) = ANY($1)`,
+      [basePlayers.map(j => j.nombre.toUpperCase())]
+    );
+    const fotosMap = Object.fromEntries(fotosRes.rows.map(f => [f.nombre.toUpperCase(), f]));
+    // Mapear todos los jugadores base, aunque no tengan pronósticos
+    const ranking = basePlayers.map(j => {
+      const nombreKey = j.nombre.toUpperCase();
+      const user = usuarios.find(u => (u.nombre_usuario || '').toUpperCase() === nombreKey);
+      const foto = fotosMap[nombreKey]?.foto_perfil || null;
+      const usuario_id = fotosMap[nombreKey]?.usuario_id || (user && user.usuario_id) || null;
+      const base = basePoints[nombreKey] || 0;
+      const puntos_sudamericana = user ? (calcularPuntajesSudamericana(fixture, pronos.filter(p => p.usuario_id === user.usuario_id), resultados, user.usuario_id).total) : 0;
       return {
-        usuario_id: u.usuario_id,
-        nombre_usuario: u.nombre_usuario,
-        foto_perfil: u.foto_perfil,
-        total: base + puntaje.total,
+        usuario_id,
+        nombre_usuario: j.nombre,
+        foto_perfil: foto,
+        total: base + puntos_sudamericana,
         base,
-        puntos_sudamericana: puntaje.total
+        puntos_sudamericana
       };
     });
     // Ordenar por puntaje descendente y nombre ascendente
