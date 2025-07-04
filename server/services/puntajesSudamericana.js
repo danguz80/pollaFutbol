@@ -30,7 +30,8 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioI
     if (!regla) continue;
     const pron = proMap[partido.fixture_id];
     const real = resMap[partido.fixture_id];
-    if (!pron || !real) continue;
+    // Solo sumar puntos si hay resultado real (no null)
+    if (!pron || !real || real.goles_local === null || real.goles_visita === null) continue;
     let pts = 0;
     let tipo = '';
     // Bonus
