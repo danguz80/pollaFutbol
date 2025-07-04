@@ -173,9 +173,6 @@ export default function IngresarPronosticosSud() {
       });
   }, [usuario]);
 
-  const partidosFiltrados = fixture.filter(p => p.ronda === selectedRound);
-  const grupos = agruparPorSigla(partidosFiltrados);
-
   // Calcula el global y si hay empate
   function getGlobalYEmpate(partidos) {
     if (partidos.length !== 2) return { empate: false };
@@ -293,6 +290,24 @@ export default function IngresarPronosticosSud() {
 
   // Ejemplo: calcular avance de cruces según pronósticos del usuario
   const avance = avanceUsuario || calcularAvanceEliminatoria(fixture, pronosticos, penales);
+
+  // USAR LOS PARTIDOS MODIFICADOS (con nombres reales) para la ronda seleccionada
+  const partidosRondaMod = (avance[selectedRound] || []).map(cruce => ({
+    fixture_id: fixture.find(f => f.ronda === selectedRound && (
+      (f.equipo_local === cruce.eqA && f.equipo_visita === cruce.eqB) ||
+      (f.equipo_local === cruce.eqB && f.equipo_visita === cruce.eqA)
+    ))?.fixture_id || Math.random(), // fallback para evitar key duplicada
+    fecha: fixture.find(f => f.ronda === selectedRound && (
+      (f.equipo_local === cruce.eqA && f.equipo_visita === cruce.eqB) ||
+      (f.equipo_local === cruce.eqB && f.equipo_visita === cruce.eqA)
+    ))?.fecha || '',
+    equipo_local: cruce.eqA,
+    equipo_visita: cruce.eqB,
+    goles_local: cruce.gA,
+    goles_visita: cruce.gB,
+    clasificado: cruce.sigla
+  }));
+  const grupos = agruparPorSigla(partidosRondaMod);
 
   return (
     <div className="container mt-4">
