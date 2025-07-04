@@ -377,6 +377,8 @@ export default function IngresarPronosticosSud() {
       ) : (
         <>
         {grupos.map(([sigla, partidos]) => {
+          // Calcular global y empate para este cruce
+          const { eqA, eqB, totalA, totalB, empate } = getGlobalYEmpate(partidos);
           return (
             <div key={sigla} className="mb-4 border p-2 rounded">
               <h5 className="mb-2">Cruce {sigla}</h5>
