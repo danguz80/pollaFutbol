@@ -54,11 +54,20 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
     avance[ronda] = [];
     const cruces = rondas[ronda] || {};
 
+    console.log(`\n=== RONDA: ${ronda} ===`);
+    console.log('Estado inicial reemplazoSiglas:', JSON.stringify(reemplazoSiglas));
+    console.log('Estado inicial siglaGanadorMap:', JSON.stringify(siglaGanadorMap));
+
     // Primero, reemplaza las siglas por nombres reales en los partidos de esta ronda
     for (const [sigla, partidos] of Object.entries(cruces)) {
       for (const partido of partidos) {
+        const originalLocal = partido.equipo_local;
+        const originalVisita = partido.equipo_visita;
         if (reemplazoSiglas[partido.equipo_local]) partido.equipo_local = reemplazoSiglas[partido.equipo_local];
         if (reemplazoSiglas[partido.equipo_visita]) partido.equipo_visita = reemplazoSiglas[partido.equipo_visita];
+        if (originalLocal !== partido.equipo_local || originalVisita !== partido.equipo_visita) {
+          console.log(`Reemplazo en ronda ${ronda}, sigla ${sigla}:`, originalLocal, '->', partido.equipo_local, '|', originalVisita, '->', partido.equipo_visita);
+        }
       }
     }
 
@@ -93,6 +102,7 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
       // Si hay sigla (clasificado) y ganador, propagar para la siguiente ronda
       if (sigla && ganador) {
         siglaGanadorMap[sigla] = ganador;
+        console.log(`Propagando ganador: sigla ${sigla} => ${ganador}`);
       }
     }
 
@@ -103,12 +113,21 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
         for (const [sigla, partidos] of Object.entries(rondas[siguiente])) {
           for (const partido of partidos) {
             // Si el equipo es una sigla y ya hay ganador para esa sigla, reemplaza
-            if (siglaGanadorMap[partido.equipo_local]) reemplazoSiglas[partido.equipo_local] = siglaGanadorMap[partido.equipo_local];
-            if (siglaGanadorMap[partido.equipo_visita]) reemplazoSiglas[partido.equipo_visita] = siglaGanadorMap[partido.equipo_visita];
+            if (siglaGanadorMap[partido.equipo_local]) {
+              reemplazoSiglas[partido.equipo_local] = siglaGanadorMap[partido.equipo_local];
+              console.log(`ReemplazoSiglas: ${partido.equipo_local} => ${siglaGanadorMap[partido.equipo_local]}`);
+            }
+            if (siglaGanadorMap[partido.equipo_visita]) {
+              reemplazoSiglas[partido.equipo_visita] = siglaGanadorMap[partido.equipo_visita];
+              console.log(`ReemplazoSiglas: ${partido.equipo_visita} => ${siglaGanadorMap[partido.equipo_visita]}`);
+            }
           }
         }
       }
     }
+    console.log('Avance ronda', ronda, JSON.stringify(avance[ronda], null, 2));
+    console.log('Estado final reemplazoSiglas:', JSON.stringify(reemplazoSiglas));
+    console.log('Estado final siglaGanadorMap:', JSON.stringify(siglaGanadorMap));
   }
   return avance;
 }
