@@ -52,45 +52,29 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
     let maxDepth = 10; // Previene loops infinitos
     let path = [equipo];
     while (siglaGanadorMap[iter] && maxDepth-- > 0) {
-      console.log(`[resolveNombre] Reemplazando sigla '${iter}' por '${siglaGanadorMap[iter]}'`);
       iter = siglaGanadorMap[iter];
       path.push(iter);
-    }
-    if (path.length > 1) {
-      console.log(`[resolveNombre] Cadena de reemplazo: ${path.join(' -> ')}`);
-    } else {
-      if (iter !== equipo) {
-        console.log(`[resolveNombre] '${equipo}' reemplazado por '${iter}'`);
-      } else {
-        console.log(`[resolveNombre] '${equipo}' no tiene reemplazo en siglaGanadorMap`);
-      }
     }
     return iter;
   }
 
+  // --- NUEVO: Propagación robusta de ganadores a todas las rondas siguientes ---
+  // Para cada ronda, después de calcular ganadores, propagamos el nombre real a todas las siglas futuras
   for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     avance[ronda] = [];
     const cruces = rondas[ronda] || {};
 
-    console.log(`\n=== RONDA: ${ronda} ===`);
-    console.log('Fixture de la ronda:', JSON.stringify(cruces, null, 2));
-    console.log('Mapa actual de ganadores (siglaGanadorMap):', JSON.stringify(siglaGanadorMap));
-
     // Primero, reemplaza las siglas por nombres reales en los partidos de esta ronda (recursivo)
     for (const [sigla, partidos] of Object.entries(cruces)) {
       for (const partido of partidos) {
-        const originalLocal = partido.equipo_local;
-        const originalVisita = partido.equipo_visita;
         partido.equipo_local = resolveNombre(partido.equipo_local);
         partido.equipo_visita = resolveNombre(partido.equipo_visita);
-        if (originalLocal !== partido.equipo_local || originalVisita !== partido.equipo_visita) {
-          console.log(`[REEMPLAZO] En ronda ${ronda}, sigla ${sigla}:`, originalLocal, '->', partido.equipo_local, '|', originalVisita, '->', partido.equipo_visita);
-        }
       }
     }
 
     // Ahora calcula ganadores y propaga para la siguiente ronda
+    let ganadoresRonda = [];
     for (const [sigla, partidos] of Object.entries(cruces)) {
       let eqA = partidos[0].equipo_local;
       let eqB = partidos[0].equipo_visita;
@@ -121,11 +105,23 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
       // Si hay sigla (clasificado) y ganador, propagar para la siguiente ronda
       if (sigla && ganador) {
         siglaGanadorMap[sigla] = ganador;
-        console.log(`[PROPAGACION] sigla ${sigla} => ${ganador}`);
+        ganadoresRonda.push({ sigla, ganador });
       }
     }
-    console.log('Avance ronda', ronda, JSON.stringify(avance[ronda], null, 2));
-    console.log('Mapa final de ganadores (siglaGanadorMap):', JSON.stringify(siglaGanadorMap));
+
+    // --- Propagación: reemplaza todas las siglas ganadoras en las rondas siguientes ---
+    for (let j = i + 1; j < ROUNDS.length; j++) {
+      const rondaFutura = ROUNDS[j];
+      const crucesFuturos = rondas[rondaFutura] || {};
+      for (const [siglaFutura, partidosFuturos] of Object.entries(crucesFuturos)) {
+        for (const partido of partidosFuturos) {
+          for (const { sigla: siglaGanada, ganador } of ganadoresRonda) {
+            if (partido.equipo_local === siglaGanada) partido.equipo_local = ganador;
+            if (partido.equipo_visita === siglaGanada) partido.equipo_visita = ganador;
+          }
+        }
+      }
+    }
   }
   return avance;
 }
