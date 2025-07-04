@@ -101,6 +101,7 @@ export default function IngresarPronosticosSud() {
   const [pronosticos, setPronosticos] = useState({});
   const [penales, setPenales] = useState({});
   const [mensaje, setMensaje] = useState("");
+  const [avanceUsuario, setAvanceUsuario] = useState(null);
   const usuario = useAuth();
 
   useEffect(() => {
@@ -230,8 +231,11 @@ export default function IngresarPronosticosSud() {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (data.ok) setMensaje("Pronósticos guardados correctamente");
-    else setMensaje("Error al guardar");
+    if (data.ok) {
+      setMensaje("Pronósticos guardados correctamente. Avance de cruces actualizado solo para ti.");
+      // Recalcular avance SOLO para el usuario
+      setAvanceUsuario(calcularAvanceEliminatoria(fixture, pronosticos, penales));
+    } else setMensaje("Error al guardar");
   };
 
   // Avanzar cruces (llama al backend y refresca el fixture)
@@ -256,7 +260,7 @@ export default function IngresarPronosticosSud() {
   };
 
   // Ejemplo: calcular avance de cruces según pronósticos del usuario
-  const avance = calcularAvanceEliminatoria(fixture, pronosticos, penales);
+  const avance = avanceUsuario || calcularAvanceEliminatoria(fixture, pronosticos, penales);
 
   return (
     <div className="container mt-4">
