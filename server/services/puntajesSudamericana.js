@@ -8,7 +8,7 @@
  * @param {Array} resultados - Array de resultados oficiales (por fixture_id)
  * @returns {Object} Puntaje total y detalle por partido
  */
-function calcularPuntajesSudamericana(fixture, pronosticos, resultados) {
+function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioId = null) {
   // Configuración de puntajes por ronda
   const reglas = {
     'Knockout Round Play-offs': { signo: 1, dif: 3, exacto: 5, clasificado: 2 },
@@ -30,8 +30,7 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados) {
     if (!regla) continue;
     const pron = proMap[partido.fixture_id];
     const real = resMap[partido.fixture_id];
-    // Solo sumar puntos si hay resultado real (no null)
-    if (!pron || !real || real.goles_local === null || real.goles_visita === null) continue;
+    if (!pron || !real) continue;
     let pts = 0;
     let tipo = '';
     // Bonus
@@ -76,7 +75,10 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados) {
     }
     detalle.push({ fixture_id: partido.fixture_id, ronda: partido.ronda, pts, tipo, partido, pron, real });
     total += pts;
+    // LOG DETALLADO POR PARTIDO
+    console.log(`[PUNTAJE][${usuarioId ?? 'usuario'}][${partido.ronda}] fixture_id=${partido.fixture_id} ${partido.equipo_local} vs ${partido.equipo_visita} | pron:`, pron, '| real:', real, '| pts:', pts, '| tipo:', tipo);
   }
+  console.log(`[PUNTAJE][${usuarioId ?? 'usuario'}] TOTAL:`, total);
   return { total, detalle };
 }
 

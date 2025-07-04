@@ -37,7 +37,8 @@ router.get('/clasificacion/:ronda', async (req, res) => {
     // Calcular puntaje por usuario SOLO de la ronda seleccionada
     const clasificacion = usuarios.map(u => {
       const pronosUsuario = pronos.filter(p => p.usuario_id === u.usuario_id);
-      const puntaje = calcularPuntajesSudamericana(fixture, pronosUsuario, resultados);
+      // Pasar usuarioId para log
+      const puntaje = calcularPuntajesSudamericana(fixture, pronosUsuario, resultados, u.usuario_id);
       // Sumar solo los puntos de partidos de la ronda seleccionada
       const totalRonda = puntaje.detalle.reduce((acc, d) => d.partido.ronda === ronda ? acc + d.pts : acc, 0);
       return { usuario_id: u.usuario_id, nombre_usuario: u.nombre_usuario, total: totalRonda, detalle: puntaje.detalle };
