@@ -125,8 +125,8 @@ export default function ClasificacionSudamericana() {
                 <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Posición</th>
                 <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Jugador</th>
                 <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Puntaje Total</th>
-                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Base</th>
-                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Puntos Sudamericana</th>
+                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Puntos Fase de Grupos</th>
+                <th style={{ background: "#4c929c", color: "white", textAlign: "center" }}>Puntos Eliminación directa</th>
               </tr>
             </thead>
             <tbody>
