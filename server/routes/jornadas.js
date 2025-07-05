@@ -457,4 +457,23 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
 router.use("/ganadores", ganadoresRouter);
 router.use("/sudamericana", pronosticosSudamericanaRouter);
 
+// Alias directo para compatibilidad con frontend antiguo o rutas directas
+router.get('/fixture/:ronda', async (req, res, next) => {
+  // Si la ruta ya fue respondida por /sudamericana/fixture/:ronda, no hacer nada
+  // Si no, replicar la lógica
+  try {
+    const { ronda } = req.params;
+    console.log('--- ALIAS /api/sudamericana/fixture/:ronda ---');
+    console.log('Ronda recibida (alias):', ronda);
+    const result = await pool.query(
+      'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
+      [ronda]
+    );
+    res.json(Array.isArray(result.rows) ? result.rows : []);
+  } catch (err) {
+    console.error('Error en alias /api/sudamericana/fixture/:ronda:', err);
+    res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada (alias).' });
+  }
+});
+
 export default router;
