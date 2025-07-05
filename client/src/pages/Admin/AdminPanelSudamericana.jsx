@@ -5,25 +5,25 @@ const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 
 export default function AdminPanelSudamericana() {
   const navigate = useNavigate();
-  const [jornadas, setJornadas] = useState([]);
-  const [jornadaSeleccionada, setJornadaSeleccionada] = useState("");
+  const [rondas, setRondas] = useState([]);
+  const [rondaSeleccionada, setRondaSeleccionada] = useState("");
   const [partidos, setPartidos] = useState([]);
   const [edicionCerrada, setEdicionCerrada] = useState(false); // Estado global de edición
 
-  // Obtener jornadas Sudamericana al montar y estado global de edición
+  // Obtener rondas Sudamericana al montar y estado global de edición
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana`)
+    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/rondas`)
       .then((res) => res.json())
-      .then((data) => setJornadas(data))
-      .catch((err) => console.error("Error al cargar jornadas Sudamericana:", err));
+      .then((data) => setRondas(data))
+      .catch((err) => console.error("Error al cargar rondas Sudamericana:", err));
     fetchEstadoEdicion();
   }, []);
 
-  // Cargar partidos al seleccionar jornada
+  // Cargar partidos al seleccionar ronda
   useEffect(() => {
-    if (!jornadaSeleccionada) return;
-    fetchPartidos(jornadaSeleccionada);
-  }, [jornadaSeleccionada]);
+    if (!rondaSeleccionada) return;
+    fetchPartidos(rondaSeleccionada);
+  }, [rondaSeleccionada]);
 
   // Obtener estado global de edición de pronósticos
   const fetchEstadoEdicion = async () => {
@@ -36,14 +36,14 @@ export default function AdminPanelSudamericana() {
     }
   };
 
-  const fetchPartidos = async (numero) => {
+  const fetchPartidos = async (ronda) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${numero}/partidos`);
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture?ronda=${encodeURIComponent(ronda)}`);
       const data = await res.json();
       const partidosConGoles = data.map(p => ({
-        id: p.id,
-        local: p.local,
-        visita: p.visita,
+        id: p.fixture_id,
+        local: p.equipo_local,
+        visita: p.equipo_visita,
         golesLocal: p.goles_local ?? "",
         golesVisita: p.goles_visita ?? "",
         bonus: p.bonus ?? 1,
@@ -68,16 +68,16 @@ export default function AdminPanelSudamericana() {
 
   // PATCH para guardar goles y bonus
   const guardarResultados = async () => {
-    if (!jornadaSeleccionada) return;
+    if (!rondaSeleccionada) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${jornadaSeleccionada}/partidos`, {
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${rondaSeleccionada}/partidos`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ partidos }),
       });
       const data = await res.json();
       alert(data.mensaje || "Resultados guardados en la base de datos");
-      fetchPartidos(jornadaSeleccionada);
+      fetchPartidos(rondaSeleccionada);
     } catch (error) {
       console.error("Error al guardar resultados Sudamericana:", error);
       alert("❌ Error al guardar resultados");
@@ -86,14 +86,14 @@ export default function AdminPanelSudamericana() {
 
   // PATCH para actualizar desde API
   const actualizarDesdeAPI = async () => {
-    if (!jornadaSeleccionada) return;
+    if (!rondaSeleccionada) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${jornadaSeleccionada}/resultados`, {
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${rondaSeleccionada}/resultados`, {
         method: "PATCH"
       });
       const data = await res.json();
       alert(`✅ ${data.mensaje}: ${data.actualizados ?? ""} partidos actualizados.`);
-      fetchPartidos(jornadaSeleccionada);
+      fetchPartidos(rondaSeleccionada);
     } catch (error) {
       alert("❌ Error al actualizar desde la API");
       console.error(error);
@@ -102,9 +102,9 @@ export default function AdminPanelSudamericana() {
 
   // POST para calcular puntajes de la jornada seleccionada
   const calcularPuntajes = async () => {
-    if (!jornadaSeleccionada) return;
+    if (!rondaSeleccionada) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sudamericana/pronosticos/calcular/${jornadaSeleccionada}`, {
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/pronosticos/calcular/${rondaSeleccionada}`, {
         method: "POST"
       });
       const data = await res.json();
@@ -156,19 +156,17 @@ export default function AdminPanelSudamericana() {
         </button>
       </div>
 
-      {/* Selector de jornada */}
+      {/* Selector de ronda */}
       <div className="mb-3">
-        <label className="form-label">Selecciona Jornada:</label>
+        <label className="form-label">Selecciona Ronda:</label>
         <select
           className="form-select"
-          value={jornadaSeleccionada}
-          onChange={(e) => setJornadaSeleccionada(e.target.value)}
+          value={rondaSeleccionada}
+          onChange={(e) => setRondaSeleccionada(e.target.value)}
         >
           <option value="">-- Selecciona --</option>
-          {jornadas.map((j) => (
-            <option key={j.id} value={j.numero}>
-              Jornada {j.numero}
-            </option>
+          {rondas.map((r) => (
+            <option key={r} value={r}>{r}</option>
           ))}
         </select>
       </div>
@@ -176,7 +174,7 @@ export default function AdminPanelSudamericana() {
       {/* Tabla de resultados Sudamericana */}
       {partidos.length > 0 && (
         <>
-          <h5 className="mt-4">Fixture de la Jornada</h5>
+          <h5 className="mt-4">Fixture de la Ronda</h5>
           <table className="table table-bordered text-center align-middle">
             <thead className="table-secondary">
               <tr>

@@ -346,10 +346,19 @@ router.post('/sudamericana/importar-fixture', verifyToken, authorizeRoles('admin
   }
 });
 
-// GET /api/sudamericana/fixture (puede ser público)
+// GET /api/sudamericana/fixture (puede ser público, acepta ?ronda=...)
 router.get('/sudamericana/fixture', async (req, res) => {
   try {
-    const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
+    const { ronda } = req.query;
+    let result;
+    if (ronda) {
+      result = await pool.query(
+        'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
+        [ronda]
+      );
+    } else {
+      result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
+    }
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener el fixture de la Copa Sudamericana. Por favor, revisa la base de datos o la lógica de avance de cruces.' });
@@ -385,6 +394,16 @@ const actualizarGanadores = async () => {
     console.error(error);
   }
 };
+
+// 🔹 Obtener todas las rondas únicas de la Sudamericana (para el selector)
+router.get('/sudamericana/rondas', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT DISTINCT ronda FROM sudamericana_fixtures ORDER BY ronda ASC');
+    res.json(result.rows.map(r => r.ronda));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener las rondas de la Sudamericana' });
+  }
+});
 
 router.use("/ganadores", ganadoresRouter);
 router.use("/sudamericana", pronosticosSudamericanaRouter);
