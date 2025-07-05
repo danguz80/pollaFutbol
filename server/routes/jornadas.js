@@ -405,6 +405,51 @@ router.get('/sudamericana/rondas', async (req, res) => {
   }
 });
 
+// GET /api/sudamericana/fixture/:ronda - Obtener partidos de una ronda específica
+router.get('/sudamericana/fixture/:ronda', async (req, res) => {
+  try {
+    const { ronda } = req.params;
+    const result = await pool.query(
+      'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
+      [ronda]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada.' });
+  }
+});
+
+// PATCH /api/sudamericana/fixture/:ronda - Actualizar goles/bonus de los partidos de una ronda
+router.patch('/sudamericana/fixture/:ronda', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { ronda } = req.params;
+  const { partidos } = req.body;
+  if (!Array.isArray(partidos) || partidos.length === 0) {
+    return res.status(400).json({ error: 'No se recibieron partidos para actualizar' });
+  }
+  let actualizados = 0;
+  try {
+    for (const partido of partidos) {
+      await pool.query(
+        `UPDATE sudamericana_fixtures
+         SET goles_local = $1, goles_visita = $2, bonus = $3
+         WHERE fixture_id = $4 AND ronda = $5`,
+        [
+          partido.golesLocal !== "" ? partido.golesLocal : null,
+          partido.golesVisita !== "" ? partido.golesVisita : null,
+          partido.bonus ?? 1,
+          partido.id,
+          ronda
+        ]
+      );
+      actualizados++;
+    }
+    res.json({ mensaje: 'Resultados y bonus guardados en la base de datos', actualizados });
+  } catch (error) {
+    console.error('Error al actualizar partidos Sudamericana:', error);
+    res.status(500).json({ error: 'Error al actualizar partidos Sudamericana' });
+  }
+});
+
 router.use("/ganadores", ganadoresRouter);
 router.use("/sudamericana", pronosticosSudamericanaRouter);
 

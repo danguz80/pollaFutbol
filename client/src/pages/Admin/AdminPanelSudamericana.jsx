@@ -38,7 +38,7 @@ export default function AdminPanelSudamericana() {
 
   const fetchPartidos = async (ronda) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture?ronda=${encodeURIComponent(ronda)}`);
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(ronda)}`);
       const data = await res.json();
       const partidosConGoles = data.map(p => ({
         id: p.fixture_id,
@@ -70,7 +70,7 @@ export default function AdminPanelSudamericana() {
   const guardarResultados = async () => {
     if (!rondaSeleccionada) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${rondaSeleccionada}/partidos`, {
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ partidos }),
