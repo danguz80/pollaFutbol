@@ -350,12 +350,15 @@ router.post('/sudamericana/importar-fixture', verifyToken, authorizeRoles('admin
 router.get('/sudamericana/fixture/:ronda', async (req, res) => {
   try {
     const { ronda } = req.params;
+    console.log('GET /api/sudamericana/fixture/:ronda - ronda recibida:', ronda);
     const result = await pool.query(
       'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
       [ronda]
     );
-    res.json(result.rows);
+    // Siempre devolver un array, aunque esté vacío
+    res.json(Array.isArray(result.rows) ? result.rows : []);
   } catch (err) {
+    console.error('Error al obtener el fixture de la ronda seleccionada:', err);
     res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada.' });
   }
 });
