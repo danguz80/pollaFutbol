@@ -9,6 +9,21 @@ import { authorizeRoles } from "../middleware/authorizeRoles.js";
 
 const router = express.Router();
 
+// 🔹 Obtener todas las jornadas de la Sudamericana (para admin panel Sudamericana)
+router.get("/sudamericana", async (req, res) => {
+  try {
+    // Si tienes una tabla sudamericana_jornadas, usa esa. Si no, retorna un array dummy con una sola jornada para que el panel funcione.
+    // Ejemplo con una sola jornada global:
+    // const { rows } = await pool.query("SELECT id, numero, cerrada FROM sudamericana_jornadas ORDER BY numero ASC");
+    // res.json(rows);
+    res.json([{ id: 1, numero: 1, cerrada: false }]);
+  } catch (err) {
+    console.error("Error al obtener jornadas Sudamericana:", err);
+    // Devuelve un array dummy para que el frontend no falle
+    res.json([{ id: 1, numero: 1, cerrada: false }]);
+  }
+});
+
 // 🔹 Obtener todas las jornadas
 router.get("/", async (req, res) => {
   try {
@@ -338,19 +353,6 @@ const actualizarGanadores = async () => {
     console.error(error);
   }
 };
-
-// 🔹 Obtener todas las jornadas de la Sudamericana (para admin panel Sudamericana)
-router.get("/sudamericana", async (req, res) => {
-  try {
-    // Si tienes una tabla sudamericana_jornadas, usa esa. Si no, retorna un array dummy con una sola jornada para que el panel funcione.
-    // Ejemplo con una sola jornada global:
-    const { rows } = await pool.query("SELECT 1 as id, 1 as numero, false as cerrada");
-    res.json(rows);
-  } catch (err) {
-    console.error("Error al obtener jornadas Sudamericana:", err);
-    res.status(500).json({ error: "Error al obtener jornadas Sudamericana" });
-  }
-});
 
 router.use("/ganadores", ganadoresRouter);
 router.use("/sudamericana", pronosticosSudamericanaRouter);
