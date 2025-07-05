@@ -350,11 +350,18 @@ router.post('/sudamericana/importar-fixture', verifyToken, authorizeRoles('admin
 router.get('/sudamericana/fixture/:ronda', async (req, res) => {
   try {
     const { ronda } = req.params;
-    console.log('GET /api/sudamericana/fixture/:ronda - ronda recibida:', ronda);
+    console.log('--- DEBUG SUDAMERICANA FIXTURE ---');
+    console.log('Ronda recibida:', ronda);
     const result = await pool.query(
       'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
       [ronda]
     );
+    console.log('Cantidad de partidos encontrados:', result.rows.length);
+    if (result.rows.length === 0) {
+      console.log('No se encontraron partidos para la ronda:', ronda);
+    } else {
+      console.log('Primer partido:', result.rows[0]);
+    }
     // Siempre devolver un array, aunque esté vacío
     res.json(Array.isArray(result.rows) ? result.rows : []);
   } catch (err) {
