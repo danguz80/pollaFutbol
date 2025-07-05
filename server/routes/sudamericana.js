@@ -15,7 +15,7 @@ router.get('/fixture/:ronda', async (req, res) => {
     );
     res.json(Array.isArray(result.rows) ? result.rows : []);
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada.' });
+    res.json([]); // Siempre un array
   }
 });
 
@@ -62,9 +62,9 @@ router.get('/fixture', async (req, res) => {
     } else {
       result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
     }
-    res.json(result.rows);
+    res.json(Array.isArray(result.rows) ? result.rows : []);
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener el fixture de la Copa Sudamericana.' });
+    res.json([]); // Siempre un array
   }
 });
 
@@ -72,9 +72,9 @@ router.get('/fixture', async (req, res) => {
 router.get('/rondas', async (req, res) => {
   try {
     const result = await pool.query('SELECT DISTINCT ronda FROM sudamericana_fixtures ORDER BY ronda ASC');
-    res.json(result.rows.map(r => r.ronda));
+    res.json(Array.isArray(result.rows) ? result.rows.map(r => r.ronda) : []);
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener las rondas de la Sudamericana' });
+    res.json([]); // Siempre un array
   }
 });
 
