@@ -17,6 +17,7 @@ import puntajesSudamericanaRouter from "./routes/puntajesSudamericana.js";
 import clasificacionSudamericanaRouter from './routes/clasificacionSudamericana.js';
 import sudamericanaRankingRouter from './routes/sudamericanaRanking.js';
 import { router as adminSudamericanaRouter, cierreAutomaticoSudamericana } from "./routes/admin_sud.js";
+import sudamericanaRouter from "./routes/sudamericana.js";
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use("/api/admin", asignarJornadas240);
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/ganadores", ganadoresRouter);
+app.use("/api/sudamericana", sudamericanaRouter);
 app.use("/api/sudamericana", pronosticosSudamericanaRouter);
 app.use('/api/sudamericana', puntajesSudamericanaRouter);
 app.use('/api/sudamericana', clasificacionSudamericanaRouter);
