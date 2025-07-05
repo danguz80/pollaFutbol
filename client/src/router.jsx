@@ -19,6 +19,7 @@ import CambiarPassword from "./pages/CambiarPassword";
 import IngresarPronosticosSud from "./pages/IngresarPronosticosSud.jsx";
 import MisPronosticosSud from "./pages/MisPronosticosSud";
 import ClasificacionSudamericana from "./pages/ClasificacionSudamericana";
+import AdminPanelSudamericana from "./pages/Admin/AdminPanelSudamericana";
 
 export default function AppRouter() {
   return (
@@ -44,6 +45,11 @@ export default function AppRouter() {
         <Route path="/admin/usuarios" element={
           <RutaProtegidaAdmin>
             <UsuariosPendientes />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/sudamericana" element={
+          <RutaProtegidaAdmin>
+            <AdminPanelSudamericana />
           </RutaProtegidaAdmin>
         } />
 
