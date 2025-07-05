@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import { pool } from '../db/pool.js';
+
 const router = express.Router();
-const pool = require('../db/pool');
 
 // Obtener estado global de edición de pronósticos
 router.get('/estado-edicion', async (req, res) => {
@@ -45,7 +46,7 @@ router.patch('/fecha-cierre', async (req, res) => {
 });
 
 // Cron simple para cierre automático (llamar desde app.js o server.js)
-async function cierreAutomaticoSudamericana() {
+export async function cierreAutomaticoSudamericana() {
   try {
     const { rows } = await pool.query('SELECT fecha_cierre, edicion_cerrada FROM sudamericana_config LIMIT 1');
     if (rows[0]?.fecha_cierre && !rows[0]?.edicion_cerrada) {
@@ -61,4 +62,4 @@ async function cierreAutomaticoSudamericana() {
   }
 }
 
-module.exports = { router, cierreAutomaticoSudamericana };
+export { router };
