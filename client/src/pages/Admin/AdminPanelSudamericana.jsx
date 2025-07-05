@@ -140,7 +140,8 @@ export default function AdminPanelSudamericana() {
     <div className="container mt-4">
       <h2>⚙️ Panel de Administración Sudamericana</h2>
       <div className="mb-3 d-flex gap-2">
-        <button onClick={() => navigate("/admin/usuarios-sudamericana")} className="btn btn-success">
+        <button onClick={() => navigate("/admin/usuarios-sudamericana")}
+          className="btn btn-success">
           ✅ Activar usuarios Sudamericana
         </button>
       </div>

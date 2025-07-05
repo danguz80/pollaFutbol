@@ -301,6 +301,38 @@ router.patch("/:numero/ganadores", async (req, res) => {
   }
 });
 
+// === SUDAMERICANA: Gestión de usuarios activos ===
+// GET /api/sudamericana/usuarios - Listar todos los usuarios y su estado en Sudamericana
+router.get('/sudamericana/usuarios', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.nombre, u.email, COALESCE(su.activo, false) AS activo_sudamericana
+      FROM usuarios u
+      LEFT JOIN sudamericana_usuarios su ON su.usuario_id = u.id
+      ORDER BY u.nombre ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener usuarios Sudamericana' });
+  }
+});
+
+// PATCH /api/sudamericana/usuarios/:id - Activar/desactivar usuario para Sudamericana
+router.patch('/sudamericana/usuarios/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { activo } = req.body;
+  try {
+    await pool.query(`
+      INSERT INTO sudamericana_usuarios (usuario_id, activo)
+      VALUES ($1, $2)
+      ON CONFLICT (usuario_id) DO UPDATE SET activo = $2
+    `, [id, !!activo]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar usuario Sudamericana' });
+  }
+});
+
 // 🔹 ENDPOINTS SUDAMERICANA (SOLO ADMIN, NO USUARIOS NORMALES)
 // Los siguientes endpoints solo deben ser accesibles por administradores. Se protege con verifyToken y authorizeRoles('admin').
 

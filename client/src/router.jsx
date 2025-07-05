@@ -20,6 +20,7 @@ import IngresarPronosticosSud from "./pages/IngresarPronosticosSud.jsx";
 import MisPronosticosSud from "./pages/MisPronosticosSud";
 import ClasificacionSudamericana from "./pages/ClasificacionSudamericana";
 import AdminPanelSudamericana from "./pages/Admin/AdminPanelSudamericana";
+import UsuariosSudamericana from "./pages/Admin/UsuariosSudamericana";
 
 export default function AppRouter() {
   return (
@@ -50,6 +51,11 @@ export default function AppRouter() {
         <Route path="/admin/sudamericana" element={
           <RutaProtegidaAdmin>
             <AdminPanelSudamericana />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/usuarios-sudamericana" element={
+          <RutaProtegidaAdmin>
+            <UsuariosSudamericana />
           </RutaProtegidaAdmin>
         } />
 
