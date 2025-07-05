@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
+import useAuth from "../hooks/UseAuth";
 
 function SudamericanaSubMenu() {
   const navigate = useNavigate();
-  // Detectar si es admin (ajusta según tu lógica de auth, aquí ejemplo simple)
-  const isAdmin = localStorage.getItem("rol") === "admin";
+  const usuario = useAuth();
+  const isAdmin = usuario?.rol === "admin";
   return (
     <div className="d-flex flex-wrap gap-2 justify-content-center my-4 sticky-top bg-white py-2 shadow-sm" style={{ zIndex: 1020 }}>
       <button className="btn btn-info" onClick={() => navigate("/clasificacion-sudamericana")}>Clasificación</button>
