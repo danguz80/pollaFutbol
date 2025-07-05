@@ -421,25 +421,6 @@ router.post('/sudamericana/actualizar-clasificados', verifyToken, authorizeRoles
   }
 });
 
-// PATCH para actualizar ganadores de la jornada seleccionada
-const actualizarGanadores = async () => {
-  if (!jornadaSeleccionada) return;
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/ganadores`, {
-      method: "PATCH"
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert("✅ Ganadores recalculados y guardados correctamente");
-    } else {
-      alert(data.error || "❌ Error al actualizar ganadores");
-    }
-  } catch (error) {
-    alert("❌ Error de conexión al actualizar ganadores");
-    console.error(error);
-  }
-};
-
 // 🔹 Obtener todas las rondas únicas de la Sudamericana (para el selector)
 router.get('/sudamericana/rondas', async (req, res) => {
   try {
@@ -449,9 +430,6 @@ router.get('/sudamericana/rondas', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener las rondas de la Sudamericana' });
   }
 });
-
-router.use("/ganadores", ganadoresRouter);
-router.use("/sudamericana", pronosticosSudamericanaRouter);
 
 // Endpoint para avanzar ganadores de Sudamericana (fixture de eliminación directa) SOLO ADMIN
 router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
@@ -464,5 +442,9 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
     res.status(500).json({ ok: false, error: error.message });
   }
 });
+
+// MOVER ESTOS AL FINAL DEL ARCHIVO PARA NO ROMPER LAS RUTAS ESPECÍFICAS
+router.use("/ganadores", ganadoresRouter);
+router.use("/sudamericana", pronosticosSudamericanaRouter);
 
 export default router;
