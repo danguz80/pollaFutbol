@@ -283,7 +283,12 @@ export default function IngresarPronosticosSud() {
         penales_visita: esPartidoDeVuelta ? (penales[sigla]?.[equipo_visita] ?? null) : null
       };
     });
+    
+    // Debug: mostrar qué penales se están enviando
+    const penalesEnviados = pronosticosArray.filter(p => p.penales_local !== null || p.penales_visita !== null);
+    console.log("Penales a enviar:", penalesEnviados);
     console.log("Pronósticos a enviar:", pronosticosArray);
+    
     const payload = { usuario_id: usuario.id, pronosticos: pronosticosArray };
     const res = await fetch(`${API_BASE_URL}/api/sudamericana/guardar-pronosticos-elim`, {
       method: "POST",
