@@ -9,6 +9,21 @@ import { authorizeRoles } from "../middleware/authorizeRoles.js";
 
 const router = express.Router();
 
+// 🔹 Obtener todas las jornadas de la Sudamericana (para admin panel Sudamericana)
+router.get("/sudamericana", async (req, res) => {
+  try {
+    // Si tienes una tabla sudamericana_jornadas, usa esa. Si no, retorna un array dummy con una sola jornada para que el panel funcione.
+    // Ejemplo con una sola jornada global:
+    // const { rows } = await pool.query("SELECT id, numero, cerrada FROM sudamericana_jornadas ORDER BY numero ASC");
+    // res.json(rows);
+    res.json([{ id: 1, numero: 1, cerrada: false }]);
+  } catch (err) {
+    console.error("Error al obtener jornadas Sudamericana:", err);
+    // Devuelve un array dummy para que el frontend no falle
+    res.json([{ id: 1, numero: 1, cerrada: false }]);
+  }
+});
+
 // 🔹 Obtener todas las jornadas
 router.get("/", async (req, res) => {
   try {
@@ -286,6 +301,38 @@ router.patch("/:numero/ganadores", async (req, res) => {
   }
 });
 
+// === SUDAMERICANA: Gestión de usuarios activos ===
+// GET /api/sudamericana/usuarios - Listar todos los usuarios y su estado en Sudamericana
+router.get('/sudamericana/usuarios', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.nombre, u.email, COALESCE(su.activo, false) AS activo_sudamericana
+      FROM usuarios u
+      LEFT JOIN sudamericana_usuarios su ON su.usuario_id = u.id
+      ORDER BY u.nombre ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener usuarios Sudamericana' });
+  }
+});
+
+// PATCH /api/sudamericana/usuarios/:id - Activar/desactivar usuario para Sudamericana
+router.patch('/sudamericana/usuarios/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { activo } = req.body;
+  try {
+    await pool.query(`
+      INSERT INTO sudamericana_usuarios (usuario_id, activo)
+      VALUES ($1, $2)
+      ON CONFLICT (usuario_id) DO UPDATE SET activo = $2
+    `, [id, !!activo]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar usuario Sudamericana' });
+  }
+});
+
 // 🔹 ENDPOINTS SUDAMERICANA (SOLO ADMIN, NO USUARIOS NORMALES)
 // Los siguientes endpoints solo deben ser accesibles por administradores. Se protege con verifyToken y authorizeRoles('admin').
 
@@ -299,10 +346,74 @@ router.post('/sudamericana/importar-fixture', verifyToken, authorizeRoles('admin
   }
 });
 
-// GET /api/sudamericana/fixture (puede ser público)
+// GET /api/sudamericana/fixture/:ronda - Obtener partidos de una ronda específica
+router.get('/sudamericana/fixture/:ronda', async (req, res) => {
+  try {
+    const { ronda } = req.params;
+    console.log('--- DEBUG SUDAMERICANA FIXTURE ---');
+    console.log('Ronda recibida:', ronda);
+    const result = await pool.query(
+      'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
+      [ronda]
+    );
+    console.log('Cantidad de partidos encontrados:', result.rows.length);
+    if (result.rows.length === 0) {
+      console.log('No se encontraron partidos para la ronda:', ronda);
+    } else {
+      console.log('Primer partido:', result.rows[0]);
+    }
+    // Siempre devolver un array, aunque esté vacío
+    res.json(Array.isArray(result.rows) ? result.rows : []);
+  } catch (err) {
+    console.error('Error al obtener el fixture de la ronda seleccionada:', err);
+    res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada.' });
+  }
+});
+
+// PATCH /api/sudamericana/fixture/:ronda - Actualizar goles/bonus de los partidos de una ronda
+router.patch('/sudamericana/fixture/:ronda', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { ronda } = req.params;
+  const { partidos } = req.body;
+  if (!Array.isArray(partidos) || partidos.length === 0) {
+    return res.status(400).json({ error: 'No se recibieron partidos para actualizar' });
+  }
+  let actualizados = 0;
+  try {
+    for (const partido of partidos) {
+      await pool.query(
+        `UPDATE sudamericana_fixtures
+         SET goles_local = $1, goles_visita = $2, bonus = $3
+         WHERE fixture_id = $4 AND ronda = $5`,
+        [
+          partido.golesLocal !== "" ? partido.golesLocal : null,
+          partido.golesVisita !== "" ? partido.golesVisita : null,
+          partido.bonus ?? 1,
+          partido.id,
+          ronda
+        ]
+      );
+      actualizados++;
+    }
+    res.json({ mensaje: 'Resultados y bonus guardados en la base de datos', actualizados });
+  } catch (error) {
+    console.error('Error al actualizar partidos Sudamericana:', error);
+    res.status(500).json({ error: 'Error al actualizar partidos Sudamericana' });
+  }
+});
+
+// GET /api/sudamericana/fixture (puede ser público, acepta ?ronda=...)
 router.get('/sudamericana/fixture', async (req, res) => {
   try {
-    const result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
+    const { ronda } = req.query;
+    let result;
+    if (ronda) {
+      result = await pool.query(
+        'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
+        [ronda]
+      );
+    } else {
+      result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
+    }
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener el fixture de la Copa Sudamericana. Por favor, revisa la base de datos o la lógica de avance de cruces.' });
@@ -320,27 +431,15 @@ router.post('/sudamericana/actualizar-clasificados', verifyToken, authorizeRoles
   }
 });
 
-// PATCH para actualizar ganadores de la jornada seleccionada
-const actualizarGanadores = async () => {
-  if (!jornadaSeleccionada) return;
+// 🔹 Obtener todas las rondas únicas de la Sudamericana (para el selector)
+router.get('/sudamericana/rondas', async (req, res) => {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaSeleccionada}/ganadores`, {
-      method: "PATCH"
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert("✅ Ganadores recalculados y guardados correctamente");
-    } else {
-      alert(data.error || "❌ Error al actualizar ganadores");
-    }
-  } catch (error) {
-    alert("❌ Error de conexión al actualizar ganadores");
-    console.error(error);
+    const result = await pool.query('SELECT DISTINCT ronda FROM sudamericana_fixtures ORDER BY ronda ASC');
+    res.json(result.rows.map(r => r.ronda));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener las rondas de la Sudamericana' });
   }
-};
-
-router.use("/ganadores", ganadoresRouter);
-router.use("/sudamericana", pronosticosSudamericanaRouter);
+});
 
 // Endpoint para avanzar ganadores de Sudamericana (fixture de eliminación directa) SOLO ADMIN
 router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
@@ -351,6 +450,29 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
   } catch (error) {
     console.error('Error al avanzar ganadores:', error);
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// MOVER ESTOS AL FINAL DEL ARCHIVO PARA NO ROMPER LAS RUTAS ESPECÍFICAS
+router.use("/ganadores", ganadoresRouter);
+router.use("/sudamericana", pronosticosSudamericanaRouter);
+
+// Alias directo para compatibilidad con frontend antiguo o rutas directas
+router.get('/fixture/:ronda', async (req, res, next) => {
+  // Si la ruta ya fue respondida por /sudamericana/fixture/:ronda, no hacer nada
+  // Si no, replicar la lógica
+  try {
+    const { ronda } = req.params;
+    console.log('--- ALIAS /api/sudamericana/fixture/:ronda ---');
+    console.log('Ronda recibida (alias):', ronda);
+    const result = await pool.query(
+      'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
+      [ronda]
+    );
+    res.json(Array.isArray(result.rows) ? result.rows : []);
+  } catch (err) {
+    console.error('Error en alias /api/sudamericana/fixture/:ronda:', err);
+    res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada (alias).' });
   }
 });
 
