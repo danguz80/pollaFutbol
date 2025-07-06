@@ -226,12 +226,13 @@ export default function IngresarPronosticosSud() {
 
   // Guardar pronósticos y penales SOLO en la tabla por usuario
   const handleGuardar = async () => {
-    console.log("=== INICIANDO GUARDADO ===");
-    setMensaje("");
-    if (!usuario || !usuario.id) {
-      setMensaje("Debes iniciar sesión para guardar tus pronósticos");
-      return;
-    }
+    try {
+      console.log("=== INICIANDO GUARDADO ===");
+      setMensaje("");
+      if (!usuario || !usuario.id) {
+        setMensaje("Debes iniciar sesión para guardar tus pronósticos");
+        return;
+      }
     
     // Usar los partidos virtuales para obtener los nombres correctos mostrados en UI
     const partidosVirtual = getFixtureVirtual(fixture, pronosticos, penales);
@@ -307,6 +308,10 @@ export default function IngresarPronosticosSud() {
       // Recalcular avance SOLO para el usuario
       setAvanceUsuario(calcularAvanceEliminatoria(fixture, pronosticos, penales));
     } else setMensaje("Error al guardar");
+    } catch (error) {
+      console.error("Error en handleGuardar:", error);
+      setMensaje("Error al guardar: " + error.message);
+    }
   };
 
   // Avanzar cruces (llama al backend y refresca el fixture)
