@@ -306,10 +306,9 @@ router.patch("/:numero/ganadores", async (req, res) => {
 router.get('/sudamericana/usuarios', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT u.id, u.nombre, u.email, COALESCE(su.activo, false) AS activo_sudamericana
-      FROM usuarios u
-      LEFT JOIN sudamericana_usuarios su ON su.usuario_id = u.id
-      ORDER BY u.nombre ASC
+      SELECT id, nombre, email, activo_sudamericana
+      FROM usuarios
+      ORDER BY nombre ASC
     `);
     res.json(result.rows);
   } catch (err) {
@@ -323,9 +322,7 @@ router.patch('/sudamericana/usuarios/:id', verifyToken, authorizeRoles('admin'),
   const { activo } = req.body;
   try {
     await pool.query(`
-      INSERT INTO sudamericana_usuarios (usuario_id, activo)
-      VALUES ($1, $2)
-      ON CONFLICT (usuario_id) DO UPDATE SET activo = $2
+      UPDATE usuarios SET activo_sudamericana = $2 WHERE id = $1
     `, [id, !!activo]);
     res.json({ ok: true });
   } catch (err) {
