@@ -8,6 +8,21 @@ import { authorizeRoles } from "../middleware/authorizeRoles.js";
 const router = express.Router();
 const SECRET = process.env.JWT_SECRET || "secreto123";
 
+// 📋 ENDPOINT PÚBLICO - Listar todos los usuarios (sin autenticación)
+router.get("/lista", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT id, nombre, email, rol, activo, sudamericana_activo 
+            FROM usuarios 
+            ORDER BY nombre
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error al obtener usuarios:", err);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
 // 📌 Registro
 router.post("/register", async (req, res) => {
     const { nombre, email, password } = req.body;
