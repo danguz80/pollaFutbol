@@ -77,6 +77,11 @@ router.get("/pronosticos-elim/:usuarioId", async (req, res) => {
       [usuarioId]
     );
     const pronos = result.rows;
+    // TEMPORAL: Devolver pronósticos directos sin procesamiento
+    console.log("DEVOLVIENDO PRONÓSTICOS DIRECTOS:", pronos.filter(p => p.penales_local || p.penales_visita));
+    res.json(pronos);
+    return;
+    
     // 2. Obtener fixture completo
     const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
     const fixture = fixtureRes.rows;
@@ -84,6 +89,11 @@ router.get("/pronosticos-elim/:usuarioId", async (req, res) => {
     const dicSiglas = calcularAvanceSiglas(fixture, pronos);
     // 4. Reemplazar siglas por nombres reales
     const pronosConNombres = reemplazarSiglasPorNombres(pronos, dicSiglas);
+    
+    // LOG TEMPORAL: Ver qué se está devolviendo
+    console.log("PRONÓSTICOS DESDE BD:", pronos.filter(p => p.penales_local || p.penales_visita));
+    console.log("PRONÓSTICOS CON NOMBRES:", pronosConNombres.filter(p => p.penales_local || p.penales_visita));
+    
     res.json(pronosConNombres);
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
