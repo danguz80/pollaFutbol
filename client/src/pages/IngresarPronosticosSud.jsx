@@ -505,7 +505,10 @@ export default function IngresarPronosticosSud() {
             </div>
           );
         })}
-        <button className="btn btn-primary me-2" onClick={handleGuardar}>Guardar pronósticos</button>
+        <button className="btn btn-primary me-2" onClick={() => {
+          console.log("BOTÓN CLICKEADO!!!");
+          handleGuardar();
+        }}>Guardar pronósticos</button>
         {/* Solo mostrar botón Avanzar cruces si el usuario es admin */}
         {usuario?.rol === 'admin' && (
           <button className="btn btn-success" onClick={handleAvanzarCruces}>Avanzar cruces</button>
