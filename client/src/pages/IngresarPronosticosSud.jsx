@@ -162,14 +162,12 @@ export default function IngresarPronosticosSud() {
             visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
           };
           
-          // Penales por sigla de cruce - usar directamente los nombres tal como están guardados
-          const sigla = p.clasificado || null;
-          if (sigla) {
-            if (!pens[sigla]) pens[sigla] = {};
-            
-            // Buscar el partido actual en el fixture para obtener los nombres que se muestran en UI
-            const partidoActual = fixture.find(f => f.fixture_id === p.fixture_id);
-            if (partidoActual) {
+          // Penales por cruce - usar el fixture para obtener la sigla de clasificado
+          const partidoActual = fixture.find(f => f.fixture_id === p.fixture_id);
+          if (partidoActual) {
+            const sigla = partidoActual.clasificado || null;
+            if (sigla) {
+              if (!pens[sigla]) pens[sigla] = {};
               // Usar los nombres tal como aparecen en el fixture actual (que ya tienen los nombres reales)
               if (p.penales_local !== null) pens[sigla][partidoActual.equipo_local] = p.penales_local;
               if (p.penales_visita !== null) pens[sigla][partidoActual.equipo_visita] = p.penales_visita;
@@ -264,8 +262,7 @@ export default function IngresarPronosticosSud() {
         goles_local: local === "" ? null : local,
         goles_visita: visita === "" ? null : visita,
         penales_local: penales[sigla]?.[equipo_local] ?? null,
-        penales_visita: penales[sigla]?.[equipo_visita] ?? null,
-        clasificado: sigla
+        penales_visita: penales[sigla]?.[equipo_visita] ?? null
       };
     });
     console.log("Pronósticos a enviar:", pronosticosArray);
