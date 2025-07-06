@@ -180,4 +180,17 @@ router.patch("/cambiar-password", verifyToken, async (req, res) => {
   }
 });
 
+// 🔹 Obtener TODOS los usuarios (sin filtros)
+router.get("/todos", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM usuarios ORDER BY nombre ASC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error al obtener todos los usuarios:", error);
+    res.status(500).json({ error: "No se pudieron obtener los usuarios" });
+  }
+});
+
 export default router;

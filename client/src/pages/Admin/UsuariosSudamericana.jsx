@@ -15,29 +15,21 @@ export default function UsuariosSudamericana() {
   const fetchUsuarios = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/usuarios/admin`, {
+      const res = await fetch(`${API_BASE_URL}/api/usuarios/todos`, {
         credentials: "include"
       });
-      const data = await res.json();
-      setUsuarios(data);
+      if (res.ok) {
+        const data = await res.json();
+        setUsuarios(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Error status:', res.status);
+        setUsuarios([]);
+      }
     } catch (err) {
+      console.error('Error:', err);
       setUsuarios([]);
     }
     setLoading(false);
-  };
-
-  const handleToggle = async (id, activo) => {
-    try {
-      await fetch(`${API_BASE_URL}/api/usuarios/${id}/sudamericana`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activo: !activo }),
-        credentials: "include"
-      });
-      setUsuarios(usuarios.map(u => u.id === id ? { ...u, activo_sudamericana: !activo } : u));
-    } catch (err) {
-      alert("Error al actualizar usuario");
-    }
   };
 
   return (
@@ -49,30 +41,31 @@ export default function UsuariosSudamericana() {
       {loading ? (
         <div>Cargando usuarios...</div>
       ) : (
-        <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Activo Sudamericana</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usuarios.map(u => (
-              <tr key={u.id}>
-                <td>{u.nombre}</td>
-                <td>{u.email}</td>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={!!u.activo_sudamericana}
-                    onChange={() => handleToggle(u.id, u.activo_sudamericana)}
-                  />
-                </td>
+        <div>
+          <p>Total usuarios: {usuarios.length}</p>
+          <table className="table table-bordered">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Activo Nacional</th>
+                <th>Activo Sudamericana</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {usuarios.map(u => (
+                <tr key={u.id}>
+                  <td>{u.id}</td>
+                  <td>{u.nombre}</td>
+                  <td>{u.email}</td>
+                  <td>{u.activo ? '✅' : '❌'}</td>
+                  <td>{u.activo_sudamericana ? '✅' : '❌'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
