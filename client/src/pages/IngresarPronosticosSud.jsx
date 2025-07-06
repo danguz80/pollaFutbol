@@ -175,14 +175,16 @@ export default function IngresarPronosticosSud() {
             // Determinar si este es el partido de vuelta (fixture_id más alto)
             const esPartidoDeVuelta = partidosDelCruce.length === 2 ? 
               p.fixture_id === Math.max(...partidosDelCruce.map(f => f.fixture_id)) : 
-              true; // Si solo hay un partido, siempre cargar penales              // Solo cargar penales si es el partido de vuelta
-              if (esPartidoDeVuelta) {
-                pens[p.fixture_id] = {};
-                if (p.penales_local !== null) pens[p.fixture_id].local = p.penales_local;
-                if (p.penales_visita !== null) pens[p.fixture_id].visitante = p.penales_visita;
-              }
+              true; // Si solo hay un partido, siempre cargar penales            // Solo cargar penales si es el partido de vuelta
+            if (esPartidoDeVuelta) {
+              console.log(`CARGANDO PENALES: fixture_id=${p.fixture_id}, local=${p.penales_local}, visita=${p.penales_visita}`);
+              pens[p.fixture_id] = {};
+              if (p.penales_local !== null) pens[p.fixture_id].local = p.penales_local;
+              if (p.penales_visita !== null) pens[p.fixture_id].visitante = p.penales_visita;
+            }
           }
         });
+        console.log("PENALES CARGADOS DESDE BD:", pens);
         setPronosticos(pronos);
         setPenales(pens);
       });
@@ -229,9 +231,7 @@ export default function IngresarPronosticosSud() {
 
   // Guardar pronósticos y penales SOLO en la tabla por usuario
   const handleGuardar = async () => {
-    console.log("FUNCIÓN HANDLEGUARDAR EJECUTADA - LÍNEA 1");
     try {
-      console.log("DENTRO DEL TRY - LÍNEA 2");
       console.log("=== INICIANDO GUARDADO ===");
       setMensaje("");
       if (!usuario || !usuario.id) {
@@ -511,10 +511,7 @@ export default function IngresarPronosticosSud() {
             </div>
           );
         })}
-        <button className="btn btn-primary me-2" onClick={() => {
-          console.log("BOTÓN CLICKEADO!!!");
-          handleGuardar();
-        }}>Guardar pronósticos</button>
+        <button className="btn btn-primary me-2" onClick={handleGuardar}>Guardar pronósticos</button>
         {/* Solo mostrar botón Avanzar cruces si el usuario es admin */}
         {usuario?.rol === 'admin' && (
           <button className="btn btn-success" onClick={handleAvanzarCruces}>Avanzar cruces</button>
