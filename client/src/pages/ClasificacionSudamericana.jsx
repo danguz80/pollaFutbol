@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSudamericanaCellStyle } from '../utils/sudamericanaRankingStyle';
 import { getFotoPerfilUrl } from '../utils/fotoPerfil';
+import { getFixtureVirtual } from '../utils/sudamericanaEliminatoria';
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 const ROUNDS = [
@@ -27,6 +28,7 @@ export default function ClasificacionSudamericana() {
   const [selectedRound, setSelectedRound] = useState(ROUNDS[0]);
   const [clasificacion, setClasificacion] = useState([]);
   const [ranking, setRanking] = useState([]);
+  const [fixture, setFixture] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,6 +43,9 @@ export default function ClasificacionSudamericana() {
     fetch(`${API_BASE_URL}/api/sudamericana/ranking`)
       .then(res => res.json())
       .then(data => setRanking(data));
+    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+      .then(res => res.json())
+      .then(data => setFixture(data));
   }, [selectedRound]);
 
   // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
@@ -86,30 +91,57 @@ export default function ClasificacionSudamericana() {
               {clasificacion.length === 0 ? (
                 <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>
               ) : (
-                clasificacion.map((jug, idx) => [
-                  ...jug.detalle
-                    // Mostrar todos los pronósticos entregados, sin filtrar por resultado real
-                    .sort((a, b) => a.fixture_id - b.fixture_id)
-                    .map((d, i) => (
-                      <tr key={d.fixture_id + '-' + jug.usuario_id}>
-                        <td rowSpan={jug.detalle.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
-                        <td>{d.partido.ronda}</td>
-                        <td>{d.partido.equipo_local} vs {d.partido.equipo_visita}</td>
-                        <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
-                        <td>{
-                          d.real.goles_local !== null && d.real.goles_visita !== null
-                            ? `${d.real.goles_local} - ${d.real.goles_visita}`
-                            : "--"
-                        }</td>
-                        <td>{d.partido.bonus || 1}</td>
-                        <td><strong>{d.real.goles_local !== null && d.real.goles_visita !== null ? d.pts : 0}</strong></td>
-                      </tr>
-                    )),
-                  <tr key={jug.usuario_id + '-total'} style={{ borderTop: '3px solid black', background: '#e6f7ff' }}>
-                    <td colSpan={6} className="text-end fw-bold">Total jugador</td>
-                    <td className="fw-bold text-primary">{jug.total}</td>
-                  </tr>
-                ])
+                clasificacion.map((jug, idx) => {
+                  // Mapear partidos virtuales para este usuario
+                  const pronos = {};
+                  const pens = {};
+                  jug.detalle.forEach(p => {
+                    pronos[p.fixture_id] = {
+                      local: p.pron.goles_local !== null ? Number(p.pron.goles_local) : "",
+                      visita: p.pron.goles_visita !== null ? Number(p.pron.goles_visita) : ""
+                    };
+                    const sigla = p.partido.clasificado || null;
+                    if (sigla) {
+                      if (!pens[sigla]) pens[sigla] = {};
+                      if (p.pron.penales_local !== null) pens[sigla][p.partido.equipo_local] = p.pron.penales_local;
+                      if (p.pron.penales_visita !== null) pens[sigla][p.partido.equipo_visita] = p.pron.penales_visita;
+                    }
+                  });
+                  const partidosVirtual = getFixtureVirtual(fixture, pronos, pens, selectedRound);
+                  const mapFixtureIdToEquipos = {};
+                  partidosVirtual.forEach(p => {
+                    mapFixtureIdToEquipos[p.fixture_id] = {
+                      equipo_local: p.equipo_local,
+                      equipo_visita: p.equipo_visita
+                    };
+                  });
+                  return [
+                    ...jug.detalle
+                      .sort((a, b) => a.fixture_id - b.fixture_id)
+                      .map((d, i) => {
+                        const equipos = mapFixtureIdToEquipos[d.fixture_id] || { equipo_local: d.partido.equipo_local, equipo_visita: d.partido.equipo_visita };
+                        return (
+                          <tr key={d.fixture_id + '-' + jug.usuario_id}>
+                            <td rowSpan={jug.detalle.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
+                            <td>{d.partido.ronda}</td>
+                            <td>{equipos.equipo_local} vs {equipos.equipo_visita}</td>
+                            <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
+                            <td>{
+                              d.real.goles_local !== null && d.real.goles_visita !== null
+                                ? `${d.real.goles_local} - ${d.real.goles_visita}`
+                                : "--"
+                            }</td>
+                            <td>{d.partido.bonus || 1}</td>
+                            <td><strong>{d.real.goles_local !== null && d.real.goles_visita !== null ? d.pts : 0}</strong></td>
+                          </tr>
+                        );
+                      }),
+                    <tr key={jug.usuario_id + '-total'} style={{ borderTop: '3px solid black', background: '#e6f7ff' }}>
+                      <td colSpan={6} className="text-end fw-bold">Total jugador</td>
+                      <td className="fw-bold text-primary">{jug.total}</td>
+                    </tr>
+                  ];
+                })
               )}
             </tbody>
           </table>
