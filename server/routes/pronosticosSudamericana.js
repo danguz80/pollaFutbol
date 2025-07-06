@@ -1,5 +1,6 @@
 import express from "express";
 import { pool } from "../db/pool.js";
+import { reemplazarSiglasPorNombres } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
@@ -70,11 +71,25 @@ router.post("/guardar-pronosticos-elim", async (req, res) => {
 router.get("/pronosticos-elim/:usuarioId", async (req, res) => {
   const { usuarioId } = req.params;
   try {
+    // 1. Obtener todos los pronósticos del usuario
     const result = await pool.query(
       `SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1`,
       [usuarioId]
     );
-    res.json(result.rows);
+    const pronos = result.rows;
+    // 2. Obtener diccionario de siglas actuales
+    const fixtureRes = await pool.query('SELECT fixture_id, equipo_local, equipo_visita FROM sudamericana_fixtures');
+    const dicSiglas = {};
+    for (const f of fixtureRes.rows) {
+      dicSiglas[f.equipo_local] = f.equipo_local;
+      dicSiglas[f.equipo_visita] = f.equipo_visita;
+      // Si la sigla es distinta al nombre real, mapear
+      if (f.clasificado && f.clasificado !== f.equipo_local) dicSiglas[f.clasificado] = f.equipo_local;
+      if (f.clasificado && f.clasificado !== f.equipo_visita) dicSiglas[f.clasificado] = f.equipo_visita;
+    }
+    // 3. Reemplazar siglas por nombres reales
+    const pronosConNombres = reemplazarSiglasPorNombres(pronos, dicSiglas);
+    res.json(pronosConNombres);
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }

@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
 import { basePoints } from '../utils/sudamericanaBasePoints.js';
 import { basePlayers } from '../utils/sudamericanaBasePlayers.js';
+import { reemplazarSiglasPorNombres } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
@@ -39,6 +40,15 @@ router.get('/ranking', async (req, res) => {
       [basePlayers.map(j => j.nombre.toUpperCase())]
     );
     const fotosMap = Object.fromEntries(fotosRes.rows.map(f => [f.nombre.toUpperCase(), f]));
+    // === NUEVO: Diccionario de siglas ===
+    const dicSiglas = {};
+    for (const f of fixture) {
+      dicSiglas[f.equipo_local] = f.equipo_local;
+      dicSiglas[f.equipo_visita] = f.equipo_visita;
+      if (f.clasificado && f.clasificado !== f.equipo_local) dicSiglas[f.clasificado] = f.equipo_local;
+      if (f.clasificado && f.clasificado !== f.equipo_visita) dicSiglas[f.clasificado] = f.equipo_visita;
+    }
+    // === FIN NUEVO ===
     // Mapear todos los jugadores base, aunque no tengan pronósticos
     const ranking = basePlayers.map(j => {
       const nombreKey = j.nombre.toUpperCase();
@@ -46,7 +56,11 @@ router.get('/ranking', async (req, res) => {
       const foto = fotosMap[nombreKey]?.foto_perfil || null;
       const usuario_id = fotosMap[nombreKey]?.usuario_id || (user && user.usuario_id) || null;
       const base = basePoints[nombreKey] || 0;
-      const puntos_sudamericana = user ? (calcularPuntajesSudamericana(fixture, pronos.filter(p => p.usuario_id === user.usuario_id), resultados, user.usuario_id).total) : 0;
+      // === NUEVO: reemplazar siglas en fixture y pronos ===
+      const fixtureConNombres = reemplazarSiglasPorNombres(fixture, dicSiglas);
+      const pronosUsuario = reemplazarSiglasPorNombres(pronos.filter(p => p.usuario_id === user?.usuario_id), dicSiglas);
+      // === FIN NUEVO ===
+      const puntos_sudamericana = user ? (calcularPuntajesSudamericana(fixtureConNombres, pronosUsuario, resultados, user.usuario_id).total) : 0;
       return {
         usuario_id,
         nombre_usuario: j.nombre,
