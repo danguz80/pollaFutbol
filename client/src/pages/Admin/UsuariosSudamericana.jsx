@@ -45,12 +45,14 @@ export default function UsuariosSudamericana() {
             <thead>
               <tr>
                 <th>Nombre</th>
+                <th>Habilitar/Deshabilitar</th>
               </tr>
             </thead>
             <tbody>
-              {usuarios.map((u, index) => (
-                <tr key={index}>
+              {usuarios.map((u) => (
+                <tr key={u.id}>
                   <td>{u.nombre}</td>
+                  <td>{u.activo_sudamericana ? '✅ Habilitado' : '❌ Deshabilitado'}</td>
                 </tr>
               ))}
             </tbody>
