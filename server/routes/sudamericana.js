@@ -31,11 +31,13 @@ router.patch('/fixture/:ronda', verifyToken, authorizeRoles('admin'), async (req
     for (const partido of partidos) {
       await pool.query(
         `UPDATE sudamericana_fixtures
-         SET goles_local = $1, goles_visita = $2, bonus = $3
-         WHERE fixture_id = $4 AND ronda = $5`,
+         SET goles_local = $1, goles_visita = $2, penales_local = $3, penales_visita = $4, bonus = $5
+         WHERE fixture_id = $6 AND ronda = $7`,
         [
           partido.golesLocal !== "" ? partido.golesLocal : null,
           partido.golesVisita !== "" ? partido.golesVisita : null,
+          partido.penalesLocal !== undefined && partido.penalesLocal !== "" ? partido.penalesLocal : null,
+          partido.penalesVisita !== undefined && partido.penalesVisita !== "" ? partido.penalesVisita : null,
           partido.bonus ?? 1,
           partido.id,
           ronda
