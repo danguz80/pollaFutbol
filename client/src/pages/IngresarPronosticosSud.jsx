@@ -292,8 +292,8 @@ export default function IngresarPronosticosSud() {
         goles_local: local === "" ? null : local,
         goles_visita: visita === "" ? null : visita,
         // Solo guardar penales en el partido de vuelta (fixture_id más alto)
-        penales_local: esPartidoDeVuelta ? (penales[sigla]?.[equipo_local] ?? null) : null,
-        penales_visita: esPartidoDeVuelta ? (penales[sigla]?.[equipo_visita] ?? null) : null
+        penales_local: null,
+        penales_visita: null
       };
     });
     
