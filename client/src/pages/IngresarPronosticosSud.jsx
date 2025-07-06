@@ -162,15 +162,26 @@ export default function IngresarPronosticosSud() {
             visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
           };
           
-          // Penales por cruce - usar el fixture para obtener la sigla de clasificado
+          // Penales por cruce - SOLO buscar en partidos de vuelta (fixture_id más alto)
           const partidoActual = fixture.find(f => f.fixture_id === p.fixture_id);
           if (partidoActual) {
             const sigla = partidoActual.clasificado || null;
             if (sigla) {
-              if (!pens[sigla]) pens[sigla] = {};
-              // Usar los nombres tal como aparecen en el fixture actual (que ya tienen los nombres reales)
-              if (p.penales_local !== null) pens[sigla][partidoActual.equipo_local] = p.penales_local;
-              if (p.penales_visita !== null) pens[sigla][partidoActual.equipo_visita] = p.penales_visita;
+              // Buscar todos los partidos del mismo cruce
+              const partidosDelCruce = fixture.filter(f => f.clasificado === sigla);
+              
+              // Determinar si este es el partido de vuelta (fixture_id más alto)
+              const esPartidoDeVuelta = partidosDelCruce.length === 2 ? 
+                p.fixture_id === Math.max(...partidosDelCruce.map(f => f.fixture_id)) : 
+                true; // Si solo hay un partido, siempre cargar penales
+              
+              // Solo cargar penales si es el partido de vuelta
+              if (esPartidoDeVuelta) {
+                if (!pens[sigla]) pens[sigla] = {};
+                // Usar los nombres tal como aparecen en el fixture actual (que ya tienen los nombres reales)
+                if (p.penales_local !== null) pens[sigla][partidoActual.equipo_local] = p.penales_local;
+                if (p.penales_visita !== null) pens[sigla][partidoActual.equipo_visita] = p.penales_visita;
+              }
             }
           }
         });
@@ -233,6 +244,12 @@ export default function IngresarPronosticosSud() {
       const equipo_visita = partido.equipo_visita || "Desconocido";
       const sigla = partido.clasificado || null;
       
+      // Determinar si es el partido de vuelta (fixture_id más alto del cruce)
+      const partidosDelCruce = partidosRonda.filter(p => p.clasificado === sigla);
+      const esPartidoDeVuelta = partidosDelCruce.length === 2 ? 
+        partido.fixture_id === Math.max(...partidosDelCruce.map(p => p.fixture_id)) : 
+        true; // Si solo hay un partido, siempre guardar penales
+      
       // Calcular ganador si hay goles
       let ganador = null;
       const local = goles.local !== undefined ? goles.local : (partido.goles_local !== null && partido.goles_local !== undefined ? partido.goles_local : "");
@@ -261,8 +278,9 @@ export default function IngresarPronosticosSud() {
         ganador,
         goles_local: local === "" ? null : local,
         goles_visita: visita === "" ? null : visita,
-        penales_local: penales[sigla]?.[equipo_local] ?? null,
-        penales_visita: penales[sigla]?.[equipo_visita] ?? null
+        // Solo guardar penales en el partido de vuelta (fixture_id más alto)
+        penales_local: esPartidoDeVuelta ? (penales[sigla]?.[equipo_local] ?? null) : null,
+        penales_visita: esPartidoDeVuelta ? (penales[sigla]?.[equipo_visita] ?? null) : null
       };
     });
     console.log("Pronósticos a enviar:", pronosticosArray);
