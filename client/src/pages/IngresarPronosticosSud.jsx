@@ -226,6 +226,7 @@ export default function IngresarPronosticosSud() {
 
   // Guardar pronósticos y penales SOLO en la tabla por usuario
   const handleGuardar = async () => {
+    console.log("=== INICIANDO GUARDADO ===");
     setMensaje("");
     if (!usuario || !usuario.id) {
       setMensaje("Debes iniciar sesión para guardar tus pronósticos");
@@ -253,6 +254,7 @@ export default function IngresarPronosticosSud() {
         true; // Si solo hay un partido, siempre guardar penales
       
       console.log(`Partido ${partido.fixture_id} - Sigla: ${sigla} - Es vuelta: ${esPartidoDeVuelta} - Max ID: ${maxFixtureId} - IDs del cruce: [${fixtureIds.join(', ')}]`);
+      console.log("PENALES PARA PARTIDO:", partido.fixture_id, "Sigla:", sigla, "Local:", penales[sigla]?.[equipo_local], "Visita:", penales[sigla]?.[equipo_visita]);
       
       // Calcular ganador si hay goles
       let ganador = null;
