@@ -246,9 +246,13 @@ export default function IngresarPronosticosSud() {
       
       // Determinar si es el partido de vuelta (fixture_id más alto del cruce)
       const partidosDelCruce = partidosRonda.filter(p => p.clasificado === sigla);
+      const fixtureIds = partidosDelCruce.map(p => Number(p.fixture_id));
+      const maxFixtureId = Math.max(...fixtureIds);
       const esPartidoDeVuelta = partidosDelCruce.length === 2 ? 
-        partido.fixture_id === Math.max(...partidosDelCruce.map(p => p.fixture_id)) : 
+        Number(partido.fixture_id) === maxFixtureId : 
         true; // Si solo hay un partido, siempre guardar penales
+      
+      console.log(`Partido ${partido.fixture_id} - Sigla: ${sigla} - Es vuelta: ${esPartidoDeVuelta} - Max ID: ${maxFixtureId} - IDs del cruce: [${fixtureIds.join(', ')}]`);
       
       // Calcular ganador si hay goles
       let ganador = null;
