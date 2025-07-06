@@ -42,6 +42,7 @@ router.get('/ranking', async (req, res) => {
     const fotosMap = Object.fromEntries(fotosRes.rows.map(f => [f.nombre.toUpperCase(), f]));
     // === NUEVO: Diccionario de siglas robusto ===
     const dicSiglas = construirDiccionarioSiglas(fixture);
+    console.log('[DEBUG] Diccionario de siglas Sudamericana:', dicSiglas);
     // === FIN NUEVO ===
     // Mapear todos los jugadores base, aunque no tengan pronósticos
     const ranking = basePlayers.map(j => {
@@ -53,6 +54,11 @@ router.get('/ranking', async (req, res) => {
       // === NUEVO: reemplazar siglas en fixture y pronos ===
       const fixtureConNombres = reemplazarSiglasPorNombres(fixture, dicSiglas);
       const pronosUsuario = reemplazarSiglasPorNombres(pronos.filter(p => p.usuario_id === user?.usuario_id), dicSiglas);
+      // Mostrar los pronósticos y fixture antes y después del reemplazo
+      if (user) {
+        console.log(`[DEBUG][${j.nombre}] Pronósticos originales:`, pronos.filter(p => p.usuario_id === user.usuario_id));
+        console.log(`[DEBUG][${j.nombre}] Pronósticos con nombres:`, pronosUsuario);
+      }
       // === FIN NUEVO ===
       const puntos_sudamericana = user ? (calcularPuntajesSudamericana(fixtureConNombres, pronosUsuario, resultados, user.usuario_id).total) : 0;
       return {

@@ -82,8 +82,13 @@ router.get("/pronosticos-elim/:usuarioId", async (req, res) => {
     const fixture = fixtureRes.rows;
     // 3. Construir diccionario robusto de siglas
     const dicSiglas = construirDiccionarioSiglas(fixture);
-    // 4. Reemplazar siglas por nombres reales
+    console.log('[DEBUG] Diccionario de siglas Sudamericana:', dicSiglas);
+    // 4. Mostrar los pronósticos ANTES del reemplazo
+    console.log('[DEBUG] Pronósticos originales:', pronos);
+    // 5. Reemplazar siglas por nombres reales
     const pronosConNombres = reemplazarSiglasPorNombres(pronos, dicSiglas);
+    // 6. Mostrar los pronósticos DESPUÉS del reemplazo
+    console.log('[DEBUG] Pronósticos con nombres:', pronosConNombres);
     res.json(pronosConNombres);
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
