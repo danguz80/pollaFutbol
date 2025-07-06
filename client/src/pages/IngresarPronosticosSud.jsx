@@ -227,7 +227,9 @@ export default function IngresarPronosticosSud() {
 
   // Guardar pronósticos y penales SOLO en la tabla por usuario
   const handleGuardar = async () => {
+    console.log("FUNCIÓN HANDLEGUARDAR EJECUTADA - LÍNEA 1");
     try {
+      console.log("DENTRO DEL TRY - LÍNEA 2");
       console.log("=== INICIANDO GUARDADO ===");
       setMensaje("");
       if (!usuario || !usuario.id) {
