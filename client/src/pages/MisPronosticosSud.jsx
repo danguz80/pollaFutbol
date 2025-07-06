@@ -61,11 +61,12 @@ export default function MisPronosticosSud() {
             local: p.goles_local !== null ? Number(p.goles_local) : "",
             visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
           };
-          const sigla = p.clasificado || null;
-          if (sigla) {
-            if (!pens[sigla]) pens[sigla] = {};
-            if (p.penales_local !== null) pens[sigla][p.equipo_local] = p.penales_local;
-            if (p.penales_visita !== null) pens[sigla][p.equipo_visita] = p.penales_visita;
+          // Nueva estructura de penales por fixture_id
+          if (p.penales_local !== null || p.penales_visita !== null) {
+            pens[p.fixture_id] = {
+              local: p.penales_local !== null ? Number(p.penales_local) : 0,
+              visitante: p.penales_visita !== null ? Number(p.penales_visita) : 0
+            };
           }
         });
         setPronosticos(pronos);
