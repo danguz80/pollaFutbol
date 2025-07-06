@@ -64,8 +64,8 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
     if (gA > gB) ganador = eqA;
     else if (gB > gA) ganador = eqB;
     else {
-      const penA = Number(penales[partido.clasificado]?.[eqA] ?? 0);
-      const penB = Number(penales[partido.clasificado]?.[eqB] ?? 0);
+      const penA = Number(penales[partido.fixture_id]?.local ?? 0);
+      const penB = Number(penales[partido.fixture_id]?.visitante ?? 0);
       if (penA > penB) ganador = eqA;
       else if (penB > penA) ganador = eqB;
       else ganador = null;
@@ -103,8 +103,8 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
       if (gA > gB) ganador = eqA;
       else if (gB > gA) ganador = eqB;
       else {
-        const penA = Number(penales[partido.clasificado]?.[eqA] ?? 0);
-        const penB = Number(penales[partido.clasificado]?.[eqB] ?? 0);
+        const penA = Number(penales[partido.fixture_id]?.local ?? 0);
+        const penB = Number(penales[partido.fixture_id]?.visitante ?? 0);
         if (penA > penB) ganador = eqA;
         else if (penB > penA) ganador = eqB;
         else ganador = null;
@@ -372,10 +372,16 @@ export default function IngresarPronosticosSud() {
         if (gA > gB) ganador = eqA;
         else if (gB > gA) ganador = eqB;
         else {
-          const penA = Number(penales[sigla]?.[eqA] ?? 0);
-          const penB = Number(penales[sigla]?.[eqB] ?? 0);
-          if (penA > penB) ganador = eqA;
-          else if (penB > penA) ganador = eqB;
+          // Encontrar fixture_id del partido de vuelta (más alto)
+          const fixtureIdVuelta = partidos.length === 2 ? 
+            Math.max(...partidos.map(p => Number(p.fixture_id))) : 
+            partidos[0].fixture_id;
+          const partidoVuelta = partidos.find(p => Number(p.fixture_id) === fixtureIdVuelta);
+          const penA = Number(penales[fixtureIdVuelta]?.local ?? 0);
+          const penB = Number(penales[fixtureIdVuelta]?.visitante ?? 0);
+          // Determinar ganador según quién es local en el partido de vuelta
+          if (penA > penB) ganador = partidoVuelta.equipo_local;
+          else if (penB > penA) ganador = partidoVuelta.equipo_visita;
           else ganador = null;
         }
         if (sigla && ganador) siglaGanadorMap[sigla] = ganador;
