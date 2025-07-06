@@ -157,31 +157,18 @@ export default function IngresarPronosticosSud() {
         const pens = {};
         
         data.forEach(p => {
+          console.log(`PROCESANDO PRONÓSTICO: fixture_id=${p.fixture_id}, penales_local=${p.penales_local}, penales_visita=${p.penales_visita}`);
           pronos[p.fixture_id] = {
             local: p.goles_local !== null ? Number(p.goles_local) : "",
             visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
           };
           
-          // Penales por cruce - SOLO buscar en partidos de vuelta (fixture_id más alto)
-          const partidoActual = fixture.find(f => f.fixture_id === p.fixture_id);
-          if (partidoActual) {
-            const sigla = partidoActual.clasificado || [partidoActual.equipo_local, partidoActual.equipo_visita].sort().join(' vs ');
-            // Buscar todos los partidos del mismo cruce
-            const partidosDelCruce = fixture.filter(f => {
-              const siglaComparar = f.clasificado || [f.equipo_local, f.equipo_visita].sort().join(' vs ');
-              return siglaComparar === sigla;
-            });
-            
-            // Determinar si este es el partido de vuelta (fixture_id más alto)
-            const esPartidoDeVuelta = partidosDelCruce.length === 2 ? 
-              p.fixture_id === Math.max(...partidosDelCruce.map(f => f.fixture_id)) : 
-              true; // Si solo hay un partido, siempre cargar penales            // Solo cargar penales si es el partido de vuelta
-            if (esPartidoDeVuelta) {
-              console.log(`CARGANDO PENALES: fixture_id=${p.fixture_id}, local=${p.penales_local}, visita=${p.penales_visita}`);
-              pens[p.fixture_id] = {};
-              if (p.penales_local !== null) pens[p.fixture_id].local = p.penales_local;
-              if (p.penales_visita !== null) pens[p.fixture_id].visitante = p.penales_visita;
-            }
+          // CARGAR PENALES DIRECTAMENTE (sin validaciones complejas)
+          if (p.penales_local !== null || p.penales_visita !== null) {
+            console.log(`PENALES ENCONTRADOS: fixture_id=${p.fixture_id}, local=${p.penales_local}, visita=${p.penales_visita}`);
+            pens[p.fixture_id] = {};
+            if (p.penales_local !== null) pens[p.fixture_id].local = p.penales_local;
+            if (p.penales_visita !== null) pens[p.fixture_id].visitante = p.penales_visita;
           }
         });
         console.log("PENALES CARGADOS DESDE BD:", pens);
