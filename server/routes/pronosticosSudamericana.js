@@ -1,6 +1,6 @@
 import express from "express";
 import { pool } from "../db/pool.js";
-import { reemplazarSiglasPorNombres, construirDiccionarioSiglas } from '../utils/sudamericanaSiglas.js';
+import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
@@ -80,15 +80,10 @@ router.get("/pronosticos-elim/:usuarioId", async (req, res) => {
     // 2. Obtener fixture completo
     const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
     const fixture = fixtureRes.rows;
-    // 3. Construir diccionario robusto de siglas
-    const dicSiglas = construirDiccionarioSiglas(fixture);
-    console.log('[DEBUG] Diccionario de siglas Sudamericana:', dicSiglas);
-    // 4. Mostrar los pronósticos ANTES del reemplazo
-    console.log('[DEBUG] Pronósticos originales:', pronos);
-    // 5. Reemplazar siglas por nombres reales
+    // 3. Calcular avance de cruces con pronósticos (como en el frontend)
+    const dicSiglas = calcularAvanceSiglas(fixture, pronos);
+    // 4. Reemplazar siglas por nombres reales
     const pronosConNombres = reemplazarSiglasPorNombres(pronos, dicSiglas);
-    // 6. Mostrar los pronósticos DESPUÉS del reemplazo
-    console.log('[DEBUG] Pronósticos con nombres:', pronosConNombres);
     res.json(pronosConNombres);
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });

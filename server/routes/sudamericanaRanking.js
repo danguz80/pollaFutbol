@@ -3,7 +3,7 @@ import { pool } from '../db/pool.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
 import { basePoints } from '../utils/sudamericanaBasePoints.js';
 import { basePlayers } from '../utils/sudamericanaBasePlayers.js';
-import { reemplazarSiglasPorNombres, construirDiccionarioSiglas } from '../utils/sudamericanaSiglas.js';
+import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
@@ -40,9 +40,8 @@ router.get('/ranking', async (req, res) => {
       [basePlayers.map(j => j.nombre.toUpperCase())]
     );
     const fotosMap = Object.fromEntries(fotosRes.rows.map(f => [f.nombre.toUpperCase(), f]));
-    // === NUEVO: Diccionario de siglas robusto ===
-    const dicSiglas = construirDiccionarioSiglas(fixture);
-    console.log('[DEBUG] Diccionario de siglas Sudamericana:', dicSiglas);
+    // === NUEVO: Diccionario de siglas robusto usando avance de cruces ===
+    const dicSiglas = calcularAvanceSiglas(fixture, pronos);
     // === FIN NUEVO ===
     // Mapear todos los jugadores base, aunque no tengan pronósticos
     const ranking = basePlayers.map(j => {
@@ -54,11 +53,6 @@ router.get('/ranking', async (req, res) => {
       // === NUEVO: reemplazar siglas en fixture y pronos ===
       const fixtureConNombres = reemplazarSiglasPorNombres(fixture, dicSiglas);
       const pronosUsuario = reemplazarSiglasPorNombres(pronos.filter(p => p.usuario_id === user?.usuario_id), dicSiglas);
-      // Mostrar los pronósticos y fixture antes y después del reemplazo
-      if (user) {
-        console.log(`[DEBUG][${j.nombre}] Pronósticos originales:`, pronos.filter(p => p.usuario_id === user.usuario_id));
-        console.log(`[DEBUG][${j.nombre}] Pronósticos con nombres:`, pronosUsuario);
-      }
       // === FIN NUEVO ===
       const puntos_sudamericana = user ? (calcularPuntajesSudamericana(fixtureConNombres, pronosUsuario, resultados, user.usuario_id).total) : 0;
       return {
