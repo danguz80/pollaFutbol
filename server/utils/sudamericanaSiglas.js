@@ -87,8 +87,10 @@ export function calcularAvanceSiglas(fixture, pronosticos = []) {
           penA = pronosMap[partido.fixture_id].penales_local;
           penB = pronosMap[partido.fixture_id].penales_visita;
         }
-        if (penA > penB) ganador = eqA;
-        else if (penB > penA) ganador = eqB;
+        console.log(`PARTIDO ${partido.fixture_id}: Empate en goles (${gA}-${gB}), penales: ${penA} vs ${penB}`);
+        if (penA !== null && penB !== null && Number(penA) > Number(penB)) ganador = eqA;
+        else if (penA !== null && penB !== null && Number(penB) > Number(penA)) ganador = eqB;
+        console.log(`GANADOR POR PENALES: ${ganador}`);
       }
       // Mapear sigla de cruce a ganador para la siguiente ronda
       if (partido.clasificado && ganador) {
