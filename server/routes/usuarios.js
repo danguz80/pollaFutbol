@@ -113,6 +113,35 @@ router.get("/", async (req, res) => {
   }
 });
 
+// 🔹 Obtener todos los usuarios para admin (incluye activo_sudamericana)
+router.get("/admin", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, nombre, email, activo, activo_sudamericana FROM usuarios ORDER BY nombre ASC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error al obtener usuarios para admin:", error);
+    res.status(500).json({ error: "No se pudieron obtener los usuarios" });
+  }
+});
+
+// 🔹 Actualizar estado activo_sudamericana de un usuario
+router.patch("/:id/sudamericana", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  const { id } = req.params;
+  const { activo } = req.body;
+  try {
+    await pool.query(
+      "UPDATE usuarios SET activo_sudamericana = $1 WHERE id = $2",
+      [!!activo, id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error al actualizar activo_sudamericana:", error);
+    res.status(500).json({ error: "Error al actualizar usuario" });
+  }
+});
+
 router.patch("/cambiar-password", verifyToken, async (req, res) => {
   const { actual, nueva } = req.body;
   const usuarioId = req.usuario.id;

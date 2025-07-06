@@ -15,7 +15,7 @@ export default function UsuariosSudamericana() {
   const fetchUsuarios = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sudamericana/usuarios`, {
+      const res = await fetch(`${API_BASE_URL}/api/usuarios/admin`, {
         credentials: "include"
       });
       const data = await res.json();
@@ -28,7 +28,7 @@ export default function UsuariosSudamericana() {
 
   const handleToggle = async (id, activo) => {
     try {
-      await fetch(`${API_BASE_URL}/api/sudamericana/usuarios/${id}`, {
+      await fetch(`${API_BASE_URL}/api/usuarios/${id}/sudamericana`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activo: !activo }),
