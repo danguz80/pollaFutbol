@@ -8,11 +8,11 @@ import { authorizeRoles } from "../middleware/authorizeRoles.js";
 const router = express.Router();
 const SECRET = process.env.JWT_SECRET || "secreto123";
 
-// 📋 ENDPOINT PÚBLICO - Listar todos los usuarios (sin autenticación)
+// 📋 ENDPOINT PÚBLICO - Listar solo usuarios
 router.get("/lista", async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT id, nombre, email, rol, activo, sudamericana_activo 
+            SELECT nombre 
             FROM usuarios 
             ORDER BY nombre
         `);
