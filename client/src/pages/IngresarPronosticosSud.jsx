@@ -411,7 +411,7 @@ export default function IngresarPronosticosSud() {
   return (
     <div className="container mt-4">
       <SudamericanaSubMenu />
-      <h2 className="mb-4">Ingresar Pronósticos - Copa Sudamericana</h2>
+      <h2 className="mb-4">🔧 DEPURANDO - Ingresar Pronósticos - Copa Sudamericana 🔧</h2>
       <div className="mb-3">
         <label className="me-2">Selecciona la ronda:</label>
         <select
