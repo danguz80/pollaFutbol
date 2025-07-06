@@ -92,10 +92,11 @@ export default function ClasificacionSudamericana() {
                 <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>
               ) : (
                 clasificacion.map((jug, idx) => {
-                  // Mapear partidos virtuales para este usuario
+                  // Tomar todos los pronósticos de eliminación directa de este usuario
+                  const detalleElim = jug.detalle.filter(p => ROUNDS.includes(p.partido.ronda));
                   const pronos = {};
                   const pens = {};
-                  jug.detalle.forEach(p => {
+                  detalleElim.forEach(p => {
                     pronos[p.fixture_id] = {
                       local: p.pron.goles_local !== null ? Number(p.pron.goles_local) : "",
                       visita: p.pron.goles_visita !== null ? Number(p.pron.goles_visita) : ""
@@ -107,6 +108,7 @@ export default function ClasificacionSudamericana() {
                       if (p.pron.penales_visita !== null) pens[sigla][p.partido.equipo_visita] = p.pron.penales_visita;
                     }
                   });
+                  // Usar todos los pronósticos de eliminación directa para propagar cruces
                   const partidosVirtual = getFixtureVirtual(fixture, pronos, pens, selectedRound);
                   const mapFixtureIdToEquipos = {};
                   partidosVirtual.forEach(p => {
@@ -117,12 +119,13 @@ export default function ClasificacionSudamericana() {
                   });
                   return [
                     ...jug.detalle
+                      .filter(d => d.partido.ronda === selectedRound)
                       .sort((a, b) => a.fixture_id - b.fixture_id)
                       .map((d, i) => {
                         const equipos = mapFixtureIdToEquipos[d.fixture_id] || { equipo_local: d.partido.equipo_local, equipo_visita: d.partido.equipo_visita };
                         return (
                           <tr key={d.fixture_id + '-' + jug.usuario_id}>
-                            <td rowSpan={jug.detalle.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
+                            <td rowSpan={jug.detalle.filter(dd => dd.partido.ronda === selectedRound).length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
                             <td>{d.partido.ronda}</td>
                             <td>{equipos.equipo_local} vs {equipos.equipo_visita}</td>
                             <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
