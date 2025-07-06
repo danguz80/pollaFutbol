@@ -94,6 +94,7 @@ export default function ClasificacionSudamericana() {
                 clasificacion.map((jug, idx) => {
                   // Tomar todos los pronósticos de eliminación directa de este usuario
                   const detalleElim = jug.detalle.filter(p => ROUNDS.includes(p.partido.ronda));
+                  // Usar todos los pronósticos para propagar cruces
                   const pronos = {};
                   const pens = {};
                   detalleElim.forEach(p => {
@@ -108,8 +109,9 @@ export default function ClasificacionSudamericana() {
                       if (p.pron.penales_visita !== null) pens[sigla][p.partido.equipo_visita] = p.pron.penales_visita;
                     }
                   });
-                  // Usar todos los pronósticos de eliminación directa para propagar cruces
+                  // Construir el fixture virtual de la ronda seleccionada
                   const partidosVirtual = getFixtureVirtual(fixture, pronos, pens, selectedRound);
+                  // Mapear por fixture_id para reemplazo rápido
                   const mapFixtureIdToEquipos = {};
                   partidosVirtual.forEach(p => {
                     mapFixtureIdToEquipos[p.fixture_id] = {
@@ -117,15 +119,16 @@ export default function ClasificacionSudamericana() {
                       equipo_visita: p.equipo_visita
                     };
                   });
+                  // Renderizar SOLO los partidos de la ronda seleccionada
+                  const detalleRonda = jug.detalle.filter(d => d.partido.ronda === selectedRound);
                   return [
-                    ...jug.detalle
-                      .filter(d => d.partido.ronda === selectedRound)
+                    ...detalleRonda
                       .sort((a, b) => a.fixture_id - b.fixture_id)
                       .map((d, i) => {
                         const equipos = mapFixtureIdToEquipos[d.fixture_id] || { equipo_local: d.partido.equipo_local, equipo_visita: d.partido.equipo_visita };
                         return (
                           <tr key={d.fixture_id + '-' + jug.usuario_id}>
-                            <td rowSpan={jug.detalle.filter(dd => dd.partido.ronda === selectedRound).length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
+                            <td rowSpan={detalleRonda.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
                             <td>{d.partido.ronda}</td>
                             <td>{equipos.equipo_local} vs {equipos.equipo_visita}</td>
                             <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
