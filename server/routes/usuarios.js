@@ -208,4 +208,26 @@ router.get("/todos", verifyToken, authorizeRoles("admin"), async (req, res) => {
   }
 });
 
+// 🔄 ENDPOINT PARA ACTUALIZAR ESTADO SUDAMERICANA
+router.put("/sudamericana/:id", async (req, res) => {
+    const { id } = req.params;
+    const { activo_sudamericana } = req.body;
+    
+    try {
+        const result = await pool.query(
+            "UPDATE usuarios SET activo_sudamericana = $1 WHERE id = $2 RETURNING id, nombre, activo_sudamericana",
+            [activo_sudamericana, id]
+        );
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Usuario no encontrado" });
+        }
+        
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Error al actualizar usuario:", err);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
 export default router;

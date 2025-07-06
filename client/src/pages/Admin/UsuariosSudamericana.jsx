@@ -32,17 +32,32 @@ export default function UsuariosSudamericana() {
 
   const toggleUsuarioSudamericana = async (userId, nuevoEstado) => {
     try {
-      // Aquí iría la llamada al backend para actualizar el estado
-      // Por ahora solo actualizamos el estado local
-      setUsuarios(prev => 
-        prev.map(u => 
-          u.id === userId 
-            ? { ...u, activo_sudamericana: nuevoEstado }
-            : u
-        )
-      );
+      const res = await fetch(`${API_BASE_URL}/api/usuarios/sudamericana/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ activo_sudamericana: nuevoEstado })
+      });
+      
+      if (res.ok) {
+        // Actualizar el estado local solo si la actualización fue exitosa
+        setUsuarios(prev => 
+          prev.map(u => 
+            u.id === userId 
+              ? { ...u, activo_sudamericana: nuevoEstado }
+              : u
+          )
+        );
+      } else {
+        console.error('Error al actualizar usuario en el servidor');
+        // Revertir el cambio si falló
+        fetchUsuarios();
+      }
     } catch (err) {
       console.error('Error al actualizar usuario:', err);
+      // Revertir el cambio si falló
+      fetchUsuarios();
     }
   };
 
