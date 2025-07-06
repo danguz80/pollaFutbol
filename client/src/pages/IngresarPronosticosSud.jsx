@@ -244,7 +244,7 @@ export default function IngresarPronosticosSud() {
       // Usar los nombres reales que se muestran en la UI (ya procesados por getFixtureVirtual)
       const equipo_local = partido.equipo_local || "Desconocido";
       const equipo_visita = partido.equipo_visita || "Desconocido";
-      const sigla = partido.clasificado || null;
+      const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
       
       // Determinar si es el partido de vuelta (fixture_id más alto del cruce)
       const partidosDelCruce = partidosRonda.filter(p => p.clasificado === sigla);
