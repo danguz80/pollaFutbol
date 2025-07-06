@@ -2,18 +2,30 @@ import express from "express";
 import { pool } from "../db/pool.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
-// GET /api/sudamericana/fixture/:ronda - Obtener partidos de una ronda específica
+// GET /api/sudamericana/fixture/:ronda - Obtener partidos de una ronda específica, con nombres reales según avance de cruces y pronósticos del usuario
 router.get('/fixture/:ronda', async (req, res) => {
   try {
     const { ronda } = req.params;
-    const result = await pool.query(
-      'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
-      [ronda]
-    );
-    res.json(Array.isArray(result.rows) ? result.rows : []);
+    const usuarioId = req.query.usuarioId || null;
+    // 1. Obtener fixture completo
+    const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
+    const fixture = fixtureRes.rows;
+    // 2. Si hay usuario, obtener sus pronósticos
+    let pronos = [];
+    if (usuarioId) {
+      const pronosRes = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [usuarioId]);
+      pronos = pronosRes.rows;
+    }
+    // 3. Calcular avance de cruces (si hay usuario, usa sus pronósticos)
+    const dicSiglas = calcularAvanceSiglas(fixture, pronos);
+    // 4. Filtrar partidos de la ronda y reemplazar nombres
+    const partidosRonda = fixture.filter(f => f.ronda === ronda);
+    const partidosConNombres = reemplazarSiglasPorNombres(partidosRonda, dicSiglas);
+    res.json(Array.isArray(partidosConNombres) ? partidosConNombres : []);
   } catch (err) {
     res.json([]); // Siempre un array
   }
@@ -51,20 +63,26 @@ router.patch('/fixture/:ronda', verifyToken, authorizeRoles('admin'), async (req
   }
 });
 
-// GET /api/sudamericana/fixture (puede ser público, acepta ?ronda=...)
+// GET /api/sudamericana/fixture (puede ser público, acepta ?ronda=...&usuarioId=...)
 router.get('/fixture', async (req, res) => {
   try {
-    const { ronda } = req.query;
-    let result;
-    if (ronda) {
-      result = await pool.query(
-        'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
-        [ronda]
-      );
-    } else {
-      result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
+    const { ronda, usuarioId } = req.query;
+    // 1. Obtener fixture completo
+    const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
+    const fixture = fixtureRes.rows;
+    // 2. Si hay usuario, obtener sus pronósticos
+    let pronos = [];
+    if (usuarioId) {
+      const pronosRes = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [usuarioId]);
+      pronos = pronosRes.rows;
     }
-    res.json(Array.isArray(result.rows) ? result.rows : []);
+    // 3. Calcular avance de cruces (si hay usuario, usa sus pronósticos)
+    const dicSiglas = calcularAvanceSiglas(fixture, pronos);
+    // 4. Filtrar partidos (por ronda si corresponde) y reemplazar nombres
+    let partidos = fixture;
+    if (ronda) partidos = partidos.filter(f => f.ronda === ronda);
+    const partidosConNombres = reemplazarSiglasPorNombres(partidos, dicSiglas);
+    res.json(Array.isArray(partidosConNombres) ? partidosConNombres : []);
   } catch (err) {
     res.json([]); // Siempre un array
   }
