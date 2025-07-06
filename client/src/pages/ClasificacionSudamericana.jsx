@@ -33,7 +33,8 @@ export default function ClasificacionSudamericana() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/api/sudamericana/clasificacion/${encodeURIComponent(selectedRound)}`)
+    // Cambiar: pedir todos los pronósticos de eliminación directa, no solo los de la ronda seleccionada
+    fetch(`${API_BASE_URL}/api/sudamericana/clasificacion`)
       .then(res => res.json())
       .then(data => {
         setClasificacion(data);
