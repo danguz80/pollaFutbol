@@ -103,11 +103,11 @@ export default function ClasificacionSudamericana() {
                       local: p.pron.goles_local !== null ? Number(p.pron.goles_local) : "",
                       visita: p.pron.goles_visita !== null ? Number(p.pron.goles_visita) : ""
                     };
-                    const sigla = p.partido.clasificado || null;
-                    if (sigla) {
-                      if (!pens[sigla]) pens[sigla] = {};
-                      if (p.pron.penales_local !== null) pens[sigla][p.partido.equipo_local] = p.pron.penales_local;
-                      if (p.pron.penales_visita !== null) pens[sigla][p.partido.equipo_visita] = p.pron.penales_visita;
+                    // Cargar penales usando nueva estructura por fixture_id
+                    if (p.pron.penales_local !== null || p.pron.penales_visita !== null) {
+                      if (!pens[p.fixture_id]) pens[p.fixture_id] = {};
+                      if (p.pron.penales_local !== null) pens[p.fixture_id].local = p.pron.penales_local;
+                      if (p.pron.penales_visita !== null) pens[p.fixture_id].visitante = p.pron.penales_visita;
                     }
                   });
                   // Construir el fixture virtual de la ronda seleccionada
