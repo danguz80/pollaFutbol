@@ -15,9 +15,7 @@ export default function UsuariosSudamericana() {
   const fetchUsuarios = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/usuarios/todos`, {
-        credentials: "include"
-      });
+      const res = await fetch(`${API_BASE_URL}/api/usuarios/lista`);
       if (res.ok) {
         const data = await res.json();
         setUsuarios(Array.isArray(data) ? data : []);
@@ -46,21 +44,13 @@ export default function UsuariosSudamericana() {
           <table className="table table-bordered">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>Nombre</th>
-                <th>Email</th>
-                <th>Activo Nacional</th>
-                <th>Activo Sudamericana</th>
               </tr>
             </thead>
             <tbody>
-              {usuarios.map(u => (
-                <tr key={u.id}>
-                  <td>{u.id}</td>
+              {usuarios.map((u, index) => (
+                <tr key={index}>
                   <td>{u.nombre}</td>
-                  <td>{u.email}</td>
-                  <td>{u.activo ? '✅' : '❌'}</td>
-                  <td>{u.activo_sudamericana ? '✅' : '❌'}</td>
                 </tr>
               ))}
             </tbody>
