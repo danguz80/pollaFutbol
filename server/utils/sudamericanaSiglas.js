@@ -37,7 +37,7 @@ export function reemplazarSiglasPorNombres(arr, dicSiglas) {
   }));
 }
 
-// Calcula avance de cruces Sudamericana usando fixture y pronosticos (como en el frontend)
+// Calcula avance de cruces Sudamericana usando fixture y pronosticos (como en el frontend, propagando ganadores a todas las rondas)
 // Devuelve un diccionario sigla => nombre real, usando resultados oficiales si existen, si no, usa pronóstico
 export function calcularAvanceSiglas(fixture, pronosticos = []) {
   const ROUNDS = [
@@ -58,46 +58,19 @@ export function calcularAvanceSiglas(fixture, pronosticos = []) {
   for (const p of pronosticos) {
     pronosMap[p.fixture_id] = p;
   }
-  // 1. Calcular ganadores de la ronda anterior a Octavos
-  let ganadoresPlayoff = {};
-  const playoff = rondas[ROUNDS[0]] || [];
-  for (const partido of playoff) {
-    let eqA = partido.equipo_local;
-    let eqB = partido.equipo_visita;
-    let gA = partido.goles_local;
-    let gB = partido.goles_visita;
-    // Si no hay resultado oficial, usar pronóstico
-    if ((gA === null || gB === null) && pronosMap[partido.fixture_id]) {
-      gA = pronosMap[partido.fixture_id].goles_local;
-      gB = pronosMap[partido.fixture_id].goles_visita;
-    }
-    let ganador = null;
-    if (gA > gB) ganador = eqA;
-    else if (gB > gA) ganador = eqB;
-    else {
-      // Penales
-      let penA = partido.penales_local;
-      let penB = partido.penales_visita;
-      if ((penA === null || penB === null) && pronosMap[partido.fixture_id]) {
-        penA = pronosMap[partido.fixture_id].penales_local;
-        penB = pronosMap[partido.fixture_id].penales_visita;
-      }
-      if (penA > penB) ganador = eqA;
-      else if (penB > penA) ganador = eqB;
-    }
-    if (partido.clasificado && ganador) {
-      ganadoresPlayoff[partido.clasificado] = ganador;
-    }
-  }
-  // 2. Reemplazar en Octavos y siguientes los equipos que sean sigla de Playoff por el ganador
-  let dicSiglas = { ...ganadoresPlayoff };
-  for (let i = 1; i < ROUNDS.length; i++) {
+  // Diccionario de avance de siglas
+  let dicSiglas = {};
+  // Avance ronda por ronda
+  let avance = {};
+  for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     const partidos = rondas[ronda] || [];
     for (const partido of partidos) {
+      // Reemplazar siglas por nombre real si ya existe
       if (dicSiglas[partido.equipo_local]) partido.equipo_local = dicSiglas[partido.equipo_local];
       if (dicSiglas[partido.equipo_visita]) partido.equipo_visita = dicSiglas[partido.equipo_visita];
-      // Si hay clasificado y ganador, mapear
+      let eqA = partido.equipo_local;
+      let eqB = partido.equipo_visita;
       let gA = partido.goles_local;
       let gB = partido.goles_visita;
       if ((gA === null || gB === null) && pronosMap[partido.fixture_id]) {
@@ -105,8 +78,8 @@ export function calcularAvanceSiglas(fixture, pronosticos = []) {
         gB = pronosMap[partido.fixture_id].goles_visita;
       }
       let ganador = null;
-      if (gA > gB) ganador = partido.equipo_local;
-      else if (gB > gA) ganador = partido.equipo_visita;
+      if (gA > gB) ganador = eqA;
+      else if (gB > gA) ganador = eqB;
       else {
         let penA = partido.penales_local;
         let penB = partido.penales_visita;
@@ -114,13 +87,23 @@ export function calcularAvanceSiglas(fixture, pronosticos = []) {
           penA = pronosMap[partido.fixture_id].penales_local;
           penB = pronosMap[partido.fixture_id].penales_visita;
         }
-        if (penA > penB) ganador = partido.equipo_local;
-        else if (penB > penA) ganador = partido.equipo_visita;
+        if (penA > penB) ganador = eqA;
+        else if (penB > penA) ganador = eqB;
       }
+      // Mapear sigla de cruce a ganador para la siguiente ronda
       if (partido.clasificado && ganador) {
+        dicSiglas[partido.clasificado] = ganador;
+      }
+      // Para semifinales/final: mapear WS1, WS2, etc.
+      if (ronda === "Semifinales" && partido.clasificado && ganador) {
+        dicSiglas[partido.clasificado] = ganador;
+      }
+      if (ronda === "Final" && partido.clasificado && ganador) {
         dicSiglas[partido.clasificado] = ganador;
       }
     }
   }
+  // Log de depuración para ver el avance final
+  console.log('[DEPURACION][Avance siglas->nombre real]:', dicSiglas);
   return dicSiglas;
 }
