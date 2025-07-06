@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import useAuth from "../hooks/UseAuth";
 import { useNavigate } from "react-router-dom";
-import { obtenerNombreEquipo } from "../utils/avancesCruces";
 import { getFixtureVirtual } from '../utils/sudamericanaEliminatoria';
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
