@@ -155,23 +155,44 @@ export default function IngresarPronosticosSud() {
         // Mapear a formato { fixture_id: { local, visita }, ... }
         const pronos = {};
         const pens = {};
+        
+        // Crear un mapa de equipos virtuales (nombres reales) para hacer la correspondencia
+        const partidosVirtual = getFixtureVirtual(fixture, {}, {});
+        const equipoRealMap = {};
+        
+        // Mapear nombres originales a nombres reales mostrados en UI
+        partidosVirtual.forEach(partido => {
+          const partidoOriginal = fixture.find(f => f.fixture_id === partido.fixture_id);
+          if (partidoOriginal) {
+            // Mapear nombre original -> nombre real mostrado
+            equipoRealMap[partidoOriginal.equipo_local] = partido.equipo_local;
+            equipoRealMap[partidoOriginal.equipo_visita] = partido.equipo_visita;
+          }
+        });
+        
         data.forEach(p => {
           pronos[p.fixture_id] = {
             local: p.goles_local !== null ? Number(p.goles_local) : "",
             visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
           };
+          
           // Penales por sigla de cruce
           const sigla = p.clasificado || null;
           if (sigla) {
             if (!pens[sigla]) pens[sigla] = {};
-            if (p.penales_local !== null) pens[sigla][p.equipo_local] = p.penales_local;
-            if (p.penales_visita !== null) pens[sigla][p.equipo_visita] = p.penales_visita;
+            
+            // Convertir nombres guardados a nombres reales mostrados en UI
+            const equipoLocalReal = equipoRealMap[p.equipo_local] || p.equipo_local;
+            const equipoVisitaReal = equipoRealMap[p.equipo_visita] || p.equipo_visita;
+            
+            if (p.penales_local !== null) pens[sigla][equipoLocalReal] = p.penales_local;
+            if (p.penales_visita !== null) pens[sigla][equipoVisitaReal] = p.penales_visita;
           }
         });
         setPronosticos(pronos);
         setPenales(pens);
       });
-  }, [usuario]);
+  }, [usuario, fixture]); // Agregado fixture como dependencia
 
   // Calcula el global y si hay empate
   function getGlobalYEmpate(partidos) {
@@ -214,18 +235,24 @@ export default function IngresarPronosticosSud() {
       setMensaje("Debes iniciar sesión para guardar tus pronósticos");
       return;
     }
-    // Tomar todos los partidos de la ronda seleccionada
-    const partidosRonda = fixture.filter(p => p.ronda === selectedRound);
+    
+    // Obtener los partidos virtuales con nombres actualizados
+    const partidosVirtual = getFixtureVirtual(fixture, pronosticos, penales);
+    const partidosRonda = partidosVirtual.filter(p => p.ronda === selectedRound);
+    
     const pronosticosArray = partidosRonda.map(partido => {
       const goles = pronosticos[partido.fixture_id] || {};
       const ronda = partido.ronda || "Desconocida";
+      // Usar los nombres reales que se muestran en la UI
       const equipo_local = partido.equipo_local || "Desconocido";
       const equipo_visita = partido.equipo_visita || "Desconocido";
       const sigla = partido.clasificado || null;
+      
       // Calcular ganador si hay goles
       let ganador = null;
       const local = goles.local !== undefined ? goles.local : (partido.goles_local !== null && partido.goles_local !== undefined ? partido.goles_local : "");
       const visita = goles.visita !== undefined ? goles.visita : (partido.goles_visita !== null && partido.goles_visita !== undefined ? partido.goles_visita : "");
+      
       if (local !== "" && visita !== "") {
         if (Number(local) > Number(visita)) ganador = equipo_local;
         else if (Number(visita) > Number(local)) ganador = equipo_visita;
@@ -239,6 +266,7 @@ export default function IngresarPronosticosSud() {
           }
         }
       }
+      
       return {
         usuario_id: usuario.id,
         fixture_id: Number(partido.fixture_id),
