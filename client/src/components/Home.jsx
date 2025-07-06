@@ -65,7 +65,7 @@ export default function Home() {
                     {top3.map((p, idx) => {
                         // Manejar diferentes estructuras de datos
                         const usuario = p.usuario || p.nombre_usuario;
-                        const puntaje = p.puntaje_total || p.puntaje;
+                        const puntaje = p.puntaje_total || p.puntaje || p.total;
                         const key = p.usuario_id || p.id || usuario;
                         
                         return (
