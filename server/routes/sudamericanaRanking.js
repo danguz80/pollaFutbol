@@ -3,7 +3,7 @@ import { pool } from '../db/pool.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
 import { basePoints } from '../utils/sudamericanaBasePoints.js';
 import { basePlayers } from '../utils/sudamericanaBasePlayers.js';
-import { reemplazarSiglasPorNombres } from '../utils/sudamericanaSiglas.js';
+import { reemplazarSiglasPorNombres, construirDiccionarioSiglas } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
@@ -40,14 +40,8 @@ router.get('/ranking', async (req, res) => {
       [basePlayers.map(j => j.nombre.toUpperCase())]
     );
     const fotosMap = Object.fromEntries(fotosRes.rows.map(f => [f.nombre.toUpperCase(), f]));
-    // === NUEVO: Diccionario de siglas ===
-    const dicSiglas = {};
-    for (const f of fixture) {
-      dicSiglas[f.equipo_local] = f.equipo_local;
-      dicSiglas[f.equipo_visita] = f.equipo_visita;
-      if (f.clasificado && f.clasificado !== f.equipo_local) dicSiglas[f.clasificado] = f.equipo_local;
-      if (f.clasificado && f.clasificado !== f.equipo_visita) dicSiglas[f.clasificado] = f.equipo_visita;
-    }
+    // === NUEVO: Diccionario de siglas robusto ===
+    const dicSiglas = construirDiccionarioSiglas(fixture);
     // === FIN NUEVO ===
     // Mapear todos los jugadores base, aunque no tengan pronósticos
     const ranking = basePlayers.map(j => {
