@@ -175,15 +175,12 @@ export default function IngresarPronosticosSud() {
             // Determinar si este es el partido de vuelta (fixture_id más alto)
             const esPartidoDeVuelta = partidosDelCruce.length === 2 ? 
               p.fixture_id === Math.max(...partidosDelCruce.map(f => f.fixture_id)) : 
-              true; // Si solo hay un partido, siempre cargar penales
-            
-            // Solo cargar penales si es el partido de vuelta
-            if (esPartidoDeVuelta) {
-              if (!pens[sigla]) pens[sigla] = {};
-              // Usar los nombres tal como aparecen en el fixture actual (que ya tienen los nombres reales)
-              if (p.penales_local !== null) pens[sigla][partidoActual.equipo_local] = p.penales_local;
-              if (p.penales_visita !== null) pens[sigla][partidoActual.equipo_visita] = p.penales_visita;
-            }
+              true; // Si solo hay un partido, siempre cargar penales              // Solo cargar penales si es el partido de vuelta
+              if (esPartidoDeVuelta) {
+                pens[p.fixture_id] = {};
+                if (p.penales_local !== null) pens[p.fixture_id].local = p.penales_local;
+                if (p.penales_visita !== null) pens[p.fixture_id].visitante = p.penales_visita;
+              }
           }
         });
         setPronosticos(pronos);
@@ -215,14 +212,19 @@ export default function IngresarPronosticosSud() {
     }));
   };
 
-  const handlePenalInput = (sigla, equipo, value) => {
-    setPenales(prev => ({
-      ...prev,
-      [sigla]: {
-        ...prev[sigla],
-        [equipo]: value
-      }
-    }));
+  const handlePenalInput = (fixtureId, posicion, value) => {
+    console.log(`PENAL INPUT: FixtureId="${fixtureId}" Posicion="${posicion}" Valor="${value}"`);
+    setPenales(prev => {
+      const newPenales = {
+        ...prev,
+        [fixtureId]: {
+          ...prev[fixtureId],
+          [posicion]: value
+        }
+      };
+      console.log("NUEVO ESTADO PENALES:", newPenales);
+      return newPenales;
+    });
   };
 
   // Guardar pronósticos y penales SOLO en la tabla por usuario
@@ -261,7 +263,7 @@ export default function IngresarPronosticosSud() {
         true; // Si solo hay un partido, siempre guardar penales
       
       console.log(`Partido ${partido.fixture_id} - Sigla: ${sigla} - Es vuelta: ${esPartidoDeVuelta} - Max ID: ${maxFixtureId} - IDs del cruce: [${fixtureIds.join(', ')}]`);
-      console.log("PENALES PARA PARTIDO:", partido.fixture_id, "Sigla:", sigla, "Local:", penales[sigla]?.[equipo_local], "Visita:", penales[sigla]?.[equipo_visita]);
+      console.log("PENALES PARA PARTIDO:", partido.fixture_id, "Penales del fixture de vuelta:", penales[maxFixtureId]);
       
       // Calcular ganador si hay goles
       let ganador = null;
@@ -273,8 +275,8 @@ export default function IngresarPronosticosSud() {
         else if (Number(visita) > Number(local)) ganador = equipo_visita;
         else {
           // Empate: definir por penales si existen
-          const penA = penales[sigla]?.[equipo_local] ?? null;
-          const penB = penales[sigla]?.[equipo_visita] ?? null;
+          const penA = penales[maxFixtureId]?.local ?? null;
+          const penB = penales[maxFixtureId]?.visitante ?? null;
           if (penA !== null && penB !== null) {
             if (Number(penA) > Number(penB)) ganador = equipo_local;
             else if (Number(penB) > Number(penA)) ganador = equipo_visita;
@@ -292,8 +294,8 @@ export default function IngresarPronosticosSud() {
         goles_local: local === "" ? null : local,
         goles_visita: visita === "" ? null : visita,
         // Solo guardar penales en el partido de vuelta (fixture_id más alto)
-        penales_local: null,
-        penales_visita: null
+        penales_local: esPartidoDeVuelta ? (penales[partido.fixture_id]?.local ?? null) : null,
+        penales_visita: esPartidoDeVuelta ? (penales[partido.fixture_id]?.visitante ?? null) : null
       };
     });
     
@@ -432,6 +434,10 @@ export default function IngresarPronosticosSud() {
         {grupos.map(([sigla, partidos]) => {
           // Calcular global y empate para este cruce
           const { eqA, eqB, totalA, totalB, empate } = getGlobalYEmpate(partidos);
+          // Obtener fixture_id del partido de vuelta (más alto)
+          const fixtureIdVuelta = partidos.length === 2 ? 
+            Math.max(...partidos.map(p => Number(p.fixture_id))) : 
+            partidos[0].fixture_id;
           return (
             <div key={sigla} className="mb-4 border p-2 rounded">
               <h5 className="mb-2">Cruce {sigla}</h5>
@@ -487,8 +493,8 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[sigla]?.[eqA] || ""}
-                    onChange={e => handlePenalInput(sigla, eqA, e.target.value)}
+                    value={penales[fixtureIdVuelta]?.local || ""}
+                    onChange={e => handlePenalInput(fixtureIdVuelta, "local", e.target.value)}
                   />
                   <span className="mx-2">-</span>
                   <span>{eqB} penales: </span>
@@ -497,8 +503,8 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[sigla]?.[eqB] || ""}
-                    onChange={e => handlePenalInput(sigla, eqB, e.target.value)}
+                    value={penales[fixtureIdVuelta]?.visitante || ""}
+                    onChange={e => handlePenalInput(fixtureIdVuelta, "visitante", e.target.value)}
                   />
                 </div>
               )}
