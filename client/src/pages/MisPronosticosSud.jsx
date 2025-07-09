@@ -34,11 +34,32 @@ export default function MisPronosticosSud() {
 
   useEffect(() => {
     if (!usuario || !usuario.id) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No hay token de autenticación");
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
-    fetch(`${API_BASE_URL}/api/sudamericana/puntajes/${usuario.id}`)
-      .then(res => res.json())
+    fetch(`${API_BASE_URL}/api/sudamericana/puntajes/${usuario.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        if (!res.ok) {
+          if (res.status === 403) {
+            throw new Error("No tienes autorización para consultar puntajes de Sudamericana");
+          }
+          throw new Error("Error al cargar puntajes");
+        }
+        return res.json();
+      })
       .then(data => {
         setPuntaje(data);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error("Error cargando puntajes:", error);
         setLoading(false);
       });
   }, [usuario]);

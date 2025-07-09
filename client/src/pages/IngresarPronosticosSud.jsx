@@ -149,8 +149,24 @@ export default function IngresarPronosticosSud() {
   // Cargar pronósticos guardados del usuario
   useEffect(() => {
     if (!usuario || !usuario.id || fixture.length === 0) return;
-    fetch(`${API_BASE_URL}/api/sudamericana/pronosticos-elim/${usuario.id}`)
-      .then(res => res.json())
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No hay token de autenticación");
+      return;
+    }
+    
+    fetch(`${API_BASE_URL}/api/sudamericana/pronosticos-elim/${usuario.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        if (!res.ok) {
+          if (res.status === 403) {
+            throw new Error("No tienes autorización para consultar pronósticos de Sudamericana");
+          }
+          throw new Error("Error al cargar pronósticos");
+        }
+        return res.json();
+      })
       .then(data => {
         // Mapear a formato { fixture_id: { local, visita }, ... }
         const pronos = {};
@@ -174,6 +190,10 @@ export default function IngresarPronosticosSud() {
         console.log("PENALES CARGADOS DESDE BD:", pens);
         setPronosticos(pronos);
         setPenales(pens);
+      })
+      .catch(error => {
+        console.error("Error cargando pronósticos:", error);
+        setMensaje(error.message || "Error al cargar pronósticos");
       });
   }, [usuario, fixture]); // Agregado fixture como dependencia
 
@@ -292,17 +312,33 @@ export default function IngresarPronosticosSud() {
     console.log("Pronósticos a enviar:", pronosticosArray);
     
     const payload = { usuario_id: usuario.id, pronosticos: pronosticosArray };
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMensaje("Error: No hay token de autenticación");
+      return;
+    }
+    
     const res = await fetch(`${API_BASE_URL}/api/sudamericana/guardar-pronosticos-elim`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
       body: JSON.stringify(payload)
     });
+    
     const data = await res.json();
-    if (data.ok) {
+    if (res.ok && data.ok) {
       setMensaje("Pronósticos guardados correctamente. Avance de cruces actualizado solo para ti.");
       // Recalcular avance SOLO para el usuario
       setAvanceUsuario(calcularAvanceEliminatoria(fixture, pronosticos, penales));
-    } else setMensaje("Error al guardar");
+    } else {
+      if (res.status === 403) {
+        setMensaje(data.error || "No tienes autorización para realizar pronósticos de Sudamericana");
+      } else {
+        setMensaje(data.error || "Error al guardar");
+      }
+    }
     } catch (error) {
       console.error("Error en handleGuardar:", error);
       setMensaje("Error al guardar: " + error.message);

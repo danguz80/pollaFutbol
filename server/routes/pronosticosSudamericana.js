@@ -1,12 +1,26 @@
 import express from "express";
 import { pool } from "../db/pool.js";
 import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
+import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = express.Router();
 
 // POST /api/sudamericana/guardar-pronosticos-elim
-router.post("/guardar-pronosticos-elim", async (req, res) => {
+router.post("/guardar-pronosticos-elim", verifyToken, async (req, res) => {
   const { usuario_id, pronosticos } = req.body;
+  
+  // Verificar que el usuario_id del body coincida con el usuario autenticado
+  if (req.usuario.id !== parseInt(usuario_id)) {
+    return res.status(403).json({ error: "No autorizado: usuario_id no coincide con el usuario autenticado" });
+  }
+
+  // Verificar que el usuario tenga activo_sudamericana = true
+  if (!req.usuario.activo_sudamericana) {
+    return res.status(403).json({ 
+      error: "No tienes autorización para realizar pronósticos de Sudamericana. Contacta al administrador." 
+    });
+  }
+
   console.log("[PRONOSTICOS][BODY RECIBIDO]", JSON.stringify(req.body, null, 2));
   if (!usuario_id || !pronosticos || !Array.isArray(pronosticos)) {
     return res.status(400).json({ error: "Faltan datos obligatorios" });
@@ -68,8 +82,20 @@ router.post("/guardar-pronosticos-elim", async (req, res) => {
 });
 
 // GET /api/sudamericana/pronosticos-elim/:usuarioId
-router.get("/pronosticos-elim/:usuarioId", async (req, res) => {
+router.get("/pronosticos-elim/:usuarioId", verifyToken, async (req, res) => {
   const { usuarioId } = req.params;
+  
+  // Verificar que el usuarioId de la URL coincida con el usuario autenticado
+  if (req.usuario.id !== parseInt(usuarioId)) {
+    return res.status(403).json({ error: "No autorizado: solo puedes consultar tus propios pronósticos" });
+  }
+
+  // Verificar que el usuario tenga activo_sudamericana = true
+  if (!req.usuario.activo_sudamericana) {
+    return res.status(403).json({ 
+      error: "No tienes autorización para consultar pronósticos de Sudamericana. Contacta al administrador." 
+    });
+  }
   try {
     // 1. Obtener todos los pronósticos del usuario
     const result = await pool.query(
