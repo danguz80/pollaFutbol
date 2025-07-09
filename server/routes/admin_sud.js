@@ -117,7 +117,7 @@ router.patch('/fecha-cierre', async (req, res) => {
 });
 
 // Cron simple para cierre automático (llamar desde app.js o server.js)
-export async function cierreAutomaticoSudamericana() {
+async function cierreAutomaticoSudamericana() {
   try {
     const { rows } = await pool.query('SELECT fecha_cierre, edicion_cerrada FROM sudamericana_config LIMIT 1');
     if (rows[0]?.fecha_cierre && !rows[0]?.edicion_cerrada) {
