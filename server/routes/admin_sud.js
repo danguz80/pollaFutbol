@@ -119,12 +119,28 @@ router.patch('/fecha-cierre', async (req, res) => {
 // Cron simple para cierre automático (llamar desde app.js o server.js)
 async function cierreAutomaticoSudamericana() {
   try {
-    const { rows } = await pool.query('SELECT fecha_cierre, edicion_cerrada FROM sudamericana_config LIMIT 1');
+    // Crear tabla si no existe
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sudamericana_config (
+        id INTEGER PRIMARY KEY,
+        edicion_cerrada BOOLEAN DEFAULT FALSE,
+        fecha_cierre TIMESTAMP
+      )
+    `);
+    
+    // Insertar fila por defecto si no existe
+    await pool.query(`
+      INSERT INTO sudamericana_config (id, edicion_cerrada, fecha_cierre) 
+      VALUES (1, FALSE, NULL) 
+      ON CONFLICT (id) DO NOTHING
+    `);
+    
+    const { rows } = await pool.query('SELECT fecha_cierre, edicion_cerrada FROM sudamericana_config WHERE id = 1');
     if (rows[0]?.fecha_cierre && !rows[0]?.edicion_cerrada) {
       const now = new Date();
       const cierre = new Date(rows[0].fecha_cierre);
       if (now >= cierre) {
-        await pool.query('UPDATE sudamericana_config SET edicion_cerrada = TRUE');
+        await pool.query('UPDATE sudamericana_config SET edicion_cerrada = TRUE WHERE id = 1');
         console.log('Edición de pronósticos Sudamericana cerrada automáticamente');
       }
     }

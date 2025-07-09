@@ -118,12 +118,24 @@ export default function AdminPanelSudamericana() {
   // PATCH cerrar/abrir edición de pronósticos (global)
   const toggleCierreEdicion = async () => {
     try {
+      console.log('Estado actual edicionCerrada:', edicionCerrada);
+      console.log('Enviando cerrada:', !edicionCerrada);
+      
       const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/cerrar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cerrada: !edicionCerrada })
       });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Error del servidor:', errorText);
+        throw new Error(`Error ${res.status}: ${errorText}`);
+      }
+      
       const data = await res.json();
+      console.log('Respuesta del servidor:', data);
+      
       setEdicionCerrada(!!data.cerrada);
       if (data.cerrada) {
         alert("🔒 Edición de pronósticos cerrada para toda la Sudamericana");
@@ -131,8 +143,8 @@ export default function AdminPanelSudamericana() {
         alert("🔓 Edición de pronósticos abierta para toda la Sudamericana");
       }
     } catch (error) {
-      alert("❌ Error al cerrar/abrir la edición de pronósticos");
-      console.error(error);
+      console.error('Error completo:', error);
+      alert("❌ Error al cerrar/abrir la edición de pronósticos: " + error.message);
     }
   };
 
