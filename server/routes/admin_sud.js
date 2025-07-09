@@ -6,9 +6,26 @@ const router = express.Router();
 // Obtener estado global de edición de pronósticos
 router.get('/estado-edicion', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT edicion_cerrada FROM sudamericana_config LIMIT 1');
-    res.json({ cerrada: rows[0]?.edicion_cerrada });
+    // Crear tabla si no existe
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sudamericana_config (
+        id INTEGER PRIMARY KEY,
+        edicion_cerrada BOOLEAN DEFAULT FALSE,
+        fecha_cierre TIMESTAMP
+      )
+    `);
+    
+    // Insertar fila por defecto si no existe
+    await pool.query(`
+      INSERT INTO sudamericana_config (id, edicion_cerrada, fecha_cierre) 
+      VALUES (1, FALSE, NULL) 
+      ON CONFLICT (id) DO NOTHING
+    `);
+    
+    const { rows } = await pool.query('SELECT edicion_cerrada FROM sudamericana_config WHERE id = 1');
+    res.json({ cerrada: rows[0]?.edicion_cerrada || false });
   } catch (err) {
+    console.error('Error al obtener estado de edición:', err);
     res.status(500).json({ error: 'Error al obtener estado de edición' });
   }
 });
@@ -17,9 +34,29 @@ router.get('/estado-edicion', async (req, res) => {
 router.patch('/cerrar', async (req, res) => {
   try {
     const { cerrada } = req.body;
-    await pool.query('UPDATE sudamericana_config SET edicion_cerrada = $1', [!!cerrada]);
+    console.log('Recibido estado cerrada:', cerrada);
+    
+    // Crear tabla si no existe
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sudamericana_config (
+        id INTEGER PRIMARY KEY,
+        edicion_cerrada BOOLEAN DEFAULT FALSE,
+        fecha_cierre TIMESTAMP
+      )
+    `);
+    
+    // Insertar o actualizar
+    const result = await pool.query(`
+      INSERT INTO sudamericana_config (id, edicion_cerrada, fecha_cierre) 
+      VALUES (1, $1, NULL) 
+      ON CONFLICT (id) DO UPDATE SET edicion_cerrada = $1
+      RETURNING edicion_cerrada
+    `, [!!cerrada]);
+    
+    console.log('Estado actualizado en BD:', result.rows[0]?.edicion_cerrada);
     res.json({ cerrada: !!cerrada });
   } catch (err) {
+    console.error('Error al actualizar estado de edición:', err);
     res.status(500).json({ error: 'Error al actualizar estado de edición' });
   }
 });
@@ -27,9 +64,26 @@ router.patch('/cerrar', async (req, res) => {
 // Obtener fecha/hora de cierre
 router.get('/fecha-cierre', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT fecha_cierre FROM sudamericana_config LIMIT 1');
+    // Crear tabla si no existe
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sudamericana_config (
+        id INTEGER PRIMARY KEY,
+        edicion_cerrada BOOLEAN DEFAULT FALSE,
+        fecha_cierre TIMESTAMP
+      )
+    `);
+    
+    // Insertar fila por defecto si no existe
+    await pool.query(`
+      INSERT INTO sudamericana_config (id, edicion_cerrada, fecha_cierre) 
+      VALUES (1, FALSE, NULL) 
+      ON CONFLICT (id) DO NOTHING
+    `);
+    
+    const { rows } = await pool.query('SELECT fecha_cierre FROM sudamericana_config WHERE id = 1');
     res.json({ fecha_cierre: rows[0]?.fecha_cierre });
   } catch (err) {
+    console.error('Error al obtener fecha de cierre:', err);
     res.status(500).json({ error: 'Error al obtener fecha de cierre' });
   }
 });
@@ -38,9 +92,26 @@ router.get('/fecha-cierre', async (req, res) => {
 router.patch('/fecha-cierre', async (req, res) => {
   try {
     const { fecha_cierre } = req.body;
-    await pool.query('UPDATE sudamericana_config SET fecha_cierre = $1', [fecha_cierre]);
+    
+    // Crear tabla si no existe
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sudamericana_config (
+        id INTEGER PRIMARY KEY,
+        edicion_cerrada BOOLEAN DEFAULT FALSE,
+        fecha_cierre TIMESTAMP
+      )
+    `);
+    
+    // Insertar o actualizar
+    await pool.query(`
+      INSERT INTO sudamericana_config (id, edicion_cerrada, fecha_cierre) 
+      VALUES (1, FALSE, $1) 
+      ON CONFLICT (id) DO UPDATE SET fecha_cierre = $1
+    `, [fecha_cierre]);
+    
     res.json({ ok: true });
   } catch (err) {
+    console.error('Error al guardar fecha de cierre:', err);
     res.status(500).json({ error: 'Error al guardar fecha de cierre' });
   }
 });
@@ -62,4 +133,4 @@ export async function cierreAutomaticoSudamericana() {
   }
 }
 
-export { router };
+export { router, cierreAutomaticoSudamericana };

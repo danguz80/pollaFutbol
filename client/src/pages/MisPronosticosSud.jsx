@@ -72,8 +72,24 @@ export default function MisPronosticosSud() {
 
   useEffect(() => {
     if (!usuario || !usuario.id) return;
-    fetch(`${API_BASE_URL}/api/sudamericana/pronosticos-elim/${usuario.id}`)
-      .then(res => res.json())
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No hay token de autenticación para cargar pronósticos");
+      return;
+    }
+    
+    fetch(`${API_BASE_URL}/api/sudamericana/pronosticos-elim/${usuario.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        if (!res.ok) {
+          if (res.status === 403) {
+            throw new Error("No tienes autorización para consultar pronósticos de Sudamericana");
+          }
+          throw new Error("Error al cargar pronósticos");
+        }
+        return res.json();
+      })
       .then(data => {
         const pronos = {};
         const pens = {};
@@ -92,6 +108,9 @@ export default function MisPronosticosSud() {
         });
         setPronosticos(pronos);
         setPenales(pens);
+      })
+      .catch(error => {
+        console.error("Error cargando pronósticos:", error);
       });
   }, [usuario]);
 
