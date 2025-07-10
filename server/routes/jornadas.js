@@ -482,10 +482,8 @@ router.patch('/sudamericana/cerrar', async (req, res) => {
       [valorBooleano]
     );
     console.log('Resultado UPDATE:', result);
-    if (result.rowCount === 0) {
-      return res.status(500).json({ error: 'No se actualizó ninguna fila. ¿Existe la fila en sudamericana_config?' });
-    }
-    res.json({ ok: true, edicion_cerrada: valorBooleano });
+    // Siempre responder ok, aunque rowCount sea 0 (ya estaba en ese estado)
+    res.json({ ok: true, edicion_cerrada: valorBooleano, actualizado: result.rowCount > 0 });
   } catch (err) {
     console.error('Error SQL en /api/jornadas/sudamericana/cerrar:', err);
     res.status(500).json({ error: 'No se pudo actualizar el estado de la jornada', detalle: err.message, stack: err.stack });
