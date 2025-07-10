@@ -453,7 +453,6 @@ export default function IngresarPronosticosSud() {
           className="form-select d-inline-block w-auto"
           value={selectedRound}
           onChange={e => setSelectedRound(e.target.value)}
-          disabled={edicionCerrada}
         >
           {ROUNDS.map(r => (
             <option key={r} value={r}>{r}</option>
