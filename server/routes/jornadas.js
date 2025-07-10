@@ -477,7 +477,8 @@ router.patch('/sudamericana/cerrar', async (req, res) => {
     );
     res.json({ ok: true, edicion_cerrada: cerrada });
   } catch (err) {
-    res.status(500).json({ error: 'No se pudo actualizar el estado de la jornada' });
+    console.error('Error SQL en /api/jornadas/sudamericana/cerrar:', err);
+    res.status(500).json({ error: 'No se pudo actualizar el estado de la jornada', detalle: err.message, stack: err.stack });
   }
 });
 
