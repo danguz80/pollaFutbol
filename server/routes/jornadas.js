@@ -453,7 +453,7 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
 });
 
 // Endpoint para obtener el estado de edicion de Sudamericana
-router.get('/sudamericana/config', async (req, res) => {
+router.get('/config', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT edicion_cerrada FROM sudamericana_config LIMIT 1');
     if (!rows.length) {
@@ -468,7 +468,7 @@ router.get('/sudamericana/config', async (req, res) => {
 });
 
 // PATCH /api/jornadas/sudamericana/cerrar → cambia el estado global de edicion_cerrada
-router.patch('/sudamericana/cerrar', async (req, res) => {
+router.patch('/cerrar', async (req, res) => {
   const { cerrada } = req.body; // true o false
   console.log('PATCH /sudamericana/cerrar valor recibido:', cerrada, typeof cerrada);
   try {
