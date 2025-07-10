@@ -133,7 +133,7 @@ export default function IngresarPronosticosSud() {
   const [pronosticos, setPronosticos] = useState({});
   const [penales, setPenales] = useState({});
   const [mensaje, setMensaje] = useState("");
-  const [avanceUsuario, setAvanceUsuario] = useState(null);
+  const [edicionCerrada, setEdicionCerrada] = useState(false);
   const usuario = useAuth();
 
   useEffect(() => {
@@ -144,6 +144,10 @@ export default function IngresarPronosticosSud() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+    // Consultar si la edición está cerrada
+    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`)
+      .then(res => res.json())
+      .then(data => setEdicionCerrada(!!data.edicion_cerrada));
   }, []);
 
   // Cargar pronósticos guardados del usuario
@@ -449,12 +453,14 @@ export default function IngresarPronosticosSud() {
           className="form-select d-inline-block w-auto"
           value={selectedRound}
           onChange={e => setSelectedRound(e.target.value)}
+          disabled={edicionCerrada}
         >
           {ROUNDS.map(r => (
             <option key={r} value={r}>{r}</option>
           ))}
         </select>
       </div>
+      {edicionCerrada && <div className="alert alert-warning">La edición de pronósticos está cerrada.</div>}
       {mensaje && <div className="alert alert-info">{mensaje}</div>}
       {loading ? (
         <div>Cargando fixture...</div>
@@ -490,8 +496,9 @@ export default function IngresarPronosticosSud() {
                           min="0"
                           className="form-control d-inline-block w-25 mx-1"
                           style={{ width: 45, display: 'inline-block' }}
-                          value={pronosticos[partido.fixture_id]?.local !== undefined ? pronosticos[partido.fixture_id]?.local : (partido.goles_local !== null && partido.goles_local !== undefined ? partido.goles_local : "")}
-                          onChange={e => handleInput(partido.fixture_id, "local", e.target.value === "" ? "" : Number(e.target.value))}
+                          value={pronosticos[partido.fixture_id]?.local || partido.goles_local || ""}
+                          onChange={e => handleInput(partido.fixture_id, "local", e.target.value)}
+                          disabled={edicionCerrada}
                         />
                         <span> - </span>
                         <input
@@ -499,8 +506,9 @@ export default function IngresarPronosticosSud() {
                           min="0"
                           className="form-control d-inline-block w-25 mx-1"
                           style={{ width: 45, display: 'inline-block' }}
-                          value={pronosticos[partido.fixture_id]?.visita !== undefined ? pronosticos[partido.fixture_id]?.visita : (partido.goles_visita !== null && partido.goles_visita !== undefined ? partido.goles_visita : "")}
-                          onChange={e => handleInput(partido.fixture_id, "visita", e.target.value === "" ? "" : Number(e.target.value))}
+                          value={pronosticos[partido.fixture_id]?.visita || partido.goles_visita || ""}
+                          onChange={e => handleInput(partido.fixture_id, "visita", e.target.value)}
+                          disabled={edicionCerrada}
                         />
                       </td>
                       <td>{partido.equipo_visita}</td>
@@ -522,8 +530,9 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[fixtureIdVuelta]?.local || ""}
-                    onChange={e => handlePenalInput(fixtureIdVuelta, "local", e.target.value)}
+                    value={penales[sigla]?.[eqA] || ""}
+                    onChange={e => handlePenalInput(sigla, eqA, e.target.value)}
+                    disabled={edicionCerrada}
                   />
                   <span className="mx-2">-</span>
                   <span>{eqB} penales: </span>
@@ -532,38 +541,17 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[fixtureIdVuelta]?.visitante || ""}
-                    onChange={e => handlePenalInput(fixtureIdVuelta, "visitante", e.target.value)}
+                    value={penales[sigla]?.[eqB] || ""}
+                    onChange={e => handlePenalInput(sigla, eqB, e.target.value)}
+                    disabled={edicionCerrada}
                   />
                 </div>
               )}
             </div>
           );
         })}
-        <button className="btn btn-primary me-2" onClick={handleGuardar}>Guardar pronósticos</button>
-        {/* Solo mostrar botón Avanzar cruces si el usuario es admin */}
-        {usuario?.rol === 'admin' && (
-          <button className="btn btn-success" onClick={handleAvanzarCruces}>Avanzar cruces</button>
-        )}
-        <div className="mt-4">
-          <h3>Avance de Cruces</h3>
-          {ROUNDS.map(ronda => (
-            <div key={ronda} className="mb-3">
-              <h4>{ronda}</h4>
-              <ul>
-                {avance[ronda]?.map(cruce => (
-                  <li key={cruce.sigla}>
-                    {cruce.eqA} ({cruce.gA}) vs {cruce.eqB} ({cruce.gB})
-                    {cruce.ganador && (
-                      <span className="ms-2 text-success">→ Avanza: <strong>{cruce.ganador}</strong></span>
-                    )}
-                    {!cruce.ganador && <span className="ms-2 text-warning">(Sin definir)</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <button className="btn btn-primary me-2" onClick={handleGuardar} disabled={edicionCerrada}>Guardar pronósticos</button>
+        <button className="btn btn-success" onClick={handleAvanzarCruces} disabled={edicionCerrada}>Avanzar cruces</button>
         </>
       )}
     </div>

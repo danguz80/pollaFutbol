@@ -452,6 +452,16 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
   }
 });
 
+// Endpoint para obtener el estado de edicion de Sudamericana
+router.get('/sudamericana/config', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT edicion_cerrada FROM sudamericana_config LIMIT 1');
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener la configuración' });
+  }
+});
+
 // MOVER ESTOS AL FINAL DEL ARCHIVO PARA NO ROMPER LAS RUTAS ESPECÍFICAS
 router.use("/ganadores", ganadoresRouter);
 router.use("/sudamericana", pronosticosSudamericanaRouter);
