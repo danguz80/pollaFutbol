@@ -455,13 +455,12 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
 // Endpoint para obtener el estado de edicion de Sudamericana
 router.get('/config', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT edicion_cerrada FROM sudamericana_config LIMIT 1');
+    const { rows } = await pool.query('SELECT * FROM sudamericana_config LIMIT 1');
     if (!rows.length) {
-      // Si no existe la fila, crearla
-      await pool.query('INSERT INTO sudamericana_config (edicion_cerrada) VALUES (false)');
-      return res.json({ edicion_cerrada: false });
+      await pool.query('INSERT INTO sudamericana_config (edicion_cerrada, fecha_cierre) VALUES (false, NULL)');
     }
-    res.json(rows[0]);
+    const { rows: final } = await pool.query('SELECT * FROM sudamericana_config LIMIT 1');
+    res.json(final[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener la configuración' });
   }
