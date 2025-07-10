@@ -470,11 +470,16 @@ router.get('/sudamericana/config', async (req, res) => {
 // PATCH /api/jornadas/sudamericana/cerrar → cambia el estado global de edicion_cerrada
 router.patch('/sudamericana/cerrar', async (req, res) => {
   const { cerrada } = req.body; // true o false
+  console.log('PATCH /sudamericana/cerrar valor recibido:', cerrada, typeof cerrada);
   try {
     const result = await pool.query(
       'UPDATE sudamericana_config SET edicion_cerrada = $1',
       [cerrada]
     );
+    console.log('Resultado UPDATE:', result);
+    if (result.rowCount === 0) {
+      return res.status(500).json({ error: 'No se actualizó ninguna fila. ¿Existe la fila en sudamericana_config?' });
+    }
     res.json({ ok: true, edicion_cerrada: cerrada });
   } catch (err) {
     console.error('Error SQL en /api/jornadas/sudamericana/cerrar:', err);
