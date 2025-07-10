@@ -472,15 +472,17 @@ router.patch('/sudamericana/cerrar', async (req, res) => {
   const { cerrada } = req.body; // true o false
   console.log('PATCH /sudamericana/cerrar valor recibido:', cerrada, typeof cerrada);
   try {
+    // Forzar el valor a booleano real para Postgres
+    const valorBooleano = cerrada === true || cerrada === 'true' ? true : false;
     const result = await pool.query(
       'UPDATE sudamericana_config SET edicion_cerrada = $1',
-      [cerrada]
+      [valorBooleano]
     );
     console.log('Resultado UPDATE:', result);
     if (result.rowCount === 0) {
       return res.status(500).json({ error: 'No se actualizó ninguna fila. ¿Existe la fila en sudamericana_config?' });
     }
-    res.json({ ok: true, edicion_cerrada: cerrada });
+    res.json({ ok: true, edicion_cerrada: valorBooleano });
   } catch (err) {
     console.error('Error SQL en /api/jornadas/sudamericana/cerrar:', err);
     res.status(500).json({ error: 'No se pudo actualizar el estado de la jornada', detalle: err.message, stack: err.stack });
