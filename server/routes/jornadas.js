@@ -472,10 +472,13 @@ router.patch('/sudamericana/cerrar', async (req, res) => {
   const { cerrada } = req.body; // true o false
   console.log('PATCH /sudamericana/cerrar valor recibido:', cerrada, typeof cerrada);
   try {
-    // Forzar el valor a booleano real para Postgres
+    // 1. Forzar existencia de la fila
+    await pool.query('INSERT INTO sudamericana_config (edicion_cerrada) VALUES (false) ON CONFLICT DO NOTHING');
+    // 2. Forzar booleano real
     const valorBooleano = cerrada === true || cerrada === 'true' ? true : false;
+    // 3. UPDATE con WHERE TRUE
     const result = await pool.query(
-      'UPDATE sudamericana_config SET edicion_cerrada = $1',
+      'UPDATE sudamericana_config SET edicion_cerrada = $1 WHERE TRUE',
       [valorBooleano]
     );
     console.log('Resultado UPDATE:', result);
