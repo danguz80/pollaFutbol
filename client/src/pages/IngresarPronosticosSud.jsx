@@ -335,7 +335,7 @@ export default function IngresarPronosticosSud() {
     if (res.ok && data.ok) {
       setMensaje("Pronósticos guardados correctamente. Avance de cruces actualizado solo para ti.");
       // Recalcular avance SOLO para el usuario
-      setAvanceUsuario(calcularAvanceEliminatoria(fixture, pronosticos, penales));
+      // setAvanceUsuario(calcularAvanceEliminatoria(fixture, pronosticos, penales));
     } else {
       if (res.status === 403) {
         setMensaje(data.error || "No tienes autorización para realizar pronósticos de Sudamericana");
@@ -371,7 +371,7 @@ export default function IngresarPronosticosSud() {
   };
 
   // Ejemplo: calcular avance de cruces según pronósticos del usuario
-  const avance = avanceUsuario || calcularAvanceEliminatoria(fixture, pronosticos, penales);
+  const avance = calcularAvanceEliminatoria(fixture, pronosticos, penales);
 
   // --- FIXTURE VIRTUAL DEL USUARIO: genera partidos con equipos propagados según sus pronósticos ---
   function getFixtureVirtual(fixture, pronosticos, penales) {
