@@ -456,9 +456,28 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
 router.get('/sudamericana/config', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT edicion_cerrada FROM sudamericana_config LIMIT 1');
+    if (!rows.length) {
+      // Si no existe la fila, crearla
+      await pool.query('INSERT INTO sudamericana_config (edicion_cerrada) VALUES (false)');
+      return res.json({ edicion_cerrada: false });
+    }
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener la configuración' });
+  }
+});
+
+// PATCH /api/jornadas/sudamericana/cerrar → cambia el estado global de edicion_cerrada
+router.patch('/sudamericana/cerrar', async (req, res) => {
+  const { cerrada } = req.body; // true o false
+  try {
+    const result = await pool.query(
+      'UPDATE sudamericana_config SET edicion_cerrada = $1',
+      [cerrada]
+    );
+    res.json({ ok: true, edicion_cerrada: cerrada });
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo actualizar el estado de la jornada' });
   }
 });
 

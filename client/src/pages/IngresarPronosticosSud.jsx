@@ -177,18 +177,15 @@ export default function IngresarPronosticosSud() {
         const pens = {};
         
         data.forEach(p => {
-          console.log(`PROCESANDO PRONÓSTICO: fixture_id=${p.fixture_id}, penales_local=${p.penales_local}, penales_visita=${p.penales_visita}`);
           pronos[p.fixture_id] = {
             local: p.goles_local !== null ? Number(p.goles_local) : "",
             visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
           };
-          
-          // CARGAR PENALES DIRECTAMENTE (sin validaciones complejas)
+          // Mapear penales usando el nombre del equipo
           if (p.penales_local !== null || p.penales_visita !== null) {
-            console.log(`PENALES ENCONTRADOS: fixture_id=${p.fixture_id}, local=${p.penales_local}, visita=${p.penales_visita}`);
             pens[p.fixture_id] = {};
-            if (p.penales_local !== null) pens[p.fixture_id].local = p.penales_local;
-            if (p.penales_visita !== null) pens[p.fixture_id].visitante = p.penales_visita;
+            if (p.penales_local !== null && p.equipo_local) pens[p.fixture_id][p.equipo_local] = p.penales_local;
+            if (p.penales_visita !== null && p.equipo_visita) pens[p.fixture_id][p.equipo_visita] = p.penales_visita;
           }
         });
         console.log("PENALES CARGADOS DESDE BD:", pens);
@@ -495,7 +492,7 @@ export default function IngresarPronosticosSud() {
                           min="0"
                           className="form-control d-inline-block w-25 mx-1"
                           style={{ width: 45, display: 'inline-block' }}
-                          value={pronosticos[partido.fixture_id]?.local || partido.goles_local || ""}
+                          value={pronosticos[partido.fixture_id]?.local ?? partido.goles_local ?? ""}
                           onChange={e => handleInput(partido.fixture_id, "local", e.target.value)}
                           disabled={edicionCerrada}
                         />
@@ -505,7 +502,7 @@ export default function IngresarPronosticosSud() {
                           min="0"
                           className="form-control d-inline-block w-25 mx-1"
                           style={{ width: 45, display: 'inline-block' }}
-                          value={pronosticos[partido.fixture_id]?.visita || partido.goles_visita || ""}
+                          value={pronosticos[partido.fixture_id]?.visita ?? partido.goles_visita ?? ""}
                           onChange={e => handleInput(partido.fixture_id, "visita", e.target.value)}
                           disabled={edicionCerrada}
                         />
@@ -529,7 +526,7 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[sigla]?.[eqA] || ""}
+                    value={penales[sigla]?.[eqA] ?? ""}
                     onChange={e => handlePenalInput(sigla, eqA, e.target.value)}
                     disabled={edicionCerrada}
                   />
@@ -540,7 +537,7 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[sigla]?.[eqB] || ""}
+                    value={penales[sigla]?.[eqB] ?? ""}
                     onChange={e => handlePenalInput(sigla, eqB, e.target.value)}
                     disabled={edicionCerrada}
                   />
