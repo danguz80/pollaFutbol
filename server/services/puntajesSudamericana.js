@@ -37,43 +37,44 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioI
     // Bonus
     const bonus = partido.bonus ? Number(partido.bonus) : 1;
     if (real.goles_local !== null && real.goles_visita !== null) {
+      let puntajes = [];
       // Signo
       const signoPron = Math.sign(pron.goles_local - pron.goles_visita);
       const signoReal = Math.sign(real.goles_local - real.goles_visita);
       if (signoPron === signoReal) {
-        pts += regla.signo * bonus;
-        tipo += 'S';
+        puntajes.push({ pts: regla.signo * bonus, tipo: 'S' });
       }
       // Diferencia de gol
       if ((pron.goles_local - pron.goles_visita) === (real.goles_local - real.goles_visita)) {
-        pts += regla.dif * bonus;
-        tipo += 'D';
+        puntajes.push({ pts: regla.dif * bonus, tipo: 'D' });
       }
       // Marcador exacto
       if (pron.goles_local === real.goles_local && pron.goles_visita === real.goles_visita) {
-        pts += regla.exacto * bonus;
-        tipo += 'E';
+        puntajes.push({ pts: regla.exacto * bonus, tipo: 'E' });
       }
       // Clasificado (excepto final)
       if (partido.ronda !== 'Final' && regla.clasificado) {
         if (pron.ganador && real.ganador && pron.ganador === real.ganador) {
-          pts += regla.clasificado;
-          tipo += 'C';
+          puntajes.push({ pts: regla.clasificado, tipo: 'C' });
         }
       }
       // Final: campeón y subcampeón
       if (partido.ronda === 'Final') {
         if (pron.ganador && real.ganador && pron.ganador === real.ganador) {
-          pts += regla.campeon;
-          tipo += 'F';
+          puntajes.push({ pts: regla.campeon, tipo: 'F' });
         }
         // Subcampeón: el perdedor
         const perdedorPron = pron.ganador === partido.equipo_local ? partido.equipo_visita : partido.equipo_local;
         const perdedorReal = real.ganador === partido.equipo_local ? partido.equipo_visita : partido.equipo_local;
         if (perdedorPron && perdedorReal && perdedorPron === perdedorReal) {
-          pts += regla.subcampeon;
-          tipo += 'S';
+          puntajes.push({ pts: regla.subcampeon, tipo: 'S' });
         }
+      }
+      // Solo asignar el mayor puntaje obtenido
+      if (puntajes.length > 0) {
+        const max = puntajes.reduce((a, b) => (a.pts > b.pts ? a : b));
+        pts = max.pts;
+        tipo = max.tipo;
       }
     }
     detalle.push({ fixture_id: partido.fixture_id, ronda: partido.ronda, pts, tipo, partido, pron, real });
