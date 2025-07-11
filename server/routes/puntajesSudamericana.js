@@ -20,6 +20,27 @@
     res.status(500).json({ error: 'Error guardando pronóstico de clasificados' });
   }
 });
+router.post('/guardar-clasificados', verifyToken, async function guardarClasificados(req, res) {
+  // Espera body: { ronda: string, clasificados: array de nombres }
+  const { ronda, clasificados } = req.body;
+  const usuarioId = req.usuario.id;
+  if (!ronda || !Array.isArray(clasificados)) {
+    res.status(400).json({ error: 'Faltan datos: ronda o clasificados' });
+    return;
+  }
+  try {
+    await pool.query(
+      `INSERT INTO clasif_sud_pron (usuario_id, ronda, clasificados)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (usuario_id, ronda) DO UPDATE SET clasificados = EXCLUDED.clasificados`,
+      [usuarioId, ronda, JSON.stringify(clasificados)]
+    );
+    res.json({ ok: true, message: 'Pronóstico de clasificados guardado', ronda, clasificados });
+  } catch (err) {
+    console.error('Error guardando pronóstico de clasificados:', err);
+    res.status(500).json({ error: 'Error guardando pronóstico de clasificados' });
+  }
+});
 
 // POST /api/sudamericana/guardar-clasificados-reales (admin guarda los clasificados reales)
 // (¡NO MOVER ARRIBA DE LA DECLARACIÓN DE router!)
@@ -28,6 +49,26 @@ router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin')
   const { ronda, clasificados } = req.body;
   if (!ronda || !Array.isArray(clasificados)) {
     return res.status(400).json({ error: 'Faltan datos: ronda o clasificados' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO clasif_sud (ronda, clasificados)
+       VALUES ($1, $2)
+       ON CONFLICT (ronda) DO UPDATE SET clasificados = EXCLUDED.clasificados`,
+      [ronda, JSON.stringify(clasificados)]
+    );
+    res.json({ ok: true, message: 'Clasificados reales guardados', ronda, clasificados });
+  } catch (err) {
+    console.error('Error guardando clasificados reales:', err);
+    res.status(500).json({ error: 'Error guardando clasificados reales' });
+  }
+});
+router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin'), async function guardarClasificadosReales(req, res) {
+  // Espera body: { ronda: string, clasificados: array de nombres }
+  const { ronda, clasificados } = req.body;
+  if (!ronda || !Array.isArray(clasificados)) {
+    res.status(400).json({ error: 'Faltan datos: ronda o clasificados' });
+    return;
   }
   try {
     await pool.query(
