@@ -1,25 +1,3 @@
-// POST /api/sudamericana/guardar-clasificados (usuario guarda sus pronósticos de clasificados)
-// (¡NO MOVER ARRIBA DE LA DECLARACIÓN DE router!)
-// (¡NO MOVER ARRIBA DE LA DECLARACIÓN DE router!)
-  // Espera body: { ronda: string, clasificados: array de nombres }
-  const { ronda, clasificados } = req.body;
-  const usuarioId = req.usuario.id;
-  if (!ronda || !Array.isArray(clasificados)) {
-    return res.status(400).json({ error: 'Faltan datos: ronda o clasificados' });
-  }
-  try {
-    await pool.query(
-      `INSERT INTO clasif_sud_pron (usuario_id, ronda, clasificados)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (usuario_id, ronda) DO UPDATE SET clasificados = EXCLUDED.clasificados`,
-      [usuarioId, ronda, JSON.stringify(clasificados)]
-    );
-    res.json({ ok: true, message: 'Pronóstico de clasificados guardado', ronda, clasificados });
-  } catch (err) {
-    console.error('Error guardando pronóstico de clasificados:', err);
-    res.status(500).json({ error: 'Error guardando pronóstico de clasificados' });
-  }
-});
 router.post('/guardar-clasificados', verifyToken, async function guardarClasificados(req, res) {
   // Espera body: { ronda: string, clasificados: array de nombres }
   const { ronda, clasificados } = req.body;
