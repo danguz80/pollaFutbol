@@ -116,10 +116,17 @@ export default function MisPronosticosSud() {
 
   if (!usuario) return <div className="alert alert-warning mt-4">Debes iniciar sesión para ver tus pronósticos.</div>;
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
+
   if (!puntaje) return <div className="alert alert-info mt-4">No hay puntaje disponible.</div>;
 
-  // Filtrar por ronda y agrupar por fixture_id ascendente
-  let detalleFiltrado = puntaje.detalle.filter(p => p.partido.ronda === selectedRound);
+  // === CLASIFICADOS: tabla resumen ===
+  const clasif = puntaje.clasificados?.detalle || [];
+  const totalClasif = puntaje.clasificados?.total || 0;
+  const totalGeneral = puntaje.total || 0;
+
+
+  // Filtrar por ronda y agrupar por fixture_id ascendente (partidos)
+  let detalleFiltrado = puntaje.detalle?.filter?.(p => p.partido.ronda === selectedRound) || [];
   detalleFiltrado = detalleFiltrado.sort((a, b) => a.fixture_id - b.fixture_id);
 
   // Calcular puntaje total solo de partidos con resultado real
@@ -138,10 +145,53 @@ export default function MisPronosticosSud() {
     };
   });
 
+
   return (
     <div className="container mt-4">
       <SudamericanaSubMenu />
       <h2 className="mb-4 text-center">Mis Pronósticos Sudamericana</h2>
+
+      {/* TOTAL GENERAL */}
+      <div className="mb-3 text-end fw-bold">
+        Puntaje total Sudamericana: <span className="text-success">{totalGeneral}</span>
+      </div>
+
+      {/* TABLA CLASIFICADOS */}
+      <div className="mb-4">
+        <h5 className="mb-2">Puntaje por Clasificados</h5>
+        <div className="table-responsive">
+          <table className="table table-bordered table-sm text-center">
+            <thead>
+              <tr>
+                <th>Ronda</th>
+                <th>Mis Clasificados</th>
+                <th>Clasificados reales</th>
+                <th>Puntos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clasif.length === 0 ? (
+                <tr><td colSpan={4}>No hay datos de clasificados.</td></tr>
+              ) : clasif.map((row, i) => (
+                <tr key={row.ronda || i}>
+                  <td>{row.ronda}</td>
+                  <td>{Array.isArray(row.misClasificados) ? row.misClasificados.join(', ') : ''}</td>
+                  <td>{Array.isArray(row.clasificadosReales) ? row.clasificadosReales.join(', ') : ''}</td>
+                  <td><strong>{row.puntos}</strong></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} className="text-end fw-bold">Total clasificados</td>
+                <td className="fw-bold text-primary">{totalClasif}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* FILTRO Y TABLA PARTIDOS */}
       <div className="mb-3 text-center">
         <label className="me-2 fw-bold">Filtrar por ronda:</label>
         <select
@@ -154,7 +204,7 @@ export default function MisPronosticosSud() {
           ))}
         </select>
       </div>
-      <div className="mb-3 text-end fw-bold">Puntaje total: <span className="text-primary">{puntajeTotal}</span></div>
+      <div className="mb-3 text-end fw-bold">Puntaje partidos (ronda): <span className="text-primary">{puntajeTotal}</span></div>
       <div className="table-responsive">
         <table className="table table-bordered table-striped text-center">
           <thead>
