@@ -1,3 +1,11 @@
+import express from 'express';
+import { pool } from '../db/pool.js';
+import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
+import { verifyToken } from '../middleware/verifyToken.js';
+import { authorizeRoles } from '../middleware/authorizeRoles.js';
+
+const router = express.Router();
+
 router.post('/guardar-clasificados', verifyToken, async function guardarClasificados(req, res) {
   // Espera body: { ronda: string, clasificados: array de nombres }
   const { ronda, clasificados } = req.body;
@@ -41,33 +49,7 @@ router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin')
     res.status(500).json({ error: 'Error guardando clasificados reales' });
   }
 });
-router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin'), async function guardarClasificadosReales(req, res) {
-  // Espera body: { ronda: string, clasificados: array de nombres }
-  const { ronda, clasificados } = req.body;
-  if (!ronda || !Array.isArray(clasificados)) {
-    res.status(400).json({ error: 'Faltan datos: ronda o clasificados' });
-    return;
-  }
-  try {
-    await pool.query(
-      `INSERT INTO clasif_sud (ronda, clasificados)
-       VALUES ($1, $2)
-       ON CONFLICT (ronda) DO UPDATE SET clasificados = EXCLUDED.clasificados`,
-      [ronda, JSON.stringify(clasificados)]
-    );
-    res.json({ ok: true, message: 'Clasificados reales guardados', ronda, clasificados });
-  } catch (err) {
-    console.error('Error guardando clasificados reales:', err);
-    res.status(500).json({ error: 'Error guardando clasificados reales' });
-  }
-});
-// Endpoint para puntajes de Sudamericana
-import express from 'express';
-import { pool } from '../db/pool.js';
-import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
-import { verifyToken } from '../middleware/verifyToken.js';
 
-const router = express.Router();
 
 
 // GET /api/sudamericana/puntajes/:usuarioId
