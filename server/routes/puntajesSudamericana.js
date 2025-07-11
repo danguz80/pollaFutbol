@@ -1,5 +1,6 @@
 // POST /api/sudamericana/guardar-clasificados (usuario guarda sus pronósticos de clasificados)
-router.post('/guardar-clasificados', verifyToken, async (req, res) => {
+// (¡NO MOVER ARRIBA DE LA DECLARACIÓN DE router!)
+// (¡NO MOVER ARRIBA DE LA DECLARACIÓN DE router!)
   // Espera body: { ronda: string, clasificados: array de nombres }
   const { ronda, clasificados } = req.body;
   const usuarioId = req.usuario.id;
@@ -21,7 +22,8 @@ router.post('/guardar-clasificados', verifyToken, async (req, res) => {
 });
 
 // POST /api/sudamericana/guardar-clasificados-reales (admin guarda los clasificados reales)
-router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles ? authorizeRoles('admin') : (req, res, next) => next(), async (req, res) => {
+// (¡NO MOVER ARRIBA DE LA DECLARACIÓN DE router!)
+router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin'), async (req, res) => {
   // Espera body: { ronda: string, clasificados: array de nombres }
   const { ronda, clasificados } = req.body;
   if (!ronda || !Array.isArray(clasificados)) {
