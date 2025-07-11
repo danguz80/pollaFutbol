@@ -393,7 +393,45 @@ router.patch('/sudamericana/fixture/:ronda', verifyToken, authorizeRoles('admin'
       );
       actualizados++;
     }
-    res.json({ mensaje: 'Resultados, bonus y penales guardados en la base de datos', actualizados });
+
+    // === GUARDAR CLASIFICADOS REALES EN clasif_sud ===
+    // Obtener los partidos de la ronda actual ya actualizados
+    const { rows: partidosRonda } = await pool.query(
+      `SELECT fixture_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita
+       FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY fixture_id ASC`,
+      [ronda]
+    );
+    // Determinar clasificados (ganadores de cada llave)
+    const clasificados = [];
+    for (const partido of partidosRonda) {
+      let ganador = null;
+      if (partido.goles_local !== null && partido.goles_visita !== null) {
+        if (partido.goles_local > partido.goles_visita) {
+          ganador = partido.equipo_local;
+        } else if (partido.goles_visita > partido.goles_local) {
+          ganador = partido.equipo_visita;
+        } else {
+          // Empate: definir por penales
+          if ((partido.penales_local || 0) > (partido.penales_visita || 0)) {
+            ganador = partido.equipo_local;
+          } else if ((partido.penales_visita || 0) > (partido.penales_local || 0)) {
+            ganador = partido.equipo_visita;
+          }
+        }
+      }
+      if (ganador) clasificados.push(ganador);
+    }
+    // Guardar en clasif_sud (upsert)
+    if (clasificados.length > 0) {
+      await pool.query(
+        `INSERT INTO clasif_sud (ronda, clasificados)
+         VALUES ($1, $2)
+         ON CONFLICT (ronda) DO UPDATE SET clasificados = EXCLUDED.clasificados`,
+        [ronda, JSON.stringify(clasificados)]
+      );
+    }
+
+    res.json({ mensaje: 'Resultados, bonus, penales y clasificados guardados en la base de datos', actualizados, clasificados });
   } catch (error) {
     console.error('Error al actualizar partidos Sudamericana:', error);
     res.status(500).json({ error: 'Error al actualizar partidos Sudamericana' });
