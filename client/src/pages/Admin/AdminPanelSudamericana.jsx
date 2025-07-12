@@ -28,9 +28,9 @@ export default function AdminPanelSudamericana() {
   // Obtener estado global de edición de pronósticos
   const fetchEstadoEdicion = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/estado-edicion`);
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`);
       const data = await res.json();
-      setEdicionCerrada(!!data.cerrada);
+      setEdicionCerrada(!!data.edicion_cerrada);
     } catch (err) {
       setEdicionCerrada(false);
     }
@@ -70,9 +70,13 @@ export default function AdminPanelSudamericana() {
   const guardarResultados = async () => {
     if (!rondaSeleccionada) return;
     try {
+      const token = localStorage.getItem("token"); // O ajusta según donde guardes el JWT
       const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ partidos }),
       });
       const data = await res.json();
@@ -123,16 +127,19 @@ export default function AdminPanelSudamericana() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cerrada: !edicionCerrada })
       });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Error ${res.status}: ${errorText}`);
+      }
       const data = await res.json();
-      setEdicionCerrada(!!data.cerrada);
-      if (data.cerrada) {
+      setEdicionCerrada(!!data.edicion_cerrada);
+      if (data.edicion_cerrada) {
         alert("🔒 Edición de pronósticos cerrada para toda la Sudamericana");
       } else {
         alert("🔓 Edición de pronósticos abierta para toda la Sudamericana");
       }
     } catch (error) {
-      alert("❌ Error al cerrar/abrir la edición de pronósticos");
-      console.error(error);
+      alert("❌ Error al cerrar/abrir la edición de pronósticos: " + error.message);
     }
   };
 

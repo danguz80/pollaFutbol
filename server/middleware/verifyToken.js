@@ -32,7 +32,8 @@ export async function verifyToken(req, res, next) {
       id: usuario.id,
       nombre: usuario.nombre,
       rol: usuario.rol,
-      activo: usuario.activo
+      activo: usuario.activo,
+      activo_sudamericana: usuario.activo_sudamericana
     };
 
     next();

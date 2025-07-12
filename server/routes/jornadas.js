@@ -306,10 +306,9 @@ router.patch("/:numero/ganadores", async (req, res) => {
 router.get('/sudamericana/usuarios', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT u.id, u.nombre, u.email, COALESCE(su.activo, false) AS activo_sudamericana
-      FROM usuarios u
-      LEFT JOIN sudamericana_usuarios su ON su.usuario_id = u.id
-      ORDER BY u.nombre ASC
+      SELECT id, nombre, email, activo_sudamericana
+      FROM usuarios
+      ORDER BY nombre ASC
     `);
     res.json(result.rows);
   } catch (err) {
@@ -323,9 +322,7 @@ router.patch('/sudamericana/usuarios/:id', verifyToken, authorizeRoles('admin'),
   const { activo } = req.body;
   try {
     await pool.query(`
-      INSERT INTO sudamericana_usuarios (usuario_id, activo)
-      VALUES ($1, $2)
-      ON CONFLICT (usuario_id) DO UPDATE SET activo = $2
+      UPDATE usuarios SET activo_sudamericana = $2 WHERE id = $1
     `, [id, !!activo]);
     res.json({ ok: true });
   } catch (err) {
@@ -370,7 +367,7 @@ router.get('/sudamericana/fixture/:ronda', async (req, res) => {
   }
 });
 
-// PATCH /api/sudamericana/fixture/:ronda - Actualizar goles/bonus de los partidos de una ronda
+// PATCH /api/sudamericana/fixture/:ronda - Actualizar goles/bonus/penales de los partidos de una ronda
 router.patch('/sudamericana/fixture/:ronda', verifyToken, authorizeRoles('admin'), async (req, res) => {
   const { ronda } = req.params;
   const { partidos } = req.body;
@@ -382,19 +379,59 @@ router.patch('/sudamericana/fixture/:ronda', verifyToken, authorizeRoles('admin'
     for (const partido of partidos) {
       await pool.query(
         `UPDATE sudamericana_fixtures
-         SET goles_local = $1, goles_visita = $2, bonus = $3
-         WHERE fixture_id = $4 AND ronda = $5`,
+         SET goles_local = $1, goles_visita = $2, bonus = $3, penales_local = $4, penales_visita = $5
+         WHERE fixture_id = $6 AND ronda = $7`,
         [
-          partido.golesLocal !== "" ? partido.golesLocal : null,
-          partido.golesVisita !== "" ? partido.golesVisita : null,
+          partido.golesLocal !== '' ? partido.golesLocal : null,
+          partido.golesVisita !== '' ? partido.golesVisita : null,
           partido.bonus ?? 1,
+          partido.penalesLocal !== undefined && partido.penalesLocal !== '' ? partido.penalesLocal : null,
+          partido.penalesVisita !== undefined && partido.penalesVisita !== '' ? partido.penalesVisita : null,
           partido.id,
           ronda
         ]
       );
       actualizados++;
     }
-    res.json({ mensaje: 'Resultados y bonus guardados en la base de datos', actualizados });
+
+    // === GUARDAR CLASIFICADOS REALES EN clasif_sud ===
+    // Obtener los partidos de la ronda actual ya actualizados
+    const { rows: partidosRonda } = await pool.query(
+      `SELECT fixture_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita
+       FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY fixture_id ASC`,
+      [ronda]
+    );
+    // Determinar clasificados (ganadores de cada llave)
+    const clasificados = [];
+    for (const partido of partidosRonda) {
+      let ganador = null;
+      if (partido.goles_local !== null && partido.goles_visita !== null) {
+        if (partido.goles_local > partido.goles_visita) {
+          ganador = partido.equipo_local;
+        } else if (partido.goles_visita > partido.goles_local) {
+          ganador = partido.equipo_visita;
+        } else {
+          // Empate: definir por penales
+          if ((partido.penales_local || 0) > (partido.penales_visita || 0)) {
+            ganador = partido.equipo_local;
+          } else if ((partido.penales_visita || 0) > (partido.penales_local || 0)) {
+            ganador = partido.equipo_visita;
+          }
+        }
+      }
+      if (ganador) clasificados.push(ganador);
+    }
+    // Guardar en clasif_sud (upsert)
+    if (clasificados.length > 0) {
+      await pool.query(
+        `INSERT INTO clasif_sud (ronda, clasificados)
+         VALUES ($1, $2)
+         ON CONFLICT (ronda) DO UPDATE SET clasificados = EXCLUDED.clasificados`,
+        [ronda, JSON.stringify(clasificados)]
+      );
+    }
+
+    res.json({ mensaje: 'Resultados, bonus, penales y clasificados guardados en la base de datos', actualizados, clasificados });
   } catch (error) {
     console.error('Error al actualizar partidos Sudamericana:', error);
     res.status(500).json({ error: 'Error al actualizar partidos Sudamericana' });
@@ -450,6 +487,43 @@ router.post('/sudamericana/avanzar-ganadores', verifyToken, authorizeRoles('admi
   } catch (error) {
     console.error('Error al avanzar ganadores:', error);
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Endpoint para obtener el estado de edicion de Sudamericana
+router.get('/config', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM sudamericana_config LIMIT 1');
+    if (!rows.length) {
+      await pool.query('INSERT INTO sudamericana_config (edicion_cerrada, fecha_cierre) VALUES (false, NULL)');
+    }
+    const { rows: final } = await pool.query('SELECT * FROM sudamericana_config LIMIT 1');
+    res.json(final[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener la configuración' });
+  }
+});
+
+// PATCH /api/jornadas/sudamericana/cerrar → cambia el estado global de edicion_cerrada
+router.patch('/cerrar', async (req, res) => {
+  const { cerrada } = req.body; // true o false
+  console.log('PATCH /sudamericana/cerrar valor recibido:', cerrada, typeof cerrada);
+  try {
+    // 1. Forzar existencia de la fila
+    await pool.query('INSERT INTO sudamericana_config (edicion_cerrada) VALUES (false) ON CONFLICT DO NOTHING');
+    // 2. Forzar booleano real
+    const valorBooleano = cerrada === true || cerrada === 'true' ? true : false;
+    // 3. UPDATE con WHERE TRUE
+    const result = await pool.query(
+      'UPDATE sudamericana_config SET edicion_cerrada = $1 WHERE TRUE',
+      [valorBooleano]
+    );
+    console.log('Resultado UPDATE:', result);
+    // Siempre responder ok, aunque rowCount sea 0 (ya estaba en ese estado)
+    res.json({ ok: true, edicion_cerrada: valorBooleano, actualizado: result.rowCount > 0 });
+  } catch (err) {
+    console.error('Error SQL en /api/jornadas/sudamericana/cerrar:', err);
+    res.status(500).json({ error: 'No se pudo actualizar el estado de la jornada', detalle: err.message, stack: err.stack });
   }
 });
 

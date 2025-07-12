@@ -8,6 +8,21 @@ import { authorizeRoles } from "../middleware/authorizeRoles.js";
 const router = express.Router();
 const SECRET = process.env.JWT_SECRET || "secreto123";
 
+// 📋 ENDPOINT PÚBLICO - Listar usuarios con estado sudamericana
+router.get("/lista", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT id, nombre, activo_sudamericana 
+            FROM usuarios 
+            ORDER BY nombre
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error al obtener usuarios:", err);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
 // 📌 Registro
 router.post("/register", async (req, res) => {
     const { nombre, email, password } = req.body;
@@ -113,6 +128,35 @@ router.get("/", async (req, res) => {
   }
 });
 
+// 🔹 Obtener todos los usuarios para admin (incluye activo_sudamericana)
+router.get("/admin", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, nombre, email, activo, activo_sudamericana FROM usuarios ORDER BY nombre ASC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error al obtener usuarios para admin:", error);
+    res.status(500).json({ error: "No se pudieron obtener los usuarios" });
+  }
+});
+
+// 🔹 Actualizar estado activo_sudamericana de un usuario
+router.patch("/:id/sudamericana", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  const { id } = req.params;
+  const { activo } = req.body;
+  try {
+    await pool.query(
+      "UPDATE usuarios SET activo_sudamericana = $1 WHERE id = $2",
+      [!!activo, id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error al actualizar activo_sudamericana:", error);
+    res.status(500).json({ error: "Error al actualizar usuario" });
+  }
+});
+
 router.patch("/cambiar-password", verifyToken, async (req, res) => {
   const { actual, nueva } = req.body;
   const usuarioId = req.usuario.id;
@@ -149,6 +193,41 @@ router.patch("/cambiar-password", verifyToken, async (req, res) => {
     console.error(error);
     res.status(500).json({ error: "Error al cambiar la contraseña." });
   }
+});
+
+// 🔹 Obtener TODOS los usuarios (sin filtros)
+router.get("/todos", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM usuarios ORDER BY nombre ASC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error al obtener todos los usuarios:", error);
+    res.status(500).json({ error: "No se pudieron obtener los usuarios" });
+  }
+});
+
+// 🔄 ENDPOINT PARA ACTUALIZAR ESTADO SUDAMERICANA
+router.put("/sudamericana/:id", async (req, res) => {
+    const { id } = req.params;
+    const { activo_sudamericana } = req.body;
+    
+    try {
+        const result = await pool.query(
+            "UPDATE usuarios SET activo_sudamericana = $1 WHERE id = $2 RETURNING id, nombre, activo_sudamericana",
+            [activo_sudamericana, id]
+        );
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Usuario no encontrado" });
+        }
+        
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Error al actualizar usuario:", err);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
 });
 
 export default router;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSudamericanaCellStyle } from '../utils/sudamericanaRankingStyle';
 import { getFotoPerfilUrl } from '../utils/fotoPerfil';
+import { getFixtureVirtual } from '../utils/sudamericanaEliminatoria';
 
 const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
 const ROUNDS = [
@@ -27,11 +28,13 @@ export default function ClasificacionSudamericana() {
   const [selectedRound, setSelectedRound] = useState(ROUNDS[0]);
   const [clasificacion, setClasificacion] = useState([]);
   const [ranking, setRanking] = useState([]);
+  const [fixture, setFixture] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/api/sudamericana/clasificacion/${encodeURIComponent(selectedRound)}`)
+    // Cambiar: pedir todos los pronósticos de eliminación directa, no solo los de la ronda seleccionada
+    fetch(`${API_BASE_URL}/api/sudamericana/clasificacion`)
       .then(res => res.json())
       .then(data => {
         setClasificacion(data);
@@ -41,6 +44,9 @@ export default function ClasificacionSudamericana() {
     fetch(`${API_BASE_URL}/api/sudamericana/ranking`)
       .then(res => res.json())
       .then(data => setRanking(data));
+    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+      .then(res => res.json())
+      .then(data => setFixture(data));
   }, [selectedRound]);
 
   // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
@@ -86,30 +92,63 @@ export default function ClasificacionSudamericana() {
               {clasificacion.length === 0 ? (
                 <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>
               ) : (
-                clasificacion.map((jug, idx) => [
-                  ...jug.detalle
-                    // Mostrar todos los pronósticos entregados, sin filtrar por resultado real
-                    .sort((a, b) => a.fixture_id - b.fixture_id)
-                    .map((d, i) => (
-                      <tr key={d.fixture_id + '-' + jug.usuario_id}>
-                        <td rowSpan={jug.detalle.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
-                        <td>{d.partido.ronda}</td>
-                        <td>{d.partido.equipo_local} vs {d.partido.equipo_visita}</td>
-                        <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
-                        <td>{
-                          d.real.goles_local !== null && d.real.goles_visita !== null
-                            ? `${d.real.goles_local} - ${d.real.goles_visita}`
-                            : "--"
-                        }</td>
-                        <td>{d.partido.bonus || 1}</td>
-                        <td><strong>{d.real.goles_local !== null && d.real.goles_visita !== null ? d.pts : 0}</strong></td>
-                      </tr>
-                    )),
-                  <tr key={jug.usuario_id + '-total'} style={{ borderTop: '3px solid black', background: '#e6f7ff' }}>
-                    <td colSpan={6} className="text-end fw-bold">Total jugador</td>
-                    <td className="fw-bold text-primary">{jug.total}</td>
-                  </tr>
-                ])
+                clasificacion.map((jug, idx) => {
+                  // Tomar todos los pronósticos de eliminación directa de este usuario
+                  const detalleElim = jug.detalle.filter(p => ROUNDS.includes(p.partido.ronda));
+                  // Usar todos los pronósticos para propagar cruces
+                  const pronos = {};
+                  const pens = {};
+                  detalleElim.forEach(p => {
+                    pronos[p.fixture_id] = {
+                      local: p.pron.goles_local !== null ? Number(p.pron.goles_local) : "",
+                      visita: p.pron.goles_visita !== null ? Number(p.pron.goles_visita) : ""
+                    };
+                    // Cargar penales usando nueva estructura por fixture_id
+                    if (p.pron.penales_local !== null || p.pron.penales_visita !== null) {
+                      if (!pens[p.fixture_id]) pens[p.fixture_id] = {};
+                      if (p.pron.penales_local !== null) pens[p.fixture_id].local = p.pron.penales_local;
+                      if (p.pron.penales_visita !== null) pens[p.fixture_id].visitante = p.pron.penales_visita;
+                    }
+                  });
+                  // Construir el fixture virtual de la ronda seleccionada
+                  const partidosVirtual = getFixtureVirtual(fixture, pronos, pens, selectedRound);
+                  // Mapear por fixture_id para reemplazo rápido
+                  const mapFixtureIdToEquipos = {};
+                  partidosVirtual.forEach(p => {
+                    mapFixtureIdToEquipos[p.fixture_id] = {
+                      equipo_local: p.equipo_local,
+                      equipo_visita: p.equipo_visita
+                    };
+                  });
+                  // Renderizar SOLO los partidos de la ronda seleccionada
+                  const detalleRonda = jug.detalle.filter(d => d.partido.ronda === selectedRound);
+                  return [
+                    ...detalleRonda
+                      .sort((a, b) => a.fixture_id - b.fixture_id)
+                      .map((d, i) => {
+                        const equipos = mapFixtureIdToEquipos[d.fixture_id] || { equipo_local: d.partido.equipo_local, equipo_visita: d.partido.equipo_visita };
+                        return (
+                          <tr key={d.fixture_id + '-' + jug.usuario_id}>
+                            <td rowSpan={detalleRonda.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
+                            <td>{d.partido.ronda}</td>
+                            <td>{equipos.equipo_local} vs {equipos.equipo_visita}</td>
+                            <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
+                            <td>{
+                              d.real.goles_local !== null && d.real.goles_visita !== null
+                                ? `${d.real.goles_local} - ${d.real.goles_visita}`
+                                : "--"
+                            }</td>
+                            <td>{d.partido.bonus || 1}</td>
+                            <td><strong>{d.real.goles_local !== null && d.real.goles_visita !== null ? d.pts : 0}</strong></td>
+                          </tr>
+                        );
+                      }),
+                    <tr key={jug.usuario_id + '-total'} style={{ borderTop: '3px solid black', background: '#e6f7ff' }}>
+                      <td colSpan={6} className="text-end fw-bold">Total jugador</td>
+                      <td className="fw-bold text-primary">{jug.total}</td>
+                    </tr>
+                  ];
+                })
               )}
             </tbody>
           </table>

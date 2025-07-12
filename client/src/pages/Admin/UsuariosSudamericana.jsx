@@ -15,33 +15,95 @@ export default function UsuariosSudamericana() {
   const fetchUsuarios = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sudamericana/usuarios`, {
-        credentials: "include"
-      });
-      const data = await res.json();
-      setUsuarios(data);
+      const res = await fetch(`${API_BASE_URL}/api/usuarios/lista`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsuarios(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Error status:', res.status);
+        setUsuarios([]);
+      }
     } catch (err) {
+      console.error('Error:', err);
       setUsuarios([]);
     }
     setLoading(false);
   };
 
-  const handleToggle = async (id, activo) => {
+  const toggleUsuarioSudamericana = async (userId, nuevoEstado) => {
     try {
-      await fetch(`${API_BASE_URL}/api/sudamericana/usuarios/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activo: !activo }),
-        credentials: "include"
+      const res = await fetch(`${API_BASE_URL}/api/usuarios/sudamericana/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ activo_sudamericana: nuevoEstado })
       });
-      setUsuarios(usuarios.map(u => u.id === id ? { ...u, activo_sudamericana: !activo } : u));
+      
+      if (res.ok) {
+        // Actualizar el estado local solo si la actualización fue exitosa
+        setUsuarios(prev => 
+          prev.map(u => 
+            u.id === userId 
+              ? { ...u, activo_sudamericana: nuevoEstado }
+              : u
+          )
+        );
+      } else {
+        console.error('Error al actualizar usuario en el servidor');
+        // Revertir el cambio si falló
+        fetchUsuarios();
+      }
     } catch (err) {
-      alert("Error al actualizar usuario");
+      console.error('Error al actualizar usuario:', err);
+      // Revertir el cambio si falló
+      fetchUsuarios();
     }
   };
 
   return (
     <div className="container mt-4">
+      <style>{`
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 60px;
+          height: 34px;
+        }
+        .switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #ccc;
+          transition: .4s;
+          border-radius: 34px;
+        }
+        .slider:before {
+          position: absolute;
+          content: "";
+          height: 26px;
+          width: 26px;
+          left: 4px;
+          bottom: 4px;
+          background-color: white;
+          transition: .4s;
+          border-radius: 50%;
+        }
+        input:checked + .slider {
+          background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+          transform: translateX(26px);
+        }
+      `}</style>
       <h2>👥 Activar/Desactivar Usuarios Sudamericana</h2>
       <button className="btn btn-secondary mb-3" onClick={() => navigate(-1)}>
         ← Volver al panel Sudamericana
@@ -49,30 +111,37 @@ export default function UsuariosSudamericana() {
       {loading ? (
         <div>Cargando usuarios...</div>
       ) : (
-        <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Activo Sudamericana</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usuarios.map(u => (
-              <tr key={u.id}>
-                <td>{u.nombre}</td>
-                <td>{u.email}</td>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={!!u.activo_sudamericana}
-                    onChange={() => handleToggle(u.id, u.activo_sudamericana)}
-                  />
-                </td>
+        <div>
+          <p>Total usuarios: {usuarios.length}</p>
+          <table className="table table-bordered">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Habilitar/Deshabilitar</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {usuarios.map((u, index) => (
+                <tr key={index}>
+                  <td>{u.nombre}</td>
+                  <td>
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        checked={u.activo_sudamericana || false}
+                        onChange={(e) => toggleUsuarioSudamericana(u.id, e.target.checked)}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                    <span className="ms-2">
+                      {u.activo_sudamericana ? '✅ Habilitado' : '❌ Deshabilitado'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
