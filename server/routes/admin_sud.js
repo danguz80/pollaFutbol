@@ -33,15 +33,11 @@ router.get('/estado-edicion', async (req, res) => {
 // Cambiar estado global de edición (abrir/cerrar manual)
 router.patch('/cerrar', async (req, res) => {
   try {
-    const { cerrada } = req.body;
-    console.log('🔄 PATCH /cerrar - Recibido estado cerrada:', cerrada, 'tipo:', typeof cerrada);
-    
+    const { cerrada } = req.body;    
     // Validar que cerrada sea booleano
     const estadoCerrada = Boolean(cerrada);
-    console.log('🔄 Estado procesado como booleano:', estadoCerrada);
     
     // Crear tabla si no existe
-    console.log('📋 Creando tabla sudamericana_config si no existe...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sudamericana_config (
         id INTEGER PRIMARY KEY,
@@ -49,19 +45,15 @@ router.patch('/cerrar', async (req, res) => {
         fecha_cierre TIMESTAMP
       )
     `);
-    console.log('✅ Tabla sudamericana_config verificada/creada');
     
     // Insertar fila por defecto si no existe
-    console.log('📝 Insertando fila por defecto si no existe...');
     await pool.query(`
       INSERT INTO sudamericana_config (id, edicion_cerrada, fecha_cierre) 
       VALUES (1, FALSE, NULL) 
       ON CONFLICT (id) DO NOTHING
     `);
-    console.log('✅ Fila por defecto verificada/creada');
     
     // Actualizar estado
-    console.log('🔄 Actualizando estado de edición a:', estadoCerrada);
     const result = await pool.query(`
       UPDATE sudamericana_config 
       SET edicion_cerrada = $1 
@@ -74,7 +66,6 @@ router.patch('/cerrar', async (req, res) => {
     }
     
     const estadoActualizado = result.rows[0].edicion_cerrada;
-    console.log('✅ Estado actualizado en BD:', estadoActualizado);
     
     res.json({ cerrada: estadoActualizado });
   } catch (err) {
@@ -164,7 +155,6 @@ async function cierreAutomaticoSudamericana() {
       const cierre = new Date(rows[0].fecha_cierre);
       if (now >= cierre) {
         await pool.query('UPDATE sudamericana_config SET edicion_cerrada = TRUE WHERE id = 1');
-        console.log('Edición de pronósticos Sudamericana cerrada automáticamente');
       }
     }
   } catch (err) {

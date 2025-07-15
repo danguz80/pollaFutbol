@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSudamericanaCellStyle } from '../utils/sudamericanaRankingStyle';
 import { getFotoPerfilUrl } from '../utils/fotoPerfil';
-import { getFixtureVirtual } from '../utils/sudamericanaEliminatoria';
+import { getFixtureVirtual, calcularAvanceEliminatoria } from '../utils/sudamericanaEliminatoria';
 
-const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 const ROUNDS = [
   "Knockout Round Play-offs",
   "Octavos de Final",
@@ -33,8 +33,8 @@ export default function ClasificacionSudamericana() {
 
   useEffect(() => {
     setLoading(true);
-    // Cambiar: pedir todos los pronósticos de eliminación directa, no solo los de la ronda seleccionada
-    fetch(`${API_BASE_URL}/api/sudamericana/clasificacion`)
+    // Usar el nuevo endpoint que incluye partidos y clasificados
+    fetch(`${API_BASE_URL}/api/sudamericana/clasificacion-completa`)
       .then(res => res.json())
       .then(data => {
         setClasificacion(data);
@@ -75,84 +75,343 @@ export default function ClasificacionSudamericana() {
       {loading ? (
         <div className="text-center">Cargando...</div>
       ) : (
-        <div className="table-responsive">
-          <table className="table table-bordered table-striped text-center">
-            <thead>
-              <tr>
-                <th>Jugador</th>
-                <th>Jornada</th>
-                <th>Partido</th>
-                <th>Pronóstico</th>
-                <th>Resultado Real</th>
-                <th>Bonus</th>
-                <th>Puntos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clasificacion.length === 0 ? (
-                <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>
-              ) : (
-                clasificacion.map((jug, idx) => {
-                  // Tomar todos los pronósticos de eliminación directa de este usuario
-                  const detalleElim = jug.detalle.filter(p => ROUNDS.includes(p.partido.ronda));
-                  // Usar todos los pronósticos para propagar cruces
-                  const pronos = {};
-                  const pens = {};
-                  detalleElim.forEach(p => {
-                    pronos[p.fixture_id] = {
-                      local: p.pron.goles_local !== null ? Number(p.pron.goles_local) : "",
-                      visita: p.pron.goles_visita !== null ? Number(p.pron.goles_visita) : ""
-                    };
-                    // Cargar penales usando nueva estructura por fixture_id
-                    if (p.pron.penales_local !== null || p.pron.penales_visita !== null) {
-                      if (!pens[p.fixture_id]) pens[p.fixture_id] = {};
-                      if (p.pron.penales_local !== null) pens[p.fixture_id].local = p.pron.penales_local;
-                      if (p.pron.penales_visita !== null) pens[p.fixture_id].visitante = p.pron.penales_visita;
-                    }
-                  });
-                  // Construir el fixture virtual de la ronda seleccionada
-                  const partidosVirtual = getFixtureVirtual(fixture, pronos, pens, selectedRound);
-                  // Mapear por fixture_id para reemplazo rápido
-                  const mapFixtureIdToEquipos = {};
-                  partidosVirtual.forEach(p => {
-                    mapFixtureIdToEquipos[p.fixture_id] = {
-                      equipo_local: p.equipo_local,
-                      equipo_visita: p.equipo_visita
-                    };
-                  });
-                  // Renderizar SOLO los partidos de la ronda seleccionada
-                  const detalleRonda = jug.detalle.filter(d => d.partido.ronda === selectedRound);
-                  return [
-                    ...detalleRonda
-                      .sort((a, b) => a.fixture_id - b.fixture_id)
-                      .map((d, i) => {
-                        const equipos = mapFixtureIdToEquipos[d.fixture_id] || { equipo_local: d.partido.equipo_local, equipo_visita: d.partido.equipo_visita };
-                        return (
-                          <tr key={d.fixture_id + '-' + jug.usuario_id}>
-                            <td rowSpan={detalleRonda.length} style={i === 0 ? { verticalAlign: 'middle', fontWeight: 'bold', background: '#f0f8ff' } : { display: 'none' }}>{getNombreUsuario(jug)}</td>
-                            <td>{d.partido.ronda}</td>
-                            <td>{equipos.equipo_local} vs {equipos.equipo_visita}</td>
-                            <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
-                            <td>{
-                              d.real.goles_local !== null && d.real.goles_visita !== null
-                                ? `${d.real.goles_local} - ${d.real.goles_visita}`
-                                : "--"
-                            }</td>
-                            <td>{d.partido.bonus || 1}</td>
-                            <td><strong>{d.real.goles_local !== null && d.real.goles_visita !== null ? d.pts : 0}</strong></td>
+        <>
+          {clasificacion.length === 0 ? (
+            <div className="text-center">No hay pronósticos disponibles.</div>
+          ) : (
+            clasificacion.map((jug, jugIdx) => {
+              // Calcular avance virtual del usuario para mostrar clasificados calculados
+              const detalleElim = jug.partidos.detalle.filter(p => ROUNDS.includes(p.partido.ronda));
+              const pronos = {};
+              const pens = {};
+              detalleElim.forEach(p => {
+                pronos[p.fixture_id] = {
+                  local: p.pron.goles_local !== null ? Number(p.pron.goles_local) : "",
+                  visita: p.pron.goles_visita !== null ? Number(p.pron.goles_visita) : ""
+                };
+                if (p.pron.penales_local !== null || p.pron.penales_visita !== null) {
+                  if (!pens[p.fixture_id]) pens[p.fixture_id] = {};
+                  if (p.pron.penales_local !== null) pens[p.fixture_id].local = p.pron.penales_local;
+                  if (p.pron.penales_visita !== null) pens[p.fixture_id].visitante = p.pron.penales_visita;
+                }
+              });
+              const avanceVirtual = calcularAvanceEliminatoria(fixture, pronos, pens);
+              
+              return (
+                <div key={jug.usuario_id} className="mb-5">
+                  {/* Separador entre jugadores */}
+                  {jugIdx > 0 && <hr style={{ border: '3px solid black', margin: '2rem 0' }} />}
+                  
+                  {/* Header del jugador */}
+                  <div className="mb-3 p-3" style={{ background: '#f0f8ff', borderRadius: '8px' }}>
+                    <h4 className="mb-2 text-center">{getNombreUsuario(jug)}</h4>
+                    <div className="text-center">
+                      <strong>Puntaje Total: {jug.total}</strong> | 
+                      Partidos: {jug.partidos.total} | 
+                      Clasificados: {jug.clasificados.total}
+                    </div>
+                  </div>
+
+                  {/* TABLA DE PARTIDOS */}
+                  <div className="mb-4">
+                    <h5 className="mb-2">📊 Partidos - {selectedRound}</h5>
+                    <div className="table-responsive">
+                      <table className="table table-bordered table-striped text-center">
+                        <thead>
+                          <tr>
+                            <th>Ronda</th>
+                            <th>Partido Pronosticado</th>
+                            <th>Cruce Real</th>
+                            <th>Pronóstico</th>
+                            <th>Resultado Real</th>
+                            <th>Bonus</th>
+                            <th>Puntos</th>
                           </tr>
-                        );
-                      }),
-                    <tr key={jug.usuario_id + '-total'} style={{ borderTop: '3px solid black', background: '#e6f7ff' }}>
-                      <td colSpan={6} className="text-end fw-bold">Total jugador</td>
-                      <td className="fw-bold text-primary">{jug.total}</td>
-                    </tr>
-                  ];
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const partidosVirtual = getFixtureVirtual(fixture, pronos, pens, selectedRound);
+                            const mapFixtureIdToEquipos = {};
+                            partidosVirtual.forEach(p => {
+                              mapFixtureIdToEquipos[p.fixture_id] = {
+                                equipo_local: p.equipo_local,
+                                equipo_visita: p.equipo_visita
+                              };
+                            });
+                            
+                            const detalleRonda = jug.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
+                            if (detalleRonda.length === 0) {
+                              return <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>;
+                            }
+                            
+                            const partidosOrdenados = detalleRonda.sort((a, b) => a.fixture_id - b.fixture_id);
+                            const totalPartidos = partidosOrdenados.length;
+                            let totalPuntosPartidos = 0;
+                            
+                            const rows = partidosOrdenados.map((d, index) => {
+                              const equipos = mapFixtureIdToEquipos[d.fixture_id] || { 
+                                equipo_local: d.partido.equipo_local, 
+                                equipo_visita: d.partido.equipo_visita 
+                              };
+                              const tieneResultado = d.real.goles_local !== null && d.real.goles_visita !== null;
+                              const puntosPartido = tieneResultado ? d.pts : 0;
+                              totalPuntosPartidos += puntosPartido;
+                              
+                              return (
+                                <tr key={d.fixture_id}>
+                                  {index === 0 && (
+                                    <td rowSpan={totalPartidos} className="align-middle fw-bold">
+                                      {selectedRound}
+                                    </td>
+                                  )}
+                                  <td>{equipos.equipo_local} vs {equipos.equipo_visita}</td>
+                                  <td>
+                                    <div className={`small ${d.cruceCoincide ? 'text-success' : 'text-danger'}`}>
+                                      {d.cruceReal || '--'}
+                                      {!d.cruceCoincide && (
+                                        <div className="badge bg-danger ms-1">No coincide</div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
+                                  <td>{
+                                    tieneResultado
+                                      ? `${d.real.goles_local} - ${d.real.goles_visita}`
+                                      : "--"
+                                  }</td>
+                                  <td>{d.partido.bonus || 1}</td>
+                                  <td className="fw-bold">
+                                    {puntosPartido > 0 ? (
+                                      <span className="text-success">{puntosPartido}</span>
+                                    ) : (
+                                      <span className="text-muted">
+                                        0
+                                        {d.motivoSinPuntos && (
+                                          <small className="d-block text-danger">
+                                            {d.motivoSinPuntos}
+                                          </small>
+                                        )}
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            });
+                            
+                            // Agregar fila de total para partidos
+                            rows.push(
+                              <tr key="total-partidos" className="table-primary">
+                                <td colSpan={6} className="text-end fw-bold">
+                                  Total Partidos {selectedRound}:
+                                </td>
+                                <td className="fw-bold text-primary">
+                                  {totalPuntosPartidos}
+                                </td>
+                              </tr>
+                            );
+                            
+                            return rows;
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* TABLA DE CLASIFICADOS */}
+                  <div className="mb-4">
+                    <h5 className="mb-2">🏆 Clasificados - {selectedRound}</h5>
+                    <div className="table-responsive">
+                      <table className="table table-bordered table-sm text-center">
+                        <thead>
+                          <tr>
+                            <th>Ronda</th>
+                            <th>Mis Clasificados</th>
+                            <th>Clasificados Reales</th>
+                            <th>Puntos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            // Obtener datos solo para la ronda seleccionada
+                            const rowBase = jug.clasificados.detalle.find(row => row && row.ronda === selectedRound);
+                            
+                            // Aplicar la misma lógica que en MisPronosticosSud
+                            let misClasificados;
+                            const rondasEliminatorias = ['Octavos de Final', 'Cuartos de Final', 'Semifinales', 'Final'];
+                            if (rondasEliminatorias.includes(selectedRound)) {
+                              if (selectedRound === 'Final') {
+                                const semifinalesData = avanceVirtual && avanceVirtual['Semifinales'] ? avanceVirtual['Semifinales'] : [];
+                                const equiposEnFinal = semifinalesData.map(x => x.ganador).filter(Boolean);
+                                
+                                if (equiposEnFinal.length >= 2 && avanceVirtual && avanceVirtual[selectedRound] && avanceVirtual[selectedRound].length > 0) {
+                                  const ganadorFinal = avanceVirtual[selectedRound][0].ganador;
+                                  const perdedorFinal = equiposEnFinal.find(eq => eq !== ganadorFinal);
+                                  misClasificados = [ganadorFinal, perdedorFinal].filter(Boolean);
+                                } else {
+                                  misClasificados = equiposEnFinal.length >= 2 
+                                    ? equiposEnFinal 
+                                    : (rowBase && Array.isArray(rowBase.misClasificados) ? rowBase.misClasificados : []);
+                                }
+                              } else {
+                                misClasificados = avanceVirtual && avanceVirtual[selectedRound] 
+                                  ? avanceVirtual[selectedRound].map(x => x.ganador).filter(Boolean) 
+                                  : (rowBase && Array.isArray(rowBase.misClasificados) ? rowBase.misClasificados : []);
+                              }
+                            } else {
+                              misClasificados = rowBase && Array.isArray(rowBase.misClasificados)
+                                ? rowBase.misClasificados
+                                : (avanceVirtual && avanceVirtual[selectedRound] ? avanceVirtual[selectedRound].map(x => x.ganador).filter(Boolean) : []);
+                            }
+                            
+                            const clasificadosReales = rowBase && Array.isArray(rowBase.clasificadosReales) ? rowBase.clasificadosReales : [];
+                            
+                            if (misClasificados.length === 0 && clasificadosReales.length === 0) {
+                              return <tr><td colSpan={4}>No hay clasificados para esta ronda.</td></tr>;
+                            }
+                            
+                            // Calcular puntos y alineamiento (misma lógica que MisPronosticosSud)
+                            const puntosPorRonda = {
+                              'Knockout Round Play-offs': 2,
+                              'Octavos de Final': 3,
+                              'Cuartos de Final': 3,
+                              'Semifinales': 5,
+                              'Final': { campeon: 15, subcampeon: 10 }
+                            };
+                            
+                            const aciertos = [];
+                            const noAciertos = [];
+                            let totalPuntos = 0;
+                            
+                            if (selectedRound === 'Final') {
+                              const campeon = misClasificados[0] || '';
+                              const subcampeon = misClasificados[1] || '';
+                              const campeonReal = clasificadosReales[0] || '';
+                              const subcampeonReal = clasificadosReales[1] || '';
+                              
+                              if (campeon && campeonReal && campeon === campeonReal) {
+                                aciertos.push({ 
+                                  miClasificado: campeon, 
+                                  clasificadoReal: campeonReal, 
+                                  puntos: 15, 
+                                  tipo: 'Campeón' 
+                                });
+                                totalPuntos += 15;
+                              } else if (campeon) {
+                                noAciertos.push({ 
+                                  miClasificado: campeon, 
+                                  clasificadoReal: campeonReal || '', 
+                                  puntos: 0, 
+                                  tipo: 'Campeón' 
+                                });
+                              }
+                              
+                              if (subcampeon && subcampeonReal && subcampeon === subcampeonReal) {
+                                aciertos.push({ 
+                                  miClasificado: subcampeon, 
+                                  clasificadoReal: subcampeonReal, 
+                                  puntos: 10, 
+                                  tipo: 'Subcampeón' 
+                                });
+                                totalPuntos += 10;
+                              } else if (subcampeon) {
+                                noAciertos.push({ 
+                                  miClasificado: subcampeon, 
+                                  clasificadoReal: subcampeonReal || '', 
+                                  puntos: 0, 
+                                  tipo: 'Subcampeón' 
+                                });
+                              }
+                            } else {
+                              const puntajePorAcierto = puntosPorRonda[selectedRound] || 0;
+                              const realesUsados = new Set();
+                              
+                              misClasificados.forEach(miEquipo => {
+                                if (miEquipo && clasificadosReales.includes(miEquipo) && !realesUsados.has(miEquipo)) {
+                                  aciertos.push({ 
+                                    miClasificado: miEquipo, 
+                                    clasificadoReal: miEquipo, 
+                                    puntos: puntajePorAcierto 
+                                  });
+                                  realesUsados.add(miEquipo);
+                                  totalPuntos += puntajePorAcierto;
+                                }
+                              });
+                              
+                              misClasificados.forEach(miEquipo => {
+                                if (miEquipo && !clasificadosReales.includes(miEquipo)) {
+                                  noAciertos.push({ 
+                                    miClasificado: miEquipo, 
+                                    clasificadoReal: '', 
+                                    puntos: 0 
+                                  });
+                                }
+                              });
+                              
+                              clasificadosReales.forEach(realEquipo => {
+                                if (realEquipo && !misClasificados.includes(realEquipo)) {
+                                  noAciertos.push({ 
+                                    miClasificado: '', 
+                                    clasificadoReal: realEquipo, 
+                                    puntos: 0 
+                                  });
+                                }
+                              });
+                            }
+                            
+                            const filas = [...aciertos, ...noAciertos];
+                            const totalFilas = filas.length;
+                            
+                            if (totalFilas === 0) {
+                              return <tr><td colSpan={4}>No hay clasificados para esta ronda.</td></tr>;
+                            }
+                            
+                            const rows = filas.map((fila, index) => (
+                              <tr key={index} className={fila.puntos > 0 ? 'table-success' : ''}>
+                                {index === 0 && (
+                                  <td rowSpan={totalFilas} className="align-middle fw-bold">
+                                    {selectedRound}
+                                  </td>
+                                )}
+                                <td>
+                                  {fila.miClasificado}
+                                  {fila.tipo && <small className="d-block text-muted">({fila.tipo})</small>}
+                                </td>
+                                <td>
+                                  {fila.clasificadoReal}
+                                  {fila.tipo && <small className="d-block text-muted">({fila.tipo})</small>}
+                                </td>
+                                <td className="fw-bold">
+                                  {fila.puntos > 0 ? (
+                                    <span className="text-success">{fila.puntos}</span>
+                                  ) : (
+                                    <span className="text-muted">0</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ));
+                            
+                            rows.push(
+                              <tr key="total" className="table-primary">
+                                <td colSpan={3} className="text-end fw-bold">
+                                  Total {selectedRound}:
+                                </td>
+                                <td className="fw-bold text-primary">
+                                  {totalPuntos}
+                                </td>
+                              </tr>
+                            );
+                            
+                            return rows;
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </>
       )}
       {/* Tabla de ranking acumulado Sudamericana al final */}
       <div id="ranking-acumulado-sud" className="mt-5">

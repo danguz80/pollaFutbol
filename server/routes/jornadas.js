@@ -6,6 +6,7 @@ import ganadoresRouter from "./ganadores.js";
 import pronosticosSudamericanaRouter from "./pronosticosSudamericana.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
@@ -262,7 +263,6 @@ router.patch("/:numero/ganadores", async (req, res) => {
       [numero]
     );
     const jornadaId = jornadaRes.rows[0]?.id;
-    console.log('JORNADA PATCH GANADORES:', { numero, jornadaId });
     if (!jornadaId) {
       return res.status(404).json({ error: "Jornada no encontrada para guardar ganadores" });
     }
@@ -281,11 +281,9 @@ router.patch("/:numero/ganadores", async (req, res) => {
       SELECT id FROM ranking WHERE puntos = (SELECT MAX(puntos) FROM ranking)
     `, [numero]);
     const ganadoresIds = ganadoresIdsRes.rows.map(r => r.id);
-    console.log('GANADORES PATCH GANADORES:', ganadoresIds);
 
     // Insertar los nuevos ganadores acumulando títulos (sin eliminar los anteriores)
     for (const jugadorId of ganadoresIds) {
-      console.log('INSERTANDO GANADOR:', { jornadaId, jugadorId });
       await pool.query(
         `INSERT INTO ganadores_jornada (jornada_id, jugador_id, acierto)
          VALUES ($1, $2, true)
@@ -347,20 +345,27 @@ router.post('/sudamericana/importar-fixture', verifyToken, authorizeRoles('admin
 router.get('/sudamericana/fixture/:ronda', async (req, res) => {
   try {
     const { ronda } = req.params;
-    console.log('--- DEBUG SUDAMERICANA FIXTURE ---');
-    console.log('Ronda recibida:', ronda);
+    
+    // Obtener partidos de la ronda
     const result = await pool.query(
       'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
       [ronda]
     );
-    console.log('Cantidad de partidos encontrados:', result.rows.length);
-    if (result.rows.length === 0) {
-      console.log('No se encontraron partidos para la ronda:', ronda);
-    } else {
-      console.log('Primer partido:', result.rows[0]);
+    
+    let partidos = result.rows;
+    
+    // Aplicar reemplazo de siglas para mostrar nombres reales en el admin panel
+    if (partidos.length > 0) {
+      // Obtener fixture completo para calcular siglas
+      const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures');
+      const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+      
+      // Reemplazar siglas por nombres reales
+      partidos = reemplazarSiglasPorNombres(partidos, dicSiglasReales);
     }
+    
     // Siempre devolver un array, aunque esté vacío
-    res.json(Array.isArray(result.rows) ? result.rows : []);
+    res.json(Array.isArray(partidos) ? partidos : []);
   } catch (err) {
     console.error('Error al obtener el fixture de la ronda seleccionada:', err);
     res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada.' });
@@ -394,44 +399,10 @@ router.patch('/sudamericana/fixture/:ronda', verifyToken, authorizeRoles('admin'
       actualizados++;
     }
 
-    // === GUARDAR CLASIFICADOS REALES EN clasif_sud ===
-    // Obtener los partidos de la ronda actual ya actualizados
-    const { rows: partidosRonda } = await pool.query(
-      `SELECT fixture_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita
-       FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY fixture_id ASC`,
-      [ronda]
-    );
-    // Determinar clasificados (ganadores de cada llave)
-    const clasificados = [];
-    for (const partido of partidosRonda) {
-      let ganador = null;
-      if (partido.goles_local !== null && partido.goles_visita !== null) {
-        if (partido.goles_local > partido.goles_visita) {
-          ganador = partido.equipo_local;
-        } else if (partido.goles_visita > partido.goles_local) {
-          ganador = partido.equipo_visita;
-        } else {
-          // Empate: definir por penales
-          if ((partido.penales_local || 0) > (partido.penales_visita || 0)) {
-            ganador = partido.equipo_local;
-          } else if ((partido.penales_visita || 0) > (partido.penales_local || 0)) {
-            ganador = partido.equipo_visita;
-          }
-        }
-      }
-      if (ganador) clasificados.push(ganador);
-    }
-    // Guardar en clasif_sud (upsert)
-    if (clasificados.length > 0) {
-      await pool.query(
-        `INSERT INTO clasif_sud (ronda, clasificados)
-         VALUES ($1, $2)
-         ON CONFLICT (ronda) DO UPDATE SET clasificados = EXCLUDED.clasificados`,
-        [ronda, JSON.stringify(clasificados)]
-      );
-    }
-
-    res.json({ mensaje: 'Resultados, bonus, penales y clasificados guardados en la base de datos', actualizados, clasificados });
+    res.json({ 
+      mensaje: 'Resultados y penales actualizados en la base de datos', 
+      actualizados 
+    });
   } catch (error) {
     console.error('Error al actualizar partidos Sudamericana:', error);
     res.status(500).json({ error: 'Error al actualizar partidos Sudamericana' });
@@ -451,8 +422,22 @@ router.get('/sudamericana/fixture', async (req, res) => {
     } else {
       result = await pool.query('SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado FROM sudamericana_fixtures ORDER BY clasificado ASC, fecha ASC, fixture_id ASC');
     }
-    res.json(result.rows);
+    
+    let partidos = result.rows;
+    
+    // Aplicar reemplazo de siglas para mostrar nombres reales
+    if (partidos.length > 0) {
+      // Obtener fixture completo para calcular siglas
+      const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures');
+      const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+      
+      // Reemplazar siglas por nombres reales
+      partidos = reemplazarSiglasPorNombres(partidos, dicSiglasReales);
+    }
+    
+    res.json(partidos);
   } catch (err) {
+    console.error('Error al obtener el fixture de la Copa Sudamericana:', err);
     res.status(500).json({ error: 'Error al obtener el fixture de la Copa Sudamericana. Por favor, revisa la base de datos o la lógica de avance de cruces.' });
   }
 });
@@ -460,8 +445,9 @@ router.get('/sudamericana/fixture', async (req, res) => {
 // POST /api/sudamericana/actualizar-clasificados (solo admin)
 router.post('/sudamericana/actualizar-clasificados', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    await definirClasificadosPlayoffs();
-    res.json({ ok: true, message: 'Clasificados actualizados y cruces avanzados.' });
+    // DESHABILITADO: No actualizar cruces automáticamente para preservar estructura de siglas
+    // await definirClasificadosPlayoffs();
+    res.json({ ok: true, message: 'Endpoint deshabilitado para preservar estructura de fixture.' });
   } catch (error) {
     console.error('Error al actualizar clasificados:', error);
     res.status(500).json({ ok: false, error: error.message });
@@ -475,6 +461,17 @@ router.get('/sudamericana/rondas', async (req, res) => {
     res.json(result.rows.map(r => r.ronda));
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener las rondas de la Sudamericana' });
+  }
+});
+
+// GET /api/sudamericana/clasificados-reales - Obtener clasificados reales para comparar en admin panel
+router.get('/sudamericana/clasificados-reales', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT ronda, clasificados FROM clasif_sud ORDER BY ronda, clasificados');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error al obtener clasificados reales:', err);
+    res.status(500).json({ error: 'Error al obtener clasificados reales' });
   }
 });
 
@@ -507,7 +504,6 @@ router.get('/config', async (req, res) => {
 // PATCH /api/jornadas/sudamericana/cerrar → cambia el estado global de edicion_cerrada
 router.patch('/cerrar', async (req, res) => {
   const { cerrada } = req.body; // true o false
-  console.log('PATCH /sudamericana/cerrar valor recibido:', cerrada, typeof cerrada);
   try {
     // 1. Forzar existencia de la fila
     await pool.query('INSERT INTO sudamericana_config (edicion_cerrada) VALUES (false) ON CONFLICT DO NOTHING');
@@ -518,7 +514,6 @@ router.patch('/cerrar', async (req, res) => {
       'UPDATE sudamericana_config SET edicion_cerrada = $1 WHERE TRUE',
       [valorBooleano]
     );
-    console.log('Resultado UPDATE:', result);
     // Siempre responder ok, aunque rowCount sea 0 (ya estaba en ese estado)
     res.json({ ok: true, edicion_cerrada: valorBooleano, actualizado: result.rowCount > 0 });
   } catch (err) {
@@ -537,8 +532,6 @@ router.get('/fixture/:ronda', async (req, res, next) => {
   // Si no, replicar la lógica
   try {
     const { ronda } = req.params;
-    console.log('--- ALIAS /api/sudamericana/fixture/:ronda ---');
-    console.log('Ronda recibida (alias):', ronda);
     const result = await pool.query(
       'SELECT fixture_id, fecha, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita, ronda, clasificado, bonus FROM sudamericana_fixtures WHERE ronda = $1 ORDER BY clasificado ASC, fecha ASC, fixture_id ASC',
       [ronda]
@@ -547,6 +540,20 @@ router.get('/fixture/:ronda', async (req, res, next) => {
   } catch (err) {
     console.error('Error en alias /api/sudamericana/fixture/:ronda:', err);
     res.status(500).json({ error: 'Error al obtener el fixture de la ronda seleccionada (alias).' });
+  }
+});
+
+// Endpoint para obtener el estado de edicion de Sudamericana (DUPLICADO para /sudamericana/config)
+router.get('/sudamericana/config', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM sudamericana_config LIMIT 1');
+    if (!rows.length) {
+      await pool.query('INSERT INTO sudamericana_config (edicion_cerrada, fecha_cierre) VALUES (false, NULL)');
+    }
+    const { rows: final } = await pool.query('SELECT * FROM sudamericana_config LIMIT 1');
+    res.json(final[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener la configuración' });
   }
 });
 

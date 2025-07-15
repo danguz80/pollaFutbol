@@ -1,18 +1,51 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
+// Helper para obtener headers con autorización
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+};
+
+// Agrupa partidos por sigla de cruce (clasificado), o por equipos involucrados si no existe o es inconsistente
+function agruparPorSigla(partidos) {
+  const grupos = {};
+  for (const p of partidos) {
+    // Si hay clasificado y es string, úsalo; si no, agrupa por equipos ordenados
+    let key = p.clasificado;
+    if (!key || typeof key !== 'string' || key.trim() === '') {
+      // Crea una clave única para el cruce, sin importar el orden local/visita
+      const equipos = [p.equipo_local, p.equipo_visita].sort();
+      key = equipos.join(' vs ');
+    }
+    if (!grupos[key]) grupos[key] = [];
+    grupos[key].push(p);
+  }
+  // Ordenar partidos dentro de cada grupo por fecha
+  Object.values(grupos).forEach(arr => arr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha)));
+  // Retornar un array de [sigla, partidos] ordenado por sigla ascendente
+  return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+}
 
 export default function AdminPanelSudamericana() {
   const navigate = useNavigate();
   const [rondas, setRondas] = useState([]);
   const [rondaSeleccionada, setRondaSeleccionada] = useState("");
   const [partidos, setPartidos] = useState([]);
+  const [partidosOriginales, setPartidosOriginales] = useState([]); // Para mantener los datos originales
+  const [penales, setPenales] = useState({}); // Estado para penales
   const [edicionCerrada, setEdicionCerrada] = useState(false); // Estado global de edición
 
   // Obtener rondas Sudamericana al montar y estado global de edición
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/rondas`)
+    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/rondas`, {
+      headers: getAuthHeaders()
+    })
       .then((res) => res.json())
       .then((data) => setRondas(data))
       .catch((err) => console.error("Error al cargar rondas Sudamericana:", err));
@@ -28,7 +61,9 @@ export default function AdminPanelSudamericana() {
   // Obtener estado global de edición de pronósticos
   const fetchEstadoEdicion = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`);
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`, {
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
       setEdicionCerrada(!!data.edicion_cerrada);
     } catch (err) {
@@ -38,20 +73,197 @@ export default function AdminPanelSudamericana() {
 
   const fetchPartidos = async (ronda) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(ronda)}`);
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture/${encodeURIComponent(ronda)}`, {
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
-      const partidosConGoles = data.map(p => ({
+      
+      // Guardar partidos originales
+      setPartidosOriginales(data);
+      
+      // Obtener equipos reales que han avanzado
+      const equiposReales = await obtenerEquiposReales();
+      
+      // Reemplazar siglas por equipos reales
+      const partidosConEquiposReales = data.map(p => ({
         id: p.fixture_id,
-        local: p.equipo_local,
-        visita: p.equipo_visita,
-        golesLocal: p.goles_local ?? "",
-        golesVisita: p.goles_visita ?? "",
+        fixture_id: p.fixture_id,
+        equipo_local: equiposReales[p.equipo_local] || p.equipo_local,
+        equipo_visita: equiposReales[p.equipo_visita] || p.equipo_visita,
+        equipo_local_original: p.equipo_local, // Mantener sigla original
+        equipo_visita_original: p.equipo_visita, // Mantener sigla original
+        goles_local: p.goles_local ?? "",
+        goles_visita: p.goles_visita ?? "",
+        penales_local: p.penales_local ?? "",
+        penales_visita: p.penales_visita ?? "",
+        clasificado: p.clasificado,
+        fecha: p.fecha,
         bonus: p.bonus ?? 1,
       }));
-      setPartidos(partidosConGoles);
+      
+      setPartidos(partidosConEquiposReales);
+      
+      // Cargar penales en estado separado - siempre cargar para todos los partidos
+      const penalesState = {};
+      partidosConEquiposReales.forEach(p => {
+        // Siempre inicializar el estado de penales para cada partido
+        penalesState[p.fixture_id] = {
+          local: p.penales_local || "",
+          visitante: p.penales_visita || ""
+        };
+      });
+      
+      setPenales(penalesState);
     } catch (err) {
       console.error("Error al cargar partidos Sudamericana:", err);
     }
+  };
+
+  // Función para obtener los equipos reales que han avanzado
+  const obtenerEquiposReales = async () => {
+    try {
+      // Obtener todos los partidos para calcular avances
+      const allFixturesRes = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`);
+      const allFixtures = await allFixturesRes.json();
+      
+      // Calcular avances basándose en resultados reales
+      const equiposReales = calcularAvancesReales(allFixtures);
+      
+      return equiposReales;
+    } catch (err) {
+      console.error("Error al obtener equipos reales:", err);
+      return {};
+    }
+  };
+
+  // Función para calcular qué equipos han avanzado según los resultados reales
+  const calcularAvancesReales = (fixtures) => {
+    const equiposReales = {};
+    
+    // Primero, crear un mapeo simple: toda sigla -> equipo real basado en resultados
+    for (const partido of fixtures) {
+      // Si hay resultados, los equipos ya son reales (no siglas)
+      if ((partido.goles_local !== null && partido.goles_visita !== null) || 
+          (partido.penales_local !== null && partido.penales_visita !== null)) {
+        // Si el equipo parece ser una sigla (contiene números o es muy corto), lo ignoramos
+        // Si no, significa que ya es un equipo real
+        if (!esSigla(partido.equipo_local)) {
+          equiposReales[partido.equipo_local] = partido.equipo_local;
+        }
+        if (!esSigla(partido.equipo_visita)) {
+          equiposReales[partido.equipo_visita] = partido.equipo_visita;
+        }
+      }
+    }
+
+    // Ahora hacer el cálculo de avances basado en resultados
+    const ROUNDS = [
+      "Knockout Round Play-offs",
+      "Octavos de Final", 
+      "Cuartos de Final",
+      "Semifinales",
+      "Final"
+    ];
+
+    // Agrupar partidos por ronda
+    const rondas = {};
+    for (const partido of fixtures) {
+      if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
+      const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
+      if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
+      rondas[partido.ronda][sigla].push({ ...partido });
+    }
+
+    let siglaGanadorMap = {};
+
+    // Procesar ronda por ronda para propagar ganadores
+    for (let i = 0; i < ROUNDS.length; i++) {
+      const ronda = ROUNDS[i];
+      const cruces = rondas[ronda] || {};
+
+      for (const [sigla, partidos] of Object.entries(cruces)) {
+        // Propagar ganadores de rondas anteriores
+        for (const partido of partidos) {
+          if (siglaGanadorMap[partido.equipo_local]) {
+            partido.equipo_local = siglaGanadorMap[partido.equipo_local];
+          }
+          if (siglaGanadorMap[partido.equipo_visita]) {
+            partido.equipo_visita = siglaGanadorMap[partido.equipo_visita];
+          }
+        }
+
+        // Solo calcular ganador si hay resultados
+        const tieneResultados = partidos.some(p => 
+          p.goles_local !== null && p.goles_visita !== null
+        );
+
+        if (!tieneResultados) continue;
+
+        let eqA = partidos[0].equipo_local;
+        let eqB = partidos[0].equipo_visita;
+        let gA = 0, gB = 0;
+
+        // Calcular goles según el número de partidos en el cruce
+        if (partidos.length === 2) {
+          // Ida y vuelta: sumar goles cruzados
+          const p1 = partidos[0], p2 = partidos[1];
+          gA = Number(p1.goles_local ?? 0) + Number(p2.goles_visita ?? 0);
+          gB = Number(p1.goles_visita ?? 0) + Number(p2.goles_local ?? 0);
+        } else {
+          // Partido único (Final)
+          const p = partidos[0];
+          gA = Number(p.goles_local ?? 0);
+          gB = Number(p.goles_visita ?? 0);
+        }
+
+        // Determinar ganador
+        let ganador = null;
+        
+        if (gA > gB) {
+          ganador = eqA;
+        } else if (gB > gA) {
+          ganador = eqB;
+        } else {
+          // Empate: usar penales del partido de vuelta o único
+          let partidoConPenales = partidos.length === 2 ? partidos[1] : partidos[0];
+          const penLocal = Number(partidoConPenales.penales_local ?? 0);
+          const penVisitante = Number(partidoConPenales.penales_visita ?? 0);
+          
+          const equipoLocal = partidoConPenales.equipo_local;
+          const equipoVisitante = partidoConPenales.equipo_visita;
+          
+          if (penLocal > penVisitante) {
+            ganador = equipoLocal;
+          } else if (penVisitante > penLocal) {
+            ganador = equipoVisitante;
+          }
+        }
+
+        // Actualizar mapeo para próximas rondas y para siglas específicas
+        if (ganador) {
+          siglaGanadorMap[sigla] = ganador;
+          
+          // Mapear todas las siglas que aparezcan en partidos futuros
+          for (const futurePartido of fixtures) {
+            if (futurePartido.equipo_local === sigla) {
+              equiposReales[sigla] = ganador;
+            }
+            if (futurePartido.equipo_visita === sigla) {
+              equiposReales[sigla] = ganador;
+            }
+          }
+        }
+      }
+    }
+
+    return equiposReales;
+  };
+
+  // Función auxiliar para detectar si es una sigla
+  const esSigla = (texto) => {
+    if (!texto) return false;
+    // Detectar patrones de siglas como WC1, WS1, WO.A, etc.
+    return /^W[A-Z][0-9A-Z]*\.?[A-Z0-9]*$/.test(texto) || texto.length <= 3;
   };
 
   const handleCambiarGoles = (id, campo, valor) => {
@@ -60,24 +272,45 @@ export default function AdminPanelSudamericana() {
     ));
   };
 
+  const handleCambiarPenales = (fixtureId, posicion, valor) => {
+    setPenales(prev => ({
+      ...prev,
+      [fixtureId]: {
+        ...prev[fixtureId],
+        [posicion]: valor
+      }
+    }));
+  };
+
   const handleCambiarBonus = (id, valor) => {
     setPartidos(partidos.map(p =>
       p.id === id ? { ...p, bonus: Number(valor) } : p
     ));
   };
 
-  // PATCH para guardar goles y bonus
+  // PATCH para guardar goles, penales y bonus
   const guardarResultados = async () => {
     if (!rondaSeleccionada) return;
     try {
-      const token = localStorage.getItem("token"); // O ajusta según donde guardes el JWT
-      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
+      const token = localStorage.getItem("token");
+      
+      // Combinar goles, penales y bonus en un solo objeto por partido
+      const partidosConPenales = partidos.map(p => ({
+        id: p.id,
+        golesLocal: p.goles_local,
+        golesVisita: p.goles_visita,
+        bonus: p.bonus,
+        penalesLocal: penales[p.fixture_id]?.local ?? "",
+        penalesVisita: penales[p.fixture_id]?.visitante ?? ""
+      }));
+      
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { "Authorization": `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ partidos }),
+        body: JSON.stringify({ partidos: partidosConPenales }),
       });
       const data = await res.json();
       alert(data.mensaje || "Resultados guardados en la base de datos");
@@ -143,6 +376,34 @@ export default function AdminPanelSudamericana() {
     }
   };
 
+  // Función para calcular global y empate en un cruce
+  function getGlobalYEmpate(partidos) {
+    if (partidos.length === 1) {
+      // PARTIDO ÚNICO (como la Final)
+      const p = partidos[0];
+      const eqA = p.equipo_local;
+      const eqB = p.equipo_visita;
+      const totalA = Number(p.goles_local ?? 0);
+      const totalB = Number(p.goles_visita ?? 0);
+      
+      return { eqA, eqB, totalA, totalB, empate: totalA === totalB };
+    } else if (partidos.length === 2) {
+      // IDA Y VUELTA
+      const p1 = partidos[0], p2 = partidos[1];
+      const eqA = p1.equipo_local;
+      const eqB = p1.equipo_visita;
+      
+      // eqA: local en ida + visitante en vuelta
+      // eqB: visitante en ida + local en vuelta
+      const totalA = Number(p1.goles_local ?? 0) + Number(p2.goles_visita ?? 0);
+      const totalB = Number(p1.goles_visita ?? 0) + Number(p2.goles_local ?? 0);
+      
+      return { eqA, eqB, totalA, totalB, empate: totalA === totalB };
+    } else {
+      return { empate: false };
+    }
+  }
+
   return (
     <div className="container mt-4">
       <h2>⚙️ Panel de Administración Sudamericana</h2>
@@ -169,7 +430,9 @@ export default function AdminPanelSudamericana() {
         <select
           className="form-select"
           value={rondaSeleccionada}
-          onChange={(e) => setRondaSeleccionada(e.target.value)}
+          onChange={(e) => {
+            setRondaSeleccionada(e.target.value);
+          }}
         >
           <option value="">-- Selecciona --</option>
           {rondas.map((r) => (
@@ -178,57 +441,139 @@ export default function AdminPanelSudamericana() {
         </select>
       </div>
 
-      {/* Tabla de resultados Sudamericana */}
+      {/* Fixture agrupado por cruces */}
       {partidos.length > 0 && (
         <>
-          <h5 className="mt-4">Fixture de la Ronda</h5>
-          <table className="table table-bordered text-center align-middle">
-            <thead className="table-secondary">
-              <tr>
-                <th>Local</th>
-                <th>Marcador</th>
-                <th>Visita</th>
-                <th>Bonus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {partidos.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.local}</td>
-                  <td className="d-flex justify-content-center align-items-center gap-2">
+          <h5 className="mt-4">Fixture de la Ronda - {rondaSeleccionada}</h5>
+          {agruparPorSigla(partidos).map(([sigla, partidosCruce]) => {
+            // Calcular global y empate para este cruce
+            const { eqA, eqB, totalA, totalB, empate } = getGlobalYEmpate(partidosCruce);
+            // Obtener fixture_id del partido de vuelta (más alto) para penales
+            const fixtureIdVuelta = partidosCruce.length === 2 ? 
+              Math.max(...partidosCruce.map(p => Number(p.fixture_id))) : 
+              partidosCruce[0].fixture_id;
+            
+            return (
+              <div key={sigla} className="mb-4 border p-3 rounded">
+                <h6 className="mb-3">
+                  Cruce {sigla}
+                  {partidosCruce.some(p => p.equipo_local_original !== p.equipo_local || p.equipo_visita_original !== p.equipo_visita) && (
+                    <small className="text-muted ms-2">(Equipos calculados automáticamente)</small>
+                  )}
+                </h6>
+                <table className="table table-bordered text-center mb-2">
+                  <thead className="table-secondary">
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Local</th>
+                      <th>Marcador</th>
+                      <th>Visita</th>
+                      <th>Bonus</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partidosCruce.map(partido => (
+                      <tr key={partido.fixture_id}>
+                        <td>{new Date(partido.fecha).toLocaleDateString()}</td>
+                        <td>
+                          <div>
+                            <strong>{partido.equipo_local}</strong>
+                            {partido.equipo_local_original !== partido.equipo_local && (
+                              <small className="text-muted d-block">({partido.equipo_local_original})</small>
+                            )}
+                          </div>
+                        </td>
+                        <td className="d-flex justify-content-center align-items-center gap-2">
+                          <input
+                            type="number"
+                            className="form-control text-end"
+                            style={{ width: "60px" }}
+                            value={partido.goles_local ?? ""}
+                            onChange={(e) => handleCambiarGoles(partido.id, "goles_local", e.target.value)}
+                          />
+                          <span>-</span>
+                          <input
+                            type="number"
+                            className="form-control text-start"
+                            style={{ width: "60px" }}
+                            value={partido.goles_visita ?? ""}
+                            onChange={(e) => handleCambiarGoles(partido.id, "goles_visita", e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <div>
+                            <strong>{partido.equipo_visita}</strong>
+                            {partido.equipo_visita_original !== partido.equipo_visita && (
+                              <small className="text-muted d-block">({partido.equipo_visita_original})</small>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <select
+                            className="form-select"
+                            style={{ width: "80px" }}
+                            value={partido.bonus ?? 1}
+                            onChange={e => handleCambiarBonus(partido.id, e.target.value)}
+                          >
+                            <option value={1}>x1</option>
+                            <option value={2}>x2</option>
+                            <option value={3}>x3</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {/* Mostrar global del cruce */}
+                <div className="mb-2">
+                  <strong>Global:</strong> {eqA} {totalA ?? "-"} - {totalB ?? "-"} {eqB}
+                  {empate && (
+                    <span className="ms-3 text-danger">⚽ Empate global, definir por penales:</span>
+                  )}
+                </div>
+                
+                {/* Inputs de penales si hay empate */}
+                {empate && (
+                  <div className="mb-2 d-flex align-items-center gap-2">
+                    <span>{eqA} penales: </span>
                     <input
                       type="number"
-                      className="form-control text-end"
+                      min="0"
+                      className="form-control"
                       style={{ width: "60px" }}
-                      value={p.golesLocal ?? ""}
-                      onChange={(e) => handleCambiarGoles(p.id, "golesLocal", e.target.value)}
+                      value={(() => {
+                        const valor = partidosCruce.length === 2 ? 
+                          penales[fixtureIdVuelta]?.visitante ?? "" : 
+                          penales[fixtureIdVuelta]?.local ?? "";
+                        return valor;
+                      })()}
+                      onChange={e => handleCambiarPenales(fixtureIdVuelta, 
+                        partidosCruce.length === 2 ? "visitante" : "local", 
+                        e.target.value)}
                     />
-                    <span>-</span>
+                    <span className="mx-2">-</span>
+                    <span>{eqB} penales: </span>
                     <input
                       type="number"
-                      className="form-control text-start"
+                      min="0"
+                      className="form-control"
                       style={{ width: "60px" }}
-                      value={p.golesVisita ?? ""}
-                      onChange={(e) => handleCambiarGoles(p.id, "golesVisita", e.target.value)}
+                      value={(() => {
+                        const valor = partidosCruce.length === 2 ? 
+                          penales[fixtureIdVuelta]?.local ?? "" : 
+                          penales[fixtureIdVuelta]?.visitante ?? "";
+                        return valor;
+                      })()}
+                      onChange={e => handleCambiarPenales(fixtureIdVuelta, 
+                        partidosCruce.length === 2 ? "local" : "visitante", 
+                        e.target.value)}
                     />
-                  </td>
-                  <td>{p.visita}</td>
-                  <td>
-                    <select
-                      className="form-select"
-                      style={{ width: "80px" }}
-                      value={p.bonus ?? 1}
-                      onChange={e => handleCambiarBonus(p.id, e.target.value)}
-                    >
-                      <option value={1}>x1</option>
-                      <option value={2}>x2</option>
-                      <option value={3}>x3</option>
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           <div className="d-flex justify-content-between mt-3 gap-2">
             <button className="btn btn-warning" onClick={actualizarDesdeAPI}>

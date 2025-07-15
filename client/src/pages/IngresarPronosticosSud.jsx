@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../hooks/UseAuth";
 
-const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 const ROUNDS = [
   "Knockout Round Play-offs",
   "Octavos de Final",
@@ -31,87 +31,123 @@ function agruparPorSigla(partidos) {
   return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 }
 
+// Función para cargar clasificados existentes desde la base de datos
+async function cargarClasificadosExistentes(usuarioId, token) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/sudamericana/clasificados/${usuarioId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      // Ahora el backend nos devuelve el diccionario de siglas ya calculado
+      return {
+        clasificados_por_ronda: data.clasificados_por_ronda,
+        diccionario_siglas: data.diccionario_siglas
+      };
+    }
+  } catch (error) {
+    console.error('Error cargando clasificados existentes:', error);
+  }
+  return null;
+}
+
 // Utilidad: calcula los equipos que avanzan ronda a ronda según los pronósticos del usuario
 function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
-  // Agrupa partidos por ronda y por sigla de cruce
+  // Agrupar partidos por ronda y por sigla (cruce)
   const rondas = {};
   for (const partido of fixture) {
-    if (!rondas[partido.ronda]) rondas[partido.ronda] = [];
-    rondas[partido.ronda].push({ ...partido });
+    if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
+    const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
+    if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
+    rondas[partido.ronda][sigla].push({ ...partido });
   }
 
-  // Copia profunda de los partidos para no mutar el fixture original
-  const rondasCopia = {};
-  for (const ronda of ROUNDS) {
-    rondasCopia[ronda] = (rondas[ronda] || []).map(p => ({ ...p }));
-  }
-
-  // 1. Calcular ganadores de la ronda anterior a Octavos
-  let ganadoresPlayoff = {};
-  const playoff = rondasCopia[ROUNDS[0]] || [];
-  for (const partido of playoff) {
-    let eqA = partido.equipo_local;
-    let eqB = partido.equipo_visita;
-    let gA = 0, gB = 0;
-    if (partido.fixture_id && pronosticos[partido.fixture_id]) {
-      gA = Number(pronosticos[partido.fixture_id]?.local ?? partido.goles_local ?? 0);
-      gB = Number(pronosticos[partido.fixture_id]?.visita ?? partido.goles_visita ?? 0);
-    } else {
-      gA = Number(partido.goles_local ?? 0);
-      gB = Number(partido.goles_visita ?? 0);
-    }
-    let ganador = null;
-    if (gA > gB) ganador = eqA;
-    else if (gB > gA) ganador = eqB;
-    else {
-      const penA = Number(penales[partido.fixture_id]?.local ?? 0);
-      const penB = Number(penales[partido.fixture_id]?.visitante ?? 0);
-      if (penA > penB) ganador = eqA;
-      else if (penB > penA) ganador = eqB;
-      else ganador = null;
-    }
-    if (partido.clasificado && ganador) {
-      ganadoresPlayoff[partido.clasificado] = ganador;
-    }
-  }
-
-  // 2. Reemplazar en Octavos de Final los equipos que sean sigla de Playoff por el ganador
-  const octavos = rondasCopia[ROUNDS[1]] || [];
-  for (const partido of octavos) {
-    if (ganadoresPlayoff[partido.equipo_local]) partido.equipo_local = ganadoresPlayoff[partido.equipo_local];
-    if (ganadoresPlayoff[partido.equipo_visita]) partido.equipo_visita = ganadoresPlayoff[partido.equipo_visita];
-  }
-
-  // 3. Calcular avance normal para todas las rondas (para mostrar avance de cruces)
+  let siglaGanadorMap = {};
   const avance = {};
+
+  // Procesar ronda por ronda para propagar ganadores
   for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     avance[ronda] = [];
-    const partidos = rondasCopia[ronda] || [];
-    for (const partido of partidos) {
-      let eqA = partido.equipo_local;
-      let eqB = partido.equipo_visita;
+    const cruces = rondas[ronda] || {};
+
+    for (const [sigla, partidos] of Object.entries(cruces)) {
+      // Crear copias de los partidos para no modificar la estructura original
+      const partidosCopia = partidos.map(partido => ({ ...partido }));
+      
+      // Propagar ganadores de rondas anteriores
+      for (const partido of partidosCopia) {
+        if (siglaGanadorMap[partido.equipo_local]) {
+          partido.equipo_local = siglaGanadorMap[partido.equipo_local];
+        }
+        if (siglaGanadorMap[partido.equipo_visita]) {
+          partido.equipo_visita = siglaGanadorMap[partido.equipo_visita];
+        }
+      }
+
+      let eqA = partidosCopia[0].equipo_local;
+      let eqB = partidosCopia[0].equipo_visita;
       let gA = 0, gB = 0;
-      if (partido.fixture_id && pronosticos[partido.fixture_id]) {
-        gA = Number(pronosticos[partido.fixture_id]?.local ?? partido.goles_local ?? 0);
-        gB = Number(pronosticos[partido.fixture_id]?.visita ?? partido.goles_visita ?? 0);
+
+      // Calcular goles según el número de partidos en el cruce
+      if (partidosCopia.length === 2) {
+        // Ida y vuelta: sumar goles cruzados
+        const p1 = partidosCopia[0], p2 = partidosCopia[1];
+        // SOLO usar pronósticos del usuario, NO resultados oficiales
+        gA = Number(pronosticos[p1.fixture_id]?.local ?? 0) + 
+             Number(pronosticos[p2.fixture_id]?.visita ?? 0);
+        gB = Number(pronosticos[p1.fixture_id]?.visita ?? 0) + 
+             Number(pronosticos[p2.fixture_id]?.local ?? 0);
       } else {
-        gA = Number(partido.goles_local ?? 0);
-        gB = Number(partido.goles_visita ?? 0);
+        // Partido único (Final)
+        const p = partidosCopia[0];
+        // SOLO usar pronósticos del usuario, NO resultados oficiales
+        gA = Number(pronosticos[p.fixture_id]?.local ?? 0);
+        gB = Number(pronosticos[p.fixture_id]?.visita ?? 0);
       }
+
+      // Determinar ganador
       let ganador = null;
-      if (gA > gB) ganador = eqA;
-      else if (gB > gA) ganador = eqB;
-      else {
-        const penA = Number(penales[partido.fixture_id]?.local ?? 0);
-        const penB = Number(penales[partido.fixture_id]?.visitante ?? 0);
-        if (penA > penB) ganador = eqA;
-        else if (penB > penA) ganador = eqB;
-        else ganador = null;
+      
+      if (gA > gB) {
+        ganador = eqA;
+      } else if (gB > gA) {
+        ganador = eqB;
+      } else {
+        // Empate: usar penales del partido de vuelta o único
+        let partidoConPenales = partidosCopia.length === 2 ? partidosCopia[1] : partidosCopia[0];
+        const penLocal = Number(penales[partidoConPenales.fixture_id]?.local ?? 0);
+        const penVisitante = Number(penales[partidoConPenales.fixture_id]?.visitante ?? 0);
+        
+        // CORREGIDO: Mapear correctamente quién juega de local/visitante en el partido de penales
+        const equipoLocal = partidoConPenales.equipo_local;
+        const equipoVisitante = partidoConPenales.equipo_visita;
+        
+        if (penLocal > penVisitante) {
+          ganador = equipoLocal; // El que juega de local en ese partido gana
+        } else if (penVisitante > penLocal) {
+          ganador = equipoVisitante; // El que juega de visitante en ese partido gana
+        }
+        // Si siguen empatados, ganador queda null
       }
-      avance[ronda].push({ sigla: partido.clasificado, eqA, eqB, gA, gB, ganador });
+
+      // Solo agregar UN resultado por cruce
+      avance[ronda].push({ 
+        sigla, 
+        eqA, 
+        eqB, 
+        gA, 
+        gB, 
+        ganador 
+      });
+
+      // Actualizar mapeo para próximas rondas
+      if (sigla && ganador) {
+        siglaGanadorMap[sigla] = ganador;
+      }
     }
   }
+
   return avance;
 }
 
@@ -134,6 +170,7 @@ export default function IngresarPronosticosSud() {
   const [penales, setPenales] = useState({});
   const [mensaje, setMensaje] = useState("");
   const [edicionCerrada, setEdicionCerrada] = useState(false);
+  const [clasificadosExistentes, setClasificadosExistentes] = useState(null);
   const usuario = useAuth();
 
   useEffect(() => {
@@ -181,16 +218,27 @@ export default function IngresarPronosticosSud() {
             local: p.goles_local !== null ? Number(p.goles_local) : "",
             visita: p.goles_visita !== null ? Number(p.goles_visita) : ""
           };
-          // Mapear penales usando el nombre del equipo
+          // Mapear penales usando local/visitante como claves estándar
           if (p.penales_local !== null || p.penales_visita !== null) {
-            pens[p.fixture_id] = {};
-            if (p.penales_local !== null && p.equipo_local) pens[p.fixture_id][p.equipo_local] = p.penales_local;
-            if (p.penales_visita !== null && p.equipo_visita) pens[p.fixture_id][p.equipo_visita] = p.penales_visita;
+            pens[p.fixture_id] = {
+              local: p.penales_local,
+              visitante: p.penales_visita
+            };
           }
         });
-        console.log("PENALES CARGADOS DESDE BD:", pens);
         setPronosticos(pronos);
         setPenales(pens);
+        
+        // Cargar clasificados existentes desde la base de datos
+        cargarClasificadosExistentes(usuario.id, token)
+          .then(clasificados => {
+            if (clasificados) {
+              setClasificadosExistentes(clasificados);
+            }
+          })
+          .catch(error => {
+            console.error("Error cargando clasificados existentes:", error);
+          });
       })
       .catch(error => {
         console.error("Error cargando pronósticos:", error);
@@ -200,16 +248,33 @@ export default function IngresarPronosticosSud() {
 
   // Calcula el global y si hay empate
   function getGlobalYEmpate(partidos) {
-    if (partidos.length !== 2) return { empate: false };
-    const g1 = Number(pronosticos[partidos[0].fixture_id]?.local ?? partidos[0].goles_local ?? 0);
-    const g2 = Number(pronosticos[partidos[0].fixture_id]?.visita ?? partidos[0].goles_visita ?? 0);
-    const g3 = Number(pronosticos[partidos[1].fixture_id]?.local ?? partidos[1].goles_local ?? 0);
-    const g4 = Number(pronosticos[partidos[1].fixture_id]?.visita ?? partidos[1].goles_visita ?? 0);
-    const eqA = partidos[0].equipo_local;
-    const eqB = partidos[0].equipo_visita;
-    const totalA = g1 + g4;
-    const totalB = g2 + g3;
-    return { eqA, eqB, totalA, totalB, empate: totalA === totalB };
+    if (partidos.length === 1) {
+      // PARTIDO ÚNICO (como la Final)
+      const p = partidos[0];
+      const eqA = p.equipo_local;
+      const eqB = p.equipo_visita;
+      const totalA = Number(pronosticos[p.fixture_id]?.local ?? p.goles_local ?? 0);
+      const totalB = Number(pronosticos[p.fixture_id]?.visita ?? p.goles_visita ?? 0);
+      
+      return { eqA, eqB, totalA, totalB, empate: totalA === totalB };
+    } else if (partidos.length === 2) {
+      // IDA Y VUELTA
+      const p1 = partidos[0], p2 = partidos[1];
+      const eqA = p1.equipo_local;
+      const eqB = p1.equipo_visita;
+      
+      // Usar la misma lógica que calcularAvanceEliminatoria:
+      // eqA: local en ida + visitante en vuelta
+      // eqB: visitante en ida + local en vuelta
+      const totalA = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0) + 
+                     Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
+      const totalB = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0) + 
+                     Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
+      
+      return { eqA, eqB, totalA, totalB, empate: totalA === totalB };
+    } else {
+      return { empate: false };
+    }
   }
 
   const handleInput = (fixtureId, equipo, value) => {
@@ -223,7 +288,6 @@ export default function IngresarPronosticosSud() {
   };
 
   const handlePenalInput = (fixtureId, posicion, value) => {
-    console.log(`PENAL INPUT: FixtureId="${fixtureId}" Posicion="${posicion}" Valor="${value}"`);
     setPenales(prev => {
       const newPenales = {
         ...prev,
@@ -232,7 +296,6 @@ export default function IngresarPronosticosSud() {
           [posicion]: value
         }
       };
-      console.log("NUEVO ESTADO PENALES:", newPenales);
       return newPenales;
     });
   };
@@ -240,7 +303,6 @@ export default function IngresarPronosticosSud() {
   // Guardar pronósticos y penales SOLO en la tabla por usuario
   const handleGuardar = async () => {
     try {
-      console.log("=== INICIANDO GUARDADO ===");
       setMensaje("");
       if (!usuario || !usuario.id) {
         setMensaje("Debes iniciar sesión para guardar tus pronósticos");
@@ -270,9 +332,6 @@ export default function IngresarPronosticosSud() {
         Number(partido.fixture_id) === maxFixtureId : 
         true; // Si solo hay un partido, siempre guardar penales
       
-      console.log(`Partido ${partido.fixture_id} - Sigla: ${sigla} - Es vuelta: ${esPartidoDeVuelta} - Max ID: ${maxFixtureId} - IDs del cruce: [${fixtureIds.join(', ')}]`);
-      console.log("PENALES PARA PARTIDO:", partido.fixture_id, "Penales del fixture de vuelta:", penales[maxFixtureId]);
-      
       // Calcular ganador si hay goles
       let ganador = null;
       const local = goles.local !== undefined ? goles.local : (partido.goles_local !== null && partido.goles_local !== undefined ? partido.goles_local : "");
@@ -283,11 +342,33 @@ export default function IngresarPronosticosSud() {
         else if (Number(visita) > Number(local)) ganador = equipo_visita;
         else {
           // Empate: definir por penales si existen
-          const penA = penales[maxFixtureId]?.local ?? null;
-          const penB = penales[maxFixtureId]?.visitante ?? null;
-          if (penA !== null && penB !== null) {
-            if (Number(penA) > Number(penB)) ganador = equipo_local;
-            else if (Number(penB) > Number(penA)) ganador = equipo_visita;
+          const penalesData = penales[maxFixtureId];
+          
+          if (penalesData && penalesData.local !== null && penalesData.visitante !== null) {
+            // Encontrar el partido donde se definieron los penales para mapear correctamente
+            const partidoConPenales = partidosDelCruce.find(p => Number(p.fixture_id) === maxFixtureId);
+            
+            if (partidoConPenales) {
+              const equipoLocalEnPenales = partidoConPenales.equipo_local;
+              const equipoVisitanteEnPenales = partidoConPenales.equipo_visita;
+              const penalesLocal = Number(penalesData.local);
+              const penalesVisitante = Number(penalesData.visitante);
+              
+              // Determinar ganador según qué equipo anotó más penales
+              let ganadorPorPenales;
+              if (penalesLocal > penalesVisitante) {
+                ganadorPorPenales = equipoLocalEnPenales;
+              } else if (penalesVisitante > penalesLocal) {
+                ganadorPorPenales = equipoVisitanteEnPenales;
+              }
+              
+              // Asignar ganador si uno de los equipos del partido actual es el ganador por penales
+              if (ganadorPorPenales === equipo_local) {
+                ganador = equipo_local;
+              } else if (ganadorPorPenales === equipo_visita) {
+                ganador = equipo_visita;
+              }
+            }
           }
         }
       }
@@ -301,16 +382,14 @@ export default function IngresarPronosticosSud() {
         ganador,
         goles_local: local === "" ? null : local,
         goles_visita: visita === "" ? null : visita,
-        // Solo guardar penales en el partido de vuelta (fixture_id más alto)
-        penales_local: esPartidoDeVuelta ? (penales[partido.fixture_id]?.local ?? null) : null,
-        penales_visita: esPartidoDeVuelta ? (penales[partido.fixture_id]?.visitante ?? null) : null
+        // Guardar penales usando el fixture_id del partido de vuelta para este cruce
+        penales_local: penales[maxFixtureId]?.local ?? null,
+        penales_visita: penales[maxFixtureId]?.visitante ?? null
       };
     });
     
     // Debug: mostrar qué penales se están enviando
     const penalesEnviados = pronosticosArray.filter(p => p.penales_local !== null || p.penales_visita !== null);
-    console.log("Penales a enviar:", penalesEnviados);
-    console.log("Pronósticos a enviar:", pronosticosArray);
     
     const payload = { usuario_id: usuario.id, pronosticos: pronosticosArray };
     const token = localStorage.getItem("token");
@@ -330,14 +409,55 @@ export default function IngresarPronosticosSud() {
     
     const data = await res.json();
     if (res.ok && data.ok) {
-      setMensaje("Pronósticos guardados correctamente. Avance de cruces actualizado solo para ti.");
-      // Recalcular avance SOLO para el usuario
-      // setAvanceUsuario(calcularAvanceEliminatoria(fixture, pronosticos, penales));
+      // Guardar TODOS los clasificados de una vez en la base de datos
+      const avance = calcularAvanceEliminatoria(fixture, pronosticos, penales);
+      
+      const clasificadosPorRonda = {};
+      
+      for (const ronda of Object.keys(avance)) {
+        if (ronda === 'Final') {
+          // Para la Final: guardar campeón y subcampeón
+          const finalResult = avance[ronda][0]; // Solo hay un partido en la Final
+          if (finalResult && finalResult.ganador) {
+            const campeon = finalResult.ganador;
+            const subcampeon = finalResult.ganador === finalResult.eqA ? finalResult.eqB : finalResult.eqA;
+            clasificadosPorRonda[ronda] = [campeon, subcampeon]; // [Campeón, Subcampeón]
+          }
+        } else {
+          // Para otras rondas: solo ganadores
+          const ganadores = avance[ronda].map(x => x.ganador).filter(Boolean);
+          if (ganadores.length > 0) {
+            clasificadosPorRonda[ronda] = ganadores;
+          }
+        }
+      }
+      
+      // Una sola llamada con todos los clasificados
+      if (Object.keys(clasificadosPorRonda).length > 0) {
+        await fetch(`${API_BASE_URL}/api/sudamericana/guardar-clasificados`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            clasificadosPorRonda
+          })
+        });
+      }
+      
+      alert("✅ Pronósticos guardados y cruces actualizados automáticamente para todos los usuarios.");
+      
+      // Recargar clasificados existentes desde la base de datos
+      const clasificadosActualizados = await cargarClasificadosExistentes(usuario.id, token);
+      if (clasificadosActualizados) {
+        setClasificadosExistentes(clasificadosActualizados);
+      }
     } else {
       if (res.status === 403) {
-        setMensaje(data.error || "No tienes autorización para realizar pronósticos de Sudamericana");
+        alert("❌ " + (data.error || "No tienes autorización para realizar pronósticos de Sudamericana"));
       } else {
-        setMensaje(data.error || "Error al guardar");
+        alert("❌ " + (data.error || "Error al guardar"));
       }
     }
     } catch (error) {
@@ -347,31 +467,53 @@ export default function IngresarPronosticosSud() {
   };
 
   // Avanzar cruces (llama al backend y refresca el fixture)
-  const handleAvanzarCruces = async () => {
-    setMensaje("");
-    const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/actualizar-clasificados`, { method: "POST" });
-    const data = await res.json();
-    if (data.ok) {
-      setMensaje("Cruces avanzados correctamente");
-      // Refresca el fixture para ver los equipos actualizados
-      setLoading(true);
-      fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
-        .then(res => res.json())
-        .then(data => {
-          setFixture(data);
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    } else {
-      setMensaje("Error al avanzar cruces");
+  // Usar clasificados existentes si están disponibles, si no calcular desde pronósticos
+  let avance;
+  if (clasificadosExistentes && clasificadosExistentes.clasificados_por_ronda) {
+    // Convertir clasificadosExistentes a formato compatible con la lógica de guardado
+    avance = {};
+    for (const [ronda, equipos] of Object.entries(clasificadosExistentes.clasificados_por_ronda)) {
+      if (ronda === 'Final' && equipos.length >= 2) {
+        // Para Final: simular estructura con campeón como ganador
+        avance[ronda] = [{
+          ganador: equipos[0], // Campeón
+          eqA: equipos[0],     // Campeón
+          eqB: equipos[1]      // Subcampeón
+        }];
+      } else {
+        // Para otras rondas: cada equipo es un ganador
+        avance[ronda] = equipos.map(equipo => ({ ganador: equipo }));
+      }
     }
-  };
-
-  // Ejemplo: calcular avance de cruces según pronósticos del usuario
-  const avance = calcularAvanceEliminatoria(fixture, pronosticos, penales);
+  } else {
+    avance = calcularAvanceEliminatoria(fixture, pronosticos, penales);
+  }
 
   // --- FIXTURE VIRTUAL DEL USUARIO: genera partidos con equipos propagados según sus pronósticos ---
   function getFixtureVirtual(fixture, pronosticos, penales) {
+    // Si tenemos clasificados existentes de la BD, usar el diccionario de siglas del backend
+    if (clasificadosExistentes && clasificadosExistentes.diccionario_siglas) {
+      const siglaGanadorMap = clasificadosExistentes.diccionario_siglas;
+      
+      // Generar fixture virtual usando el diccionario exacto del backend
+      const partidosRonda = [];
+      const partidosDeRonda = fixture.filter(p => p.ronda === selectedRound);
+      
+      for (const partido of partidosDeRonda) {
+        let eqA = partido.equipo_local;
+        let eqB = partido.equipo_visita;
+        
+        // Reemplazar siglas por nombres reales usando el diccionario del backend
+        if (siglaGanadorMap[eqA]) eqA = siglaGanadorMap[eqA];
+        if (siglaGanadorMap[eqB]) eqB = siglaGanadorMap[eqB];
+        
+        partidosRonda.push({ ...partido, equipo_local: eqA, equipo_visita: eqB });
+      }
+      
+      return partidosRonda;
+    }
+    
+    // Si no hay clasificados existentes, calcular usando la lógica original
     // Agrupa partidos por ronda y sigla
     const rondas = {};
     for (const partido of fixture) {
@@ -398,12 +540,13 @@ export default function IngresarPronosticosSud() {
         let gA = 0, gB = 0;
         if (partidos.length === 2) {
           const p1 = partidos[0], p2 = partidos[1];
-          gA = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0) + Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
-          gB = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0) + Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
+          // Para ida y vuelta: Equipo A = goles_local_p1 + goles_visita_p2, Equipo B = goles_visita_p1 + goles_local_p2
+          gA = Number(pronosticos[p1.fixture_id]?.local ?? 0) + Number(pronosticos[p2.fixture_id]?.visita ?? 0);
+          gB = Number(pronosticos[p1.fixture_id]?.visita ?? 0) + Number(pronosticos[p2.fixture_id]?.local ?? 0);
         } else {
           const p = partidos[0];
-          gA = Number(pronosticos[p.fixture_id]?.local ?? p.goles_local ?? 0);
-          gB = Number(pronosticos[p.fixture_id]?.visita ?? p.goles_visita ?? 0);
+          gA = Number(pronosticos[p.fixture_id]?.local ?? 0);
+          gB = Number(pronosticos[p.fixture_id]?.visita ?? 0);
         }
         let ganador = null;
         if (gA > gB) ganador = eqA;
@@ -421,9 +564,13 @@ export default function IngresarPronosticosSud() {
           else if (penB > penA) ganador = partidoVuelta.equipo_visita;
           else ganador = null;
         }
+        if (ganador) {
+          // Registrar ganador para siguientes rondas
+        }
         if (sigla && ganador) siglaGanadorMap[sigla] = ganador;
       }
     }
+    
     // Devuelve partidos de la ronda seleccionada con equipos propagados
     const partidosRonda = [];
     const crucesRonda = rondas[selectedRound] || {};
@@ -443,7 +590,7 @@ export default function IngresarPronosticosSud() {
   return (
     <div className="container mt-4">
       <SudamericanaSubMenu />
-      <h2 className="mb-4">🔧 DEPURANDO - Ingresar Pronósticos - Copa Sudamericana 🔧</h2>
+      <h2 className="mb-4">🔧 Ingresar Pronósticos - Copa Sudamericana 🔧</h2>
       <div className="mb-3">
         <label className="me-2">Selecciona la ronda:</label>
         <select
@@ -526,8 +673,8 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[sigla]?.[eqA] ?? ""}
-                    onChange={e => handlePenalInput(sigla, eqA, e.target.value)}
+                    value={penales[fixtureIdVuelta]?.visitante ?? ""}
+                    onChange={e => handlePenalInput(fixtureIdVuelta, "visitante", e.target.value)}
                     disabled={edicionCerrada}
                   />
                   <span className="mx-2">-</span>
@@ -537,8 +684,8 @@ export default function IngresarPronosticosSud() {
                     min="0"
                     className="form-control d-inline-block w-25 mx-1"
                     style={{ width: 45, display: 'inline-block' }}
-                    value={penales[sigla]?.[eqB] ?? ""}
-                    onChange={e => handlePenalInput(sigla, eqB, e.target.value)}
+                    value={penales[fixtureIdVuelta]?.local ?? ""}
+                    onChange={e => handlePenalInput(fixtureIdVuelta, "local", e.target.value)}
                     disabled={edicionCerrada}
                   />
                 </div>
@@ -546,8 +693,7 @@ export default function IngresarPronosticosSud() {
             </div>
           );
         })}
-        <button className="btn btn-primary me-2" onClick={handleGuardar} disabled={edicionCerrada}>Guardar pronósticos</button>
-        <button className="btn btn-success" onClick={handleAvanzarCruces} disabled={edicionCerrada}>Avanzar cruces</button>
+        <button className="btn btn-primary" onClick={handleGuardar} disabled={edicionCerrada}>Guardar pronósticos y actualizar cruces</button>
         </>
       )}
     </div>

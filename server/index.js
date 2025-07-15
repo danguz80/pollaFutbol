@@ -23,9 +23,14 @@ dotenv.config();
 
 const app = express();
 
-// SOLO ESTA LÍNEA para permitir tu frontend de Netlify:
+// Configuración de CORS para permitir frontend local y de Netlify
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://pollafutbol.netlify.app"
+];
+
 app.use(cors({
-  origin: "https://pollafutbol.netlify.app",
+  origin: allowedOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 }));
@@ -58,5 +63,4 @@ setInterval(cierreAutomaticoSudamericana, 60000);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });

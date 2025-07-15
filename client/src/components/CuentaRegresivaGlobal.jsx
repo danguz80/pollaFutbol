@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import CuentaRegresiva from "./CuentaRegresiva";
 
-const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function CuentaRegresivaGlobal() {
   const [proximaJornada, setProximaJornada] = useState(null);

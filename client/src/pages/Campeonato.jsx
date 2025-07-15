@@ -4,7 +4,7 @@ import ConfigurarCuentaRegresiva from "../components/ConfigurarCuentaRegresiva";
 import CuentaRegresiva from "../components/CuentaRegresiva";
 import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
-const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function Campeonato() {
   const navigate = useNavigate();

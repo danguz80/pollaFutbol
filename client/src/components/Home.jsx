@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import CuentaRegresivaGlobal from "./CuentaRegresivaGlobal";
 
-const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function Home() {
     const navigate = useNavigate();

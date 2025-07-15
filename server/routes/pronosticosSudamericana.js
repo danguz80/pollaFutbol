@@ -2,6 +2,7 @@ import express from "express";
 import { pool } from "../db/pool.js";
 import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 import { verifyToken } from "../middleware/verifyToken.js";
+import { definirClasificadosPlayoffs } from '../services/clasificacionSudamericana.js';
 
 const router = express.Router();
 
@@ -21,16 +22,12 @@ router.post("/guardar-pronosticos-elim", verifyToken, async (req, res) => {
     });
   }
 
-  console.log("[PRONOSTICOS][BODY RECIBIDO]", JSON.stringify(req.body, null, 2));
   if (!usuario_id || !pronosticos || !Array.isArray(pronosticos)) {
     return res.status(400).json({ error: "Faltan datos obligatorios" });
   }
   if (pronosticos.length === 0) {
-    console.log("[PRONOSTICOS][VACIO] El array de pronosticos está vacío");
   } else {
-    console.log(`[PRONOSTICOS][CANTIDAD] Se recibieron ${pronosticos.length} pronosticos`);
     pronosticos.forEach((p, i) => {
-      console.log(`[PRONOSTICO #${i+1}]`, JSON.stringify(p));
     });
   }
   let exitos = 0;
@@ -73,7 +70,17 @@ router.post("/guardar-pronosticos-elim", verifyToken, async (req, res) => {
     if (errores.length > 0) {
       res.status(207).json({ ok: false, exitos, errores, message: "Algunos pronósticos no se guardaron. Revisa los logs del backend." });
     } else {
-      res.json({ ok: true, exitos });
+      // 🔥 FUNCIONALIDAD DESHABILITADA: No actualizar cruces automáticamente para preservar estructura de siglas
+      try {
+        console.log('🔧 Actualización automática de cruces deshabilitada para preservar siglas');
+        // await definirClasificadosPlayoffs();
+        console.log('✅ Pronósticos guardados sin modificar estructura de fixture');
+        res.json({ ok: true, exitos, message: `${exitos} pronósticos guardados correctamente` });
+      } catch (updateError) {
+        console.error('❌ Error actualizando cruces:', updateError);
+        // Los pronósticos se guardaron, pero hubo error al actualizar cruces
+        res.json({ ok: true, exitos, warning: 'Pronósticos guardados pero error actualizando cruces: ' + updateError.message });
+      }
     }
   } catch (error) {
     console.error("Error guardando pronósticos eliminación directa:", error);
@@ -110,9 +117,7 @@ router.get("/pronosticos-elim/:usuarioId", verifyToken, async (req, res) => {
     const dicSiglas = calcularAvanceSiglas(fixture, pronos);
     // 4. Reemplazar siglas por nombres reales
     const pronosConNombres = reemplazarSiglasPorNombres(pronos, dicSiglas);
-    
-    console.log("PRONÓSTICOS FINALES CON PENALES:", pronosConNombres.filter(p => p.penales_local || p.penales_visita));
-    
+        
     res.json(pronosConNombres);
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
@@ -124,7 +129,6 @@ router.post("/pronosticos/calcular/:ronda", async (req, res) => {
   const { ronda } = req.params;
 
   try {
-    console.log(`🧮 Iniciando cálculo de puntajes para ronda: ${ronda}`);
 
     // Obtener todos los pronósticos de la ronda específica
     const pronosticos = await pool.query(
@@ -196,8 +200,6 @@ router.post("/pronosticos/calcular/:ronda", async (req, res) => {
 
       actualizados++;
     }
-
-    console.log(`✅ Puntajes calculados para ${actualizados} pronósticos en ronda ${ronda}`);
 
     res.json({
       mensaje: `✅ Puntajes recalculados correctamente para la ronda ${ronda}`,

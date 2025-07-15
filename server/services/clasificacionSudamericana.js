@@ -40,33 +40,75 @@ export const definirClasificadosPlayoffs = async () => {
     for (const cruce of cruces) {
       const [fixtureId1, fixtureId2] = cruce.fixtures;
       const { rows: partidos } = await pool.query(
-        `SELECT equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita
-         FROM sudamericana_fixtures
-         WHERE fixture_id IN ($1, $2)
-         ORDER BY fecha`,
+        `SELECT 
+           sf.equipo_local, sf.equipo_visita, sf.fixture_id,
+           COALESCE(ps.goles_local, sf.goles_local) as goles_local,
+           COALESCE(ps.goles_visita, sf.goles_visita) as goles_visita,
+           COALESCE(ps.penales_local, sf.penales_local) as penales_local,
+           COALESCE(ps.penales_visita, sf.penales_visita) as penales_visita
+         FROM sudamericana_fixtures sf
+         LEFT JOIN pronosticos_sudamericana ps ON sf.fixture_id = ps.fixture_id AND ps.usuario_id = 3
+         WHERE sf.fixture_id IN ($1, $2)
+         ORDER BY sf.fecha`,
         [fixtureId1, fixtureId2]
       );
-      let equipos = {};
-      for (const partido of partidos) {
-        equipos[partido.equipo_local] = (equipos[partido.equipo_local] || 0) + (partido.goles_local || 0);
-        equipos[partido.equipo_visita] = (equipos[partido.equipo_visita] || 0) + (partido.goles_visita || 0);
-      }
-      const [equipoA, equipoB] = Object.keys(equipos);
-      const golesA = equipos[equipoA];
-      const golesB = equipos[equipoB];
-      let ganador = null;
-      if (golesA > golesB) ganador = equipoA;
-      else if (golesB > golesA) ganador = equipoB;
-      else {
-        let penalesA = 0, penalesB = 0;
-        for (const partido of partidos) {
-          penalesA += partido.penales_local || 0;
-          penalesB += partido.penales_visita || 0;
+
+      if (partidos.length === 2) {
+        // IDA Y VUELTA: cálculo cruzado correcto
+        const ida = partidos[0];
+        const vuelta = partidos[1];
+        
+        // Equipo A es el local en ida
+        const equipoA = ida.equipo_local;
+        const equipoB = ida.equipo_visita;
+        
+        // Calcular goles globales con lógica cruzada
+        const golesA = (ida.goles_local || 0) + (vuelta.goles_visita || 0);
+        const golesB = (ida.goles_visita || 0) + (vuelta.goles_local || 0);
+        
+        let ganador = null;
+        if (golesA > golesB) {
+          ganador = equipoA;
+        } else if (golesB > golesA) {
+          ganador = equipoB;
+        } else {
+          // Empate: usar penales del partido de vuelta
+          const penalesA = vuelta.penales_local || 0;
+          const penalesB = vuelta.penales_visita || 0;
+          if (penalesA > penalesB) {
+            ganador = equipoA;
+          } else if (penalesB > penalesA) {
+            ganador = equipoB;
+          }
         }
-        if (penalesA > penalesB) ganador = equipoA;
-        else if (penalesB > penalesA) ganador = equipoB;
+        
+        if (ganador) clasificados[cruce.clasificado] = ganador;
+      } else if (partidos.length === 1) {
+        // PARTIDO ÚNICO (como Final): lógica simple
+        const partido = partidos[0];
+        const equipoA = partido.equipo_local;
+        const equipoB = partido.equipo_visita;
+        const golesA = partido.goles_local || 0;
+        const golesB = partido.goles_visita || 0;
+        
+        let ganador = null;
+        if (golesA > golesB) {
+          ganador = equipoA;
+        } else if (golesB > golesA) {
+          ganador = equipoB;
+        } else {
+          // Empate: usar penales
+          const penalesA = partido.penales_local || 0;
+          const penalesB = partido.penales_visita || 0;
+          if (penalesA > penalesB) {
+            ganador = equipoA;
+          } else if (penalesB > penalesA) {
+            ganador = equipoB;
+          }
+        }
+        
+        if (ganador) clasificados[cruce.clasificado] = ganador;
       }
-      if (ganador) clasificados[cruce.clasificado] = ganador;
     }
 
     // 2. Avanzar cruces en la ronda siguiente

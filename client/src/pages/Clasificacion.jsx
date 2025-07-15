@@ -4,7 +4,7 @@ import AccesosDirectos from "../components/AccesosDirectos";
 import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 
 // Accede a la variable de entorno
-const API_BASE_URL = import.meta.env.VITE_RENDER_BACKEND_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export default function Clasificacion() {
   const [jornadas, setJornadas] = useState([]);
@@ -219,7 +219,6 @@ export default function Clasificacion() {
           </thead>
           <tbody>
             {rankingJornada.map((p, i) => {
-              console.log('foto_perfil', p.foto_perfil, 'url final', p.foto_perfil ? (p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`) : 'NO IMAGEN');
               return (
                 <tr key={i} className="text-center">
                   <td style={getJornadaCellStyle(i)}>{i + 1}</td>

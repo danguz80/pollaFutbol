@@ -23,78 +23,97 @@ export function agruparPorSigla(partidos) {
 }
 
 export function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
+  // Usar la misma lógica que getFixtureVirtual que SÍ funciona correctamente
   const rondas = {};
+  
+  // Agrupar partidos por ronda y por sigla (cruce)
   for (const partido of fixture) {
-    if (!rondas[partido.ronda]) rondas[partido.ronda] = [];
-    rondas[partido.ronda].push({ ...partido });
+    if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
+    const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
+    if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
+    rondas[partido.ronda][sigla].push({ ...partido });
   }
-  const rondasCopia = {};
-  for (const ronda of ROUNDS) {
-    rondasCopia[ronda] = (rondas[ronda] || []).map(p => ({ ...p }));
-  }
-  let ganadoresPlayoff = {};
-  const playoff = rondasCopia[ROUNDS[0]] || [];
-  for (const partido of playoff) {
-    let eqA = partido.equipo_local;
-    let eqB = partido.equipo_visita;
-    let gA = 0, gB = 0;
-    if (partido.fixture_id && pronosticos[partido.fixture_id]) {
-      gA = Number(pronosticos[partido.fixture_id]?.local ?? partido.goles_local ?? 0);
-      gB = Number(pronosticos[partido.fixture_id]?.visita ?? partido.goles_visita ?? 0);
-    } else {
-      gA = Number(partido.goles_local ?? 0);
-      gB = Number(partido.goles_visita ?? 0);
-    }
-    let ganador = null;
-    if (gA > gB) ganador = eqA;
-    else if (gB > gA) ganador = eqB;
-    else {
-      // Usar nueva estructura de penales por fixture_id
-      const penA = Number(penales[partido.fixture_id]?.local ?? 0);
-      const penB = Number(penales[partido.fixture_id]?.visitante ?? 0);
-      if (penA > penB) ganador = eqA;
-      else if (penB > penA) ganador = eqB;
-      else ganador = null;
-    }
-    if (partido.clasificado && ganador) {
-      ganadoresPlayoff[partido.clasificado] = ganador;
-    }
-  }
-  const octavos = rondasCopia[ROUNDS[1]] || [];
-  for (const partido of octavos) {
-    if (ganadoresPlayoff[partido.equipo_local]) partido.equipo_local = ganadoresPlayoff[partido.equipo_local];
-    if (ganadoresPlayoff[partido.equipo_visita]) partido.equipo_visita = ganadoresPlayoff[partido.equipo_visita];
-  }
+
+  let siglaGanadorMap = {};
   const avance = {};
+
+  // Procesar ronda por ronda para propagar ganadores
   for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     avance[ronda] = [];
-    const partidos = rondasCopia[ronda] || [];
-    for (const partido of partidos) {
-      let eqA = partido.equipo_local;
-      let eqB = partido.equipo_visita;
+    const cruces = rondas[ronda] || {};
+
+    for (const [sigla, partidos] of Object.entries(cruces)) {
+      // Propagar ganadores de rondas anteriores
+      for (const partido of partidos) {
+        if (siglaGanadorMap[partido.equipo_local]) {
+          partido.equipo_local = siglaGanadorMap[partido.equipo_local];
+        }
+        if (siglaGanadorMap[partido.equipo_visita]) {
+          partido.equipo_visita = siglaGanadorMap[partido.equipo_visita];
+        }
+      }
+
+      let eqA = partidos[0].equipo_local;
+      let eqB = partidos[0].equipo_visita;
       let gA = 0, gB = 0;
-      if (partido.fixture_id && pronosticos[partido.fixture_id]) {
-        gA = Number(pronosticos[partido.fixture_id]?.local ?? partido.goles_local ?? 0);
-        gB = Number(pronosticos[partido.fixture_id]?.visita ?? partido.goles_visita ?? 0);
+
+      // Calcular goles según el número de partidos en el cruce
+      if (partidos.length === 2) {
+        // Ida y vuelta: sumar goles cruzados
+        const p1 = partidos[0], p2 = partidos[1];
+        gA = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0) + 
+             Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
+        gB = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0) + 
+             Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
       } else {
-        gA = Number(partido.goles_local ?? 0);
-        gB = Number(partido.goles_visita ?? 0);
+        // Partido único (Final)
+        const p = partidos[0];
+        gA = Number(pronosticos[p.fixture_id]?.local ?? p.goles_local ?? 0);
+        gB = Number(pronosticos[p.fixture_id]?.visita ?? p.goles_visita ?? 0);
       }
+
+      // Determinar ganador
       let ganador = null;
-      if (gA > gB) ganador = eqA;
-      else if (gB > gA) ganador = eqB;
-      else {
-        // Usar nueva estructura de penales por fixture_id
-        const penA = Number(penales[partido.fixture_id]?.local ?? 0);
-        const penB = Number(penales[partido.fixture_id]?.visitante ?? 0);
-        if (penA > penB) ganador = eqA;
-        else if (penB > penA) ganador = eqB;
-        else ganador = null;
+      if (gA > gB) {
+        ganador = eqA;
+      } else if (gB > gA) {
+        ganador = eqB;
+      } else {
+        // Empate: usar penales del partido de vuelta o único
+        let partidoConPenales = partidos.length === 2 ? partidos[1] : partidos[0];
+        const penLocal = Number(penales[partidoConPenales.fixture_id]?.local ?? 0);
+        const penVisitante = Number(penales[partidoConPenales.fixture_id]?.visitante ?? 0);
+        
+        // CORREGIDO: Mapear correctamente quién juega de local/visitante en el partido de penales
+        const equipoLocal = partidoConPenales.equipo_local;
+        const equipoVisitante = partidoConPenales.equipo_visita;
+        
+        if (penLocal > penVisitante) {
+          ganador = equipoLocal; // El que juega de local en ese partido gana
+        } else if (penVisitante > penLocal) {
+          ganador = equipoVisitante; // El que juega de visitante en ese partido gana
+        }
+        // Si siguen empatados, ganador queda null
       }
-      avance[ronda].push({ sigla: partido.clasificado, eqA, eqB, gA, gB, ganador });
+
+      // Solo agregar UN resultado por cruce
+      avance[ronda].push({ 
+        sigla, 
+        eqA, 
+        eqB, 
+        gA, 
+        gB, 
+        ganador 
+      });
+
+      // Actualizar mapeo para próximas rondas
+      if (sigla && ganador) {
+        siglaGanadorMap[sigla] = ganador;
+      }
     }
   }
+
   return avance;
 }
 
@@ -136,11 +155,20 @@ export function getFixtureVirtual(fixture, pronosticos, penales, selectedRound) 
         // Usar nueva estructura de penales por fixture_id
         // Para cruces de ida y vuelta, usar el partido de vuelta (fixture_id más alto)
         let partidoConPenales = partidos.length === 2 ? partidos[1] : partidos[0];
-        const penA = Number(penales[partidoConPenales.fixture_id]?.local ?? 0);
-        const penB = Number(penales[partidoConPenales.fixture_id]?.visitante ?? 0);
-        if (penA > penB) ganador = eqA;
-        else if (penB > penA) ganador = eqB;
-        else ganador = null;
+        const penLocal = Number(penales[partidoConPenales.fixture_id]?.local ?? 0);
+        const penVisitante = Number(penales[partidoConPenales.fixture_id]?.visitante ?? 0);
+        
+        // CORREGIDO: Mapear correctamente quién juega de local/visitante en el partido de penales
+        const equipoLocal = partidoConPenales.equipo_local;
+        const equipoVisitante = partidoConPenales.equipo_visita;
+        
+        if (penLocal > penVisitante) {
+          ganador = equipoLocal; // El que juega de local en ese partido gana
+        } else if (penVisitante > penLocal) {
+          ganador = equipoVisitante; // El que juega de visitante en ese partido gana
+        } else {
+          ganador = null;
+        }
       }
       if (sigla && ganador) siglaGanadorMap[sigla] = ganador;
     }

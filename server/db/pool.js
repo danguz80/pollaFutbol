@@ -1,14 +1,17 @@
 import pkg from "pg";
 const { Pool } = pkg;
+import dotenv from "dotenv";
+dotenv.config();
 
-// Si usas variables de entorno, así:
-const connectionString = process.env.DATABASE_URL;
+const url = new URL(process.env.DATABASE_URL);
 
 const pool = new Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  user: url.username,
+  password: url.password,
+  host: url.hostname,
+  port: url.port || 5432,
+  database: url.pathname.replace(/^\//, ""),
+  ssl: process.env.USE_SSL === "true" ? { rejectUnauthorized: false } : undefined
 });
 
 export { pool };

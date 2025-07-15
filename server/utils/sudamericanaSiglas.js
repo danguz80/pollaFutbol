@@ -24,7 +24,6 @@ export function construirDiccionarioSiglas(fixture) {
       dic[f.clasificado] = f.equipo_visita;
     }
   }
-  console.log('[DEPURACION][Diccionario siglas->nombre real]:', dic);
   return dic;
 }
 
@@ -87,10 +86,8 @@ export function calcularAvanceSiglas(fixture, pronosticos = []) {
           penA = pronosMap[partido.fixture_id].penales_local;
           penB = pronosMap[partido.fixture_id].penales_visita;
         }
-        console.log(`PARTIDO ${partido.fixture_id}: Empate en goles (${gA}-${gB}), penales: ${penA} vs ${penB}`);
         if (penA !== null && penB !== null && Number(penA) > Number(penB)) ganador = eqA;
         else if (penA !== null && penB !== null && Number(penB) > Number(penA)) ganador = eqB;
-        console.log(`GANADOR POR PENALES: ${ganador}`);
       }
       // Mapear sigla de cruce a ganador para la siguiente ronda
       if (partido.clasificado && ganador) {
@@ -106,6 +103,5 @@ export function calcularAvanceSiglas(fixture, pronosticos = []) {
     }
   }
   // Log de depuración para ver el avance final
-  console.log('[DEPURACION][Avance siglas->nombre real]:', dicSiglas);
   return dicSiglas;
 }
