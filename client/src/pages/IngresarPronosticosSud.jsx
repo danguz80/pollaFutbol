@@ -491,97 +491,56 @@ export default function IngresarPronosticosSud() {
 
   // --- FIXTURE VIRTUAL DEL USUARIO: genera partidos con equipos propagados según sus pronósticos ---
   function getFixtureVirtual(fixture, pronosticos, penales) {
-    // Si tenemos clasificados existentes de la BD, usar el diccionario de siglas del backend
-    if (clasificadosExistentes && clasificadosExistentes.diccionario_siglas) {
-      const siglaGanadorMap = clasificadosExistentes.diccionario_siglas;
-      
-      // Generar fixture virtual usando el diccionario exacto del backend
-      const partidosRonda = [];
-      const partidosDeRonda = fixture.filter(p => p.ronda === selectedRound);
-      
-      for (const partido of partidosDeRonda) {
-        let eqA = partido.equipo_local;
-        let eqB = partido.equipo_visita;
-        
-        // Reemplazar siglas por nombres reales usando el diccionario del backend
-        if (siglaGanadorMap[eqA]) eqA = siglaGanadorMap[eqA];
-        if (siglaGanadorMap[eqB]) eqB = siglaGanadorMap[eqB];
-        
-        partidosRonda.push({ ...partido, equipo_local: eqA, equipo_visita: eqB });
-      }
-      
-      return partidosRonda;
+    console.log("🔍 getFixtureVirtual - clasificadosExistentes:", clasificadosExistentes);
+    console.log("🔍 getFixtureVirtual - selectedRound:", selectedRound);
+    
+    // SIEMPRE debe haber datos en la BD, no calcular
+    if (!clasificadosExistentes || !clasificadosExistentes.diccionario_siglas) {
+      console.error("❌ No hay clasificadosExistentes o diccionario_siglas");
+      return []; // Retornar vacío si no hay datos de BD
     }
     
-    // Si no hay clasificados existentes, calcular usando la lógica original
-    // Agrupa partidos por ronda y sigla
-    const rondas = {};
-    for (const partido of fixture) {
-      if (!rondas[partido.ronda]) rondas[partido.ronda] = {};
-      const sigla = partido.clasificado || [partido.equipo_local, partido.equipo_visita].sort().join(' vs ');
-      if (!rondas[partido.ronda][sigla]) rondas[partido.ronda][sigla] = [];
-      rondas[partido.ronda][sigla].push({ ...partido });
-    }
-    // Mapa de sigla a equipo real
-    let siglaGanadorMap = {};
-    // Propaga ronda a ronda
-    for (let i = 0; i < ROUNDS.length; i++) {
-      const ronda = ROUNDS[i];
-      const cruces = rondas[ronda] || {};
-      for (const [sigla, partidos] of Object.entries(cruces)) {
-        for (const partido of partidos) {
-          // Reemplaza nombres por ganadores previos
-          if (siglaGanadorMap[partido.equipo_local]) partido.equipo_local = siglaGanadorMap[partido.equipo_local];
-          if (siglaGanadorMap[partido.equipo_visita]) partido.equipo_visita = siglaGanadorMap[partido.equipo_visita];
-        }
-        // Calcular ganador de este cruce
-        let eqA = partidos[0].equipo_local;
-        let eqB = partidos[0].equipo_visita;
-        let gA = 0, gB = 0;
-        if (partidos.length === 2) {
-          const p1 = partidos[0], p2 = partidos[1];
-          // Para ida y vuelta: Equipo A = goles_local_p1 + goles_visita_p2, Equipo B = goles_visita_p1 + goles_local_p2
-          gA = Number(pronosticos[p1.fixture_id]?.local ?? 0) + Number(pronosticos[p2.fixture_id]?.visita ?? 0);
-          gB = Number(pronosticos[p1.fixture_id]?.visita ?? 0) + Number(pronosticos[p2.fixture_id]?.local ?? 0);
-        } else {
-          const p = partidos[0];
-          gA = Number(pronosticos[p.fixture_id]?.local ?? 0);
-          gB = Number(pronosticos[p.fixture_id]?.visita ?? 0);
-        }
-        let ganador = null;
-        if (gA > gB) ganador = eqA;
-        else if (gB > gA) ganador = eqB;
-        else {
-          // Encontrar fixture_id del partido de vuelta (más alto)
-          const fixtureIdVuelta = partidos.length === 2 ? 
-            Math.max(...partidos.map(p => Number(p.fixture_id))) : 
-            partidos[0].fixture_id;
-          const partidoVuelta = partidos.find(p => Number(p.fixture_id) === fixtureIdVuelta);
-          const penA = Number(penales[fixtureIdVuelta]?.local ?? 0);
-          const penB = Number(penales[fixtureIdVuelta]?.visitante ?? 0);
-          // Determinar ganador según quién es local en el partido de vuelta
-          if (penA > penB) ganador = partidoVuelta.equipo_local;
-          else if (penB > penA) ganador = partidoVuelta.equipo_visita;
-          else ganador = null;
-        }
-        if (ganador) {
-          // Registrar ganador para siguientes rondas
-        }
-        if (sigla && ganador) siglaGanadorMap[sigla] = ganador;
-      }
-    }
+    const siglaGanadorMap = clasificadosExistentes.diccionario_siglas;
+    console.log("🔍 diccionario_siglas:", siglaGanadorMap);
+    console.log("🔍 Claves disponibles en siglaGanadorMap:", Object.keys(siglaGanadorMap));
     
-    // Devuelve partidos de la ronda seleccionada con equipos propagados
+    // Generar fixture virtual usando el diccionario exacto del backend
     const partidosRonda = [];
-    const crucesRonda = rondas[selectedRound] || {};
-    for (const [sigla, partidos] of Object.entries(crucesRonda)) {
-      for (const partido of partidos) {
-        // Reemplaza nombres por ganadores previos (por si acaso)
-        let eqA = siglaGanadorMap[partido.equipo_local] || partido.equipo_local;
-        let eqB = siglaGanadorMap[partido.equipo_visita] || partido.equipo_visita;
-        partidosRonda.push({ ...partido, equipo_local: eqA, equipo_visita: eqB });
-      }
+    const partidosDeRonda = fixture.filter(p => p.ronda === selectedRound);
+    console.log("🔍 partidosDeRonda para", selectedRound, ":", partidosDeRonda);
+    
+    // Log de los primeros 2 partidos para debug
+    if (partidosDeRonda.length > 0) {
+      console.log("🔍 Primer partido:", {
+        equipo_local: partidosDeRonda[0].equipo_local,
+        equipo_visita: partidosDeRonda[0].equipo_visita,
+        ronda: partidosDeRonda[0].ronda
+      });
     }
+    
+    for (const partido of partidosDeRonda) {
+      let eqA = partido.equipo_local;
+      let eqB = partido.equipo_visita;
+      
+      console.log(`🔍 Partido original: ${eqA} vs ${eqB}`);
+      console.log(`🔍 ¿eqA (${eqA}) está en siglaGanadorMap?`, eqA in siglaGanadorMap);
+      console.log(`🔍 ¿eqB (${eqB}) está en siglaGanadorMap?`, eqB in siglaGanadorMap);
+      
+      // Reemplazar siglas por nombres reales usando el diccionario del backend
+      if (siglaGanadorMap[eqA]) {
+        console.log(`🔍 Reemplazando sigla ${eqA} por ${siglaGanadorMap[eqA]}`);
+        eqA = siglaGanadorMap[eqA];
+      }
+      if (siglaGanadorMap[eqB]) {
+        console.log(`🔍 Reemplazando sigla ${eqB} por ${siglaGanadorMap[eqB]}`);
+        eqB = siglaGanadorMap[eqB];
+      }
+      
+      console.log(`🔍 Partido final: ${eqA} vs ${eqB}`);
+      partidosRonda.push({ ...partido, equipo_local: eqA, equipo_visita: eqB });
+    }
+    
+    console.log("🔍 partidosRonda resultado:", partidosRonda);
     return partidosRonda;
   }
   const partidosVirtual = getFixtureVirtual(fixture, pronosticos, penales);

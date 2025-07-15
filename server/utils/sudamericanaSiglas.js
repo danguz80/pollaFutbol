@@ -41,67 +41,134 @@ export function reemplazarSiglasPorNombres(arr, dicSiglas) {
 export function calcularAvanceSiglas(fixture, pronosticos = []) {
   const ROUNDS = [
     "Knockout Round Play-offs",
-    "Octavos de Final",
+    "Octavos de Final", 
     "Cuartos de Final",
     "Semifinales",
     "Final"
   ];
+  
   // Indexar partidos por ronda
   const rondas = {};
   for (const partido of fixture) {
     if (!rondas[partido.ronda]) rondas[partido.ronda] = [];
     rondas[partido.ronda].push({ ...partido });
   }
+  
   // Indexar pronosticos por fixture_id
   const pronosMap = {};
   for (const p of pronosticos) {
     pronosMap[p.fixture_id] = p;
   }
+  
   // Diccionario de avance de siglas
   let dicSiglas = {};
-  // Avance ronda por ronda
-  let avance = {};
+  
+  // Función helper para calcular ganador de ida y vuelta
+  function calcularGanadorIdaVuelta(partidosCruce, pronosMap) {
+    if (partidosCruce.length !== 2) return null;
+    
+    // Obtener equipos reales desde los datos originales (sin sustituciones)
+    const partido1 = partidosCruce[0];
+    const partido2 = partidosCruce[1];
+    
+    const equipo1 = partido1.equipo_local;
+    const equipo2 = partido1.equipo_visita;
+    
+    let totalGoles1 = 0;
+    let totalGoles2 = 0;
+    
+    for (const partido of partidosCruce) {
+      const pron = pronosMap[partido.fixture_id];
+      if (!pron) continue;
+      
+      const gA = pron.goles_local;
+      const gB = pron.goles_visita;
+      
+      if (gA !== null && gB !== null) {
+        // Verificar qué equipo es local en este partido
+        if (partido.equipo_local === equipo1 || (partido.equipo_local.includes && equipo1.includes && partido.equipo_local.includes(equipo1.split(' ')[0]))) {
+          totalGoles1 += parseInt(gA);
+          totalGoles2 += parseInt(gB);
+        } else {
+          totalGoles1 += parseInt(gB);
+          totalGoles2 += parseInt(gA);
+        }
+      }
+    }
+    
+    if (totalGoles1 > totalGoles2) return equipo1;
+    if (totalGoles2 > totalGoles1) return equipo2;
+    
+    // Empate, revisar penales
+    const ultimoPartido = partidosCruce[1];
+    const pronUltimo = pronosMap[ultimoPartido.fixture_id];
+    if (pronUltimo && pronUltimo.penales_local !== null && pronUltimo.penales_visita !== null) {
+      if (pronUltimo.penales_local > pronUltimo.penales_visita) {
+        return ultimoPartido.equipo_local;
+      } else if (pronUltimo.penales_visita > pronUltimo.penales_local) {
+        return ultimoPartido.equipo_visita;
+      }
+    }
+    
+    return null;
+  }
+  
+  // Procesar ronda por ronda
   for (let i = 0; i < ROUNDS.length; i++) {
     const ronda = ROUNDS[i];
     const partidos = rondas[ronda] || [];
+    
+    // Agrupar partidos por clasificado (ida y vuelta)
+    const cruces = {};
     for (const partido of partidos) {
-      // Reemplazar siglas por nombre real si ya existe
-      if (dicSiglas[partido.equipo_local]) partido.equipo_local = dicSiglas[partido.equipo_local];
-      if (dicSiglas[partido.equipo_visita]) partido.equipo_visita = dicSiglas[partido.equipo_visita];
-      let eqA = partido.equipo_local;
-      let eqB = partido.equipo_visita;
-      let gA = partido.goles_local;
-      let gB = partido.goles_visita;
-      if ((gA === null || gB === null) && pronosMap[partido.fixture_id]) {
-        gA = pronosMap[partido.fixture_id].goles_local;
-        gB = pronosMap[partido.fixture_id].goles_visita;
+      if (!cruces[partido.clasificado]) {
+        cruces[partido.clasificado] = [];
       }
-      let ganador = null;
-      if (gA > gB) ganador = eqA;
-      else if (gB > gA) ganador = eqB;
-      else {
-        let penA = partido.penales_local;
-        let penB = partido.penales_visita;
-        if ((penA === null || penB === null) && pronosMap[partido.fixture_id]) {
-          penA = pronosMap[partido.fixture_id].penales_local;
-          penB = pronosMap[partido.fixture_id].penales_visita;
+      cruces[partido.clasificado].push(partido);
+    }
+    
+    // Procesar cada cruce
+    for (const [siglaClasificado, partidosCruce] of Object.entries(cruces)) {
+      if (partidosCruce.length === 0) continue;
+      
+      // Para rondas posteriores a playoffs, reemplazar siglas ya conocidas
+      if (i > 0) {
+        for (const partido of partidosCruce) {
+          if (dicSiglas[partido.equipo_local]) partido.equipo_local = dicSiglas[partido.equipo_local];
+          if (dicSiglas[partido.equipo_visita]) partido.equipo_visita = dicSiglas[partido.equipo_visita];
         }
-        if (penA !== null && penB !== null && Number(penA) > Number(penB)) ganador = eqA;
-        else if (penA !== null && penB !== null && Number(penB) > Number(penA)) ganador = eqB;
       }
-      // Mapear sigla de cruce a ganador para la siguiente ronda
-      if (partido.clasificado && ganador) {
-        dicSiglas[partido.clasificado] = ganador;
+      
+      let ganador = null;
+      
+      if (partidosCruce.length === 1) {
+        // Un solo partido
+        const partido = partidosCruce[0];
+        const pron = pronosMap[partido.fixture_id];
+        if (pron) {
+          if (pron.goles_local > pron.goles_visita) {
+            ganador = partido.equipo_local;
+          } else if (pron.goles_visita > pron.goles_local) {
+            ganador = partido.equipo_visita;
+          } else if (pron.penales_local !== null && pron.penales_visita !== null) {
+            if (pron.penales_local > pron.penales_visita) {
+              ganador = partido.equipo_local;
+            } else if (pron.penales_visita > pron.penales_local) {
+              ganador = partido.equipo_visita;
+            }
+          }
+        }
+      } else if (partidosCruce.length === 2) {
+        // Ida y vuelta
+        ganador = calcularGanadorIdaVuelta(partidosCruce, pronosMap);
       }
-      // Para semifinales/final: mapear WS1, WS2, etc.
-      if (ronda === "Semifinales" && partido.clasificado && ganador) {
-        dicSiglas[partido.clasificado] = ganador;
-      }
-      if (ronda === "Final" && partido.clasificado && ganador) {
-        dicSiglas[partido.clasificado] = ganador;
+      
+      // Asignar ganador a la sigla clasificatoria
+      if (ganador && siglaClasificado) {
+        dicSiglas[siglaClasificado] = ganador;
       }
     }
   }
-  // Log de depuración para ver el avance final
+  
   return dicSiglas;
 }

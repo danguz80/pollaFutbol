@@ -1,60 +1,16 @@
 import express from 'express';
 import { pool } from '../db/pool.js';
+import { calcularAvanceSiglas, reemplazarSiglasPorNombres } from '../utils/sudamericanaSiglas.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
-import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
-// Función para crear diccionario desde clasif_sud_pron (igual que en sudamericanaRanking.js)
-function crearDiccionarioDesdeClasificados(clasificadosUsuario) {
-  const dic = {};
+// Función helper para calcular clasificados del usuario usando calcularAvanceSiglas
+async function obtenerClasificadosUsuario(userId) {
+  const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
+  const pronosticosResult = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [userId]);
   
-  // Mapear clasificados por ronda hacia siglas predefinidas
-  if (clasificadosUsuario['Knockout Round Play-offs']) {
-    const knockout = clasificadosUsuario['Knockout Round Play-offs'];
-    if (knockout[0]) dic['WP01'] = knockout[0];
-    if (knockout[1]) dic['WP02'] = knockout[1];
-    if (knockout[2]) dic['WP03'] = knockout[2];
-    if (knockout[3]) dic['WP04'] = knockout[3];
-    if (knockout[4]) dic['WP05'] = knockout[4];
-    if (knockout[5]) dic['WP06'] = knockout[5];
-    if (knockout[6]) dic['WP07'] = knockout[6];
-    if (knockout[7]) dic['WP08'] = knockout[7];
-  }
-  
-  if (clasificadosUsuario['Octavos de Final']) {
-    const octavos = clasificadosUsuario['Octavos de Final'];
-    if (octavos[0]) dic['WO.A'] = octavos[0];
-    if (octavos[1]) dic['WO.B'] = octavos[1];
-    if (octavos[2]) dic['WO.C'] = octavos[2];
-    if (octavos[3]) dic['WO.D'] = octavos[3];
-    if (octavos[4]) dic['WO.E'] = octavos[4];
-    if (octavos[5]) dic['WO.F'] = octavos[5];
-    if (octavos[6]) dic['WO.G'] = octavos[6];
-    if (octavos[7]) dic['WO.H'] = octavos[7];
-  }
-  
-  if (clasificadosUsuario['Cuartos de Final']) {
-    const cuartos = clasificadosUsuario['Cuartos de Final'];
-    if (cuartos[0]) dic['WC1'] = cuartos[0];
-    if (cuartos[1]) dic['WC2'] = cuartos[1];
-    if (cuartos[2]) dic['WC3'] = cuartos[2];
-    if (cuartos[3]) dic['WC4'] = cuartos[3];
-  }
-  
-  if (clasificadosUsuario['Semifinales']) {
-    const semis = clasificadosUsuario['Semifinales'];
-    if (semis[0]) dic['WS1'] = semis[0];
-    if (semis[1]) dic['WS2'] = semis[1];
-  }
-  
-  if (clasificadosUsuario['Final']) {
-    const final = clasificadosUsuario['Final'];
-    // El ganador de la final es el campeón
-    if (final[0]) dic['CHAMPION'] = final[0];
-  }
-  
-  return dic;
+  return calcularAvanceSiglas(fixturesResult.rows, pronosticosResult.rows);
 }
 
 // GET /api/sudamericana/clasificacion/:ronda
@@ -88,21 +44,8 @@ router.get('/clasificacion/:ronda', async (req, res) => {
     const fixtureConNombresReales = reemplazarSiglasPorNombres(fixture, dicSiglasReales);
     
     for (const u of usuarios) {
-      // Obtener clasificados del usuario para crear diccionario de siglas del usuario
-      const pronClasifRes = await pool.query(
-        'SELECT ronda, clasificados FROM clasif_sud_pron WHERE usuario_id = $1',
-        [u.usuario_id]
-      );
-      const clasificadosUsuario = {};
-      for (const row of pronClasifRes.rows) {
-        if (!clasificadosUsuario[row.ronda]) clasificadosUsuario[row.ronda] = [];
-        if (row.clasificados && row.clasificados.trim()) {
-          clasificadosUsuario[row.ronda].push(row.clasificados.trim());
-        }
-      }
-      
-      // Crear diccionario de siglas del usuario para sus pronósticos
-      const dicSiglasUsuario = crearDiccionarioDesdeClasificados(clasificadosUsuario);
+      // Obtener clasificados del usuario usando calcularAvanceSiglas
+      const dicSiglasUsuario = await obtenerClasificadosUsuario(u.usuario_id);
       
       // Reemplazar siglas solo en pronósticos usando diccionario del usuario
       const pronosUsuario = pronos.filter(p => p.usuario_id === u.usuario_id);
@@ -181,21 +124,8 @@ router.get('/clasificacion-completa', async (req, res) => {
     const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
     
     for (const usuario of usuarios) {
-      // Obtener clasificados del usuario para crear diccionario de siglas
-      const pronClasifRes = await pool.query(
-        'SELECT ronda, clasificados FROM clasif_sud_pron WHERE usuario_id = $1',
-        [usuario.usuario_id]
-      );
-      const clasificadosUsuario = {};
-      for (const row of pronClasifRes.rows) {
-        if (!clasificadosUsuario[row.ronda]) clasificadosUsuario[row.ronda] = [];
-        if (row.clasificados && row.clasificados.trim()) {
-          clasificadosUsuario[row.ronda].push(row.clasificados.trim());
-        }
-      }
-      
-      // Crear diccionario de siglas del usuario
-      const dicSiglasUsuario = crearDiccionarioDesdeClasificados(clasificadosUsuario);
+      // Obtener clasificados del usuario usando calcularAvanceSiglas
+      const dicSiglasUsuario = await obtenerClasificadosUsuario(usuario.usuario_id);
       
       // Reemplazar siglas en fixture usando clasificados REALES y en pronósticos usando diccionario del usuario
       const fixtureConNombres = reemplazarSiglasPorNombres(fixture, dicSiglasReales);
@@ -226,13 +156,38 @@ router.get('/clasificacion-completa', async (req, res) => {
         motivoSinPuntos: d.motivoSinPuntos
       })) || [];
       
-      // Calcular puntos por clasificados (igual lógica que en puntajesSudamericana.js)
-      const pronMap = {};
-      for (const row of pronClasifRes.rows) {
-        if (!pronMap[row.ronda]) pronMap[row.ronda] = [];
-        if (row.clasificados && row.clasificados.trim()) {
-          pronMap[row.ronda].push(row.clasificados.trim());
-        }
+      // Calcular puntos por clasificados usando el diccionario calculado
+      const pronMap = {
+        'Knockout Round Play-offs': [],
+        'Octavos de Final': [],
+        'Cuartos de Final': [],
+        'Semifinales': [],
+        'Final': []
+      };
+      
+      // Mapear desde diccionario calculado
+      for (let i = 1; i <= 8; i++) {
+        const wp = `WP0${i}`;
+        if (dicSiglasUsuario[wp]) pronMap['Knockout Round Play-offs'].push(dicSiglasUsuario[wp]);
+      }
+      
+      const octavosKeys = ['WO.A', 'WO.B', 'WO.C', 'WO.D', 'WO.E', 'WO.F', 'WO.G', 'WO.H'];
+      octavosKeys.forEach(key => {
+        if (dicSiglasUsuario[key]) pronMap['Octavos de Final'].push(dicSiglasUsuario[key]);
+      });
+      
+      for (let i = 1; i <= 4; i++) {
+        const wc = `WC${i}`;
+        if (dicSiglasUsuario[wc]) pronMap['Cuartos de Final'].push(dicSiglasUsuario[wc]);
+      }
+      
+      for (let i = 1; i <= 2; i++) {
+        const ws = `WS${i}`;
+        if (dicSiglasUsuario[ws]) pronMap['Semifinales'].push(dicSiglasUsuario[ws]);
+      }
+      
+      if (dicSiglasUsuario['WS1 vs WS2'] || dicSiglasUsuario['CHAMPION']) {
+        pronMap['Final'].push(dicSiglasUsuario['WS1 vs WS2'] || dicSiglasUsuario['CHAMPION']);
       }
 
       const realClasifRes = await pool.query('SELECT ronda, clasificados FROM clasif_sud');
@@ -339,21 +294,8 @@ router.get('/clasificacion', async (req, res) => {
     const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
     
     for (const u of usuarios) {
-      // Obtener clasificados del usuario para crear diccionario de siglas
-      const pronClasifRes = await pool.query(
-        'SELECT ronda, clasificados FROM clasif_sud_pron WHERE usuario_id = $1',
-        [u.usuario_id]
-      );
-      const clasificadosUsuario = {};
-      for (const row of pronClasifRes.rows) {
-        if (!clasificadosUsuario[row.ronda]) clasificadosUsuario[row.ronda] = [];
-        if (row.clasificados && row.clasificados.trim()) {
-          clasificadosUsuario[row.ronda].push(row.clasificados.trim());
-        }
-      }
-      
-      // Crear diccionario de siglas del usuario
-      const dicSiglasUsuario = crearDiccionarioDesdeClasificados(clasificadosUsuario);
+      // Obtener clasificados del usuario usando calcularAvanceSiglas
+      const dicSiglasUsuario = await obtenerClasificadosUsuario(u.usuario_id);
       
       // Reemplazar siglas en fixture usando clasificados REALES y en pronósticos usando diccionario del usuario
       const fixtureConNombres = reemplazarSiglasPorNombres(fixture, dicSiglasReales);
@@ -425,15 +367,8 @@ router.get('/debug-clasificados/:userId', async (req, res) => {
       [userId]
     );
     
-    // 6. Crear diccionario del usuario
-    const clasificadosUsuario = {};
-    for (const row of pronClasifRes.rows) {
-      if (!clasificadosUsuario[row.ronda]) clasificadosUsuario[row.ronda] = [];
-      if (row.clasificados && row.clasificados.trim()) {
-        clasificadosUsuario[row.ronda].push(row.clasificados.trim());
-      }
-    }
-    const dicSiglasUsuario = crearDiccionarioDesdeClasificados(clasificadosUsuario);
+    // 6. Crear diccionario del usuario usando calcularAvanceSiglas
+    const dicSiglasUsuario = await obtenerClasificadosUsuario(userId);
     
     res.json({
       usuario_id: userId,
@@ -453,27 +388,63 @@ router.get('/debug-clasificados/:userId', async (req, res) => {
 router.get('/clasificados/:userId', async (req, res) => {
   const { userId } = req.params;
   try {
-    const result = await pool.query(
-      'SELECT ronda, clasificados FROM clasif_sud_pron WHERE usuario_id = $1 ORDER BY ronda, id',
-      [userId]
-    );
+    // Obtener fixtures y pronósticos para calcular dinámicamente
+    const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
+    const pronosticosResult = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [userId]);
     
-    // Convertir a formato agrupado por ronda y crear diccionario de siglas
-    const clasificadosUsuario = {};
-    for (const row of result.rows) {
-      if (!clasificadosUsuario[row.ronda]) clasificadosUsuario[row.ronda] = [];
-      if (row.clasificados && row.clasificados.trim()) {
-        clasificadosUsuario[row.ronda].push(row.clasificados.trim());
+    // Calcular avance usando la función corregida
+    const diccionarioSiglas = calcularAvanceSiglas(fixturesResult.rows, pronosticosResult.rows);
+    
+    // Crear clasificados_por_ronda basado en el diccionario calculado
+    const clasificadosUsuario = {
+      'Knockout Round Play-offs': [],
+      'Octavos de Final': [],
+      'Cuartos de Final': [],
+      'Semifinales': [],
+      'Final': []
+    };
+    
+    // Mapear WP01-WP08 a Knockout Round Play-offs
+    for (let i = 1; i <= 8; i++) {
+      const wp = `WP0${i}`;
+      if (diccionarioSiglas[wp]) {
+        clasificadosUsuario['Knockout Round Play-offs'].push(diccionarioSiglas[wp]);
       }
     }
     
-    // Usar la misma función que se usa en todo el backend para crear el diccionario
-    const diccionarioSiglas = crearDiccionarioDesdeClasificados(clasificadosUsuario);
+    // Mapear WO.A-WO.H a Octavos de Final
+    const octavosKeys = ['WO.A', 'WO.B', 'WO.C', 'WO.D', 'WO.E', 'WO.F', 'WO.G', 'WO.H'];
+    octavosKeys.forEach(key => {
+      if (diccionarioSiglas[key]) {
+        clasificadosUsuario['Octavos de Final'].push(diccionarioSiglas[key]);
+      }
+    });
+    
+    // Mapear WC1-WC4 a Cuartos de Final
+    for (let i = 1; i <= 4; i++) {
+      const wc = `WC${i}`;
+      if (diccionarioSiglas[wc]) {
+        clasificadosUsuario['Cuartos de Final'].push(diccionarioSiglas[wc]);
+      }
+    }
+    
+    // Mapear WS1-WS2 a Semifinales
+    for (let i = 1; i <= 2; i++) {
+      const ws = `WS${i}`;
+      if (diccionarioSiglas[ws]) {
+        clasificadosUsuario['Semifinales'].push(diccionarioSiglas[ws]);
+      }
+    }
+    
+    // Mapear campeón a Final
+    if (diccionarioSiglas['WS1 vs WS2'] || diccionarioSiglas['CHAMPION']) {
+      clasificadosUsuario['Final'].push(diccionarioSiglas['WS1 vs WS2'] || diccionarioSiglas['CHAMPION']);
+    }
     
     res.json({
       clasificados_por_ronda: clasificadosUsuario,
       diccionario_siglas: diccionarioSiglas,
-      raw_data: result.rows
+      raw_data: [] // Ya no se usa la tabla clasif_sud_pron
     });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
