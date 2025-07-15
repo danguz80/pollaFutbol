@@ -13,6 +13,51 @@ async function obtenerClasificadosUsuario(userId) {
   return calcularAvanceSiglas(fixturesResult.rows, pronosticosResult.rows);
 }
 
+// Función helper para obtener clasificados reales basándose en los fixtures oficiales
+async function obtenerClasificadosReales() {
+  // Obtener todos los fixtures con sus datos reales
+  const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
+  
+  // Construir diccionario basándose en los campos 'clasificado' de los fixtures
+  const dic = {};
+  
+  for (const fixture of fixturesResult.rows) {
+    const { clasificado, equipo_local, equipo_visita } = fixture;
+    
+    // Si hay un clasificado definido, mapear la sigla al equipo clasificado
+    if (clasificado) {
+      // El clasificado ya tiene el nombre del equipo que realmente avanzó
+      // Necesitamos mapear desde las siglas WP01, WO.A, etc. al nombre real
+      
+      // Si el clasificado es una sigla (como WO.A), mapear desde los equipos del fixture
+      if (/^W[OP][0-9]+|WO\.[A-Z]|WC[0-9]+|WS[0-9]+$/.test(clasificado)) {
+        // Si el fixture tiene equipos reales (no siglas), usar esos
+        if (equipo_local && !/^W[OP][0-9]+/.test(equipo_local)) {
+          dic[clasificado] = equipo_local;
+        } else if (equipo_visita && !/^W[OP][0-9]+/.test(equipo_visita)) {
+          dic[clasificado] = equipo_visita;
+        }
+      } else {
+        // El clasificado ya es un nombre de equipo real
+        // Mapear las siglas de los equipos del fixture al clasificado
+        if (equipo_local && /^W[OP][0-9]+/.test(equipo_local)) {
+          dic[equipo_local] = clasificado;
+        }
+        if (equipo_visita && /^W[OP][0-9]+/.test(equipo_visita)) {
+          dic[equipo_visita] = clasificado;
+        }
+      }
+    }
+  }
+  
+  return dic;
+}
+
+// Función helper para detectar si un string es una sigla
+function esSigla(str) {
+  return typeof str === 'string' && /^W[OP][0-9]+|WO\.[A-Z]|WC[0-9]+|WS[0-9]+|CHAMPION$/.test(str);
+}
+
 // GET /api/sudamericana/clasificacion/:ronda
 router.get('/clasificacion/:ronda', async (req, res) => {
   const { ronda } = req.params;
@@ -36,9 +81,8 @@ router.get('/clasificacion/:ronda', async (req, res) => {
     // Calcular puntaje por usuario SOLO de la ronda seleccionada
     const clasificacion = [];
     
-    // Obtener clasificados REALES calculando desde resultados de partidos
-    const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures');
-    const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+    // Obtener clasificados REALES desde la BD oficial
+    const dicSiglasReales = await obtenerClasificadosReales();
     
     // Reemplazar siglas en fixture usando clasificados REALES calculados
     const fixtureConNombresReales = reemplazarSiglasPorNombres(fixture, dicSiglasReales);
@@ -119,9 +163,8 @@ router.get('/clasificacion-completa', async (req, res) => {
     // Calcular puntajes completos por usuario
     const clasificacion = [];
     
-    // Obtener clasificados REALES calculando desde resultados de partidos
-    const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures');
-    const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+    // Obtener clasificados REALES desde la BD oficial
+    const dicSiglasReales = await obtenerClasificadosReales();
     
     for (const usuario of usuarios) {
       // Obtener clasificados del usuario usando calcularAvanceSiglas
@@ -289,9 +332,8 @@ router.get('/clasificacion', async (req, res) => {
     // Calcular puntaje por usuario (todas las rondas)
     const clasificacion = [];
     
-    // Obtener clasificados REALES calculando desde resultados de partidos
-    const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures');
-    const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+    // Obtener clasificados REALES desde la BD oficial
+    const dicSiglasReales = await obtenerClasificadosReales();
     
     for (const u of usuarios) {
       // Obtener clasificados del usuario usando calcularAvanceSiglas
@@ -355,8 +397,8 @@ router.get('/debug-clasificados/:userId', async (req, res) => {
     // 2. Obtener fixture completo
     const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY ronda, fixture_id');
     
-    // 3. Calcular clasificados REALES desde resultados
-    const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+    // 3. Calcular clasificados REALES desde la BD oficial
+    const dicSiglasReales = await obtenerClasificadosReales();
     
     // 4. Obtener clasificados REALES desde clasif_sud
     const realClasifRes = await pool.query('SELECT ronda, clasificados FROM clasif_sud ORDER BY ronda');
@@ -378,6 +420,68 @@ router.get('/debug-clasificados/:userId', async (req, res) => {
       diccionario_siglas_usuario: dicSiglasUsuario,
       pronosticos_usuario: pronosUsuario.rows,
       fixture_sample: fixtureCompleto.rows.slice(0, 5)
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// GET /api/sudamericana/debug-bd-actualizada/:userId - Verificar si se actualizó correctamente
+router.get('/debug-bd-actualizada/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    // Consultar los pronósticos actualizados
+    const pronosticosActualizados = await pool.query(
+      'SELECT id, usuario_id, fixture_id, ronda, equipo_local, equipo_visita, ganador, goles_local, goles_visita FROM pronosticos_sudamericana WHERE usuario_id = $1 AND fixture_id IN ($2, $3) ORDER BY fixture_id',
+      [userId, 90003, 90004]
+    );
+    
+    // Verificar si ahora el sistema de comparación funciona correctamente
+    const dicSiglasReales = await obtenerClasificadosReales();
+    const dicSiglasUsuario = await obtenerClasificadosUsuario(userId);
+    
+    // Simular la comparación como lo hace el endpoint de clasificación
+    const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures WHERE fixture_id IN ($1, $2)', [90003, 90004]);
+    const fixture = fixturesResult.rows;
+    const pronos = pronosticosActualizados.rows;
+    
+    // Aplicar reemplazos igual que en clasificación
+    const fixtureConNombresReales = reemplazarSiglasPorNombres(fixture, dicSiglasReales);
+    const pronosUsuarioConNombres = reemplazarSiglasPorNombres(pronos, dicSiglasUsuario);
+    
+    // Crear resultados para comparación
+    const resultados = fixtureConNombresReales.map(f => ({
+      fixture_id: f.fixture_id,
+      goles_local: f.goles_local,
+      goles_visita: f.goles_visita,
+      ganador: f.ganador,
+      equipo_local: f.equipo_local,
+      equipo_visita: f.equipo_visita,
+      ronda: f.ronda,
+      bonus: f.bonus
+    }));
+    
+    // Calcular puntajes para ver si ahora la comparación es correcta
+    const { calcularPuntajesSudamericana } = await import('../services/puntajesSudamericana.js');
+    const puntajes = calcularPuntajesSudamericana(fixtureConNombresReales, pronosUsuarioConNombres, resultados, userId);
+    
+    res.json({
+      usuario_id: userId,
+      estado: "Datos actualizados - verificando comparación",
+      pronosticos_actualizados: pronosticosActualizados.rows,
+      diccionario_usuario: dicSiglasUsuario,
+      diccionario_real: dicSiglasReales,
+      fixture_con_nombres_reales: fixtureConNombresReales,
+      pronos_con_nombres_usuario: pronosUsuarioConNombres,
+      resultados_para_comparacion: resultados,
+      puntajes_calculados: puntajes.detalle.map(d => ({
+        fixture_id: d.fixture_id,
+        cruceReal: `${d.real?.equipo_local} vs ${d.real?.equipo_visita}`,
+        crucePronosticado: `${d.pron?.equipo_local} vs ${d.pron?.equipo_visita}`,
+        cruceCoincide: d.cruceCoincide,
+        pts: d.pts,
+        motivoSinPuntos: d.motivoSinPuntos
+      }))
     });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });

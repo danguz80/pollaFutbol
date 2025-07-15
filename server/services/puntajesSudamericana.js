@@ -146,10 +146,11 @@ function verificarCruceCoincidente(pronostico, resultado) {
   const pronTieneSiglas = esSigla(pronLocal) || esSigla(pronVisita);
   const realTieneSiglas = esSigla(realLocal) || esSigla(realVisita);
   
-  // Si ambos tienen siglas o si los equipos ya fueron procesados por el sistema de siglas,
-  // consideramos que coinciden (el sistema de clasificacion ya debería haber manejado esto)
+  // DEBUG: Si hay siglas, significa que el sistema de reemplazo no funcionó correctamente
+  // En lugar de retornar true automáticamente, vamos a ser más estrictos
   if (pronTieneSiglas || realTieneSiglas) {
-    return true;
+    // Solo coinciden si ambos tienen exactamente las mismas siglas
+    return coincidenDirecto || coincidenInvertido;
   }
   
   return coincidenDirecto || coincidenInvertido;
