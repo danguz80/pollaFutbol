@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../hooks/UseAuth";
+import SudamericanaSubMenu from "../components/SudamericanaSubMenu";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const ROUNDS = [
@@ -149,17 +150,6 @@ function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
   }
 
   return avance;
-}
-
-function SudamericanaSubMenu() {
-  const navigate = useNavigate();
-  return (
-    <div className="d-flex flex-wrap gap-2 justify-content-center my-4 sticky-top bg-white py-2 shadow-sm" style={{ zIndex: 1020 }}>
-      <button className="btn btn-info" onClick={() => navigate("/clasificacion-sudamericana")}>Clasificación</button>
-      <button className="btn btn-success" onClick={() => navigate("/ingresar-pronosticos-sud")}>Ingresar Pronósticos</button>
-      <button className="btn btn-primary" onClick={() => navigate("/mis-pronosticos-sud")}>Mis Pronósticos</button>
-    </div>
-  );
 }
 
 export default function IngresarPronosticosSud() {

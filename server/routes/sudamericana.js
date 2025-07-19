@@ -6,6 +6,27 @@ import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudam
 
 const router = express.Router();
 
+// Función helper para obtener clasificados reales basándose en los fixtures oficiales
+async function obtenerClasificadosReales() {
+  // Obtener todos los fixtures con sus datos reales
+  const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
+  
+  // Construir diccionario basándose en los campos 'clasificado' y 'equipo_clasificado_real'
+  const dic = {};
+  
+  for (const fixture of fixturesResult.rows) {
+    const { clasificado, equipo_clasificado_real } = fixture;
+    
+    // Si hay un clasificado definido, mapear la sigla al equipo real
+    if (clasificado && equipo_clasificado_real) {
+      // Mapear la sigla (WP01, WO.A, etc.) al nombre real del equipo
+      dic[clasificado] = equipo_clasificado_real;
+    }
+  }
+  
+  return dic;
+}
+
 // Función auxiliar para actualizar equipos en la ronda siguiente
 async function actualizarEquiposRondaSiguiente(rondaActual, clasificados) {
   try {
@@ -81,8 +102,15 @@ router.get('/fixture/:ronda', async (req, res) => {
       const pronosRes = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [usuarioId]);
       pronos = pronosRes.rows;
     }
-    // 3. Calcular avance de cruces (si hay usuario, usa sus pronósticos)
-    const dicSiglas = calcularAvanceSiglas(fixture, pronos);
+    // 3. Calcular avance de cruces según el contexto
+    let dicSiglas;
+    if (usuarioId) {
+      // Si hay usuario, usar sus pronósticos
+      dicSiglas = calcularAvanceSiglas(fixture, pronos);
+    } else {
+      // Si no hay usuario (admin), usar clasificados reales
+      dicSiglas = await obtenerClasificadosReales();
+    }
     // 4. Filtrar partidos de la ronda y reemplazar nombres
     const partidosRonda = fixture.filter(f => f.ronda === ronda);
     const partidosConNombres = reemplazarSiglasPorNombres(partidosRonda, dicSiglas);

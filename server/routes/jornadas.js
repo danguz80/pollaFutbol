@@ -10,6 +10,27 @@ import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudam
 
 const router = express.Router();
 
+// Función helper para obtener clasificados reales basándose en los fixtures oficiales
+async function obtenerClasificadosReales() {
+  // Obtener todos los fixtures con sus datos reales
+  const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
+  
+  // Construir diccionario basándose en los campos 'clasificado' y 'equipo_clasificado_real'
+  const dic = {};
+  
+  for (const fixture of fixturesResult.rows) {
+    const { clasificado, equipo_clasificado_real } = fixture;
+    
+    // Si hay un clasificado definido, mapear la sigla al equipo real
+    if (clasificado && equipo_clasificado_real) {
+      // Mapear la sigla (WP01, WO.A, etc.) al nombre real del equipo
+      dic[clasificado] = equipo_clasificado_real;
+    }
+  }
+  
+  return dic;
+}
+
 // 🔹 Obtener todas las jornadas de la Sudamericana (para admin panel Sudamericana)
 router.get("/sudamericana", async (req, res) => {
   try {
@@ -356,9 +377,8 @@ router.get('/sudamericana/fixture/:ronda', async (req, res) => {
     
     // Aplicar reemplazo de siglas para mostrar nombres reales en el admin panel
     if (partidos.length > 0) {
-      // Obtener fixture completo para calcular siglas
-      const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures');
-      const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+      // Obtener clasificados reales desde la BD
+      const dicSiglasReales = await obtenerClasificadosReales();
       
       // Reemplazar siglas por nombres reales
       partidos = reemplazarSiglasPorNombres(partidos, dicSiglasReales);
@@ -425,11 +445,26 @@ router.get('/sudamericana/fixture', async (req, res) => {
     
     let partidos = result.rows;
     
-    // Aplicar reemplazo de siglas para mostrar nombres reales
+    // Aplicar reemplazo de siglas para mostrar nombres reales usando equipo_clasificado_real
     if (partidos.length > 0) {
-      // Obtener fixture completo para calcular siglas
-      const fixtureCompleto = await pool.query('SELECT * FROM sudamericana_fixtures');
-      const dicSiglasReales = calcularAvanceSiglas(fixtureCompleto.rows);
+      // Función helper para obtener clasificados reales basándose en los fixtures oficiales
+      const obtenerClasificadosReales = async () => {
+        const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
+        const dic = {};
+        
+        for (const fixture of fixturesResult.rows) {
+          const { clasificado, equipo_clasificado_real } = fixture;
+          
+          // Si hay un clasificado definido, mapear la sigla al equipo real
+          if (clasificado && equipo_clasificado_real) {
+            dic[clasificado] = equipo_clasificado_real;
+          }
+        }
+        
+        return dic;
+      };
+      
+      const dicSiglasReales = await obtenerClasificadosReales();
       
       // Reemplazar siglas por nombres reales
       partidos = reemplazarSiglasPorNombres(partidos, dicSiglasReales);

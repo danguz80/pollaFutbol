@@ -15,6 +15,13 @@ router.post("/guardar-pronosticos-elim", verifyToken, async (req, res) => {
     return res.status(403).json({ error: "No autorizado: usuario_id no coincide con el usuario autenticado" });
   }
 
+  // BLOQUEAR ADMINS: Los admins no pueden hacer pronósticos
+  if (req.usuario.rol === 'admin') {
+    return res.status(403).json({ 
+      error: "Los administradores no pueden realizar pronósticos. Su función es ingresar resultados reales." 
+    });
+  }
+
   // Verificar que el usuario tenga activo_sudamericana = true
   if (!req.usuario.activo_sudamericana) {
     return res.status(403).json({ 
@@ -95,6 +102,13 @@ router.get("/pronosticos-elim/:usuarioId", verifyToken, async (req, res) => {
   // Verificar que el usuarioId de la URL coincida con el usuario autenticado
   if (req.usuario.id !== parseInt(usuarioId)) {
     return res.status(403).json({ error: "No autorizado: solo puedes consultar tus propios pronósticos" });
+  }
+
+  // BLOQUEAR ADMINS: Los admins no tienen pronósticos para consultar
+  if (req.usuario.rol === 'admin') {
+    return res.status(403).json({ 
+      error: "Los administradores no tienen pronósticos para consultar. Su función es ingresar resultados reales." 
+    });
   }
 
   // Verificar que el usuario tenga activo_sudamericana = true

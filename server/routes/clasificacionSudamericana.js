@@ -18,35 +18,16 @@ async function obtenerClasificadosReales() {
   // Obtener todos los fixtures con sus datos reales
   const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
   
-  // Construir diccionario basándose en los campos 'clasificado' de los fixtures
+  // Construir diccionario basándose en los campos 'clasificado' y 'equipo_clasificado_real'
   const dic = {};
   
   for (const fixture of fixturesResult.rows) {
-    const { clasificado, equipo_local, equipo_visita } = fixture;
+    const { clasificado, equipo_clasificado_real } = fixture;
     
-    // Si hay un clasificado definido, mapear la sigla al equipo clasificado
-    if (clasificado) {
-      // El clasificado ya tiene el nombre del equipo que realmente avanzó
-      // Necesitamos mapear desde las siglas WP01, WO.A, etc. al nombre real
-      
-      // Si el clasificado es una sigla (como WO.A), mapear desde los equipos del fixture
-      if (/^W[OP][0-9]+|WO\.[A-Z]|WC[0-9]+|WS[0-9]+$/.test(clasificado)) {
-        // Si el fixture tiene equipos reales (no siglas), usar esos
-        if (equipo_local && !/^W[OP][0-9]+/.test(equipo_local)) {
-          dic[clasificado] = equipo_local;
-        } else if (equipo_visita && !/^W[OP][0-9]+/.test(equipo_visita)) {
-          dic[clasificado] = equipo_visita;
-        }
-      } else {
-        // El clasificado ya es un nombre de equipo real
-        // Mapear las siglas de los equipos del fixture al clasificado
-        if (equipo_local && /^W[OP][0-9]+/.test(equipo_local)) {
-          dic[equipo_local] = clasificado;
-        }
-        if (equipo_visita && /^W[OP][0-9]+/.test(equipo_visita)) {
-          dic[equipo_visita] = clasificado;
-        }
-      }
+    // Si hay un clasificado definido, mapear la sigla al equipo real
+    if (clasificado && equipo_clasificado_real) {
+      // Mapear la sigla (WP01, WO.A, etc.) al nombre real del equipo
+      dic[clasificado] = equipo_clasificado_real;
     }
   }
   
@@ -62,12 +43,12 @@ function esSigla(str) {
 router.get('/clasificacion/:ronda', async (req, res) => {
   const { ronda } = req.params;
   try {
-    // Obtener todos los usuarios con pronósticos en esa ronda y sus nombres
+    // Obtener todos los usuarios con pronósticos en esa ronda y sus nombres (EXCLUIR ADMINS)
     const usuariosRes = await pool.query(
       `SELECT DISTINCT u.id as usuario_id, u.nombre as nombre_usuario
        FROM pronosticos_sudamericana p
        JOIN usuarios u ON p.usuario_id = u.id
-       WHERE p.ronda = $1`,
+       WHERE p.ronda = $1 AND u.rol != 'admin'`,
       [ronda]
     );
     const usuarios = usuariosRes.rows; // [{usuario_id, nombre_usuario}]
@@ -138,11 +119,12 @@ router.get('/clasificacion/:ronda', async (req, res) => {
 // GET /api/sudamericana/clasificacion-completa - Puntajes completos (partidos + clasificados) por usuario
 router.get('/clasificacion-completa', async (req, res) => {
   try {
-    // Obtener todos los usuarios con pronósticos de sudamericana
+    // Obtener todos los usuarios con pronósticos de sudamericana (EXCLUIR ADMINS)
     const usuariosRes = await pool.query(
       `SELECT DISTINCT u.id as usuario_id, u.nombre as nombre_usuario
        FROM usuarios u 
        WHERE u.activo_sudamericana = true
+       AND u.rol != 'admin'
        AND (EXISTS(SELECT 1 FROM pronosticos_sudamericana p WHERE p.usuario_id = u.id) 
             OR EXISTS(SELECT 1 FROM clasif_sud_pron cp WHERE cp.usuario_id = u.id))`
     );
@@ -315,11 +297,12 @@ router.get('/clasificacion-completa', async (req, res) => {
 // GET /api/sudamericana/clasificacion - TODOS los pronósticos de eliminación directa de todos los usuarios (todas las rondas)
 router.get('/clasificacion', async (req, res) => {
   try {
-    // Obtener todos los usuarios con pronósticos de eliminación directa y sus nombres
+    // Obtener todos los usuarios con pronósticos de eliminación directa y sus nombres (EXCLUIR ADMINS)
     const usuariosRes = await pool.query(
       `SELECT DISTINCT u.id as usuario_id, u.nombre as nombre_usuario
        FROM pronosticos_sudamericana p
-       JOIN usuarios u ON p.usuario_id = u.id`
+       JOIN usuarios u ON p.usuario_id = u.id
+       WHERE u.rol != 'admin'`
     );
     const usuarios = usuariosRes.rows; // [{usuario_id, nombre_usuario}]
     // Obtener todo el fixture de eliminación directa
@@ -555,4 +538,281 @@ router.get('/clasificados/:userId', async (req, res) => {
   }
 });
 
+// Función helper para calcular clasificados reales dinámicamente basándose en resultados
+async function calcularClasificadosRealesAutomatico() {
+  const fixturesResult = await pool.query('SELECT * FROM sudamericana_fixtures ORDER BY fixture_id');
+  const fixtures = fixturesResult.rows;
+  
+  // Mapeo base fijo solo para las primeras rondas (ya definidas)
+  const mapeoBase = {
+    // Knockout Round Play-offs (estos son fijos, ya definidos antes del torneo)
+    'WP01': 'Gremio',
+    'WP02': 'Once Caldas', 
+    'WP03': 'Atletico-MG',
+    'WP04': 'Bolivar',
+    'WP05': 'America de Cali',
+    'WP06': 'Independiente del Valle',
+    'WP07': 'Universidad de Chile',
+    'WP08': 'Central Cordoba',
+    
+    // Octavos de Final (estos también son fijos)
+    'WO.A': 'Gremio',
+    'WO.B': 'Huracán',
+    'WO.C': 'Lanús', 
+    'WO.D': 'Atletico-MG',
+    'WO.E': 'Bolivar',
+    'WO.F': 'Fluminense',
+    'WO.G': 'Mushuc Runa',
+    'WO.H': 'Independiente'
+  };
+
+  // Calcular dinámicamente Cuartos, Semifinales y Final basándose en resultados
+  const mapeoCalculado = { ...mapeoBase };
+
+  // CUARTOS DE FINAL - calcular quién avanza basándose en goles
+  const cuartos = fixtures.filter(f => f.ronda === 'Cuartos de Final');
+  const crucesCuartos = {};
+  
+  // Agrupar partidos por clasificado (WC1, WC2, etc)
+  cuartos.forEach(partido => {
+    const { clasificado } = partido;
+    if (!crucesCuartos[clasificado]) crucesCuartos[clasificado] = [];
+    crucesCuartos[clasificado].push(partido);
+  });
+
+  // Para cada cruce de cuartos, determinar el ganador
+  for (const [clasificado, partidos] of Object.entries(crucesCuartos)) {
+    if (partidos.length === 2) {
+      const [ida, vuelta] = partidos.sort((a, b) => a.fixture_id - b.fixture_id);
+      
+      // Calcular goles globales (sin penales)
+      let golesEquipo1 = 0, golesEquipo2 = 0;
+      
+      // En ida: local vs visita
+      golesEquipo1 += ida.goles_local;
+      golesEquipo2 += ida.goles_visita;
+      
+      // En vuelta: se invierten las posiciones
+      golesEquipo1 += vuelta.goles_visita;
+      golesEquipo2 += vuelta.goles_local;
+      
+      // Determinar ganador
+      let ganador;
+      if (golesEquipo1 > golesEquipo2) {
+        // Equipo 1 gana por goles
+        ganador = mapeoCalculado[ida.equipo_local];
+      } else if (golesEquipo2 > golesEquipo1) {
+        // Equipo 2 gana por goles
+        ganador = mapeoCalculado[ida.equipo_visita];
+      } else {
+        // Empate en goles - verificar penales
+        // Los penales están en el partido de vuelta
+        if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
+          // Hay penales definidos
+          if (vuelta.penales_local > vuelta.penales_visita) {
+            // Gana el local del partido de vuelta (que es el visitante del ida)
+            ganador = mapeoCalculado[ida.equipo_visita];
+          } else {
+            // Gana el visitante del partido de vuelta (que es el local del ida)
+            ganador = mapeoCalculado[ida.equipo_local];
+          }
+        } else {
+          // No hay penales definidos, asumir que gana el local del ida (regla por defecto)
+          ganador = mapeoCalculado[ida.equipo_local];
+        }
+      }
+      
+      mapeoCalculado[clasificado] = ganador;
+    }
+  }
+
+  // SEMIFINALES - calcular basándose en cuartos
+  const semis = fixtures.filter(f => f.ronda === 'Semifinales');
+  const crucesSemis = {};
+  
+  semis.forEach(partido => {
+    const { clasificado } = partido;
+    if (!crucesSemis[clasificado]) crucesSemis[clasificado] = [];
+    crucesSemis[clasificado].push(partido);
+  });
+
+  for (const [clasificado, partidos] of Object.entries(crucesSemis)) {
+    if (partidos.length === 2) {
+      const [ida, vuelta] = partidos.sort((a, b) => a.fixture_id - b.fixture_id);
+      
+      // Calcular goles globales (sin penales)
+      let golesEquipo1 = 0, golesEquipo2 = 0;
+      golesEquipo1 += ida.goles_local + vuelta.goles_visita;
+      golesEquipo2 += ida.goles_visita + vuelta.goles_local;
+      
+      // Determinar ganador
+      let ganador;
+      if (golesEquipo1 > golesEquipo2) {
+        ganador = mapeoCalculado[ida.equipo_local];
+      } else if (golesEquipo2 > golesEquipo1) {
+        ganador = mapeoCalculado[ida.equipo_visita];
+      } else {
+        // Empate - verificar penales en el partido de vuelta
+        if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
+          if (vuelta.penales_local > vuelta.penales_visita) {
+            ganador = mapeoCalculado[ida.equipo_visita]; // local de vuelta = visitante de ida
+          } else {
+            ganador = mapeoCalculado[ida.equipo_local]; // visitante de vuelta = local de ida
+          }
+        } else {
+          ganador = mapeoCalculado[ida.equipo_local]; // regla por defecto
+        }
+      }
+      
+      mapeoCalculado[clasificado] = ganador;
+    }
+  }
+
+  // FINAL - calcular basándose en semifinales
+  const finales = fixtures.filter(f => f.ronda === 'Final');
+  if (finales.length === 2) {
+    const [ida, vuelta] = finales.sort((a, b) => a.fixture_id - b.fixture_id);
+    
+    // Calcular goles globales (sin penales)
+    let golesEquipo1 = 0, golesEquipo2 = 0;
+    golesEquipo1 += ida.goles_local + vuelta.goles_visita;
+    golesEquipo2 += ida.goles_visita + vuelta.goles_local;
+    
+    // Determinar campeón y subcampeón
+    let campeon, subcampeon;
+    if (golesEquipo1 > golesEquipo2) {
+      campeon = mapeoCalculado[ida.equipo_local];
+      subcampeon = mapeoCalculado[ida.equipo_visita];
+    } else if (golesEquipo2 > golesEquipo1) {
+      campeon = mapeoCalculado[ida.equipo_visita];
+      subcampeon = mapeoCalculado[ida.equipo_local];
+    } else {
+      // Empate - verificar penales en el partido de vuelta
+      if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
+        if (vuelta.penales_local > vuelta.penales_visita) {
+          campeon = mapeoCalculado[ida.equipo_visita]; // local de vuelta = visitante de ida
+          subcampeon = mapeoCalculado[ida.equipo_local];
+        } else {
+          campeon = mapeoCalculado[ida.equipo_local]; // visitante de vuelta = local de ida
+          subcampeon = mapeoCalculado[ida.equipo_visita];
+        }
+      } else {
+        // Regla por defecto
+        campeon = mapeoCalculado[ida.equipo_local];
+        subcampeon = mapeoCalculado[ida.equipo_visita];
+      }
+    }
+    
+    mapeoCalculado['CHAMPION'] = campeon;
+    mapeoCalculado['SUB-CAMPEON'] = subcampeon;
+  }
+
+  return mapeoCalculado;
+}
+
+// POST /api/sudamericana/sync-clasificados-reales - Sincronizar clasificados reales DINÁMICAMENTE
+router.post('/sync-clasificados-reales', async (req, res) => {
+  try {
+    // Calcular mapeo dinámicamente basándose en resultados reales
+    const mapeoClasificados = await calcularClasificadosRealesAutomatico();
+
+    let updatedCount = 0;
+    
+    // Actualizar cada fixture con su equipo clasificado real
+    for (const [sigla, equipoReal] of Object.entries(mapeoClasificados)) {
+      const result = await pool.query(
+        'UPDATE sudamericana_fixtures SET equipo_clasificado_real = $1 WHERE clasificado = $2',
+        [equipoReal, sigla]
+      );
+      updatedCount += result.rowCount;
+    }
+
+    res.json({
+      ok: true,
+      message: `Sincronización completada automáticamente. ${updatedCount} registros actualizados.`,
+      mapeoAplicado: mapeoClasificados
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 export default router;
+// DEBUG: Comparar clasificados reales calculados vs los guardados en clasif_sud
+router.get('/debug-clasif-sud', async (req, res) => {
+  try {
+    // 1. Obtener clasificados reales usando la función actualizada
+    const diccionarioSiglasReales = await obtenerClasificadosReales();
+
+    // Mapear a rondas basándose en el diccionario real
+    const clasificadosCalculados = {
+      'Knockout Round Play-offs': [],
+      'Octavos de Final': [],
+      'Cuartos de Final': [],
+      'Semifinales': [],
+      'Final': []
+    };
+    
+    // Mapear WP01-WP08 a Knockout Round Play-offs
+    for (let i = 1; i <= 8; i++) {
+      const wp = `WP0${i}`;
+      if (diccionarioSiglasReales[wp]) clasificadosCalculados['Knockout Round Play-offs'].push(diccionarioSiglasReales[wp]);
+    }
+    
+    // Mapear WO.A-WO.H a Octavos de Final
+    const octavosKeys = ['WO.A', 'WO.B', 'WO.C', 'WO.D', 'WO.E', 'WO.F', 'WO.G', 'WO.H'];
+    octavosKeys.forEach(key => {
+      if (diccionarioSiglasReales[key]) clasificadosCalculados['Octavos de Final'].push(diccionarioSiglasReales[key]);
+    });
+    
+    // Mapear WC1-WC4 a Cuartos de Final
+    for (let i = 1; i <= 4; i++) {
+      const wc = `WC${i}`;
+      if (diccionarioSiglasReales[wc]) clasificadosCalculados['Cuartos de Final'].push(diccionarioSiglasReales[wc]);
+    }
+    
+    // Mapear WS1-WS2 a Semifinales
+    for (let i = 1; i <= 2; i++) {
+      const ws = `WS${i}`;
+      if (diccionarioSiglasReales[ws]) clasificadosCalculados['Semifinales'].push(diccionarioSiglasReales[ws]);
+    }
+    
+    // Final: campeón y subcampeón
+    if (diccionarioSiglasReales['CHAMPION']) clasificadosCalculados['Final'].push(diccionarioSiglasReales['CHAMPION']);
+    if (diccionarioSiglasReales['SUB-CAMPEON']) clasificadosCalculados['Final'].push(diccionarioSiglasReales['SUB-CAMPEON']);
+
+    // 2. Leer clasif_sud
+    const realClasifRes = await pool.query('SELECT ronda, clasificados FROM clasif_sud ORDER BY ronda, id');
+    const clasifSudPorRonda = {};
+    for (const row of realClasifRes.rows) {
+      if (!clasifSudPorRonda[row.ronda]) clasifSudPorRonda[row.ronda] = [];
+      if (row.clasificados && row.clasificados.trim()) {
+        clasifSudPorRonda[row.ronda].push(row.clasificados.trim());
+      }
+    }
+
+    // 3. Comparar y mostrar diferencias
+    const resumen = {};
+    for (const ronda of Object.keys(clasificadosCalculados)) {
+      const calculados = clasificadosCalculados[ronda] || [];
+      const guardados = clasifSudPorRonda[ronda] || [];
+      const faltanEnBD = calculados.filter(e => !guardados.includes(e));
+      const sobranEnBD = guardados.filter(e => !calculados.includes(e));
+      resumen[ronda] = {
+        calculados,
+        guardados,
+        faltanEnBD,
+        sobranEnBD
+      };
+    }
+
+    res.json({
+      diccionarioSiglasReales,
+      clasificadosCalculados,
+      clasifSudPorRonda,
+      resumen
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
