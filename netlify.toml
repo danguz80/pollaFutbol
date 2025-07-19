@@ -1,0 +1,11 @@
+[build]
+  publish = "client/dist"
+  command = "cd client && npm run build"
+
+[build.environment]
+  VITE_API_URL = "https://pollafutbol.onrender.com"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
