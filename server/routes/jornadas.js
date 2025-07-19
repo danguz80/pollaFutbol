@@ -536,26 +536,39 @@ router.get('/config', async (req, res) => {
   }
 });
 
+// COMENTADO: Este endpoint causaba conflicto con admin_sud.js
+// El endpoint correcto está en /routes/admin_sud.js
+/*
 // PATCH /api/jornadas/sudamericana/cerrar → cambia el estado global de edicion_cerrada
 router.patch('/cerrar', async (req, res) => {
   const { cerrada } = req.body; // true o false
   try {
-    // 1. Forzar existencia de la fila
-    await pool.query('INSERT INTO sudamericana_config (edicion_cerrada) VALUES (false) ON CONFLICT DO NOTHING');
-    // 2. Forzar booleano real
-    const valorBooleano = cerrada === true || cerrada === 'true' ? true : false;
-    // 3. UPDATE con WHERE TRUE
+    console.log('DEBUG jornadas.js /cerrar - cerrada:', cerrada);
+    
+    // Simplificar como el endpoint de admin_sud.js
     const result = await pool.query(
-      'UPDATE sudamericana_config SET edicion_cerrada = $1 WHERE TRUE',
-      [valorBooleano]
+      'UPDATE sudamericana_config SET edicion_cerrada = $1 WHERE id = 1 RETURNING *',
+      [cerrada]
     );
-    // Siempre responder ok, aunque rowCount sea 0 (ya estaba en ese estado)
-    res.json({ ok: true, edicion_cerrada: valorBooleano, actualizado: result.rowCount > 0 });
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Configuración no encontrada' });
+    }
+    
+    const config = result.rows[0];
+    console.log('Estado actualizado jornadas.js:', config);
+    
+    res.json({ 
+      ok: true, 
+      edicion_cerrada: config.edicion_cerrada, 
+      actualizado: result.rowCount > 0 
+    });
   } catch (err) {
     console.error('Error SQL en /api/jornadas/sudamericana/cerrar:', err);
     res.status(500).json({ error: 'No se pudo actualizar el estado de la jornada', detalle: err.message, stack: err.stack });
   }
 });
+*/
 
 // MOVER ESTOS AL FINAL DEL ARCHIVO PARA NO ROMPER LAS RUTAS ESPECÍFICAS
 router.use("/ganadores", ganadoresRouter);

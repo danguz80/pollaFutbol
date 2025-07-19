@@ -69,12 +69,20 @@ router.patch('/cerrar', async (req, res) => {
     
     // Actualizar estado
     console.log('🔧 Actualizando estado...');
-    const result = await pool.query(`
-      UPDATE sudamericana_config 
-      SET edicion_cerrada = $1 
-      WHERE id = 1
-      RETURNING edicion_cerrada
-    `, [estadoCerrada]);
+    
+    // Si el admin abre manualmente (cerrada = false), marcar cierre automático como ejecutado
+    // para evitar que se cierre automáticamente de nuevo
+    let query, params;
+    if (estadoCerrada === false) {
+      query = 'UPDATE sudamericana_config SET edicion_cerrada = $1, cierre_automatico_ejecutado = TRUE WHERE id = 1 RETURNING edicion_cerrada';
+      params = [estadoCerrada];
+      console.log('🔓 Admin abrió manualmente - marcando cierre automático como ejecutado para evitar que se vuelva a cerrar');
+    } else {
+      query = 'UPDATE sudamericana_config SET edicion_cerrada = $1 WHERE id = 1 RETURNING edicion_cerrada';
+      params = [estadoCerrada];
+    }
+    
+    const result = await pool.query(query, params);
     
     console.log('Resultado UPDATE:', result.rows);
     
@@ -167,12 +175,25 @@ async function cierreAutomaticoSudamericana() {
       ON CONFLICT (id) DO NOTHING
     `);
     
-    const { rows } = await pool.query('SELECT fecha_cierre, edicion_cerrada FROM sudamericana_config WHERE id = 1');
-    if (rows[0]?.fecha_cierre && !rows[0]?.edicion_cerrada) {
+    const { rows } = await pool.query('SELECT fecha_cierre, edicion_cerrada, cierre_automatico_ejecutado FROM sudamericana_config WHERE id = 1');
+    
+    // Solo ejecutar cierre automático si:
+    // 1. Hay fecha de cierre definida
+    // 2. La edición no está cerrada actualmente  
+    // 3. El cierre automático NO se ha ejecutado antes
+    // 4. La fecha actual es mayor o igual a la fecha de cierre
+    if (rows[0]?.fecha_cierre && 
+        !rows[0]?.edicion_cerrada && 
+        !rows[0]?.cierre_automatico_ejecutado) {
+      
       const now = new Date();
       const cierre = new Date(rows[0].fecha_cierre);
+      
       if (now >= cierre) {
-        await pool.query('UPDATE sudamericana_config SET edicion_cerrada = TRUE WHERE id = 1');
+        console.log('🕐 Ejecutando cierre automático de Sudamericana por primera vez');
+        await pool.query(
+          'UPDATE sudamericana_config SET edicion_cerrada = TRUE, cierre_automatico_ejecutado = TRUE WHERE id = 1'
+        );
       }
     }
   } catch (err) {

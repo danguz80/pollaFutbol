@@ -12,6 +12,34 @@ const ROUNDS = [
   "Final"
 ];
 
+// Nueva función que obtiene fixtures con avances calculados del backend
+async function obtenerFixturesCalculados(ronda, usuarioId) {
+  if (!usuarioId) {
+    console.log('🔧 No hay usuario logueado');
+    return [];
+  }
+
+  try {
+    console.log(`🔧 Obteniendo fixtures calculados para ronda: ${ronda}, usuario: ${usuarioId}`);
+    
+    const response = await fetch(
+      `${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(ronda)}?usuarioId=${usuarioId}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log(`🔧 Fixtures calculados desde backend:`, data);
+    
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('🔧 Error obteniendo fixtures calculados:', error);
+    return [];
+  }
+}
+
 // Agrupa partidos por sigla de cruce (clasificado), o por equipos involucrados si no existe o es inconsistente
 function agruparPorSigla(partidos) {
   const grupos = {};
@@ -161,6 +189,7 @@ export default function IngresarPronosticosSud() {
   const [mensaje, setMensaje] = useState("");
   const [edicionCerrada, setEdicionCerrada] = useState(false);
   const [clasificadosExistentes, setClasificadosExistentes] = useState(null);
+  const [partidosVirtuales, setPartidosVirtuales] = useState([]); // Nuevo estado para partidos del backend
   const usuario = useAuth();
 
   useEffect(() => {
@@ -236,6 +265,24 @@ export default function IngresarPronosticosSud() {
       });
   }, [usuario, fixture]); // Agregado fixture como dependencia
 
+  // Nuevo useEffect: Cargar partidos calculados del backend cuando cambia la ronda o usuario
+  useEffect(() => {
+    if (selectedRound && usuario?.id) {
+      console.log(`🔧 Cargando partidos calculados para ${selectedRound}, usuario ${usuario.id}`);
+      obtenerFixturesCalculados(selectedRound, usuario.id)
+        .then(partidos => {
+          console.log(`🔧 Partidos cargados desde backend:`, partidos);
+          setPartidosVirtuales(partidos);
+        })
+        .catch(error => {
+          console.error(`🔧 Error cargando partidos calculados:`, error);
+          setPartidosVirtuales([]);
+        });
+    } else {
+      setPartidosVirtuales([]);
+    }
+  }, [selectedRound, usuario?.id]);
+
   // Calcula el global y si hay empate
   function getGlobalYEmpate(partidos) {
     if (partidos.length === 1) {
@@ -299,9 +346,8 @@ export default function IngresarPronosticosSud() {
         return;
       }
     
-    // Usar los partidos virtuales para obtener los nombres correctos mostrados en UI
-    const partidosVirtual = getFixtureVirtual(fixture, pronosticos, penales);
-    const partidosRonda = partidosVirtual.filter(p => p.ronda === selectedRound);
+    // Usar los partidos virtuales calculados por el backend
+    const partidosRonda = partidosVirtuales.filter(p => p.ronda === selectedRound);
     
     const pronosticosArray = partidosRonda.map(partido => {
       const goles = pronosticos[partido.fixture_id] || {};
@@ -479,62 +525,8 @@ export default function IngresarPronosticosSud() {
     avance = calcularAvanceEliminatoria(fixture, pronosticos, penales);
   }
 
-  // --- FIXTURE VIRTUAL DEL USUARIO: genera partidos con equipos propagados según sus pronósticos ---
-  function getFixtureVirtual(fixture, pronosticos, penales) {
-    console.log("🔍 getFixtureVirtual - clasificadosExistentes:", clasificadosExistentes);
-    console.log("🔍 getFixtureVirtual - selectedRound:", selectedRound);
-    
-    // SIEMPRE debe haber datos en la BD, no calcular
-    if (!clasificadosExistentes || !clasificadosExistentes.diccionario_siglas) {
-      console.error("❌ No hay clasificadosExistentes o diccionario_siglas");
-      return []; // Retornar vacío si no hay datos de BD
-    }
-    
-    const siglaGanadorMap = clasificadosExistentes.diccionario_siglas;
-    console.log("🔍 diccionario_siglas:", siglaGanadorMap);
-    console.log("🔍 Claves disponibles en siglaGanadorMap:", Object.keys(siglaGanadorMap));
-    
-    // Generar fixture virtual usando el diccionario exacto del backend
-    const partidosRonda = [];
-    const partidosDeRonda = fixture.filter(p => p.ronda === selectedRound);
-    console.log("🔍 partidosDeRonda para", selectedRound, ":", partidosDeRonda);
-    
-    // Log de los primeros 2 partidos para debug
-    if (partidosDeRonda.length > 0) {
-      console.log("🔍 Primer partido:", {
-        equipo_local: partidosDeRonda[0].equipo_local,
-        equipo_visita: partidosDeRonda[0].equipo_visita,
-        ronda: partidosDeRonda[0].ronda
-      });
-    }
-    
-    for (const partido of partidosDeRonda) {
-      let eqA = partido.equipo_local;
-      let eqB = partido.equipo_visita;
-      
-      console.log(`🔍 Partido original: ${eqA} vs ${eqB}`);
-      console.log(`🔍 ¿eqA (${eqA}) está en siglaGanadorMap?`, eqA in siglaGanadorMap);
-      console.log(`🔍 ¿eqB (${eqB}) está en siglaGanadorMap?`, eqB in siglaGanadorMap);
-      
-      // Reemplazar siglas por nombres reales usando el diccionario del backend
-      if (siglaGanadorMap[eqA]) {
-        console.log(`🔍 Reemplazando sigla ${eqA} por ${siglaGanadorMap[eqA]}`);
-        eqA = siglaGanadorMap[eqA];
-      }
-      if (siglaGanadorMap[eqB]) {
-        console.log(`🔍 Reemplazando sigla ${eqB} por ${siglaGanadorMap[eqB]}`);
-        eqB = siglaGanadorMap[eqB];
-      }
-      
-      console.log(`🔍 Partido final: ${eqA} vs ${eqB}`);
-      partidosRonda.push({ ...partido, equipo_local: eqA, equipo_visita: eqB });
-    }
-    
-    console.log("🔍 partidosRonda resultado:", partidosRonda);
-    return partidosRonda;
-  }
-  const partidosVirtual = getFixtureVirtual(fixture, pronosticos, penales);
-  const grupos = agruparPorSigla(partidosVirtual);
+  // Usar los partidos virtuales calculados por el backend
+  const grupos = agruparPorSigla(partidosVirtuales);
 
   return (
     <div className="container mt-4">

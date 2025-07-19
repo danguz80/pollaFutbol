@@ -37,6 +37,8 @@ app.use(cors({
 
 app.use(express.json());
 
+// IMPORTANTE: Rutas más específicas deben ir ANTES que las generales
+app.use("/api/admin/sudamericana", adminSudamericanaRouter);
 app.use("/api/jornadas", jornadasRoutes);
 app.use("/api/fixtures", fixturesRoutes);
 app.use("/api/chile", chileRoutes);
@@ -52,7 +54,6 @@ app.use("/api/sudamericana", pronosticosSudamericanaRouter);
 app.use('/api/sudamericana', puntajesSudamericanaRouter);
 app.use('/api/sudamericana', clasificacionSudamericanaRouter);
 app.use('/api/sudamericana', sudamericanaRankingRouter);
-app.use("/api/jornadas/sudamericana", adminSudamericanaRouter);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");

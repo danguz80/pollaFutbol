@@ -61,11 +61,11 @@ export default function AdminPanelSudamericana() {
   // Obtener estado global de edición de pronósticos
   const fetchEstadoEdicion = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/estado-edicion`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
-      setEdicionCerrada(!!data.edicion_cerrada);
+      setEdicionCerrada(!!data.cerrada);
     } catch (err) {
       setEdicionCerrada(false);
     }
@@ -304,6 +304,7 @@ export default function AdminPanelSudamericana() {
         penalesVisita: penales[p.fixture_id]?.visitante ?? ""
       }));
       
+      // 1. Guardar resultados (goles, penales, bonus)
       const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
         method: "PATCH",
         headers: {
@@ -313,7 +314,24 @@ export default function AdminPanelSudamericana() {
         body: JSON.stringify({ partidos: partidosConPenales }),
       });
       const data = await res.json();
-      alert(data.mensaje || "Resultados guardados en la base de datos");
+      
+      // 2. Después de guardar resultados, recalcular y avanzar ganadores
+      const avanzarRes = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/avanzar-ganadores`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        }
+      });
+      const avanzarData = await avanzarRes.json();
+      
+      if (avanzarRes.ok) {
+        alert("✅ " + (data.mensaje || "Resultados guardados") + "\n🔄 Avances recalculados correctamente");
+      } else {
+        alert("⚠️ " + (data.mensaje || "Resultados guardados") + "\n❌ Error al recalcular avances: " + avanzarData.error);
+      }
+      
+      // 3. Recargar partidos para mostrar los cambios
       fetchPartidos(rondaSeleccionada);
     } catch (error) {
       console.error("Error al guardar resultados Sudamericana:", error);
@@ -355,7 +373,7 @@ export default function AdminPanelSudamericana() {
   // PATCH cerrar/abrir edición de pronósticos (global)
   const toggleCierreEdicion = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/cerrar`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/cerrar`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({ cerrada: !edicionCerrada })
@@ -365,8 +383,12 @@ export default function AdminPanelSudamericana() {
         throw new Error(`Error ${res.status}: ${errorText}`);
       }
       const data = await res.json();
-      setEdicionCerrada(!!data.edicion_cerrada);
-      if (data.edicion_cerrada) {
+      setEdicionCerrada(!!data.cerrada);
+      
+      // Refrescar estado para asegurar sincronización
+      await fetchEstadoEdicion();
+      
+      if (data.cerrada) {
         alert("🔒 Edición de pronósticos cerrada para toda la Sudamericana");
       } else {
         alert("🔓 Edición de pronósticos abierta para toda la Sudamericana");
@@ -647,7 +669,7 @@ function ConfigurarCierreAutomaticoSudamericana({ API_BASE_URL, edicionCerrada, 
   // Cerrar edición automáticamente si llega a 0
   useEffect(() => {
     if (cerradoPorFecha && !edicionCerrada) {
-      fetch(`${API_BASE_URL}/api/jornadas/sudamericana/cerrar`, {
+      fetch(`${API_BASE_URL}/api/admin/sudamericana/cerrar`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({ cerrada: true })
