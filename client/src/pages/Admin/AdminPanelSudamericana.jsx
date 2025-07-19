@@ -357,7 +357,7 @@ export default function AdminPanelSudamericana() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/cerrar`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ cerrada: !edicionCerrada })
       });
       if (!res.ok) {
@@ -649,7 +649,7 @@ function ConfigurarCierreAutomaticoSudamericana({ API_BASE_URL, edicionCerrada, 
     if (cerradoPorFecha && !edicionCerrada) {
       fetch(`${API_BASE_URL}/api/jornadas/sudamericana/cerrar`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ cerrada: true })
       })
         .then(res => res.json())
