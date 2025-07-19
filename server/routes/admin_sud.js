@@ -3,6 +3,12 @@ import { pool } from '../db/pool.js';
 
 const router = express.Router();
 
+// Endpoint de prueba para verificar routing
+router.get('/test', (req, res) => {
+  console.log('✅ Test endpoint funcionando');
+  res.json({ message: 'Admin SUD router funcionando correctamente' });
+});
+
 // Obtener estado global de edición de pronósticos
 router.get('/estado-edicion', async (req, res) => {
   try {
@@ -33,11 +39,16 @@ router.get('/estado-edicion', async (req, res) => {
 // Cambiar estado global de edición (abrir/cerrar manual)
 router.patch('/cerrar', async (req, res) => {
   try {
+    console.log('🔍 Recibida petición PATCH /cerrar');
+    console.log('Body:', req.body);
+    
     const { cerrada } = req.body;    
     // Validar que cerrada sea booleano
     const estadoCerrada = Boolean(cerrada);
+    console.log('Estado cerrada convertido:', estadoCerrada);
     
     // Crear tabla si no existe
+    console.log('🔧 Creando tabla si no existe...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sudamericana_config (
         id INTEGER PRIMARY KEY,
@@ -45,15 +56,19 @@ router.patch('/cerrar', async (req, res) => {
         fecha_cierre TIMESTAMP
       )
     `);
+    console.log('✅ Tabla verificada/creada');
     
     // Insertar fila por defecto si no existe
+    console.log('🔧 Insertando fila por defecto...');
     await pool.query(`
       INSERT INTO sudamericana_config (id, edicion_cerrada, fecha_cierre) 
       VALUES (1, FALSE, NULL) 
       ON CONFLICT (id) DO NOTHING
     `);
+    console.log('✅ Fila por defecto verificada/insertada');
     
     // Actualizar estado
+    console.log('🔧 Actualizando estado...');
     const result = await pool.query(`
       UPDATE sudamericana_config 
       SET edicion_cerrada = $1 
@@ -61,13 +76,16 @@ router.patch('/cerrar', async (req, res) => {
       RETURNING edicion_cerrada
     `, [estadoCerrada]);
     
+    console.log('Resultado UPDATE:', result.rows);
+    
     if (result.rows.length === 0) {
       throw new Error('No se pudo actualizar el estado - fila no encontrada');
     }
     
     const estadoActualizado = result.rows[0].edicion_cerrada;
+    console.log('✅ Estado actualizado:', estadoActualizado);
     
-    res.json({ cerrada: estadoActualizado });
+    res.json({ cerrada: estadoActualizado, edicion_cerrada: estadoActualizado });
   } catch (err) {
     console.error('❌ Error completo al actualizar estado de edición:', err);
     console.error('Stack trace:', err.stack);
