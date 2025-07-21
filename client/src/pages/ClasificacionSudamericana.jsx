@@ -17,6 +17,7 @@ const ROUNDS = [
 export default function ClasificacionSudamericana() {
   const [selectedRound, setSelectedRound] = useState(ROUNDS[0]);
   const [selectedMatch, setSelectedMatch] = useState(""); // Nuevo estado para filtro por partido
+  const [selectedUser, setSelectedUser] = useState(""); // Nuevo estado para filtro por usuario
   const [clasificacion, setClasificacion] = useState([]);
   const [clasificacionFiltrada, setClasificacionFiltrada] = useState([]); // Estado para clasificación filtrada
   const [ranking, setRanking] = useState([]);
@@ -44,26 +45,30 @@ export default function ClasificacionSudamericana() {
       .then(data => setFixture(data));
   }, [selectedRound]);
 
-  // useEffect para manejar filtrado por partido específico
+  // useEffect para manejar filtrado por partido específico y usuario
   useEffect(() => {
-    if (selectedMatch === "") {
-      setClasificacionFiltrada(clasificacion);
-      return;
+    let filtrada = clasificacion;
+    
+    // Filtrar por usuario si está seleccionado
+    if (selectedUser !== "") {
+      filtrada = filtrada.filter(jugador => 
+        getNombreUsuario(jugador).toLowerCase().includes(selectedUser.toLowerCase())
+      );
     }
     
-    // Extraer equipos del formato "Equipo A vs Equipo B"
-    const [equipoLocal, equipoVisita] = selectedMatch.split(" vs ");
-    
-    // Filtrar jugadores que tienen pronóstico para este partido específico
-    const filtrada = clasificacion.filter(jugador => {
-      const detalleRonda = jugador.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
-      return detalleRonda.some(d => 
-        d.partido.equipo_local === equipoLocal && d.partido.equipo_visita === equipoVisita
-      );
-    });
+    // Filtrar por partido si está seleccionado
+    if (selectedMatch !== "") {
+      const [equipoLocal, equipoVisita] = selectedMatch.split(" vs ");
+      filtrada = filtrada.filter(jugador => {
+        const detalleRonda = jugador.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
+        return detalleRonda.some(d => 
+          d.partido.equipo_local === equipoLocal && d.partido.equipo_visita === equipoVisita
+        );
+      });
+    }
     
     setClasificacionFiltrada(filtrada);
-  }, [selectedMatch, clasificacion, selectedRound]);
+  }, [selectedMatch, selectedUser, clasificacion, selectedRound]);
 
   // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
   const getNombreUsuario = (jug) => jug.nombre_usuario || jug.usuario_id;
@@ -117,6 +122,18 @@ export default function ClasificacionSudamericana() {
           </div>
           
           <div>
+            <label className="me-2 fw-bold">Filtrar por usuario:</label>
+            <input
+              type="text"
+              className="form-control d-inline-block w-auto"
+              style={{ minWidth: '200px' }}
+              placeholder="Escriba nombre de usuario..."
+              value={selectedUser}
+              onChange={e => setSelectedUser(e.target.value)}
+            />
+          </div>
+          
+          <div>
             <label className="me-2 fw-bold">Filtrar por partido:</label>
             <select
               className="form-select d-inline-block w-auto"
@@ -129,6 +146,20 @@ export default function ClasificacionSudamericana() {
               ))}
             </select>
           </div>
+          
+          {(selectedUser || selectedMatch) && (
+            <div>
+              <button
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => {
+                  setSelectedUser("");
+                  setSelectedMatch("");
+                }}
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {loading ? (
@@ -175,9 +206,14 @@ export default function ClasificacionSudamericana() {
                   <div className="mb-4">
                     <h5 className="mb-2">
                       📊 Partidos - {selectedRound}
+                      {selectedUser && (
+                        <small className="d-block text-muted mt-1">
+                          Usuario: {selectedUser}
+                        </small>
+                      )}
                       {selectedMatch && (
                         <small className="d-block text-muted mt-1">
-                          Filtrado por: {selectedMatch}
+                          Partido: {selectedMatch}
                         </small>
                       )}
                     </h5>
@@ -256,12 +292,33 @@ export default function ClasificacionSudamericana() {
                                       )}
                                     </div>
                                   </td>
-                                  <td>{d.pron.goles_local} - {d.pron.goles_visita}</td>
-                                  <td>{
-                                    tieneResultado
-                                      ? `${d.real.goles_local} - ${d.real.goles_visita}`
-                                      : "--"
-                                  }</td>
+                                  <td>
+                                    <div>
+                                      {d.pron.goles_local} - {d.pron.goles_visita}
+                                      {(d.pron.penales_local !== null || d.pron.penales_visita !== null) && (
+                                        <div style={{ fontSize: '0.8em', color: '#666' }}>
+                                          ({d.pron.penales_local || 0}) - ({d.pron.penales_visita || 0})
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {tieneResultado ? (
+                                      <div>
+                                        {d.real.goles_local} - {d.real.goles_visita}
+                                        {/* Solo mostrar penales si hay penales reales (no 0-0) y es partido de vuelta */}
+                                        {(d.real.penales_local !== null && d.real.penales_visita !== null && 
+                                          (d.real.penales_local > 0 || d.real.penales_visita > 0) &&
+                                          d.partido.vuelta === true) && (
+                                          <div style={{ fontSize: '0.8em', color: '#666' }}>
+                                            ({d.real.penales_local}) - ({d.real.penales_visita})
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      "--"
+                                    )}
+                                  </td>
                                   <td>{d.partido.bonus || 1}</td>
                                   <td className="fw-bold">
                                     {puntosPartido > 0 ? (
