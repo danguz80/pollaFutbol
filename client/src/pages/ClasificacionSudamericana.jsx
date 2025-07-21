@@ -18,6 +18,7 @@ export default function ClasificacionSudamericana() {
   const [selectedRound, setSelectedRound] = useState(ROUNDS[0]);
   const [selectedMatch, setSelectedMatch] = useState(""); // Nuevo estado para filtro por partido
   const [clasificacion, setClasificacion] = useState([]);
+  const [clasificacionFiltrada, setClasificacionFiltrada] = useState([]); // Estado para clasificación filtrada
   const [ranking, setRanking] = useState([]);
   const [fixture, setFixture] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,7 @@ export default function ClasificacionSudamericana() {
       .then(res => res.json())
       .then(data => {
         setClasificacion(data);
+        setClasificacionFiltrada(data); // Inicializar clasificación filtrada
         setLoading(false);
       });
     // Fetch ranking acumulado Sudamericana
@@ -42,21 +44,46 @@ export default function ClasificacionSudamericana() {
       .then(data => setFixture(data));
   }, [selectedRound]);
 
+  // useEffect para manejar filtrado por partido específico
+  useEffect(() => {
+    if (selectedMatch === "") {
+      setClasificacionFiltrada(clasificacion);
+      return;
+    }
+    
+    // Extraer equipos del formato "Equipo A vs Equipo B"
+    const [equipoLocal, equipoVisita] = selectedMatch.split(" vs ");
+    
+    // Filtrar jugadores que tienen pronóstico para este partido específico
+    const filtrada = clasificacion.filter(jugador => {
+      const detalleRonda = jugador.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
+      return detalleRonda.some(d => 
+        d.partido.equipo_local === equipoLocal && d.partido.equipo_visita === equipoVisita
+      );
+    });
+    
+    setClasificacionFiltrada(filtrada);
+  }, [selectedMatch, clasificacion, selectedRound]);
+
   // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
   const getNombreUsuario = (jug) => jug.nombre_usuario || jug.usuario_id;
 
-  // Función para obtener lista única de partidos de la ronda seleccionada
+  // Función para obtener lista única de partidos de la ronda seleccionada con nombres reales
   const getMatchesForRound = () => {
-    if (!fixture || fixture.length === 0) return [];
+    if (!fixture || fixture.length === 0 || !clasificacion || clasificacion.length === 0) return [];
     
-    // FIX: Solo usar fixture para evitar duplicados
+    // FIX: Obtener nombres reales desde los pronósticos de usuarios en lugar de siglas del fixture
     const matchesSet = new Set();
-    fixture
-      .filter(f => f.ronda === selectedRound)
-      .forEach(f => {
-        const matchKey = `${f.equipo_local} vs ${f.equipo_visita}`;
+    
+    // Usar los nombres de equipos desde los pronósticos (que ya tienen nombres reales)
+    clasificacion.forEach(jug => {
+      const detalleRonda = jug.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
+      detalleRonda.forEach(d => {
+        // Los pronósticos ya tienen nombres reales de equipos
+        const matchKey = `${d.partido.equipo_local} vs ${d.partido.equipo_visita}`;
         matchesSet.add(matchKey);
       });
+    });
     
     return Array.from(matchesSet).sort();
   };
@@ -108,10 +135,10 @@ export default function ClasificacionSudamericana() {
         <div className="text-center">Cargando...</div>
       ) : (
         <>
-          {clasificacion.length === 0 ? (
+          {clasificacionFiltrada.length === 0 ? (
             <div className="text-center">No hay pronósticos disponibles.</div>
           ) : (
-            clasificacion.map((jug, jugIdx) => {
+            clasificacionFiltrada.map((jug, jugIdx) => {
               // Calcular avance virtual del usuario para mostrar clasificados calculados
               const detalleElim = jug.partidos.detalle.filter(p => ROUNDS.includes(p.partido.ronda));
               const pronos = {};
