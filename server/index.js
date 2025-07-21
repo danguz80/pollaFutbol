@@ -26,6 +26,7 @@ const app = express();
 // Configuración de CORS para permitir frontend local y de Netlify
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   "https://pollafutbol.netlify.app"
 ];
 

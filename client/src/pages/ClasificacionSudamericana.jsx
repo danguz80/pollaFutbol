@@ -388,7 +388,7 @@ export default function ClasificacionSudamericana() {
                             // Obtener datos solo para la ronda seleccionada
                             const rowBase = jug.clasificados.detalle.find(row => row && row.ronda === selectedRound);
                             
-                            // Aplicar la misma lógica que en MisPronosticosSud
+                            // Aplicar la misma lógica que antes para clasificados calculados
                             let misClasificados;
                             const rondasEliminatorias = ['Octavos de Final', 'Cuartos de Final', 'Semifinales', 'Final'];
                             if (rondasEliminatorias.includes(selectedRound)) {
@@ -422,7 +422,7 @@ export default function ClasificacionSudamericana() {
                               return <tr><td colSpan={4}>No hay clasificados para esta ronda.</td></tr>;
                             }
                             
-                            // Calcular puntos y alineamiento (misma lógica que MisPronosticosSud)
+                            // Calcular puntos y alineamiento inteligente
                             const puntosPorRonda = {
                               'Knockout Round Play-offs': 2,
                               'Octavos de Final': 3,
