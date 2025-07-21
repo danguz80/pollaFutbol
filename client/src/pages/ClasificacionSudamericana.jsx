@@ -52,7 +52,7 @@ export default function ClasificacionSudamericana() {
     // Filtrar por usuario si está seleccionado
     if (selectedUser !== "") {
       filtrada = filtrada.filter(jugador => 
-        getNombreUsuario(jugador).toLowerCase().includes(selectedUser.toLowerCase())
+        getNombreUsuario(jugador) === selectedUser
       );
     }
     
@@ -72,6 +72,14 @@ export default function ClasificacionSudamericana() {
 
   // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
   const getNombreUsuario = (jug) => jug.nombre_usuario || jug.usuario_id;
+
+  // Función para obtener lista única de usuarios disponibles
+  const getAvailableUsers = () => {
+    if (!clasificacion || clasificacion.length === 0) return [];
+    
+    const users = clasificacion.map(jug => getNombreUsuario(jug)).sort();
+    return users;
+  };
 
   // Función para obtener lista única de partidos de la ronda seleccionada con nombres reales
   const getMatchesForRound = () => {
@@ -93,6 +101,7 @@ export default function ClasificacionSudamericana() {
     return Array.from(matchesSet).sort();
   };
 
+  const availableUsers = getAvailableUsers();
   const availableMatches = getMatchesForRound();
 
   return (
@@ -123,14 +132,17 @@ export default function ClasificacionSudamericana() {
           
           <div>
             <label className="me-2 fw-bold">Filtrar por usuario:</label>
-            <input
-              type="text"
-              className="form-control d-inline-block w-auto"
+            <select
+              className="form-select d-inline-block w-auto"
               style={{ minWidth: '200px' }}
-              placeholder="Escriba nombre de usuario..."
               value={selectedUser}
               onChange={e => setSelectedUser(e.target.value)}
-            />
+            >
+              <option value="">Todos los usuarios</option>
+              {availableUsers.map(user => (
+                <option key={user} value={user}>{user}</option>
+              ))}
+            </select>
           </div>
           
           <div>
