@@ -16,6 +16,7 @@ const ROUNDS = [
 
 export default function ClasificacionSudamericana() {
   const [selectedRound, setSelectedRound] = useState(ROUNDS[0]);
+  const [selectedMatch, setSelectedMatch] = useState(""); // Nuevo estado para filtro por partido
   const [clasificacion, setClasificacion] = useState([]);
   const [ranking, setRanking] = useState([]);
   const [fixture, setFixture] = useState([]);
@@ -42,6 +43,34 @@ export default function ClasificacionSudamericana() {
   // Utilidad para mostrar nombre de usuario si existe, si no, usuario_id
   const getNombreUsuario = (jug) => jug.nombre_usuario || jug.usuario_id;
 
+  // Función para obtener lista única de partidos de la ronda seleccionada
+  const getMatchesForRound = () => {
+    if (!fixture || fixture.length === 0 || !clasificacion || clasificacion.length === 0) return [];
+    
+    const matchesSet = new Set();
+    
+    // Obtener partidos únicos de la ronda seleccionada desde el fixture
+    fixture
+      .filter(f => f.ronda === selectedRound)
+      .forEach(f => {
+        const matchKey = `${f.equipo_local} vs ${f.equipo_visita}`;
+        matchesSet.add(matchKey);
+      });
+    
+    // También obtener desde los pronósticos para casos donde los equipos son calculados
+    clasificacion.forEach(jug => {
+      const detalleRonda = jug.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
+      detalleRonda.forEach(d => {
+        const matchKey = `${d.partido.equipo_local} vs ${d.partido.equipo_visita}`;
+        matchesSet.add(matchKey);
+      });
+    });
+    
+    return Array.from(matchesSet).sort();
+  };
+
+  const availableMatches = getMatchesForRound();
+
   return (
     <div className="container mt-4">
       <SudamericanaSubMenu />
@@ -51,16 +80,37 @@ export default function ClasificacionSudamericana() {
         <a href="#ranking-acumulado-sud" className="btn btn-outline-primary btn-sm">Ir a Ranking Acumulado</a>
       </div>
       <div className="mb-3 text-center">
-        <label className="me-2 fw-bold">Filtrar por ronda:</label>
-        <select
-          className="form-select d-inline-block w-auto"
-          value={selectedRound}
-          onChange={e => setSelectedRound(e.target.value)}
-        >
-          {ROUNDS.map(r => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+        <div className="d-flex flex-wrap justify-content-center gap-3 align-items-center">
+          <div>
+            <label className="me-2 fw-bold">Filtrar por ronda:</label>
+            <select
+              className="form-select d-inline-block w-auto"
+              value={selectedRound}
+              onChange={e => {
+                setSelectedRound(e.target.value);
+                setSelectedMatch(""); // Resetear filtro de partido al cambiar ronda
+              }}
+            >
+              {ROUNDS.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="me-2 fw-bold">Filtrar por partido:</label>
+            <select
+              className="form-select d-inline-block w-auto"
+              value={selectedMatch}
+              onChange={e => setSelectedMatch(e.target.value)}
+            >
+              <option value="">Todos los partidos</option>
+              {availableMatches.map(match => (
+                <option key={match} value={match}>{match}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
       {loading ? (
         <div className="text-center">Cargando...</div>
@@ -104,7 +154,14 @@ export default function ClasificacionSudamericana() {
 
                   {/* TABLA DE PARTIDOS */}
                   <div className="mb-4">
-                    <h5 className="mb-2">📊 Partidos - {selectedRound}</h5>
+                    <h5 className="mb-2">
+                      📊 Partidos - {selectedRound}
+                      {selectedMatch && (
+                        <small className="d-block text-muted mt-1">
+                          Filtrado por: {selectedMatch}
+                        </small>
+                      )}
+                    </h5>
                     <div className="table-responsive">
                       <table className="table table-bordered table-striped text-center">
                         <thead>
@@ -134,7 +191,24 @@ export default function ClasificacionSudamericana() {
                               return <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>;
                             }
                             
-                            const partidosOrdenados = detalleRonda.sort((a, b) => a.fixture_id - b.fixture_id);
+                            // Aplicar filtro por partido específico si está seleccionado
+                            let partidosFiltrados = detalleRonda;
+                            if (selectedMatch) {
+                              partidosFiltrados = detalleRonda.filter(d => {
+                                const equipos = mapFixtureIdToEquipos[d.fixture_id] || { 
+                                  equipo_local: d.partido.equipo_local, 
+                                  equipo_visita: d.partido.equipo_visita 
+                                };
+                                const matchKey = `${equipos.equipo_local} vs ${equipos.equipo_visita}`;
+                                return matchKey === selectedMatch;
+                              });
+                            }
+                            
+                            if (partidosFiltrados.length === 0) {
+                              return <tr><td colSpan={7}>No hay pronósticos para este partido en la ronda seleccionada.</td></tr>;
+                            }
+                            
+                            const partidosOrdenados = partidosFiltrados.sort((a, b) => a.fixture_id - b.fixture_id);
                             const totalPartidos = partidosOrdenados.length;
                             let totalPuntosPartidos = 0;
                             
@@ -192,7 +266,7 @@ export default function ClasificacionSudamericana() {
                             rows.push(
                               <tr key="total-partidos" className="table-primary">
                                 <td colSpan={6} className="text-end fw-bold">
-                                  Total Partidos {selectedRound}:
+                                  Total {selectedMatch ? 'Partido Filtrado' : `Partidos ${selectedRound}`}:
                                 </td>
                                 <td className="fw-bold text-primary">
                                   {totalPuntosPartidos}

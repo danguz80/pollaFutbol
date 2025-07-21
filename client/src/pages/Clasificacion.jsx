@@ -9,6 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL;
 export default function Clasificacion() {
   const [jornadas, setJornadas] = useState([]);
   const [jornadaActual, setJornadaActual] = useState("");
+  const [selectedMatch, setSelectedMatch] = useState(""); // Nuevo estado para filtro por partido
   const [detallePuntos, setDetallePuntos] = useState([]);
   const [rankingJornada, setRankingJornada] = useState([]);
   const [rankingAcumulado, setRankingAcumulado] = useState([]);
@@ -72,6 +73,21 @@ export default function Clasificacion() {
     }
   }, [jornadaActual, jornadaCerrada, jornadas]);
 
+  // Función para obtener lista única de partidos de la jornada seleccionada
+  const getMatchesForJornada = () => {
+    if (!detallePuntos || detallePuntos.length === 0) return [];
+    
+    const matchesSet = new Set();
+    detallePuntos.forEach(p => {
+      const matchKey = `${p.nombre_local} vs ${p.nombre_visita}`;
+      matchesSet.add(matchKey);
+    });
+    
+    return Array.from(matchesSet).sort();
+  };
+
+  const availableMatches = getMatchesForJornada();
+
   // Estilos de ranking
   function getJornadaCellStyle(i) {
     if (i === 0) return { background: "#ab402e", color: "white", fontWeight: "bold", fontSize: "1.25em", textAlign: "center" };
@@ -88,12 +104,35 @@ export default function Clasificacion() {
 
   // -------------------- TABLA DETALLE UNIFICADO ---------------------
   function filasDetalleUnificado(array) {
+    // Aplicar filtro por partido específico si está seleccionado
+    let arrayFiltrado = array;
+    if (selectedMatch) {
+      arrayFiltrado = array.filter(p => {
+        const matchKey = `${p.nombre_local} vs ${p.nombre_visita}`;
+        return matchKey === selectedMatch;
+      });
+    }
+
     // Agrupar por jugador
     const agrupados = {};
-    array.forEach(p => {
+    arrayFiltrado.forEach(p => {
       if (!agrupados[p.usuario]) agrupados[p.usuario] = [];
       agrupados[p.usuario].push(p);
     });
+    
+    // Si no hay datos después del filtro
+    if (Object.keys(agrupados).length === 0) {
+      return [
+        <tr key="no-data">
+          <td colSpan={6} className="text-center text-muted">
+            {selectedMatch 
+              ? `No hay pronósticos para el partido: ${selectedMatch}` 
+              : "No hay datos disponibles"}
+          </td>
+        </tr>
+      ];
+    }
+    
     // Ordenar jugadores alfabéticamente
     const jugadores = Object.keys(agrupados).sort();
     const filas = [];
@@ -124,7 +163,9 @@ export default function Clasificacion() {
       // Total por jugador
       filas.push(
         <tr key={`total-${usuario}`} className="text-center" style={{ fontWeight: "bold", background: "#fff6d6" }}>
-          <td colSpan={5} className="text-end">Total {usuario}:</td>
+          <td colSpan={5} className="text-end">
+            Total {usuario} {selectedMatch ? '(partido filtrado)' : ''}:
+          </td>
           <td>{total}</td>
         </tr>
       );
@@ -157,23 +198,54 @@ export default function Clasificacion() {
 
       {/* --- SELECTOR DE JORNADA --- */}
       <div className="mb-4 text-center">
-        <label className="form-label fw-bold">Selecciona Jornada:</label>
-        <select
-          className="form-select text-center"
-          style={{ maxWidth: 300, display: "inline-block" }}
-          value={jornadaActual}
-          onChange={e => setJornadaActual(e.target.value)}
-        >
-          <option value="">-- Selecciona jornada --</option>
-          {jornadas.map(j => (
-            <option key={j.numero} value={j.numero}>Jornada {j.numero}</option>
-          ))}
-        </select>
+        <div className="d-flex flex-wrap justify-content-center gap-3 align-items-center">
+          <div>
+            <label className="form-label fw-bold">Selecciona Jornada:</label>
+            <select
+              className="form-select text-center"
+              style={{ maxWidth: 300, display: "inline-block" }}
+              value={jornadaActual}
+              onChange={e => {
+                setJornadaActual(e.target.value);
+                setSelectedMatch(""); // Resetear filtro de partido al cambiar jornada
+              }}
+            >
+              <option value="">-- Selecciona jornada --</option>
+              {jornadas.map(j => (
+                <option key={j.numero} value={j.numero}>Jornada {j.numero}</option>
+              ))}
+            </select>
+          </div>
+          
+          {jornadaCerrada && availableMatches.length > 0 && (
+            <div>
+              <label className="form-label fw-bold">Filtrar por partido:</label>
+              <select
+                className="form-select text-center"
+                style={{ maxWidth: 350, display: "inline-block" }}
+                value={selectedMatch}
+                onChange={e => setSelectedMatch(e.target.value)}
+              >
+                <option value="">Todos los partidos</option>
+                {availableMatches.map(match => (
+                  <option key={match} value={match}>{match}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 1. Detalle de pronósticos por jugador */}
       <div id="detalle-pronosticos" className="mt-5">
-        <h4 className="text-center">📝 Detalle de Todos los Pronósticos (Jornada {jornadaActual})</h4>
+        <h4 className="text-center">
+          📝 Detalle de Todos los Pronósticos (Jornada {jornadaActual})
+          {selectedMatch && (
+            <small className="d-block text-muted mt-1">
+              Filtrado por: {selectedMatch}
+            </small>
+          )}
+        </h4>
         {!jornadaCerrada ? (
           <div className="alert alert-warning text-center">Esperando el cierre de jornada para mostrar resultados</div>
         ) : (
