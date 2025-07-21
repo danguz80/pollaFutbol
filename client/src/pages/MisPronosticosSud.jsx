@@ -50,7 +50,9 @@ export default function MisPronosticosSud() {
   }, [usuario]);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+    // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
+    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+    fetch(`${API_BASE_URL}/api/sudamericana/fixture`)
       .then(res => res.json())
       .then(data => setFixture(data));
   }, []);

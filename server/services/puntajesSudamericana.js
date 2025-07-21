@@ -120,9 +120,31 @@ function verificarCruceCoincidente(pronostico, resultado) {
   // Normalizar nombres para comparación (remover acentos, espacios extra, etc.)
   const normalizar = (str) => {
     if (!str) return '';
-    return str.toString().trim().toLowerCase()
+    let normalizado = str.toString().trim().toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ');
+    
+    //FIX: Normalización específica para equipos con nombres similares
+    // Central Córdoba vs Central Cordoba de Santiago
+    if (normalizado.includes('central cordoba')) {
+      normalizado = normalizado.replace(/central cordoba.*/, 'central cordoba');
+    }
+    
+    // Agregar más normalizaciones específicas si es necesario
+    // Ejemplo: Racing Club vs Racing
+    if (normalizado.includes('racing club')) {
+      normalizado = normalizado.replace(/racing club.*/, 'racing');
+    }
+    if (normalizado === 'racing') {
+      // Permitir que "racing" coincida con variantes
+    }
+    
+    // Independiente del Valle vs Independiente
+    if (normalizado.includes('independiente del valle')) {
+      normalizado = normalizado.replace(/independiente del valle.*/, 'independiente del valle');
+    }
+    
+    return normalizado;
   };
   
   const pronLocal = normalizar(pronostico.equipo_local);

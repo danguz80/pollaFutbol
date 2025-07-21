@@ -35,7 +35,9 @@ export default function ClasificacionSudamericana() {
     fetch(`${API_BASE_URL}/api/sudamericana/ranking`)
       .then(res => res.json())
       .then(data => setRanking(data));
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+    // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
+    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+    fetch(`${API_BASE_URL}/api/sudamericana/fixture`)
       .then(res => res.json())
       .then(data => setFixture(data));
   }, [selectedRound]);

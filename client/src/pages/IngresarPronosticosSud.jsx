@@ -193,15 +193,18 @@ export default function IngresarPronosticosSud() {
   const usuario = useAuth();
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+    // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
+    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
+    fetch(`${API_BASE_URL}/api/sudamericana/fixture`)
       .then(res => res.json())
       .then(data => {
         setFixture(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-    // Consultar si la edición está cerrada
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`)
+    // CORREGIDA: Cambiar de /api/jornadas/sudamericana/config a /api/admin/sudamericana/estado-edicion
+    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`)
+    fetch(`${API_BASE_URL}/api/admin/sudamericana/estado-edicion`)
       .then(res => res.json())
       .then(data => setEdicionCerrada(!!data.edicion_cerrada));
   }, []);

@@ -43,7 +43,9 @@ export default function AdminPanelSudamericana() {
 
   // Obtener rondas Sudamericana al montar y estado global de edición
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/rondas`, {
+    // CORREGIDA: Cambiar de /api/jornadas/sudamericana/rondas a /api/sudamericana/rondas
+    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/rondas`, {
+    fetch(`${API_BASE_URL}/api/sudamericana/rondas`, {
       headers: getAuthHeaders()
     })
       .then((res) => res.json())
@@ -73,7 +75,9 @@ export default function AdminPanelSudamericana() {
 
   const fetchPartidos = async (ronda) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture/${encodeURIComponent(ronda)}`, {
+      // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
+      // const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture/${encodeURIComponent(ronda)}`, {
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(ronda)}`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -122,8 +126,9 @@ export default function AdminPanelSudamericana() {
   // Función para obtener los equipos reales que han avanzado
   const obtenerEquiposReales = async () => {
     try {
-      // Obtener todos los partidos para calcular avances
-      const allFixturesRes = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`);
+      // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
+      // const allFixturesRes = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`);
+      const allFixturesRes = await fetch(`${API_BASE_URL}/api/sudamericana/fixture`);
       const allFixtures = await allFixturesRes.json();
       
       // Calcular avances basándose en resultados reales
@@ -304,8 +309,9 @@ export default function AdminPanelSudamericana() {
         penalesVisita: penales[p.fixture_id]?.visitante ?? ""
       }));
       
-      // 1. Guardar resultados (goles, penales, bonus)
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
+      // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
+      // const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -314,24 +320,7 @@ export default function AdminPanelSudamericana() {
         body: JSON.stringify({ partidos: partidosConPenales }),
       });
       const data = await res.json();
-      
-      // 2. Después de guardar resultados, recalcular y avanzar ganadores
-      const avanzarRes = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/avanzar-ganadores`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        }
-      });
-      const avanzarData = await avanzarRes.json();
-      
-      if (avanzarRes.ok) {
-        alert("✅ " + (data.mensaje || "Resultados guardados") + "\n🔄 Avances recalculados correctamente");
-      } else {
-        alert("⚠️ " + (data.mensaje || "Resultados guardados") + "\n❌ Error al recalcular avances: " + avanzarData.error);
-      }
-      
-      // 3. Recargar partidos para mostrar los cambios
+      alert(data.mensaje || "Resultados guardados en la base de datos");
       fetchPartidos(rondaSeleccionada);
     } catch (error) {
       console.error("Error al guardar resultados Sudamericana:", error);
@@ -343,7 +332,9 @@ export default function AdminPanelSudamericana() {
   const actualizarDesdeAPI = async () => {
     if (!rondaSeleccionada) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${rondaSeleccionada}/resultados`, {
+      // NOTA: Este endpoint parece ser específico de jornadas, posiblemente necesite moverse o adaptarse
+      // const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/${rondaSeleccionada}/resultados`, {
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/${rondaSeleccionada}/resultados`, {
         method: "PATCH"
       });
       const data = await res.json();
@@ -633,7 +624,9 @@ function ConfigurarCierreAutomaticoSudamericana({ API_BASE_URL, edicionCerrada, 
 
   // Traer fecha/hora de cierre actual al montar
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fecha-cierre`)
+    // NOTA: Este endpoint parece ser específico de jornadas, posiblemente necesite moverse o adaptarse
+    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fecha-cierre`)
+    fetch(`${API_BASE_URL}/api/admin/sudamericana/fecha-cierre`)
       .then(res => res.json())
       .then(data => {
         if (data.fecha_cierre) setFechaCierre(data.fecha_cierre.slice(0, 16)); // formato yyyy-MM-ddTHH:mm
@@ -687,7 +680,9 @@ function ConfigurarCierreAutomaticoSudamericana({ API_BASE_URL, edicionCerrada, 
       return;
     }
     setLoading(true);
-    const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fecha-cierre`, {
+    // NOTA: Este endpoint parece ser específico de jornadas, posiblemente necesite moverse o adaptarse
+    // const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fecha-cierre`, {
+    const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/fecha-cierre`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fecha_cierre: fechaCierre })
