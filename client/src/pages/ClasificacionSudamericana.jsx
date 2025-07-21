@@ -47,26 +47,16 @@ export default function ClasificacionSudamericana() {
 
   // Función para obtener lista única de partidos de la ronda seleccionada
   const getMatchesForRound = () => {
-    if (!fixture || fixture.length === 0 || !clasificacion || clasificacion.length === 0) return [];
+    if (!fixture || fixture.length === 0) return [];
     
+    // FIX: Solo usar fixture para evitar duplicados
     const matchesSet = new Set();
-    
-    // Obtener partidos únicos de la ronda seleccionada desde el fixture
     fixture
       .filter(f => f.ronda === selectedRound)
       .forEach(f => {
         const matchKey = `${f.equipo_local} vs ${f.equipo_visita}`;
         matchesSet.add(matchKey);
       });
-    
-    // También obtener desde los pronósticos para casos donde los equipos son calculados
-    clasificacion.forEach(jug => {
-      const detalleRonda = jug.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
-      detalleRonda.forEach(d => {
-        const matchKey = `${d.partido.equipo_local} vs ${d.partido.equipo_visita}`;
-        matchesSet.add(matchKey);
-      });
-    });
     
     return Array.from(matchesSet).sort();
   };
@@ -283,21 +273,22 @@ export default function ClasificacionSudamericana() {
                     </div>
                   </div>
 
-                  {/* TABLA DE CLASIFICADOS */}
-                  <div className="mb-4">
-                    <h5 className="mb-2">🏆 Clasificados - {selectedRound}</h5>
-                    <div className="table-responsive">
-                      <table className="table table-bordered table-sm text-center">
-                        <thead>
-                          <tr>
-                            <th>Ronda</th>
-                            <th>Mis Clasificados</th>
-                            <th>Clasificados Reales</th>
-                            <th>Puntos</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(() => {
+                  {/* FIX: Ocultar tabla de clasificados cuando se filtra por partido específico */}
+                  {!selectedMatch && (
+                    <div className="mb-4">
+                      <h5 className="mb-2">🏆 Clasificados - {selectedRound}</h5>
+                      <div className="table-responsive">
+                        <table className="table table-bordered table-sm text-center">
+                          <thead>
+                            <tr>
+                              <th>Ronda</th>
+                              <th>Mis Clasificados</th>
+                              <th>Clasificados Reales</th>
+                              <th>Puntos</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
                             // Obtener datos solo para la ronda seleccionada
                             const rowBase = jug.clasificados.detalle.find(row => row && row.ronda === selectedRound);
                             
@@ -473,6 +464,7 @@ export default function ClasificacionSudamericana() {
                       </table>
                     </div>
                   </div>
+                  )}
                 </div>
               );
             })
