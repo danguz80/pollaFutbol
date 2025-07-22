@@ -11,21 +11,6 @@
  * @returns {Object} Puntaje total y detalle por partido
  */
 function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioId = null, mapeoSiglas = null) {
-  console.log('🚀🚀 SERVICIO LLAMADO - mapeoSiglas recibido:', !!mapeoSiglas);
-  console.log('🔍 calcularPuntajesSudamericana llamado para usuario:', usuarioId);
-  console.log('🔍 Fixture count:', fixture?.length);
-  console.log('🔍 Pronosticos count:', pronosticos?.length);
-  console.log('🔍 Resultados count:', resultados?.length);
-  
-  // DEBUG ESPECÍFICO PARA MAPEO DE SIGLAS
-  if (mapeoSiglas && usuarioId === 2) {
-    console.log('🔍 CONTENIDO DE mapeoSiglas para usuario 2:');
-    console.log('   WC1:', mapeoSiglas['WC1']);
-    console.log('   WC2:', mapeoSiglas['WC2']); 
-    console.log('   WC3:', mapeoSiglas['WC3']);
-    console.log('   WC4:', mapeoSiglas['WC4']);
-    console.log('   Todas las claves WC:', Object.keys(mapeoSiglas).filter(k => k.startsWith('WC')));
-  }
   
   // Configuración de puntajes por ronda
   const reglas = {
@@ -138,14 +123,11 @@ function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
   // Debug específico para semifinales
   if (pronostico.equipo_local?.includes('Independiente') || pronostico.equipo_visita?.includes('Independiente') ||
       resultado.equipo_local?.includes('Independiente') || resultado.equipo_visita?.includes('Independiente')) {
-    console.log('🔍 VERIFICANDO INDEPENDIENTE:');
-    console.log('   Pronóstico:', pronostico.equipo_local, 'vs', pronostico.equipo_visita, 'fixture_id:', pronostico.fixture_id);
-    console.log('   Resultado:', resultado.equipo_local, 'vs', resultado.equipo_visita, 'fixture_id:', resultado.fixture_id);
     
     // Si los equipos son completamente diferentes, mostrar error
     if (!resultado.equipo_local?.includes('Independiente') && !resultado.equipo_visita?.includes('Independiente') &&
         !resultado.equipo_local?.includes('Fluminense') && !resultado.equipo_visita?.includes('Fluminense')) {
-      console.log('❌ ERROR: Los equipos en resultado no coinciden para nada con pronóstico');
+      
     }
   }
   
@@ -229,7 +211,6 @@ function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
   // SOLUCIÓN DEFINITIVA: Si no hay coincidencia exacta, verificar equipos individuales
   // Esto soluciona el problema de fixture_ids que no existen en sudamericana_fixtures (como semifinales)
   if (!resultado_final) {
-    console.log('🔄 BUSCANDO COINCIDENCIA POR EQUIPOS INDIVIDUALES (fixture_id no encontrado)');
     
     // Verificar si los equipos del pronóstico están presentes en el resultado (en cualquier orden)
     const equiposPronostico = [normalizar(pronostico.equipo_local), normalizar(pronostico.equipo_visita)];
@@ -249,15 +230,9 @@ function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
     );
     
     if (equipo1Coincide && equipo2Coincide) {
-      console.log('✅ MATCH POR EQUIPOS INDIVIDUALES:');
-      console.log('   Pronóstico:', equiposPronostico);
-      console.log('   Resultado:', equiposResultado);
       return true;
     }
     
-    console.log('❌ NO HAY COINCIDENCIA:');
-    console.log('   Pronóstico:', equiposPronostico);
-    console.log('   Resultado:', equiposResultado);
   }
   
   return resultado_final;
