@@ -7,6 +7,7 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
   useEffect(() => {
     if (!fechaCierre) return;
     const interval = setInterval(() => {
+      // Usar horario local del navegador, que debería estar configurado en Chile
       const ahora = new Date();
       const cierre = new Date(fechaCierre);
       const diff = cierre - ahora;
@@ -27,11 +28,14 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
   }, [fechaCierre, onCero]);
 
   if (!fechaCierre) return null;
-  if (finalizado) return <div className="alert alert-danger text-center">¡Jornada cerrada!</div>;
+  if (finalizado) {
+    // MODIFICADO: Solo mostrar que el tiempo terminó, el servidor maneja el cierre real
+    return <div className="alert alert-warning text-center">⏰ Tiempo de cuenta regresiva finalizado</div>;
+  }
 
   return (
     <div className="alert alert-info text-center" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
-      Tiempo restante antes de cerrar jornada {numeroJornada}: {tiempo.dias}d {tiempo.horas}h {tiempo.minutos}m {tiempo.segundos}s
+      Tiempo restante antes de cerrar {numeroJornada}: {tiempo.dias}d {tiempo.horas}h {tiempo.minutos}m {tiempo.segundos}s
     </div>
   );
 }

@@ -51,6 +51,7 @@ export default function AdminPanelSudamericana() {
       .then((res) => res.json())
       .then((data) => setRondas(data))
       .catch((err) => console.error("Error al cargar rondas Sudamericana:", err));
+    
     fetchEstadoEdicion();
   }, []);
 
@@ -63,7 +64,7 @@ export default function AdminPanelSudamericana() {
   // Obtener estado global de edición de pronósticos
   const fetchEstadoEdicion = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/estado-edicion`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/estado`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -364,22 +365,24 @@ export default function AdminPanelSudamericana() {
   // PATCH cerrar/abrir edición de pronósticos (global)
   const toggleCierreEdicion = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/cerrar`, {
+      // Si está cerrada, abrir. Si está abierta, cerrar.
+      const endpoint = edicionCerrada ? 'abrir' : 'cerrar';
+      const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/${endpoint}`, {
         method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ cerrada: !edicionCerrada })
+        headers: getAuthHeaders()
       });
+      
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(`Error ${res.status}: ${errorText}`);
       }
+      
       const data = await res.json();
-      setEdicionCerrada(!!data.cerrada);
       
       // Refrescar estado para asegurar sincronización
       await fetchEstadoEdicion();
       
-      if (data.cerrada) {
+      if (endpoint === 'cerrar') {
         alert("🔒 Edición de pronósticos cerrada para toda la Sudamericana");
       } else {
         alert("🔓 Edición de pronósticos abierta para toda la Sudamericana");
@@ -602,119 +605,8 @@ export default function AdminPanelSudamericana() {
         </>
       )}
 
-      {/* Sección para configurar cierre automático de edición de pronósticos */}
-      <div className="mt-5 p-3 border rounded bg-light">
-        <h5>⏰ Configurar cierre automático de edición de pronósticos</h5>
-        <ConfigurarCierreAutomaticoSudamericana
-          API_BASE_URL={API_BASE_URL}
-          edicionCerrada={edicionCerrada}
-          setEdicionCerrada={setEdicionCerrada}
-        />
-      </div>
     </div>
   );
 }
 
-// Componente para configurar y mostrar cuenta regresiva de cierre automático
-function ConfigurarCierreAutomaticoSudamericana({ API_BASE_URL, edicionCerrada, setEdicionCerrada }) {
-  const [fechaCierre, setFechaCierre] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [mensaje, setMensaje] = useState("");
-  const [now, setNow] = useState(Date.now());
 
-  // Traer fecha/hora de cierre actual al montar
-  useEffect(() => {
-    // NOTA: Este endpoint parece ser específico de jornadas, posiblemente necesite moverse o adaptarse
-    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fecha-cierre`)
-    fetch(`${API_BASE_URL}/api/admin/sudamericana/fecha-cierre`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.fecha_cierre) setFechaCierre(data.fecha_cierre.slice(0, 16)); // formato yyyy-MM-ddTHH:mm
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  // Actualizar reloj cada segundo
-  useEffect(() => {
-    if (!fechaCierre) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [fechaCierre]);
-
-  // Calcular tiempo restante
-  let tiempoRestante = null;
-  let cerradoPorFecha = false;
-  if (fechaCierre) {
-    const cierreMs = new Date(fechaCierre).getTime();
-    const diff = cierreMs - now;
-    if (diff <= 0) {
-      tiempoRestante = "00:00:00";
-      cerradoPorFecha = true;
-    } else {
-      const horas = Math.floor(diff / 3600000);
-      const minutos = Math.floor((diff % 3600000) / 60000);
-      const segundos = Math.floor((diff % 60000) / 1000);
-      tiempoRestante = `${horas.toString().padStart(2, "0")}:${minutos.toString().padStart(2, "0")}:${segundos.toString().padStart(2, "0")}`;
-    }
-  }
-
-  // Cerrar edición automáticamente si llega a 0
-  useEffect(() => {
-    if (cerradoPorFecha && !edicionCerrada) {
-      fetch(`${API_BASE_URL}/api/admin/sudamericana/cerrar`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ cerrada: true })
-      })
-        .then(res => res.json())
-        .then(() => setEdicionCerrada(true));
-    }
-  }, [cerradoPorFecha, edicionCerrada, API_BASE_URL, setEdicionCerrada]);
-
-  // Guardar nueva fecha/hora de cierre
-  const handleGuardarFecha = async () => {
-    setMensaje("");
-    if (!fechaCierre) {
-      setMensaje("Debes ingresar una fecha y hora válida");
-      return;
-    }
-    setLoading(true);
-    // NOTA: Este endpoint parece ser específico de jornadas, posiblemente necesite moverse o adaptarse
-    // const res = await fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fecha-cierre`, {
-    const res = await fetch(`${API_BASE_URL}/api/admin/sudamericana/fecha-cierre`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fecha_cierre: fechaCierre })
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (data.ok) setMensaje("Fecha/hora de cierre guardada correctamente");
-    else setMensaje("Error al guardar la fecha/hora de cierre");
-  };
-
-  return (
-    <div>
-      <div className="mb-2">
-        <label className="form-label">Fecha y hora de cierre (zona servidor):</label>
-        <input
-          type="datetime-local"
-          className="form-control w-auto d-inline-block ms-2"
-          value={fechaCierre}
-          onChange={e => setFechaCierre(e.target.value)}
-          disabled={loading}
-        />
-        <button className="btn btn-primary ms-2" onClick={handleGuardarFecha} disabled={loading}>
-          Guardar fecha/hora
-        </button>
-      </div>
-      {fechaCierre && (
-        <div className="mb-2">
-          <strong>Cuenta regresiva:</strong> <span className="fs-5 text-danger">{tiempoRestante}</span>
-          {cerradoPorFecha && <span className="ms-2 text-success">Edición cerrada automáticamente</span>}
-        </div>
-      )}
-      {mensaje && <div className="alert alert-info mt-2">{mensaje}</div>}
-    </div>
-  );
-}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../hooks/UseAuth";
 import SudamericanaSubMenu from "../components/SudamericanaSubMenu";
+import CuentaRegresiva from "../components/CuentaRegresiva";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const ROUNDS = [
@@ -188,9 +189,12 @@ export default function IngresarPronosticosSud() {
   const [penales, setPenales] = useState({});
   const [mensaje, setMensaje] = useState("");
   const [edicionCerrada, setEdicionCerrada] = useState(false);
+  const [fechaCierre, setFechaCierre] = useState(null);
   const [clasificadosExistentes, setClasificadosExistentes] = useState(null);
   const [partidosVirtuales, setPartidosVirtuales] = useState([]); // Nuevo estado para partidos del backend
   const usuario = useAuth();
+
+  // ELIMINADO: cerrarEdicionAutomatica - El servidor se encarga del cierre automático como en torneo nacional
 
   useEffect(() => {
     // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
@@ -206,7 +210,17 @@ export default function IngresarPronosticosSud() {
     // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`)
     fetch(`${API_BASE_URL}/api/admin/sudamericana/estado-edicion`)
       .then(res => res.json())
-      .then(data => setEdicionCerrada(!!data.edicion_cerrada));
+      .then(data => setEdicionCerrada(!!data.cerrada)); // CORREGIDO: usar data.cerrada en lugar de data.edicion_cerrada
+    
+    // Cargar fecha de cierre para cuenta regresiva
+    fetch(`${API_BASE_URL}/api/admin/sudamericana/fecha-cierre`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.fecha_cierre) {
+          setFechaCierre(data.fecha_cierre);
+        }
+      })
+      .catch(err => console.error('Error cargando fecha de cierre:', err));
   }, []);
 
   // Cargar pronósticos guardados del usuario
@@ -547,6 +561,15 @@ export default function IngresarPronosticosSud() {
           ))}
         </select>
       </div>
+      
+      {/* Mostrar cuenta regresiva si hay fecha de cierre y no está cerrada */}
+      {fechaCierre && !edicionCerrada && (
+        <CuentaRegresiva 
+          fechaCierre={fechaCierre} 
+          numeroJornada="de pronósticos Sudamericana"
+        />
+      )}
+      
       {edicionCerrada && <div className="alert alert-warning">La edición de pronósticos está cerrada.</div>}
       {mensaje && <div className="alert alert-info">{mensaje}</div>}
       {loading ? (
