@@ -7,9 +7,26 @@
  * @param {Array} pronosticos - Array de pronósticos del usuario (por fixture_id)
  * @param {Array} resultados - Array de resultados oficiales (por fixture_id)
  * @param {number} usuarioId - ID del usuario (opcional, para logs)
+ * @param {Object} mapeoSiglas - Mapeo opcional de siglas a nombres reales
  * @returns {Object} Puntaje total y detalle por partido
  */
-function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioId = null) {
+function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioId = null, mapeoSiglas = null) {
+  console.log('🚀🚀 SERVICIO LLAMADO - mapeoSiglas recibido:', !!mapeoSiglas);
+  console.log('🔍 calcularPuntajesSudamericana llamado para usuario:', usuarioId);
+  console.log('🔍 Fixture count:', fixture?.length);
+  console.log('🔍 Pronosticos count:', pronosticos?.length);
+  console.log('🔍 Resultados count:', resultados?.length);
+  
+  // DEBUG ESPECÍFICO PARA MAPEO DE SIGLAS
+  if (mapeoSiglas && usuarioId === 2) {
+    console.log('🔍 CONTENIDO DE mapeoSiglas para usuario 2:');
+    console.log('   WC1:', mapeoSiglas['WC1']);
+    console.log('   WC2:', mapeoSiglas['WC2']); 
+    console.log('   WC3:', mapeoSiglas['WC3']);
+    console.log('   WC4:', mapeoSiglas['WC4']);
+    console.log('   Todas las claves WC:', Object.keys(mapeoSiglas).filter(k => k.startsWith('WC')));
+  }
+  
   // Configuración de puntajes por ronda
   const reglas = {
     'Knockout Round Play-offs': { signo: 1, dif: 3, exacto: 5, clasificado: 2 },
@@ -34,7 +51,7 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioI
     if (!pron || !real) continue;
     
     // Verificar si el cruce pronosticado coincide con el cruce real
-    const cruceCoincide = verificarCruceCoincidente(pron, real);
+    const cruceCoincide = verificarCruceCoincidente(pron, real, mapeoSiglas);
     
     let pts = 0;
     let tipo = '';
@@ -112,39 +129,74 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioI
  * Verifica si el cruce pronosticado coincide con el cruce real
  * @param {Object} pronostico - Pronóstico del usuario con equipos
  * @param {Object} resultado - Resultado real con equipos
+ * @param {Object} mapeoSiglas - Mapeo opcional de siglas a nombres reales
  * @returns {boolean} true si el cruce coincide, false si no
  */
-function verificarCruceCoincidente(pronostico, resultado) {
+function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
   if (!pronostico || !resultado) return false;
+  
+  // Debug específico para semifinales
+  if (pronostico.equipo_local?.includes('Independiente') || pronostico.equipo_visita?.includes('Independiente') ||
+      resultado.equipo_local?.includes('Independiente') || resultado.equipo_visita?.includes('Independiente')) {
+    console.log('🔍 VERIFICANDO INDEPENDIENTE:');
+    console.log('   Pronóstico:', pronostico.equipo_local, 'vs', pronostico.equipo_visita, 'fixture_id:', pronostico.fixture_id);
+    console.log('   Resultado:', resultado.equipo_local, 'vs', resultado.equipo_visita, 'fixture_id:', resultado.fixture_id);
+    
+    // Si los equipos son completamente diferentes, mostrar error
+    if (!resultado.equipo_local?.includes('Independiente') && !resultado.equipo_visita?.includes('Independiente') &&
+        !resultado.equipo_local?.includes('Fluminense') && !resultado.equipo_visita?.includes('Fluminense')) {
+      console.log('❌ ERROR: Los equipos en resultado no coinciden para nada con pronóstico');
+    }
+  }
+  
+  // SOLUCIÓN UNIVERSAL: Función para verificar si un texto contiene siglas
+  const esSigla = (texto) => {
+    if (!texto) return false;
+    // Detectar patrones de siglas: WC1, WC2, WS1, WS2, WP1-WP8, WO1-WO8, etc.
+    return /^W[CPSO]\d+$|^W[CPSO]\.\w+$/.test(texto.trim());
+  };
+  
+  // Si alguno de los equipos en resultado es una sigla, necesitamos mapeo
+  const resultadoTieneSiglas = esSigla(resultado.equipo_local) || esSigla(resultado.equipo_visita);
+  
+  if (resultadoTieneSiglas && mapeoSiglas) {
+    console.log('🔄 DETECTADAS SIGLAS EN RESULTADO - aplicando mapeo universal');
+    console.log('   Resultado original:', resultado.equipo_local, 'vs', resultado.equipo_visita);
+    
+    // Función para convertir sigla a nombre real
+    const convertirSigla = (texto) => {
+      const converted = mapeoSiglas[texto] || texto;
+      console.log(`   ${texto} -> ${converted}`);
+      return converted;
+    };
+    
+    // Convertir equipos del resultado usando mapeo
+    const resultadoConNombres = {
+      equipo_local: convertirSigla(resultado.equipo_local),
+      equipo_visita: convertirSigla(resultado.equipo_visita)
+    };
+    
+    console.log('🔄 RESULTADO CONVERTIDO:', resultadoConNombres.equipo_local, 'vs', resultadoConNombres.equipo_visita);
+    
+    // Ahora comparar pronóstico vs resultado convertido
+    const pronEquipos = [pronostico.equipo_local, pronostico.equipo_visita].sort();
+    const realEquipos = [resultadoConNombres.equipo_local, resultadoConNombres.equipo_visita].sort();
+    
+    const coincide = JSON.stringify(pronEquipos) === JSON.stringify(realEquipos);
+    if (coincide) {
+      console.log('✅ MATCH UNIVERSAL CON MAPEO DE SIGLAS');
+      return true;
+    }
+  }
   
   // Normalizar nombres para comparación (remover acentos, espacios extra, etc.)
   const normalizar = (str) => {
     if (!str) return '';
-    let normalizado = str.toString().trim().toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ');
-    
-    //FIX: Normalización específica para equipos con nombres similares
-    // Central Córdoba vs Central Cordoba de Santiago
-    if (normalizado.includes('central cordoba')) {
-      normalizado = normalizado.replace(/central cordoba.*/, 'central cordoba');
-    }
-    
-    // Agregar más normalizaciones específicas si es necesario
-    // Ejemplo: Racing Club vs Racing
-    if (normalizado.includes('racing club')) {
-      normalizado = normalizado.replace(/racing club.*/, 'racing');
-    }
-    if (normalizado === 'racing') {
-      // Permitir que "racing" coincida con variantes
-    }
-    
-    // Independiente del Valle vs Independiente
-    if (normalizado.includes('independiente del valle')) {
-      normalizado = normalizado.replace(/independiente del valle.*/, 'independiente del valle');
-    }
-    
-    return normalizado;
+    return str.toString().trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remover acentos
+      .replace(/[^\w\s]/g, '') // Remover signos de puntuación
+      .replace(/\s+/g, ' ') // Normalizar espacios
+      .trim();
   };
   
   const pronLocal = normalizar(pronostico.equipo_local);
@@ -152,30 +204,63 @@ function verificarCruceCoincidente(pronostico, resultado) {
   const realLocal = normalizar(resultado.equipo_local);
   const realVisita = normalizar(resultado.equipo_visita);
   
-  // Verificar si los equipos coinciden exactamente (local-local, visita-visita)
+  // Verificar coincidencia directa
   const coincidenDirecto = (pronLocal === realLocal && pronVisita === realVisita);
   
-  // Verificar si los equipos coinciden invertidos (local-visita, visita-local)
+  // Verificar coincidencia invertida
   const coincidenInvertido = (pronLocal === realVisita && pronVisita === realLocal);
   
-  // NUEVO: Verificar si hay siglas - en ese caso, considerar como coincidente
-  // porque el sistema de siglas ya debería haber resuelto esto correctamente
-  const esSigla = (texto) => {
-    if (!texto) return false;
-    return /^W[A-Z][0-9A-Z]*\.?[A-Z0-9]*$/.test(texto) || texto.length <= 3;
-  };
+  // Verificar coincidencia parcial (contiene)
+  const localCoincide = pronLocal.includes(realLocal) || realLocal.includes(pronLocal) || 
+                       pronLocal === realLocal;
+  const visitaCoincide = pronVisita.includes(realVisita) || realVisita.includes(pronVisita) || 
+                        pronVisita === realVisita;
   
-  const pronTieneSiglas = esSigla(pronLocal) || esSigla(pronVisita);
-  const realTieneSiglas = esSigla(realLocal) || esSigla(realVisita);
+  const localCoincideInv = pronLocal.includes(realVisita) || realVisita.includes(pronLocal) || 
+                          pronLocal === realVisita;
+  const visitaCoincideInv = pronVisita.includes(realLocal) || realLocal.includes(pronVisita) || 
+                           pronVisita === realLocal;
   
-  // DEBUG: Si hay siglas, significa que el sistema de reemplazo no funcionó correctamente
-  // En lugar de retornar true automáticamente, vamos a ser más estrictos
-  if (pronTieneSiglas || realTieneSiglas) {
-    // Solo coinciden si ambos tienen exactamente las mismas siglas
-    return coincidenDirecto || coincidenInvertido;
+  const coincidenParcialDirecto = localCoincide && visitaCoincide;
+  const coincidenParcialInvertido = localCoincideInv && visitaCoincideInv;
+  
+  const resultado_final = coincidenDirecto || coincidenInvertido || coincidenParcialDirecto || coincidenParcialInvertido;
+  
+  // SOLUCIÓN DEFINITIVA: Si no hay coincidencia exacta, verificar equipos individuales
+  // Esto soluciona el problema de fixture_ids que no existen en sudamericana_fixtures (como semifinales)
+  if (!resultado_final) {
+    console.log('🔄 BUSCANDO COINCIDENCIA POR EQUIPOS INDIVIDUALES (fixture_id no encontrado)');
+    
+    // Verificar si los equipos del pronóstico están presentes en el resultado (en cualquier orden)
+    const equiposPronostico = [normalizar(pronostico.equipo_local), normalizar(pronostico.equipo_visita)];
+    const equiposResultado = [normalizar(resultado.equipo_local), normalizar(resultado.equipo_visita)];
+    
+    // Buscar coincidencias parciales (includes) para cada equipo
+    const equipo1Coincide = equiposResultado.some(eqRes => 
+      equiposPronostico.some(eqPron => 
+        eqPron.includes(eqRes) || eqRes.includes(eqPron) || eqPron === eqRes
+      )
+    );
+    
+    const equipo2Coincide = equiposPronostico.every(eqPron => 
+      equiposResultado.some(eqRes => 
+        eqPron.includes(eqRes) || eqRes.includes(eqPron) || eqPron === eqRes
+      )
+    );
+    
+    if (equipo1Coincide && equipo2Coincide) {
+      console.log('✅ MATCH POR EQUIPOS INDIVIDUALES:');
+      console.log('   Pronóstico:', equiposPronostico);
+      console.log('   Resultado:', equiposResultado);
+      return true;
+    }
+    
+    console.log('❌ NO HAY COINCIDENCIA:');
+    console.log('   Pronóstico:', equiposPronostico);
+    console.log('   Resultado:', equiposResultado);
   }
   
-  return coincidenDirecto || coincidenInvertido;
+  return resultado_final;
 }
 
 export { calcularPuntajesSudamericana };

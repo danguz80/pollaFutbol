@@ -42,6 +42,7 @@ function esSigla(str) {
 // GET /api/sudamericana/clasificacion/:ronda
 router.get('/clasificacion/:ronda', async (req, res) => {
   const { ronda } = req.params;
+  console.log('🚀 CLASIFICACION POR RONDA EJECUTÁNDOSE - Ronda:', ronda);
   try {
     // Obtener todos los usuarios con pronósticos en esa ronda y sus nombres (EXCLUIR ADMINS)
     const usuariosRes = await pool.query(
@@ -64,6 +65,10 @@ router.get('/clasificacion/:ronda', async (req, res) => {
     
     // Obtener clasificados REALES desde la BD oficial
     const dicSiglasReales = await obtenerClasificadosReales();
+    
+    // Debug para verificar mapeo
+    console.log('🔍 dicSiglasReales para ronda', ronda, ':', dicSiglasReales);
+    console.log('🔍 Claves WC:', Object.keys(dicSiglasReales).filter(k => k.startsWith('WC')));
     
     // Reemplazar siglas en fixture usando clasificados REALES calculados
     const fixtureConNombresReales = reemplazarSiglasPorNombres(fixture, dicSiglasReales);
@@ -88,8 +93,8 @@ router.get('/clasificacion/:ronda', async (req, res) => {
         bonus: f.bonus
       }));
       
-      // Calcular puntajes (usando fixture con nombres REALES, pronósticos con nombres del usuario, y resultados con nombres REALES)
-      const puntaje = calcularPuntajesSudamericana(fixtureConNombresReales, pronosUsuarioConNombres, resultados, u.usuario_id);
+      // Calcular puntajes pasando el mapeo de siglas
+      const puntaje = calcularPuntajesSudamericana(fixtureConNombresReales, pronosUsuarioConNombres, resultados, u.usuario_id, dicSiglasReales);
       
       // Sumar solo los puntos de partidos de la ronda seleccionada
       const totalRonda = puntaje.detalle.reduce((acc, d) => d.partido.ronda === ronda ? acc + d.pts : acc, 0);
@@ -118,6 +123,7 @@ router.get('/clasificacion/:ronda', async (req, res) => {
 
 // GET /api/sudamericana/clasificacion-completa - Puntajes completos (partidos + clasificados) por usuario
 router.get('/clasificacion-completa', async (req, res) => {
+  console.log('🚀 CLASIFICACION-COMPLETA EJECUTÁNDOSE');
   try {
     // Obtener todos los usuarios con pronósticos de sudamericana (EXCLUIR ADMINS)
     const usuariosRes = await pool.query(
@@ -157,6 +163,19 @@ router.get('/clasificacion-completa', async (req, res) => {
       const pronosUsuario = pronos.filter(p => p.usuario_id === usuario.usuario_id);
       const pronosUsuarioConNombres = reemplazarSiglasPorNombres(pronosUsuario, dicSiglasUsuario);
       
+      // Debug para usuario ID 2
+      if (usuario.usuario_id === 2) {
+        console.log('🔍 CLASIFICACION-COMPLETA - Usuario 2:');
+        console.log('🔍 dicSiglasReales:', dicSiglasReales);
+        console.log('🔍 Claves principales:', Object.keys(dicSiglasReales).filter(k => k.startsWith('WC')));
+        
+        // Buscar partidos de semifinals en fixture original vs con nombres
+        const semiOriginal = fixture.filter(f => f.ronda === 'Semifinales');
+        const semiConNombres = fixtureConNombres.filter(f => f.ronda === 'Semifinales');
+        console.log('🔍 Semifinales ORIGINAL:', semiOriginal.map(s => `${s.equipo_local} vs ${s.equipo_visita}`));
+        console.log('🔍 Semifinales CON NOMBRES:', semiConNombres.map(s => `${s.equipo_local} vs ${s.equipo_visita}`));
+      }
+      
       // Crear resultados con equipos reales (desde fixture con nombres REALES)
       const resultados = fixtureConNombres.map(f => ({
         fixture_id: f.fixture_id,
@@ -169,8 +188,8 @@ router.get('/clasificacion-completa', async (req, res) => {
         bonus: f.bonus
       }));
       
-      // Calcular puntos por partidos (usando fixture con nombres REALES, pronósticos con nombres del usuario, y resultados con nombres REALES)
-      const puntajePartidos = calcularPuntajesSudamericana(fixtureConNombres, pronosUsuarioConNombres, resultados, usuario.usuario_id);
+      // Calcular puntos por partidos pasando el mapeo de siglas como parámetro
+      const puntajePartidos = calcularPuntajesSudamericana(fixtureConNombres, pronosUsuarioConNombres, resultados, usuario.usuario_id, dicSiglasReales);
       
       // Agregar información de cruce real vs pronosticado al detalle
       const detalleConCruce = puntajePartidos?.detalle?.map(d => ({

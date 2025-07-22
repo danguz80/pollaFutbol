@@ -135,6 +135,8 @@ router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin')
 // GET /api/sudamericana/puntajes/:usuarioId
 router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
   const { usuarioId } = req.params;
+  
+  console.log('🚀 RUTA PUNTAJES EJECUTÁNDOSE - Usuario ID:', usuarioId);
 
   // Verificar que el usuarioId de la URL coincida con el usuario autenticado
   if (req.usuario.id !== parseInt(usuarioId)) {
@@ -153,17 +155,87 @@ router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
     // Obtener pronósticos del usuario
     const pronosRes = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [usuarioId]);
 
-    // Obtener puntos por partidos (lógica existente)
-    const resultados = fixtureRes.rows.map(f => ({
-      fixture_id: f.fixture_id,
-      goles_local: f.goles_local,
-      goles_visita: f.goles_visita,
-      ganador: f.clasificado, // CORREGIDO: usar 'clasificado' en lugar de 'ganador'
-      equipo_local: f.equipo_local,
-      equipo_visita: f.equipo_visita,
-      ronda: f.ronda
-    }));
+    // APLICAR REEMPLAZO DE SIGLAS A LOS FIXTURES
+    // Obtener clasificados de todas las rondas para mapear siglas
+    const clasificadosRes = await pool.query('SELECT ronda, clasificados FROM clasif_sud');
+    const clasificadosMap = {};
+    for (const row of clasificadosRes.rows) {
+      if (!clasificadosMap[row.ronda]) clasificadosMap[row.ronda] = [];
+      clasificadosMap[row.ronda].push(row.clasificados);
+    }
+    
+    // Crear mapeo de siglas a nombres reales basado en clasificados
+    const siglaToNombre = {};
+    const rondasSiglas = ['Knockout Round Play-offs', 'Octavos de Final', 'Cuartos de Final', 'Semifinales'];
+    const siglas = [
+      ['WP1', 'WP2', 'WP3', 'WP4', 'WP5', 'WP6', 'WP7', 'WP8'], // Play-offs
+      ['WO1', 'WO2', 'WO3', 'WO4', 'WO5', 'WO6', 'WO7', 'WO8'], // Octavos
+      ['WC1', 'WC2', 'WC3', 'WC4'], // Cuartos
+      ['WS1', 'WS2'] // Semifinales
+    ];
+    
+    for (let i = 0; i < rondasSiglas.length; i++) {
+      const ronda = rondasSiglas[i];
+      const siglasRonda = siglas[i];
+      const clasificadosRonda = clasificadosMap[ronda] || [];
+      
+      for (let j = 0; j < siglasRonda.length && j < clasificadosRonda.length; j++) {
+        siglaToNombre[siglasRonda[j]] = clasificadosRonda[j];
+      }
+    }
+    
+    // Función para reemplazar siglas en un string
+    const reemplazarSiglas = (texto) => {
+      if (!texto) return texto;
+      let resultado = texto;
+      for (const [sigla, nombre] of Object.entries(siglaToNombre)) {
+        resultado = resultado.replace(sigla, nombre);
+      }
+      return resultado;
+    };
+    
+    // Debug: log del mapeo de siglas para verificar
+    console.log('🔍 Usuario ID:', usuarioId);
+    console.log('🔍 clasificadosMap:', clasificadosMap);
+    console.log('🔍 Mapeo siglaToNombre:', siglaToNombre);
+
+    // Obtener puntos por partidos (aplicando reemplazo de siglas)
+    const resultados = fixtureRes.rows.map(f => {
+      const equipoLocalOriginal = f.equipo_local;
+      const equipoVisitaOriginal = f.equipo_visita;
+      const equipoLocalNuevo = reemplazarSiglas(f.equipo_local);
+      const equipoVisitaNuevo = reemplazarSiglas(f.equipo_visita);
+      
+      // Debug: log de reemplazos para semifinales
+      if (f.ronda === 'Semifinales') {
+        console.log(`🔍 Semifinal fixture_id ${f.fixture_id}:`);
+        console.log(`   Original: ${equipoLocalOriginal} vs ${equipoVisitaOriginal}`);
+        console.log(`   Después:  ${equipoLocalNuevo} vs ${equipoVisitaNuevo}`);
+      }
+      
+      return {
+        fixture_id: f.fixture_id,
+        goles_local: f.goles_local,
+        goles_visita: f.goles_visita,
+        ganador: f.clasificado, // CORREGIDO: usar 'clasificado' en lugar de 'ganador'
+        equipo_local: equipoLocalNuevo,
+        equipo_visita: equipoVisitaNuevo,
+        ronda: f.ronda
+      };
+    });
     const puntajePartidos = calcularPuntajesSudamericana(fixtureRes.rows, pronosRes.rows, resultados);
+    
+    // Debug: mostrar pronósticos del usuario para semifinales
+    if (usuarioId === '2') {
+      console.log('🔍 Pronósticos del usuario 2 para semifinales:');
+      const pronosticosSemi = pronosRes.rows.filter(p => {
+        const fixture = fixtureRes.rows.find(f => f.fixture_id === p.fixture_id);
+        return fixture && fixture.ronda === 'Semifinales';
+      });
+      pronosticosSemi.forEach(p => {
+        console.log(`   fixture_id ${p.fixture_id}: ${p.equipo_local} vs ${p.equipo_visita}`);
+      });
+    }
 
     // === CLASIFICADOS ===
     // 1. Obtener todas las rondas únicas
