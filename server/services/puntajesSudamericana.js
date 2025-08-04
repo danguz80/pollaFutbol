@@ -120,17 +120,6 @@ function calcularPuntajesSudamericana(fixture, pronosticos, resultados, usuarioI
 function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
   if (!pronostico || !resultado) return false;
   
-  // Debug específico para semifinales
-  if (pronostico.equipo_local?.includes('Independiente') || pronostico.equipo_visita?.includes('Independiente') ||
-      resultado.equipo_local?.includes('Independiente') || resultado.equipo_visita?.includes('Independiente')) {
-    
-    // Si los equipos son completamente diferentes, mostrar error
-    if (!resultado.equipo_local?.includes('Independiente') && !resultado.equipo_visita?.includes('Independiente') &&
-        !resultado.equipo_local?.includes('Fluminense') && !resultado.equipo_visita?.includes('Fluminense')) {
-      
-    }
-  }
-  
   // SOLUCIÓN UNIVERSAL: Función para verificar si un texto contiene siglas
   const esSigla = (texto) => {
     if (!texto) return false;
@@ -142,13 +131,9 @@ function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
   const resultadoTieneSiglas = esSigla(resultado.equipo_local) || esSigla(resultado.equipo_visita);
   
   if (resultadoTieneSiglas && mapeoSiglas) {
-    console.log('🔄 DETECTADAS SIGLAS EN RESULTADO - aplicando mapeo universal');
-    console.log('   Resultado original:', resultado.equipo_local, 'vs', resultado.equipo_visita);
-    
     // Función para convertir sigla a nombre real
     const convertirSigla = (texto) => {
       const converted = mapeoSiglas[texto] || texto;
-      console.log(`   ${texto} -> ${converted}`);
       return converted;
     };
     
@@ -158,15 +143,12 @@ function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
       equipo_visita: convertirSigla(resultado.equipo_visita)
     };
     
-    console.log('🔄 RESULTADO CONVERTIDO:', resultadoConNombres.equipo_local, 'vs', resultadoConNombres.equipo_visita);
-    
     // Ahora comparar pronóstico vs resultado convertido
     const pronEquipos = [pronostico.equipo_local, pronostico.equipo_visita].sort();
     const realEquipos = [resultadoConNombres.equipo_local, resultadoConNombres.equipo_visita].sort();
     
     const coincide = JSON.stringify(pronEquipos) === JSON.stringify(realEquipos);
     if (coincide) {
-      console.log('✅ MATCH UNIVERSAL CON MAPEO DE SIGLAS');
       return true;
     }
   }
@@ -211,7 +193,6 @@ function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
   // SOLUCIÓN DEFINITIVA: Si no hay coincidencia exacta, verificar equipos individuales
   // Esto soluciona el problema de fixture_ids que no existen en sudamericana_fixtures (como semifinales)
   if (!resultado_final) {
-    
     // Verificar si los equipos del pronóstico están presentes en el resultado (en cualquier orden)
     const equiposPronostico = [normalizar(pronostico.equipo_local), normalizar(pronostico.equipo_visita)];
     const equiposResultado = [normalizar(resultado.equipo_local), normalizar(resultado.equipo_visita)];
@@ -232,7 +213,6 @@ function verificarCruceCoincidente(pronostico, resultado, mapeoSiglas = null) {
     if (equipo1Coincide && equipo2Coincide) {
       return true;
     }
-    
   }
   
   return resultado_final;

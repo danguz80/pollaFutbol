@@ -79,9 +79,7 @@ router.post("/guardar-pronosticos-elim", verifyToken, async (req, res) => {
     } else {
       // 🔥 FUNCIONALIDAD DESHABILITADA: No actualizar cruces automáticamente para preservar estructura de siglas
       try {
-        console.log('🔧 Actualización automática de cruces deshabilitada para preservar siglas');
         // await definirClasificadosPlayoffs();
-        console.log('✅ Pronósticos guardados sin modificar estructura de fixture');
         res.json({ ok: true, exitos, message: `${exitos} pronósticos guardados correctamente` });
       } catch (updateError) {
         console.error('❌ Error actualizando cruces:', updateError);

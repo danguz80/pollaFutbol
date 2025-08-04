@@ -60,12 +60,38 @@ export function calcularAvanceEliminatoria(fixture, pronosticos, penales) {
 
       // Calcular goles según el número de partidos en el cruce
       if (partidos.length === 2) {
-        // Ida y vuelta: sumar goles cruzados
+        // Ida y vuelta: sumar goles de cada equipo en ambos partidos
         const p1 = partidos[0], p2 = partidos[1];
-        gA = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0) + 
-             Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
-        gB = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0) + 
-             Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
+        
+        // Debug específico para WC3
+        if (sigla === 'WC3') {
+          console.log('🚨 DEBUG CÁLCULO GOLES WC3 (' + eqA + ' vs ' + eqB + ')');
+          console.log('Partidos del cruce:', partidos);
+          console.log('p1 (ida):', p1);
+          console.log('p2 (vuelta):', p2);
+          console.log('Pronóstico p1 (' + p1.fixture_id + '):', pronosticos[p1.fixture_id]);
+          console.log('Pronóstico p2 (' + p2.fixture_id + '):', pronosticos[p2.fixture_id]);
+        }
+        
+        // CORREGIDO: Calcular goles de cada equipo en ambos partidos
+        // gA = goles totales de eqA (en p1 y p2)
+        // gB = goles totales de eqB (en p1 y p2)
+        
+        // En p1: eqA juega de local, eqB de visita
+        const golesEqAEnP1 = Number(pronosticos[p1.fixture_id]?.local ?? p1.goles_local ?? 0);
+        const golesEqBEnP1 = Number(pronosticos[p1.fixture_id]?.visita ?? p1.goles_visita ?? 0);
+        
+        // En p2: eqA juega de visita, eqB de local (intercambian localía)
+        const golesEqAEnP2 = Number(pronosticos[p2.fixture_id]?.visita ?? p2.goles_visita ?? 0);
+        const golesEqBEnP2 = Number(pronosticos[p2.fixture_id]?.local ?? p2.goles_local ?? 0);
+        
+        gA = golesEqAEnP1 + golesEqAEnP2;
+        gB = golesEqBEnP1 + golesEqBEnP2;
+        
+        if (sigla === 'WC3') {
+          console.log('gA (' + eqA + '): ' + golesEqAEnP1 + ' + ' + golesEqAEnP2 + ' = ' + gA);
+          console.log('gB (' + eqB + '): ' + golesEqBEnP1 + ' + ' + golesEqBEnP2 + ' = ' + gB);
+        }
       } else {
         // Partido único (Final)
         const p = partidos[0];

@@ -194,7 +194,11 @@ export default function IngresarPronosticosSud() {
   const [partidosVirtuales, setPartidosVirtuales] = useState([]); // Nuevo estado para partidos del backend
   const usuario = useAuth();
 
-  // ELIMINADO: cerrarEdicionAutomatica - El servidor se encarga del cierre automático como en torneo nacional
+  // Handler para cerrar edición automáticamente cuando llegue a cero
+  const cerrarEdicionAutomatica = async () => {
+    console.log('⏰ Tiempo llegó a cero - cerrando edición automáticamente');
+    setEdicionCerrada(true);
+  };
 
   useEffect(() => {
     // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
@@ -210,7 +214,7 @@ export default function IngresarPronosticosSud() {
     // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/config`)
     fetch(`${API_BASE_URL}/api/admin/sudamericana/estado-edicion`)
       .then(res => res.json())
-      .then(data => setEdicionCerrada(!!data.cerrada)); // CORREGIDO: usar data.cerrada en lugar de data.edicion_cerrada
+      .then(data => setEdicionCerrada(!!data.edicion_cerrada));
     
     // Cargar fecha de cierre para cuenta regresiva
     fetch(`${API_BASE_URL}/api/admin/sudamericana/fecha-cierre`)
@@ -567,6 +571,7 @@ export default function IngresarPronosticosSud() {
         <CuentaRegresiva 
           fechaCierre={fechaCierre} 
           numeroJornada="de pronósticos Sudamericana"
+          onCero={cerrarEdicionAutomatica}
         />
       )}
       

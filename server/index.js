@@ -16,7 +16,7 @@ import pronosticosSudamericanaRouter from "./routes/pronosticosSudamericana.js";
 import puntajesSudamericanaRouter from "./routes/puntajesSudamericana.js";
 import clasificacionSudamericanaRouter from './routes/clasificacionSudamericana.js';
 import sudamericanaRankingRouter from './routes/sudamericanaRanking.js';
-import adminSudamericanaRouter from "./routes/admin_sud.js";
+import adminSudamericanaRouter, { cierreAutomaticoSudamericana } from "./routes/admin_sud.js";
 import sudamericanaRouter from "./routes/sudamericana.js";
 
 dotenv.config();
@@ -59,6 +59,9 @@ app.use('/api/sudamericana', sudamericanaRankingRouter);
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");
 });
+
+// Cron para cierre automático de edición de pronósticos Sudamericana
+setInterval(cierreAutomaticoSudamericana, 60000);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

@@ -26,8 +26,8 @@ function agruparPorSigla(partidos) {
     if (!grupos[key]) grupos[key] = [];
     grupos[key].push(p);
   }
-  // Ordenar partidos dentro de cada grupo por fixture_id (ascendente)
-  Object.values(grupos).forEach(arr => arr.sort((a, b) => Number(a.fixture_id) - Number(b.fixture_id)));
+  // Ordenar partidos dentro de cada grupo por fecha
+  Object.values(grupos).forEach(arr => arr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha)));
   // Retornar un array de [sigla, partidos] ordenado por sigla ascendente
   return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 }
@@ -124,45 +124,7 @@ export default function AdminPanelSudamericana() {
     // Una sigla típicamente contiene menos de 5 caracteres y/o incluye números
     return texto.length < 5 || /\d/.test(texto);
   }
-  
-  // Cambiar goles de un equipo
-  const handleCambiarGoles = (partidoId, campo, valor) => {
-    const nuevosPartidos = partidos.map(p => {
-      if (p.id === partidoId) {
-        return { ...p, [campo]: valor };
-      }
-      return p;
-    });
-    setPartidos(nuevosPartidos);
-  };
-
-  // Cambiar factor bonus de un partido
-  const handleCambiarBonus = (partidoId, valor) => {
-    const nuevosPartidos = partidos.map(p => {
-      if (p.id === partidoId) {
-        return { ...p, bonus: Number(valor) };
-      }
-      return p;
-    });
-    setPartidos(nuevosPartidos);
-  };
-
-  // Manejar cambio en penales
-  const handleCambiarPenales = (fixtureId, tipo, valor) => {
-    setPenales(prev => ({
-      ...prev,
-      [fixtureId]: {
-        ...prev[fixtureId],
-        [tipo]: valor
-      }
-    }));
-  };
-  
-  // POST para guardar resultados de partidos (goles, penales, bonus)
-  const guardarResultados = async () => {
-    if (!rondaSeleccionada) return;
-    try {
-      const token = localStorage.getItem("token");
+      
       // Combinar goles, penales y bonus en un solo objeto por partido
       const partidosConPenales = partidos.map(p => ({
         id: p.id,
@@ -281,7 +243,35 @@ export default function AdminPanelSudamericana() {
     }
   }
 
-  // NOTA: La función guardarResultados ya está definida arriba
+  const guardarResultados = async () => {
+    if (!rondaSeleccionada) return;
+    try {
+      const token = localStorage.getItem("token");
+      // Combinar goles, penales y bonus en un solo objeto por partido
+      const partidosConPenales = partidos.map(p => ({
+        id: p.id,
+        golesLocal: p.goles_local,
+        golesVisita: p.goles_visita,
+        bonus: p.bonus,
+        penalesLocal: penales[p.fixture_id]?.local ?? "",
+        penalesVisita: penales[p.fixture_id]?.visitante ?? ""
+      }));
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/fixture/${encodeURIComponent(rondaSeleccionada)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ partidos: partidosConPenales }),
+      });
+      const data = await res.json();
+      alert(data.mensaje || "Resultados guardados en la base de datos");
+      fetchPartidos(rondaSeleccionada);
+    } catch (error) {
+      console.error("Error al guardar resultados Sudamericana:", error);
+      alert("❌ Error al guardar resultados");
+    }
+  };
 
   return (
     <div className="container mt-4">
@@ -327,15 +317,18 @@ export default function AdminPanelSudamericana() {
           {agruparPorSigla(partidos).map(([sigla, partidosCruce]) => {
             // Calcular global y empate para este cruce
             const { eqA, eqB, totalA, totalB, empate } = getGlobalYEmpate(partidosCruce);
-            // Obtener fixture_id del partido de vuelta (el segundo en el arreglo ordenado) para penales
+            // Obtener fixture_id del partido de vuelta (más alto) para penales
             const fixtureIdVuelta = partidosCruce.length === 2 ? 
-              partidosCruce[1].fixture_id : 
+              Math.max(...partidosCruce.map(p => Number(p.fixture_id))) : 
               partidosCruce[0].fixture_id;
             
             return (
               <div key={sigla} className="mb-4 border p-3 rounded">
                 <h6 className="mb-3">
                   Cruce {sigla}
+                  {partidosCruce.some(p => p.equipo_local_original !== p.equipo_local || p.equipo_visita_original !== p.equipo_visita) && (
+                    <small className="text-muted ms-2">(Equipos calculados automáticamente)</small>
+                  )}
                 </h6>
                 <table className="table table-bordered text-center mb-2">
                   <thead className="table-secondary">
@@ -354,6 +347,9 @@ export default function AdminPanelSudamericana() {
                         <td>
                           <div>
                             <strong>{partido.equipo_local}</strong>
+                            {partido.equipo_local_original !== partido.equipo_local && (
+                              <small className="text-muted d-block">({partido.equipo_local_original})</small>
+                            )}
                           </div>
                         </td>
                         <td className="d-flex justify-content-center align-items-center gap-2">
@@ -376,6 +372,9 @@ export default function AdminPanelSudamericana() {
                         <td>
                           <div>
                             <strong>{partido.equipo_visita}</strong>
+                            {partido.equipo_visita_original !== partido.equipo_visita && (
+                              <small className="text-muted d-block">({partido.equipo_visita_original})</small>
+                            )}
                           </div>
                         </td>
                         <td>

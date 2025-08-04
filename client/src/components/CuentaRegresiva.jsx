@@ -7,7 +7,6 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
   useEffect(() => {
     if (!fechaCierre) return;
     const interval = setInterval(() => {
-      // Usar horario local del navegador, que debería estar configurado en Chile
       const ahora = new Date();
       const cierre = new Date(fechaCierre);
       const diff = cierre - ahora;
@@ -29,8 +28,10 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
 
   if (!fechaCierre) return null;
   if (finalizado) {
-    // MODIFICADO: Solo mostrar que el tiempo terminó, el servidor maneja el cierre real
-    return <div className="alert alert-warning text-center">⏰ Tiempo de cuenta regresiva finalizado</div>;
+    const mensajeCierre = numeroJornada.includes('Sudamericana') 
+      ? '¡Edición de pronósticos Sudamericana cerrada!' 
+      : '¡Jornada cerrada!';
+    return <div className="alert alert-danger text-center">{mensajeCierre}</div>;
   }
 
   return (

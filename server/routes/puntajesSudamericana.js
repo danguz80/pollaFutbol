@@ -136,7 +136,6 @@ router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin')
 router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
   const { usuarioId } = req.params;
   
-  console.log('🚀 RUTA PUNTAJES EJECUTÁNDOSE - Usuario ID:', usuarioId);
 
   // Verificar que el usuarioId de la URL coincida con el usuario autenticado
   if (req.usuario.id !== parseInt(usuarioId)) {
@@ -195,9 +194,6 @@ router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
     };
     
     // Debug: log del mapeo de siglas para verificar
-    console.log('🔍 Usuario ID:', usuarioId);
-    console.log('🔍 clasificadosMap:', clasificadosMap);
-    console.log('🔍 Mapeo siglaToNombre:', siglaToNombre);
 
     // Obtener puntos por partidos (aplicando reemplazo de siglas)
     const resultados = fixtureRes.rows.map(f => {
@@ -208,9 +204,6 @@ router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
       
       // Debug: log de reemplazos para semifinales
       if (f.ronda === 'Semifinales') {
-        console.log(`🔍 Semifinal fixture_id ${f.fixture_id}:`);
-        console.log(`   Original: ${equipoLocalOriginal} vs ${equipoVisitaOriginal}`);
-        console.log(`   Después:  ${equipoLocalNuevo} vs ${equipoVisitaNuevo}`);
       }
       
       return {
@@ -227,13 +220,11 @@ router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
     
     // Debug: mostrar pronósticos del usuario para semifinales
     if (usuarioId === '2') {
-      console.log('🔍 Pronósticos del usuario 2 para semifinales:');
       const pronosticosSemi = pronosRes.rows.filter(p => {
         const fixture = fixtureRes.rows.find(f => f.fixture_id === p.fixture_id);
         return fixture && fixture.ronda === 'Semifinales';
       });
       pronosticosSemi.forEach(p => {
-        console.log(`   fixture_id ${p.fixture_id}: ${p.equipo_local} vs ${p.equipo_visita}`);
       });
     }
 

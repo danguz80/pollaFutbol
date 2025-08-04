@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { getSudamericanaCellStyle } from '../utils/sudamericanaRankingStyle';
 import { getFotoPerfilUrl } from '../utils/fotoPerfil';
-import { getFixtureVirtual, calcularAvanceEliminatoria } from '../utils/sudamericanaEliminatoria';
 import SudamericanaSubMenu from "../components/SudamericanaSubMenu";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -26,20 +24,17 @@ export default function ClasificacionSudamericana() {
 
   useEffect(() => {
     setLoading(true);
-    // Usar el nuevo endpoint que incluye partidos y clasificados
+    // Solo obtener datos ya calculados del backend
     fetch(`${API_BASE_URL}/api/sudamericana/clasificacion-completa`)
       .then(res => res.json())
       .then(data => {
         setClasificacion(data);
-        setClasificacionFiltrada(data); // Inicializar clasificación filtrada
+        setClasificacionFiltrada(data);
         setLoading(false);
       });
-    // Fetch ranking acumulado Sudamericana
     fetch(`${API_BASE_URL}/api/sudamericana/ranking`)
       .then(res => res.json())
       .then(data => setRanking(data));
-    // CORREGIDA: Cambiar de /api/jornadas/sudamericana/fixture a /api/sudamericana/fixture
-    // fetch(`${API_BASE_URL}/api/jornadas/sudamericana/fixture`)
     fetch(`${API_BASE_URL}/api/sudamericana/fixture`)
       .then(res => res.json())
       .then(data => setFixture(data));
@@ -49,14 +44,12 @@ export default function ClasificacionSudamericana() {
   useEffect(() => {
     let filtrada = clasificacion;
     
-    // Filtrar por usuario si está seleccionado
     if (selectedUser !== "") {
       filtrada = filtrada.filter(jugador => 
         getNombreUsuario(jugador) === selectedUser
       );
     }
     
-    // Filtrar por partido si está seleccionado
     if (selectedMatch !== "") {
       const [equipoLocal, equipoVisita] = selectedMatch.split(" vs ");
       filtrada = filtrada.filter(jugador => {
@@ -81,18 +74,14 @@ export default function ClasificacionSudamericana() {
     return users;
   };
 
-  // Función para obtener lista única de partidos de la ronda seleccionada con nombres reales
+  // Función para obtener lista única de partidos de la ronda seleccionada
   const getMatchesForRound = () => {
-    if (!fixture || fixture.length === 0 || !clasificacion || clasificacion.length === 0) return [];
+    if (!clasificacion || clasificacion.length === 0) return [];
     
-    // FIX: Obtener nombres reales desde los pronósticos de usuarios en lugar de siglas del fixture
     const matchesSet = new Set();
-    
-    // Usar los nombres de equipos desde los pronósticos (que ya tienen nombres reales)
     clasificacion.forEach(jug => {
       const detalleRonda = jug.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
       detalleRonda.forEach(d => {
-        // Los pronósticos ya tienen nombres reales de equipos
         const matchKey = `${d.partido.equipo_local} vs ${d.partido.equipo_visita}`;
         matchesSet.add(matchKey);
       });
@@ -181,248 +170,173 @@ export default function ClasificacionSudamericana() {
           {clasificacionFiltrada.length === 0 ? (
             <div className="text-center">No hay pronósticos disponibles.</div>
           ) : (
-            clasificacionFiltrada.map((jug, jugIdx) => {
-              // Calcular avance virtual del usuario para mostrar clasificados calculados
-              const detalleElim = jug.partidos.detalle.filter(p => ROUNDS.includes(p.partido.ronda));
-              const pronos = {};
-              const pens = {};
-              detalleElim.forEach(p => {
-                pronos[p.fixture_id] = {
-                  local: p.pron.goles_local !== null ? Number(p.pron.goles_local) : "",
-                  visita: p.pron.goles_visita !== null ? Number(p.pron.goles_visita) : ""
-                };
-                if (p.pron.penales_local !== null || p.pron.penales_visita !== null) {
-                  if (!pens[p.fixture_id]) pens[p.fixture_id] = {};
-                  if (p.pron.penales_local !== null) pens[p.fixture_id].local = p.pron.penales_local;
-                  if (p.pron.penales_visita !== null) pens[p.fixture_id].visitante = p.pron.penales_visita;
-                }
-              });
-              const avanceVirtual = calcularAvanceEliminatoria(fixture, pronos, pens);
-              
-              return (
-                <div key={jug.usuario_id} className="mb-5">
-                  {/* Separador entre jugadores */}
-                  {jugIdx > 0 && <hr style={{ border: '3px solid black', margin: '2rem 0' }} />}
-                  
-                  {/* Header del jugador */}
-                  <div className="mb-3 p-3" style={{ background: '#f0f8ff', borderRadius: '8px' }}>
-                    <h4 className="mb-2 text-center">{getNombreUsuario(jug)}</h4>
-                    <div className="text-center">
-                      <strong>Puntaje Total: {jug.total}</strong> | 
-                      Partidos: {jug.partidos.total} | 
-                      Clasificados: {jug.clasificados.total}
-                    </div>
+            clasificacionFiltrada.map((jug, jugIdx) => (
+              <div key={jug.usuario_id} className="mb-5">
+                {/* Separador entre jugadores */}
+                {jugIdx > 0 && <hr style={{ border: '3px solid black', margin: '2rem 0' }} />}
+                
+                {/* Header del jugador */}
+                <div className="mb-3 p-3" style={{ background: '#f0f8ff', borderRadius: '8px' }}>
+                  <h4 className="mb-2 text-center">{getNombreUsuario(jug)}</h4>
+                  <div className="text-center">
+                    <strong>Puntaje Total: {jug.total}</strong> | 
+                    Partidos: {jug.partidos.total} | 
+                    Clasificados: {jug.clasificados.total}
                   </div>
+                </div>
 
-                  {/* TABLA DE PARTIDOS */}
+                {/* TABLA DE PARTIDOS */}
+                <div className="mb-4">
+                  <h5 className="mb-2">
+                    📊 Partidos - {selectedRound}
+                    {selectedUser && (
+                      <small className="d-block text-muted mt-1">
+                        Usuario: {selectedUser}
+                      </small>
+                    )}
+                    {selectedMatch && (
+                      <small className="d-block text-muted mt-1">
+                        Partido: {selectedMatch}
+                      </small>
+                    )}
+                  </h5>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped text-center">
+                      <thead>
+                        <tr>
+                          <th>Ronda</th>
+                          <th>Partido Pronosticado</th>
+                          <th>Cruce Real</th>
+                          <th>Pronóstico</th>
+                          <th>Resultado Real</th>
+                          <th>Bonus</th>
+                          <th>Puntos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const detalleRonda = jug.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
+                          if (detalleRonda.length === 0) {
+                            return <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>;
+                          }
+                          
+                          let partidosFiltrados = detalleRonda;
+                          if (selectedMatch) {
+                            partidosFiltrados = detalleRonda.filter(d => {
+                              const matchKey = `${d.partido.equipo_local} vs ${d.partido.equipo_visita}`;
+                              return matchKey === selectedMatch;
+                            });
+                          }
+                          
+                          if (partidosFiltrados.length === 0) {
+                            return <tr><td colSpan={7}>No hay pronósticos para este partido en la ronda seleccionada.</td></tr>;
+                          }
+                          
+                          const partidosOrdenados = partidosFiltrados.sort((a, b) => a.fixture_id - b.fixture_id);
+                          const totalPartidos = partidosOrdenados.length;
+                          let totalPuntosPartidos = 0;
+                          
+                          const rows = partidosOrdenados.map((d, index) => {
+                            const tieneResultado = d.real.goles_local !== null && d.real.goles_visita !== null;
+                            const puntosPartido = tieneResultado ? d.pts : 0;
+                            totalPuntosPartidos += puntosPartido;
+                            
+                            return (
+                              <tr key={d.fixture_id}>
+                                {index === 0 && (
+                                  <td rowSpan={totalPartidos} className="align-middle fw-bold">
+                                    {selectedRound}
+                                  </td>
+                                )}
+                                <td>{d.partido.equipo_local} vs {d.partido.equipo_visita}</td>
+                                <td>{d.cruceReal || '--'}</td>
+                                <td>
+                                  <div>
+                                    {d.pron.goles_local} - {d.pron.goles_visita}
+                                    {(d.pron.penales_local !== null || d.pron.penales_visita !== null) && (
+                                      <div style={{ fontSize: '0.8em', color: '#666' }}>
+                                        ({d.pron.penales_local || 0}) - ({d.pron.penales_visita || 0})
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td>
+                                  {tieneResultado ? (
+                                    <div>
+                                      {d.real.goles_local} - {d.real.goles_visita}
+                                      {(d.real.penales_local !== null && d.real.penales_visita !== null &&
+                                        (d.real.penales_local > 0 || d.real.penales_visita > 0) &&
+                                        d.partido.vuelta === true) && (
+                                        <div style={{ fontSize: '0.8em', color: '#666' }}>
+                                          ({d.real.penales_local}) - ({d.real.penales_visita})
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    "--"
+                                  )}
+                                </td>
+                                <td>{d.partido.bonus || 1}</td>
+                                <td className="fw-bold">
+                                  {puntosPartido > 0 ? (
+                                    <span className="text-success">{puntosPartido}</span>
+                                  ) : (
+                                    <span className="text-muted">
+                                      0
+                                      {d.motivoSinPuntos && (
+                                        <small className="d-block text-danger">
+                                          {d.motivoSinPuntos}
+                                        </small>
+                                      )}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                          
+                          rows.push(
+                            <tr key="total-partidos" className="table-primary">
+                              <td colSpan={6} className="text-end fw-bold">
+                                Total {selectedMatch ? 'Partido Filtrado' : `Partidos ${selectedRound}`}:
+                              </td>
+                              <td className="fw-bold text-primary">
+                                {totalPuntosPartidos}
+                              </td>
+                            </tr>
+                          );
+                          
+                          return rows;
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Tabla de clasificados - solo datos del backend */}
+                {!selectedMatch && (
                   <div className="mb-4">
-                    <h5 className="mb-2">
-                      📊 Partidos - {selectedRound}
-                      {selectedUser && (
-                        <small className="d-block text-muted mt-1">
-                          Usuario: {selectedUser}
-                        </small>
-                      )}
-                      {selectedMatch && (
-                        <small className="d-block text-muted mt-1">
-                          Partido: {selectedMatch}
-                        </small>
-                      )}
-                    </h5>
+                    <h5 className="mb-2">🏆 Clasificados - {selectedRound}</h5>
                     <div className="table-responsive">
-                      <table className="table table-bordered table-striped text-center">
+                      <table className="table table-bordered table-sm text-center">
                         <thead>
                           <tr>
                             <th>Ronda</th>
-                            <th>Partido Pronosticado</th>
-                            <th>Cruce Real</th>
-                            <th>Pronóstico</th>
-                            <th>Resultado Real</th>
-                            <th>Bonus</th>
+                            <th>Mis Clasificados</th>
+                            <th>Clasificados Reales</th>
                             <th>Puntos</th>
                           </tr>
                         </thead>
                         <tbody>
                           {(() => {
-                            const partidosVirtual = getFixtureVirtual(fixture, pronos, pens, selectedRound);
-                            const mapFixtureIdToEquipos = {};
-                            partidosVirtual.forEach(p => {
-                              mapFixtureIdToEquipos[p.fixture_id] = {
-                                equipo_local: p.equipo_local,
-                                equipo_visita: p.equipo_visita
-                              };
-                            });
-                            
-                            const detalleRonda = jug.partidos.detalle.filter(d => d.partido.ronda === selectedRound);
-                            if (detalleRonda.length === 0) {
-                              return <tr><td colSpan={7}>No hay pronósticos para esta ronda.</td></tr>;
-                            }
-                            
-                            // Aplicar filtro por partido específico si está seleccionado
-                            let partidosFiltrados = detalleRonda;
-                            if (selectedMatch) {
-                              partidosFiltrados = detalleRonda.filter(d => {
-                                const equipos = mapFixtureIdToEquipos[d.fixture_id] || { 
-                                  equipo_local: d.partido.equipo_local, 
-                                  equipo_visita: d.partido.equipo_visita 
-                                };
-                                const matchKey = `${equipos.equipo_local} vs ${equipos.equipo_visita}`;
-                                return matchKey === selectedMatch;
-                              });
-                            }
-                            
-                            if (partidosFiltrados.length === 0) {
-                              return <tr><td colSpan={7}>No hay pronósticos para este partido en la ronda seleccionada.</td></tr>;
-                            }
-                            
-                            const partidosOrdenados = partidosFiltrados.sort((a, b) => a.fixture_id - b.fixture_id);
-                            const totalPartidos = partidosOrdenados.length;
-                            let totalPuntosPartidos = 0;
-                            
-                            const rows = partidosOrdenados.map((d, index) => {
-                              const equipos = mapFixtureIdToEquipos[d.fixture_id] || { 
-                                equipo_local: d.partido.equipo_local, 
-                                equipo_visita: d.partido.equipo_visita 
-                              };
-                              const tieneResultado = d.real.goles_local !== null && d.real.goles_visita !== null;
-                              const puntosPartido = tieneResultado ? d.pts : 0;
-                              totalPuntosPartidos += puntosPartido;
-                              
-                              return (
-                                <tr key={d.fixture_id}>
-                                  {index === 0 && (
-                                    <td rowSpan={totalPartidos} className="align-middle fw-bold">
-                                      {selectedRound}
-                                    </td>
-                                  )}
-                                  <td>{equipos.equipo_local} vs {equipos.equipo_visita}</td>
-                                  <td>
-                                    <div className={`small ${d.cruceCoincide ? 'text-success' : 'text-danger'}`}>
-                                      {d.cruceReal || '--'}
-                                      {!d.cruceCoincide && (
-                                        <div className="badge bg-danger ms-1">No coincide</div>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <div>
-                                      {d.pron.goles_local} - {d.pron.goles_visita}
-                                      {(d.pron.penales_local !== null || d.pron.penales_visita !== null) && (
-                                        <div style={{ fontSize: '0.8em', color: '#666' }}>
-                                          ({d.pron.penales_local || 0}) - ({d.pron.penales_visita || 0})
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td>
-                                    {tieneResultado ? (
-                                      <div>
-                                        {d.real.goles_local} - {d.real.goles_visita}
-                                        {/* Solo mostrar penales si hay penales reales (no 0-0) y es partido de vuelta */}
-                                        {(d.real.penales_local !== null && d.real.penales_visita !== null && 
-                                          (d.real.penales_local > 0 || d.real.penales_visita > 0) &&
-                                          d.partido.vuelta === true) && (
-                                          <div style={{ fontSize: '0.8em', color: '#666' }}>
-                                            ({d.real.penales_local}) - ({d.real.penales_visita})
-                                          </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      "--"
-                                    )}
-                                  </td>
-                                  <td>{d.partido.bonus || 1}</td>
-                                  <td className="fw-bold">
-                                    {puntosPartido > 0 ? (
-                                      <span className="text-success">{puntosPartido}</span>
-                                    ) : (
-                                      <span className="text-muted">
-                                        0
-                                        {d.motivoSinPuntos && (
-                                          <small className="d-block text-danger">
-                                            {d.motivoSinPuntos}
-                                          </small>
-                                        )}
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            });
-                            
-                            // Agregar fila de total para partidos
-                            rows.push(
-                              <tr key="total-partidos" className="table-primary">
-                                <td colSpan={6} className="text-end fw-bold">
-                                  Total {selectedMatch ? 'Partido Filtrado' : `Partidos ${selectedRound}`}:
-                                </td>
-                                <td className="fw-bold text-primary">
-                                  {totalPuntosPartidos}
-                                </td>
-                              </tr>
-                            );
-                            
-                            return rows;
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* FIX: Ocultar tabla de clasificados cuando se filtra por partido específico */}
-                  {!selectedMatch && (
-                    <div className="mb-4">
-                      <h5 className="mb-2">🏆 Clasificados - {selectedRound}</h5>
-                      <div className="table-responsive">
-                        <table className="table table-bordered table-sm text-center">
-                          <thead>
-                            <tr>
-                              <th>Ronda</th>
-                              <th>Mis Clasificados</th>
-                              <th>Clasificados Reales</th>
-                              <th>Puntos</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(() => {
-                            // Obtener datos solo para la ronda seleccionada
                             const rowBase = jug.clasificados.detalle.find(row => row && row.ronda === selectedRound);
-                            
-                            // Aplicar la misma lógica que antes para clasificados calculados
-                            let misClasificados;
-                            const rondasEliminatorias = ['Octavos de Final', 'Cuartos de Final', 'Semifinales', 'Final'];
-                            if (rondasEliminatorias.includes(selectedRound)) {
-                              if (selectedRound === 'Final') {
-                                const semifinalesData = avanceVirtual && avanceVirtual['Semifinales'] ? avanceVirtual['Semifinales'] : [];
-                                const equiposEnFinal = semifinalesData.map(x => x.ganador).filter(Boolean);
-                                
-                                if (equiposEnFinal.length >= 2 && avanceVirtual && avanceVirtual[selectedRound] && avanceVirtual[selectedRound].length > 0) {
-                                  const ganadorFinal = avanceVirtual[selectedRound][0].ganador;
-                                  const perdedorFinal = equiposEnFinal.find(eq => eq !== ganadorFinal);
-                                  misClasificados = [ganadorFinal, perdedorFinal].filter(Boolean);
-                                } else {
-                                  misClasificados = equiposEnFinal.length >= 2 
-                                    ? equiposEnFinal 
-                                    : (rowBase && Array.isArray(rowBase.misClasificados) ? rowBase.misClasificados : []);
-                                }
-                              } else {
-                                misClasificados = avanceVirtual && avanceVirtual[selectedRound] 
-                                  ? avanceVirtual[selectedRound].map(x => x.ganador).filter(Boolean) 
-                                  : (rowBase && Array.isArray(rowBase.misClasificados) ? rowBase.misClasificados : []);
-                              }
-                            } else {
-                              misClasificados = rowBase && Array.isArray(rowBase.misClasificados)
-                                ? rowBase.misClasificados
-                                : (avanceVirtual && avanceVirtual[selectedRound] ? avanceVirtual[selectedRound].map(x => x.ganador).filter(Boolean) : []);
-                            }
-                            
+                            const misClasificados = rowBase && Array.isArray(rowBase.misClasificados) ? rowBase.misClasificados : [];
                             const clasificadosReales = rowBase && Array.isArray(rowBase.clasificadosReales) ? rowBase.clasificadosReales : [];
                             
                             if (misClasificados.length === 0 && clasificadosReales.length === 0) {
                               return <tr><td colSpan={4}>No hay clasificados para esta ronda.</td></tr>;
                             }
                             
-                            // Calcular puntos y alineamiento inteligente
                             const puntosPorRonda = {
                               'Knockout Round Play-offs': 2,
                               'Octavos de Final': 3,
@@ -560,10 +474,9 @@ export default function ClasificacionSudamericana() {
                       </table>
                     </div>
                   </div>
-                  )}
-                </div>
-              );
-            })
+                )}
+              </div>
+            ))
           )}
         </>
       )}

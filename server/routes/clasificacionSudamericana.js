@@ -65,6 +65,8 @@ router.get('/clasificacion/:ronda', async (req, res) => {
     // Obtener clasificados REALES desde la BD oficial
     const dicSiglasReales = await obtenerClasificadosReales();
     
+    // Debug para verificar mapeo
+    
     // Reemplazar siglas en fixture usando clasificados REALES calculados
     const fixtureConNombresReales = reemplazarSiglasPorNombres(fixture, dicSiglasReales);
     
@@ -157,7 +159,13 @@ router.get('/clasificacion-completa', async (req, res) => {
       const pronosUsuario = pronos.filter(p => p.usuario_id === usuario.usuario_id);
       const pronosUsuarioConNombres = reemplazarSiglasPorNombres(pronosUsuario, dicSiglasUsuario);
       
-
+      // Debug para usuario ID 2
+      if (usuario.usuario_id === 2) {
+        
+        // Buscar partidos de semifinals en fixture original vs con nombres
+        const semiOriginal = fixture.filter(f => f.ronda === 'Semifinales');
+        const semiConNombres = fixtureConNombres.filter(f => f.ronda === 'Semifinales');
+      }
       
       // Crear resultados con equipos reales (desde fixture con nombres REALES)
       const resultados = fixtureConNombres.map(f => ({
@@ -291,6 +299,7 @@ router.get('/clasificacion-completa', async (req, res) => {
     
     res.json(clasificacion);
   } catch (error) {
+    console.error('Error en clasificacion-completa:', error);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
