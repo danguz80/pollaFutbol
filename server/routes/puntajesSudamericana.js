@@ -3,13 +3,15 @@ import { pool } from '../db/pool.js';
 import { calcularPuntajesSudamericana } from '../services/puntajesSudamericana.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
+import { calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
 const router = express.Router();
 
 router.post('/guardar-clasificados', verifyToken, async function guardarClasificados(req, res) {
   // Espera body: { clasificadosPorRonda: { "ronda1": ["equipo1", "equipo2"], "ronda2": [...] } }
   // O formato legacy: { ronda: string, clasificados: array }
-  const { clasificadosPorRonda, ronda, clasificados } = req.body;
+  // Debe incluir diccionarioSiglas para la correspondencia equipo -> sigla
+  const { clasificadosPorRonda, ronda, clasificados, diccionarioSiglas } = req.body;
   const usuarioId = req.usuario.id;
   
   try {
@@ -25,16 +27,105 @@ router.post('/guardar-clasificados', verifyToken, async function guardarClasific
           [usuarioId]
         );
 
+        console.log(`✅ [GUARDAR CLASIFICADOS] Procesando para usuario ${usuarioId}`);
+
         let totalInsertados = 0;
+        
+        // Debug: Mostrar diccionario de siglas recibido
+        if (diccionarioSiglas) {
+          console.log('📘 [GUARDAR CLASIFICADOS] Diccionario de siglas recibido:', diccionarioSiglas);
+        } else {
+          console.log('⚠️ [GUARDAR CLASIFICADOS] No se recibió diccionario de siglas');
+        }
+        
         // Insertar todos los clasificados por ronda
         for (const [rondaNombre, equipos] of Object.entries(clasificadosPorRonda)) {
           if (Array.isArray(equipos)) {
+            console.log(`📘 [GUARDAR CLASIFICADOS] Procesando ronda ${rondaNombre} con ${equipos.length} equipos`);
+            
             for (const equipo of equipos) {
               if (equipo && equipo.trim()) {
+                // Buscar sigla correspondiente en el diccionario
+                let siglaEquipo = null;
+                
+                // Siempre calcular el diccionario de siglas localmente para garantizar que sea completo
+                console.log(`🔄 [GUARDAR CLASIFICADOS] Calculando siglas para el usuario ${usuarioId}...`);
+                let dicSiglasActualizado = {};
+                
+                try {
+                  // Obtener fixture y pronósticos para determinar siglas
+                  const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
+                  const pronosRes = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [usuarioId]);
+                  
+                  // Calcular el avance de siglas para encontrar la sigla correspondiente
+                  dicSiglasActualizado = calcularAvanceSiglas(fixtureRes.rows, pronosRes.rows);
+                  
+                  // También verificar el diccionario que vino del frontend
+                  if (diccionarioSiglas && Object.keys(diccionarioSiglas).length > 0) {
+                    console.log(`✅ [GUARDAR CLASIFICADOS] Combinando con siglas recibidas del frontend`);
+                    dicSiglasActualizado = { ...dicSiglasActualizado, ...diccionarioSiglas };
+                  }
+                  
+                  console.log(`✅ [GUARDAR CLASIFICADOS] Siglas finales:`, dicSiglasActualizado);
+                } catch (error) {
+                  console.error(`❌ [ERROR] Error calculando siglas: ${error.message}`);
+                  // Usar el diccionario del frontend como fallback
+                  dicSiglasActualizado = diccionarioSiglas || {};
+                }
+                
+                // Buscar sigla para este equipo
+                Object.entries(dicSiglasActualizado).forEach(([sigla, nombre]) => {
+                  if (nombre === equipo.trim()) {
+                    siglaEquipo = sigla;
+                    console.log(`✅ [GUARDAR CLASIFICADOS] Encontrada sigla ${sigla} para equipo ${equipo.trim()}`);
+                  }
+                });
+                
+                // Caso especial para la Final: asignar siempre Campeón y Subcampeón
+                if (rondaNombre === 'Final') {
+                  const idx = equipos.indexOf(equipo);
+                  if (idx === 0) {
+                    siglaEquipo = 'Campeón';
+                    console.log(`✅ [GUARDAR CLASIFICADOS] Asignando sigla Campeón para ${equipo.trim()}`);
+                  } else if (idx === 1) {
+                    siglaEquipo = 'Subcampeón';
+                    console.log(`✅ [GUARDAR CLASIFICADOS] Asignando sigla Subcampeón para ${equipo.trim()}`);
+                  }
+                } 
+                // Si todavía no tiene sigla y no es la final, intentar generarla
+                else if (!siglaEquipo) {
+                  // Asignar siglas basadas en la ronda
+                  if (rondaNombre === 'Octavos de Final') {
+                    // Buscar el índice en la lista y asignar WO.A, WO.B, etc.
+                    const letras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                    const idx = equipos.indexOf(equipo);
+                    if (idx >= 0 && idx < letras.length) {
+                      siglaEquipo = `WO.${letras[idx]}`;
+                      console.log(`🔄 [GUARDAR CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+                    }
+                  } else if (rondaNombre === 'Cuartos de Final') {
+                    // Asignar WC1, WC2, etc.
+                    const idx = equipos.indexOf(equipo);
+                    if (idx >= 0 && idx < 4) {
+                      siglaEquipo = `WC${idx+1}`;
+                      console.log(`🔄 [GUARDAR CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+                    }
+                  } else if (rondaNombre === 'Semifinales') {
+                    // Asignar WS1, WS2
+                    const idx = equipos.indexOf(equipo);
+                    if (idx >= 0 && idx < 2) {
+                      siglaEquipo = `WS${idx+1}`;
+                      console.log(`🔄 [GUARDAR CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+                    }
+                  }
+                }
+                
+                console.log(`📝 [GUARDAR CLASIFICADOS] Insertando: usuario=${usuarioId}, ronda=${rondaNombre}, equipo=${equipo.trim()}, sigla=${siglaEquipo || 'NULL'}`);
+                
                 await pool.query(
-                  `INSERT INTO clasif_sud_pron (usuario_id, ronda, clasificados)
-                   VALUES ($1, $2, $3)`,
-                  [usuarioId, rondaNombre, equipo.trim()]
+                  `INSERT INTO clasif_sud_pron (usuario_id, ronda, clasificados, sigla)
+                   VALUES ($1, $2, $3, $4)`,
+                  [usuarioId, rondaNombre, equipo.trim(), siglaEquipo]
                 );
                 totalInsertados++;
               }
@@ -70,10 +161,67 @@ router.post('/guardar-clasificados', verifyToken, async function guardarClasific
       // Insertar cada equipo clasificado como una fila separada
       for (const equipo of clasificados) {
         if (equipo && equipo.trim()) {
+          // Obtener fixture y pronósticos para determinar siglas
+          const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
+          const pronosRes = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [usuarioId]);
+          
+          // Calcular el avance de siglas para encontrar la sigla correspondiente
+          const dicSiglas = calcularAvanceSiglas(fixtureRes.rows, pronosRes.rows);
+          console.log(`✅ [GUARDAR CLASIFICADOS] Siglas calculadas para usuario ${usuarioId}:`, dicSiglas);
+          
+          // Buscar la sigla correspondiente al equipo
+          let siglaEquipo = null;
+          Object.entries(dicSiglas || {}).forEach(([sigla, nombre]) => {
+            if (nombre === equipo.trim()) {
+              siglaEquipo = sigla;
+              console.log(`✅ [GUARDAR CLASIFICADOS] Encontrada sigla ${sigla} para equipo ${equipo.trim()}`);
+            }
+          });
+          
+          // Para la final, usar Campeón y Subcampeón
+          if (ronda === 'Final') {
+            const idx = clasificados.indexOf(equipo);
+            if (idx === 0) {
+              siglaEquipo = 'Campeón';
+              console.log(`✅ [GUARDAR CLASIFICADOS] Asignando sigla Campeón para ${equipo.trim()}`);
+            }
+            else if (idx === 1) {
+              siglaEquipo = 'Subcampeón';
+              console.log(`✅ [GUARDAR CLASIFICADOS] Asignando sigla Subcampeón para ${equipo.trim()}`);
+            }
+          } 
+          // Si todavía no tiene sigla y no es final, intentar generar una
+          else if (!siglaEquipo) {
+            // Asignar siglas basadas en la ronda
+            if (ronda === 'Octavos de Final') {
+              // Buscar el índice en la lista y asignar WO.A, WO.B, etc.
+              const letras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+              const idx = clasificados.indexOf(equipo);
+              if (idx >= 0 && idx < letras.length) {
+                siglaEquipo = `WO.${letras[idx]}`;
+                console.log(`🔄 [GUARDAR CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+              }
+            } else if (ronda === 'Cuartos de Final') {
+              // Asignar WC1, WC2, etc.
+              const idx = clasificados.indexOf(equipo);
+              if (idx >= 0 && idx < 4) {
+                siglaEquipo = `WC${idx+1}`;
+                console.log(`🔄 [GUARDAR CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+              }
+            } else if (ronda === 'Semifinales') {
+              // Asignar WS1, WS2
+              const idx = clasificados.indexOf(equipo);
+              if (idx >= 0 && idx < 2) {
+                siglaEquipo = `WS${idx+1}`;
+                console.log(`🔄 [GUARDAR CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+              }
+            }
+          }
+          
           await pool.query(
-            `INSERT INTO clasif_sud_pron (usuario_id, ronda, clasificados)
-             VALUES ($1, $2, $3)`,
-            [usuarioId, ronda, equipo.trim()]
+            `INSERT INTO clasif_sud_pron (usuario_id, ronda, clasificados, sigla)
+             VALUES ($1, $2, $3, $4)`,
+            [usuarioId, ronda, equipo.trim(), siglaEquipo]
           );
         }
       }
@@ -112,10 +260,69 @@ router.post('/guardar-clasificados-reales', verifyToken, authorizeRoles('admin')
     // Insertar cada equipo clasificado como una fila separada
     for (const equipo of clasificados) {
       if (equipo && equipo.trim()) {
+        // Buscar sigla correspondiente a este equipo
+        let siglaEquipo = null;
+        
+        try {
+          // Obtener fixture para calcular siglas
+          const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
+          
+          // Intentar obtener sigla del fixture para equipos reales
+          // Buscar en clasificado -> equipo_local/equipo_visita
+          for (const fixture of fixtureRes.rows) {
+            if (fixture.clasificado && 
+                ((fixture.equipo_local === equipo.trim()) || 
+                 (fixture.equipo_visita === equipo.trim()))) {
+              siglaEquipo = fixture.clasificado;
+              console.log(`✅ [ADMIN CLASIFICADOS] Encontrada sigla ${siglaEquipo} para equipo ${equipo.trim()} en fixture`);
+              break;
+            }
+          }
+        } catch (error) {
+          console.error(`❌ [ADMIN ERROR] Error buscando sigla en fixture: ${error.message}`);
+        }
+        
+        // Para la final, usar Campeón y Subcampeón siempre
+        if (ronda === 'Final') {
+          const idx = clasificados.indexOf(equipo);
+          if (idx === 0) {
+            siglaEquipo = 'Campeón';
+            console.log(`✅ [ADMIN CLASIFICADOS] Asignando sigla Campeón para ${equipo.trim()}`);
+          }
+          else if (idx === 1) {
+            siglaEquipo = 'Subcampeón';
+            console.log(`✅ [ADMIN CLASIFICADOS] Asignando sigla Subcampeón para ${equipo.trim()}`);
+          }
+        } 
+        // Si todavía no tiene sigla y no es final, intentar generar una
+        else if (!siglaEquipo) {
+          // Asignar siglas basadas en la ronda y posición
+          if (ronda === 'Octavos de Final') {
+            const letras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            const idx = clasificados.indexOf(equipo);
+            if (idx >= 0 && idx < letras.length) {
+              siglaEquipo = `WO.${letras[idx]}`;
+              console.log(`🔄 [ADMIN CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+            }
+          } else if (ronda === 'Cuartos de Final') {
+            const idx = clasificados.indexOf(equipo);
+            if (idx >= 0 && idx < 4) {
+              siglaEquipo = `WC${idx+1}`;
+              console.log(`🔄 [ADMIN CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+            }
+          } else if (ronda === 'Semifinales') {
+            const idx = clasificados.indexOf(equipo);
+            if (idx >= 0 && idx < 2) {
+              siglaEquipo = `WS${idx+1}`;
+              console.log(`🔄 [ADMIN CLASIFICADOS] Generando sigla ${siglaEquipo} para ${equipo.trim()}`);
+            }
+          }
+        }
+        
         await pool.query(
-          `INSERT INTO clasif_sud (ronda, clasificados)
-           VALUES ($1, $2)`,
-          [ronda, equipo.trim()]
+          `INSERT INTO clasif_sud (ronda, clasificados, sigla)
+           VALUES ($1, $2, $3)`,
+          [ronda, equipo.trim(), siglaEquipo]
         );
       }
     }
@@ -225,6 +432,7 @@ router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
         return fixture && fixture.ronda === 'Semifinales';
       });
       pronosticosSemi.forEach(p => {
+        console.log(`🏆 [DEBUG] Pronóstico Semi usuario ${usuarioId}: fixture_id=${p.fixture_id}, local=${p.equipo_local}, visita=${p.equipo_visita}, g_local=${p.goles_local}, g_visita=${p.goles_visita}`);
       });
     }
 
@@ -235,7 +443,7 @@ router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
 
     // 2. Obtener pronósticos de clasificados del usuario (desde clasif_sud_pron)
     const pronClasifRes = await pool.query(
-      'SELECT ronda, clasificados FROM clasif_sud_pron WHERE usuario_id = $1',
+      'SELECT ronda, clasificados, sigla FROM clasif_sud_pron WHERE usuario_id = $1',
       [usuarioId]
     );
     const pronMap = {};
@@ -248,7 +456,7 @@ router.get('/puntajes/:usuarioId', verifyToken, async (req, res) => {
 
     // 3. Obtener clasificados reales (desde clasif_sud)
     const realClasifRes = await pool.query(
-      'SELECT ronda, clasificados FROM clasif_sud'
+      'SELECT ronda, clasificados, sigla FROM clasif_sud'
     );
     const realMap = {};
     for (const row of realClasifRes.rows) {

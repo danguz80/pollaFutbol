@@ -55,8 +55,8 @@ function agruparPorSigla(partidos) {
     if (!grupos[key]) grupos[key] = [];
     grupos[key].push(p);
   }
-  // Ordenar partidos dentro de cada grupo por fecha
-  Object.values(grupos).forEach(arr => arr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha)));
+  // Ordenar partidos dentro de cada grupo por fixture_id (no por fecha)
+  Object.values(grupos).forEach(arr => arr.sort((a, b) => a.fixture_id - b.fixture_id));
   // Retornar un array de [sigla, partidos] ordenado por sigla ascendente
   return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 }
@@ -491,6 +491,37 @@ export default function IngresarPronosticosSud() {
       
       // Una sola llamada con todos los clasificados
       if (Object.keys(clasificadosPorRonda).length > 0) {
+        // Crear un diccionario de siglas para enviar al backend
+        const diccionarioSiglas = {};
+        
+        // Mapeamos las siglas específicas según la ronda
+        // Mapeo estándar de siglas para cada etapa
+        const siglasPorRonda = {
+          'Octavos de Final': ['WO.A', 'WO.B', 'WO.C', 'WO.D', 'WO.E', 'WO.F', 'WO.G', 'WO.H'],
+          'Cuartos de Final': ['WC1', 'WC2', 'WC3', 'WC4'],
+          'Semifinales': ['WS1', 'WS2'],
+          'Final': ['WF1', 'WF2', 'Campeón', 'Subcampeón']
+        };
+        
+        // Asignar siglas correspondientes a cada equipo clasificado
+        Object.entries(clasificadosPorRonda).forEach(([ronda, equipos]) => {
+          const siglas = siglasPorRonda[ronda];
+          if (siglas && equipos.length <= siglas.length) {
+            equipos.forEach((equipo, idx) => {
+              if (ronda === 'Final' && equipos.length >= 2) {
+                // Para la final usamos Campeón y Subcampeón
+                diccionarioSiglas[idx === 0 ? 'Campeón' : 'Subcampeón'] = equipo;
+              } else {
+                // Para otras rondas usamos las siglas estándar
+                diccionarioSiglas[siglas[idx]] = equipo;
+              }
+            });
+          }
+        });
+        
+        // Log de depuración
+        console.log('✅ [GUARDAR CLASIFICADOS] Enviando diccionarioSiglas:', diccionarioSiglas);
+        
         await fetch(`${API_BASE_URL}/api/sudamericana/guardar-clasificados`, {
           method: "POST",
           headers: {
@@ -498,7 +529,8 @@ export default function IngresarPronosticosSud() {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            clasificadosPorRonda
+            clasificadosPorRonda,
+            diccionarioSiglas
           })
         });
       }

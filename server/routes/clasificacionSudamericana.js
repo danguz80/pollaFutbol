@@ -225,7 +225,7 @@ router.get('/clasificacion-completa', async (req, res) => {
         pronMap['Final'].push(dicSiglasUsuario['WS1 vs WS2'] || dicSiglasUsuario['CHAMPION']);
       }
 
-      const realClasifRes = await pool.query('SELECT ronda, clasificados FROM clasif_sud');
+      const realClasifRes = await pool.query('SELECT ronda, clasificados, sigla FROM clasif_sud');
       const realMap = {};
       for (const row of realClasifRes.rows) {
         if (!realMap[row.ronda]) realMap[row.ronda] = [];
@@ -383,7 +383,7 @@ router.get('/debug-clasificados/:userId', async (req, res) => {
   try {
     // 1. Obtener clasificados del usuario desde clasif_sud_pron
     const pronClasifRes = await pool.query(
-      'SELECT ronda, clasificados FROM clasif_sud_pron WHERE usuario_id = $1 ORDER BY ronda',
+      'SELECT ronda, clasificados, sigla FROM clasif_sud_pron WHERE usuario_id = $1 ORDER BY ronda',
       [userId]
     );
     
@@ -394,7 +394,7 @@ router.get('/debug-clasificados/:userId', async (req, res) => {
     const dicSiglasReales = await obtenerClasificadosReales();
     
     // 4. Obtener clasificados REALES desde clasif_sud
-    const realClasifRes = await pool.query('SELECT ronda, clasificados FROM clasif_sud ORDER BY ronda');
+    const realClasifRes = await pool.query('SELECT ronda, clasificados, sigla FROM clasif_sud ORDER BY ronda');
     
     // 5. DEBUG: Obtener los pronósticos del usuario para ver la propagación
     const pronosUsuario = await pool.query(
@@ -792,7 +792,7 @@ router.get('/debug-clasif-sud', async (req, res) => {
     if (diccionarioSiglasReales['SUB-CAMPEON']) clasificadosCalculados['Final'].push(diccionarioSiglasReales['SUB-CAMPEON']);
 
     // 2. Leer clasif_sud
-    const realClasifRes = await pool.query('SELECT ronda, clasificados FROM clasif_sud ORDER BY ronda, id');
+    const realClasifRes = await pool.query('SELECT ronda, clasificados, sigla FROM clasif_sud ORDER BY ronda, id');
     const clasifSudPorRonda = {};
     for (const row of realClasifRes.rows) {
       if (!clasifSudPorRonda[row.ronda]) clasifSudPorRonda[row.ronda] = [];

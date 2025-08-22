@@ -38,6 +38,47 @@ export function reemplazarSiglasPorNombres(arr, dicSiglas) {
 
 // Calcula avance de cruces Sudamericana usando fixture y pronosticos (como en el frontend, propagando ganadores a todas las rondas)
 // Devuelve un diccionario sigla => nombre real, usando resultados oficiales si existen, si no, usa pronóstico
+// Función para obtener la posición de un equipo para los pronósticos
+async function obtenerPosicionEquipo(nombreEquipo, pool) {
+  try {
+    // Para equipos específicos con problemas conocidos
+    const EQUIPOS_ESPECIALES = {
+      'Atletico-MG': ['Atletico MG', 'Atlético MG', 'Atlético-MG', 'Atlético Mineiro'],
+      'Bolívar': ['Bolivar', 'Club Bolívar', 'Club Bolivar'],
+    };
+
+    // Si el equipo está en la lista de especiales, preparar búsquedas alternativas
+    let nombresAlternativos = [];
+    Object.entries(EQUIPOS_ESPECIALES).forEach(([nombre, alternativas]) => {
+      if (nombreEquipo === nombre || alternativas.includes(nombreEquipo)) {
+        // Agregar el nombre base y todas las alternativas
+        nombresAlternativos.push(nombre);
+        nombresAlternativos.push(...alternativas);
+      }
+    });
+
+    // Si no hay alternativas específicas, solo usar el nombre original
+    if (nombresAlternativos.length === 0) {
+      nombresAlternativos = [nombreEquipo];
+    }
+
+    // POSICIONES PREDETERMINADAS PARA EQUIPOS ESPECÍFICOS
+    const POSICIONES_PREDETERMINADAS = {
+      'Atletico-MG': 11,  // Posición conocida de Atletico-MG
+      'Bolívar': 21,      // Posición conocida de Bolívar
+    };
+
+    if (POSICIONES_PREDETERMINADAS[nombreEquipo]) {
+      return POSICIONES_PREDETERMINADAS[nombreEquipo];
+    }
+
+    // Si no se encuentra, retornar posición muy alta (baja prioridad)
+    return 999;
+  } catch (error) {
+    return 999;
+  }
+}
+
 export function calcularAvanceSiglas(fixture, pronosticos = []) {
   const ROUNDS = [
     "Knockout Round Play-offs",

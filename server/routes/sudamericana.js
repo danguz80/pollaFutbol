@@ -380,6 +380,90 @@ async function actualizarEquiposRondaSiguiente(rondaActual, clasificados) {
   }
 }
 
+// Función para aplicar privilegios de local/visita a los pronósticos
+async function aplicarPrivilegiosLocalVisitaFixture(cruces, soloRonda = null) {
+  try {
+    // Agrupar cruces por fixture_id y ronda
+    const crucesPorRonda = {};
+    for (const cruce of cruces) {
+      if (soloRonda && cruce.ronda !== soloRonda) {
+        continue;
+      }
+      
+      if (!crucesPorRonda[cruce.ronda]) {
+        crucesPorRonda[cruce.ronda] = {};
+      }
+      
+      const key = cruce.clasificado || `${cruce.equipo_local}_${cruce.equipo_visita}`;
+      if (!crucesPorRonda[cruce.ronda][key]) {
+        crucesPorRonda[cruce.ronda][key] = [];
+      }
+      crucesPorRonda[cruce.ronda][key].push(cruce);
+    }
+    
+    // Resultado modificado
+    const result = [...cruces];
+    
+    // Procesar cada ronda y cruce
+    for (const [ronda, crucesDic] of Object.entries(crucesPorRonda)) {
+      // Saltar "Knockout Round Play-offs" y la "Final" (partido único)
+      if (ronda === "Knockout Round Play-offs" || ronda === "Final") {
+        continue;
+      }
+      
+      for (const [key, partidosCruce] of Object.entries(crucesDic)) {
+        // Necesitamos exactamente 2 partidos para ida y vuelta
+        if (partidosCruce.length !== 2) {
+          continue;
+        }
+        
+        // Obtener equipo local y visitante
+        const equipoLocal = partidosCruce[0].equipo_local;
+        const equipoVisita = partidosCruce[0].equipo_visita;
+        
+        // Determinar privilegios basado en posiciones
+        const posicionLocal = await obtenerPosicionEquipo(equipoLocal);
+        const posicionVisita = await obtenerPosicionEquipo(equipoVisita);
+        
+        // Ordenar partidos por fixture_id (para identificar ida y vuelta)
+        const partidosOrdenados = [...partidosCruce].sort((a, b) => a.fixture_id - b.fixture_id);
+        const partidoIda = partidosOrdenados[0];
+        const partidoVuelta = partidosOrdenados[1];
+        
+        // Índices en el array de resultados para actualizar
+        const idxIda = result.findIndex(c => c.fixture_id === partidoIda.fixture_id);
+        const idxVuelta = result.findIndex(c => c.fixture_id === partidoVuelta.fixture_id);
+        
+        // El de mejor posición (menor número) cierra de local
+        if (posicionLocal < posicionVisita) {
+          // Equipo local tiene mejor posición y debe cerrar de local
+          result[idxIda].equipo_local = equipoVisita;
+          result[idxIda].equipo_visita = equipoLocal;
+          
+          result[idxVuelta].equipo_local = equipoLocal;
+          result[idxVuelta].equipo_visita = equipoVisita;
+          
+          console.log(`🏠 [FIXTURE] Aplicando privilegio en ${ronda}: ${equipoLocal} (${posicionLocal}) cierra de local vs ${equipoVisita} (${posicionVisita})`);
+        } else {
+          // Equipo visitante tiene mejor posición y debe cerrar de local
+          result[idxIda].equipo_local = equipoLocal;
+          result[idxIda].equipo_visita = equipoVisita;
+          
+          result[idxVuelta].equipo_local = equipoVisita;
+          result[idxVuelta].equipo_visita = equipoLocal;
+          
+          console.log(`🏠 [FIXTURE] Aplicando privilegio en ${ronda}: ${equipoVisita} (${posicionVisita}) cierra de local vs ${equipoLocal} (${posicionLocal})`);
+        }
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('❌ [FIXTURE] Error aplicando privilegios:', error);
+    return cruces; // En caso de error, devolver cruces sin cambios
+  }
+}
+
 // GET /api/sudamericana/fixture/:ronda - Obtener partidos de una ronda específica, con nombres reales según avance de cruces y pronósticos del usuario
 router.get('/fixture/:ronda', async (req, res) => {
   try {
@@ -388,26 +472,36 @@ router.get('/fixture/:ronda', async (req, res) => {
     // 1. Obtener fixture completo
     const fixtureRes = await pool.query('SELECT * FROM sudamericana_fixtures');
     const fixture = fixtureRes.rows;
+    
     // 2. Si hay usuario, obtener sus pronósticos
     let pronos = [];
     if (usuarioId) {
       const pronosRes = await pool.query('SELECT * FROM pronosticos_sudamericana WHERE usuario_id = $1', [usuarioId]);
       pronos = pronosRes.rows;
     }
-    // 3. Calcular avance de cruces según el contexto
+    
+    // 3. Aplicar privilegios de local/visita a los partidos
+    const fixtureConPrivilegios = await aplicarPrivilegiosLocalVisitaFixture(fixture, ronda);
+    
+    // 4. Calcular avance de cruces según el contexto
     let dicSiglas;
     if (usuarioId) {
       // Si hay usuario, usar sus pronósticos
-      dicSiglas = calcularAvanceSiglas(fixture, pronos);
+      dicSiglas = calcularAvanceSiglas(fixtureConPrivilegios, pronos);
     } else {
       // Si no hay usuario (admin), usar clasificados reales
       dicSiglas = await obtenerClasificadosReales();
     }
-    // 4. Filtrar partidos de la ronda y enviarlos TAL CUAL están en la base de datos
-    const partidosRonda = fixture.filter(f => f.ronda === ronda);
-    // No usar reemplazarSiglasPorNombres - enviar los datos originales sin modificar
+    
+    // 5. Filtrar partidos de la ronda y ordenarlos por fixture_id
+    const partidosRonda = fixtureConPrivilegios
+      .filter(f => f.ronda === ronda)
+      .sort((a, b) => a.fixture_id - b.fixture_id);
+    
+    // No usar reemplazarSiglasPorNombres - enviar los datos con privilegios aplicados y ordenados por fixture_id
     res.json(Array.isArray(partidosRonda) ? partidosRonda : []);
   } catch (err) {
+    console.error('❌ [FIXTURE] Error obteniendo fixture:', err);
     res.json([]); // Siempre un array
   }
 });
