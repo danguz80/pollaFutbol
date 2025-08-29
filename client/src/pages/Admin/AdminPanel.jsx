@@ -4,12 +4,49 @@ import { useNavigate } from "react-router-dom";
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+const equipos = [
+  "Colo Colo", "Universidad de Chile", "Universidad Católica", "Palestino",
+  "Cobresal", "Everton", "Audax Italiano", "Deportes Iquique",
+  "Ñublense", "Huachipato", "Unión La Calera", "Coquimbo Unido",
+  "Unión Española", "La Serena", "Deportes Limache", "O'Higgins"
+];
+
+const goleadores = [
+  "Sebastián Sáez (Unión La Calera)",
+  "Diego Coelho (Cobresal)",
+  "Daniel Castro (Deportes Limache)",
+  "Lucas Di Yorio (Universidad de Chile)",
+  "Rodrigo Contreras (Universidad de Chile)",
+  "Javier Correa (Colo Colo)",
+  "Lionel Altamirano (Huachipato)",
+  "Leonardo Valencia (Audax Italiano)",
+  "Fernando Zampedri (Universidad Católica)"
+];
+
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [jornadas, setJornadas] = useState([]);
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState("");
   const [partidos, setPartidos] = useState([]);
   const [jornadaCerrada, setJornadaCerrada] = useState(false); // <--- CORREGIDO
+  
+  // Estados para Cuadro Final
+  const [prediccionesReales, setPrediccionesReales] = useState({
+    campeon: "",
+    subcampeon: "",
+    tercero: "",
+    chile_4_lib: "",
+    cuarto: "",
+    quinto: "",
+    sexto: "",
+    septimo: "",
+    quinceto: "",
+    dieciseisavo: "",
+    goleador: ""
+  });
+  const [prediccionesUsuarios, setPrediccionesUsuarios] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
   // Obtener jornadas al montar
   useEffect(() => {
@@ -22,8 +59,13 @@ export default function AdminPanel() {
   // Cargar partidos y estado cerrada al seleccionar jornada
   useEffect(() => {
     if (!jornadaSeleccionada) return;
-    fetchPartidos(jornadaSeleccionada);
-    fetchJornadaInfo(jornadaSeleccionada);
+    
+    if (jornadaSeleccionada === "cuadro-final") {
+      cargarDatosCuadroFinal();
+    } else {
+      fetchPartidos(jornadaSeleccionada);
+      fetchJornadaInfo(jornadaSeleccionada);
+    }
   }, [jornadaSeleccionada]);
 
   const fetchPartidos = async (numero) => {
@@ -187,6 +229,229 @@ export default function AdminPanel() {
     }
   };
 
+  // ===== FUNCIONES CUADRO FINAL =====
+  
+  const cargarDatosCuadroFinal = async () => {
+    try {
+      // Cargar predicciones reales del admin
+      const resReales = await fetch(`${API_BASE_URL}/api/prediccion-final-admin`);
+      if (resReales.ok) {
+        const datosReales = await resReales.json();
+        if (datosReales) {
+          setPrediccionesReales(datosReales);
+        }
+      }
+
+      // Cargar todas las predicciones de usuarios
+      const resUsuarios = await fetch(`${API_BASE_URL}/api/predicciones-finales`);
+      if (resUsuarios.ok) {
+        const datosUsuarios = await resUsuarios.json();
+        setPrediccionesUsuarios(datosUsuarios);
+      }
+    } catch (error) {
+      console.error("Error cargando datos cuadro final:", error);
+    }
+  };
+
+  const handleChangeCuadroFinal = (field, value) => {
+    setPrediccionesReales(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const getEquiposParaCampo = (campo) => {
+    const equiposSeleccionados = Object.entries(prediccionesReales)
+      .filter(([key, value]) => key !== campo && key !== 'goleador' && value !== "")
+      .map(([key, value]) => value);
+    
+    return equipos.filter(equipo => !equiposSeleccionados.includes(equipo));
+  };
+
+  const guardarPrediccionesReales = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMessage("No se encontró token de autenticación");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log("Enviando predicciones reales:", prediccionesReales);
+      console.log("API_BASE_URL:", API_BASE_URL);
+      
+      const response = await fetch(`${API_BASE_URL}/api/prediccion-final-admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          jugador_id: 1, // Admin ID
+          ...prediccionesReales
+        })
+      });
+
+      console.log("Response status:", response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Response data:", data);
+        setMessage("Predicciones reales guardadas exitosamente");
+      } else {
+        const errorData = await response.json();
+        console.error("Error response:", errorData);
+        setMessage("Error al guardar predicciones reales");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setMessage("Error al guardar predicciones reales");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const limpiarDatosCuadroFinal = () => {
+    if (confirm("¿Estás seguro de que quieres limpiar todos los datos?")) {
+      setPrediccionesReales({
+        campeon: "",
+        subcampeon: "",
+        tercero: "",
+        chile_4_lib: "",
+        cuarto: "",
+        quinto: "",
+        sexto: "",
+        septimo: "",
+        quinceto: "",
+        dieciseisavo: "",
+        goleador: ""
+      });
+      setMessage("Datos limpiados exitosamente");
+    }
+  };
+
+  const calcularPuntos = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMessage("No se encontró token de autenticación");
+      return;
+    }
+
+    if (Object.values(prediccionesReales).some(value => value === "")) {
+      setMessage("Debes completar todas las predicciones reales antes de calcular puntos");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/predicciones-finales/calcular-puntos`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(prediccionesReales)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessage(`Puntos calculados exitosamente para ${data.usuariosActualizados} usuarios`);
+        cargarDatosCuadroFinal(); // Recargar datos
+      } else {
+        setMessage("Error al calcular puntos");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setMessage("Error al calcular puntos");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sumarARanking = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMessage("No se encontró token de autenticación");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/predicciones-finales/sumar-ranking`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessage(`Puntos sumados al ranking para ${data.usuariosActualizados} usuarios`);
+      } else {
+        setMessage("Error al sumar puntos al ranking");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setMessage("Error al sumar puntos al ranking");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calcularAciertos = (prediccionUsuario) => {
+    const aciertos = {};
+    let puntosTotales = 0;
+
+    // Verificar aciertos
+    if (prediccionUsuario.campeon === prediccionesReales.campeon && prediccionesReales.campeon) {
+      aciertos.campeon = 15;
+      puntosTotales += 15;
+    }
+    if (prediccionUsuario.subcampeon === prediccionesReales.subcampeon && prediccionesReales.subcampeon) {
+      aciertos.subcampeon = 10;
+      puntosTotales += 10;
+    }
+    if (prediccionUsuario.tercero === prediccionesReales.tercero && prediccionesReales.tercero) {
+      aciertos.tercero = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.chile_4_lib === prediccionesReales.chile_4_lib && prediccionesReales.chile_4_lib) {
+      aciertos.chile_4_lib = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.cuarto === prediccionesReales.cuarto && prediccionesReales.cuarto) {
+      aciertos.cuarto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.quinto === prediccionesReales.quinto && prediccionesReales.quinto) {
+      aciertos.quinto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.sexto === prediccionesReales.sexto && prediccionesReales.sexto) {
+      aciertos.sexto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.septimo === prediccionesReales.septimo && prediccionesReales.septimo) {
+      aciertos.septimo = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.quinceto === prediccionesReales.quinceto && prediccionesReales.quinceto) {
+      aciertos.quinceto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.dieciseisavo === prediccionesReales.dieciseisavo && prediccionesReales.dieciseisavo) {
+      aciertos.dieciseisavo = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.goleador === prediccionesReales.goleador && prediccionesReales.goleador) {
+      aciertos.goleador = 6;
+      puntosTotales += 6;
+    }
+
+    return { aciertos, puntosTotales };
+  };
+
   return (
     <div className="container mt-4">
       <h2>⚙️ Panel de Administración</h2>
@@ -208,11 +473,23 @@ export default function AdminPanel() {
           onChange={(e) => setJornadaSeleccionada(e.target.value)}
         >
           <option value="">-- Selecciona --</option>
-          {jornadas.map((j) => (
-            <option key={j.id} value={j.numero}>
-              Jornada {j.numero}
-            </option>
-          ))}
+          {jornadas.map((j) => {
+            if (j.numero === 25) {
+              return [
+                <option key={j.id} value={j.numero}>
+                  Jornada {j.numero}
+                </option>,
+                <option key="cuadro-final" value="cuadro-final">
+                  Cuadro Final
+                </option>
+              ];
+            }
+            return (
+              <option key={j.id} value={j.numero}>
+                Jornada {j.numero}
+              </option>
+            );
+          })}
         </select>
       </div>
 
@@ -295,6 +572,340 @@ export default function AdminPanel() {
             </button>
           </div>
         </>
+      )}
+
+      {/* CUADRO FINAL */}
+      {jornadaSeleccionada === "cuadro-final" && (
+        <div className="row mt-4">
+          <div className="col-12">
+            <h4>Gestión del Cuadro Final</h4>
+            
+            {/* Formulario de Predicciones Reales */}
+            <div className="card mb-4">
+              <div className="card-header">
+                <h5>Predicciones Reales (Admin)</h5>
+              </div>
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="campeon" className="form-label">
+                      <strong>Campeón (15 pts)</strong>
+                    </label>
+                    <select
+                      id="campeon"
+                      className="form-select"
+                      value={prediccionesReales.campeon}
+                      onChange={(e) => handleChangeCuadroFinal("campeon", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("campeon").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="subcampeon" className="form-label">
+                      <strong>Sub-Campeón (10 pts)</strong>
+                    </label>
+                    <select
+                      id="subcampeon"
+                      className="form-select"
+                      value={prediccionesReales.subcampeon}
+                      onChange={(e) => handleChangeCuadroFinal("subcampeon", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("subcampeon").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="tercero" className="form-label">
+                      <strong>3º Lugar (5 pts)</strong>
+                    </label>
+                    <select
+                      id="tercero"
+                      className="form-select"
+                      value={prediccionesReales.tercero}
+                      onChange={(e) => handleChangeCuadroFinal("tercero", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("tercero").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="chile_4_lib" className="form-label">
+                      <strong>Chile 4 (Libertadores) (5 pts)</strong>
+                    </label>
+                    <select
+                      id="chile_4_lib"
+                      className="form-select"
+                      value={prediccionesReales.chile_4_lib}
+                      onChange={(e) => handleChangeCuadroFinal("chile_4_lib", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("chile_4_lib").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="cuarto" className="form-label">
+                      <strong>4º Lugar (5 pts)</strong>
+                    </label>
+                    <select
+                      id="cuarto"
+                      className="form-select"
+                      value={prediccionesReales.cuarto}
+                      onChange={(e) => handleChangeCuadroFinal("cuarto", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("cuarto").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="quinto" className="form-label">
+                      <strong>5º Lugar (5 pts)</strong>
+                    </label>
+                    <select
+                      id="quinto"
+                      className="form-select"
+                      value={prediccionesReales.quinto}
+                      onChange={(e) => handleChangeCuadroFinal("quinto", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("quinto").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="sexto" className="form-label">
+                      <strong>6º Lugar (5 pts)</strong>
+                    </label>
+                    <select
+                      id="sexto"
+                      className="form-select"
+                      value={prediccionesReales.sexto}
+                      onChange={(e) => handleChangeCuadroFinal("sexto", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("sexto").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="septimo" className="form-label">
+                      <strong>7º Lugar (5 pts)</strong>
+                    </label>
+                    <select
+                      id="septimo"
+                      className="form-select"
+                      value={prediccionesReales.septimo}
+                      onChange={(e) => handleChangeCuadroFinal("septimo", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("septimo").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="quinceto" className="form-label">
+                      <strong>15º Lugar (5 pts)</strong>
+                    </label>
+                    <select
+                      id="quinceto"
+                      className="form-select"
+                      value={prediccionesReales.quinceto}
+                      onChange={(e) => handleChangeCuadroFinal("quinceto", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("quinceto").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="dieciseisavo" className="form-label">
+                      <strong>16º Lugar (5 pts)</strong>
+                    </label>
+                    <select
+                      id="dieciseisavo"
+                      className="form-select"
+                      value={prediccionesReales.dieciseisavo}
+                      onChange={(e) => handleChangeCuadroFinal("dieciseisavo", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("dieciseisavo").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="goleador" className="form-label">
+                      <strong>Goleador (6 pts)</strong>
+                    </label>
+                    <select
+                      id="goleador"
+                      className="form-select"
+                      value={prediccionesReales.goleador}
+                      onChange={(e) => handleChangeCuadroFinal("goleador", e.target.value)}
+                    >
+                      <option value="">Selecciona goleador</option>
+                      {goleadores.map((goleador) => (
+                        <option key={goleador} value={goleador}>
+                          {goleador}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <button
+                    className="btn btn-primary me-2"
+                    onClick={guardarPrediccionesReales}
+                    disabled={loading}
+                  >
+                    {loading ? "Guardando..." : "Guardar Predicciones Reales"}
+                  </button>
+                  <button
+                    className="btn btn-warning me-2"
+                    onClick={limpiarDatosCuadroFinal}
+                  >
+                    Limpiar Datos
+                  </button>
+                  <button
+                    className="btn btn-success me-2"
+                    onClick={calcularPuntos}
+                    disabled={loading}
+                  >
+                    {loading ? "Calculando..." : "Calcular Puntos"}
+                  </button>
+                  <button
+                    className="btn btn-info"
+                    onClick={sumarARanking}
+                    disabled={loading}
+                  >
+                    {loading ? "Sumando..." : "Sumar a Ranking"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Predicciones de Usuarios */}
+            {prediccionesUsuarios.length > 0 && (
+              <div className="card">
+                <div className="card-header">
+                  <h5>Predicciones de Usuarios</h5>
+                </div>
+                <div className="card-body">
+                  <div className="table-responsive">
+                    <table className="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Usuario</th>
+                          <th>Campeón</th>
+                          <th>Sub-Campeón</th>
+                          <th>3º Lugar</th>
+                          <th>Chile 4</th>
+                          <th>4º Lugar</th>
+                          <th>5º Lugar</th>
+                          <th>6º Lugar</th>
+                          <th>7º Lugar</th>
+                          <th>15º Lugar</th>
+                          <th>16º Lugar</th>
+                          <th>Goleador</th>
+                          <th>Puntos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {prediccionesUsuarios.map((prediccion) => {
+                          const { aciertos, puntosTotales } = calcularAciertos(prediccion);
+                          return (
+                            <tr key={prediccion.jugador_id}>
+                              <td><strong>{prediccion.nombre}</strong></td>
+                              <td className={aciertos.campeon ? "bg-success text-white" : ""}>
+                                {prediccion.campeon} {aciertos.campeon && `(${aciertos.campeon} pts)`}
+                              </td>
+                              <td className={aciertos.subcampeon ? "bg-success text-white" : ""}>
+                                {prediccion.subcampeon} {aciertos.subcampeon && `(${aciertos.subcampeon} pts)`}
+                              </td>
+                              <td className={aciertos.tercero ? "bg-success text-white" : ""}>
+                                {prediccion.tercero} {aciertos.tercero && `(${aciertos.tercero} pts)`}
+                              </td>
+                              <td className={aciertos.chile_4_lib ? "bg-success text-white" : ""}>
+                                {prediccion.chile_4_lib} {aciertos.chile_4_lib && `(${aciertos.chile_4_lib} pts)`}
+                              </td>
+                              <td className={aciertos.cuarto ? "bg-success text-white" : ""}>
+                                {prediccion.cuarto} {aciertos.cuarto && `(${aciertos.cuarto} pts)`}
+                              </td>
+                              <td className={aciertos.quinto ? "bg-success text-white" : ""}>
+                                {prediccion.quinto} {aciertos.quinto && `(${aciertos.quinto} pts)`}
+                              </td>
+                              <td className={aciertos.sexto ? "bg-success text-white" : ""}>
+                                {prediccion.sexto} {aciertos.sexto && `(${aciertos.sexto} pts)`}
+                              </td>
+                              <td className={aciertos.septimo ? "bg-success text-white" : ""}>
+                                {prediccion.septimo} {aciertos.septimo && `(${aciertos.septimo} pts)`}
+                              </td>
+                              <td className={aciertos.quinceto ? "bg-success text-white" : ""}>
+                                {prediccion.quinceto} {aciertos.quinceto && `(${aciertos.quinceto} pts)`}
+                              </td>
+                              <td className={aciertos.dieciseisavo ? "bg-success text-white" : ""}>
+                                {prediccion.dieciseisavo} {aciertos.dieciseisavo && `(${aciertos.dieciseisavo} pts)`}
+                              </td>
+                              <td className={aciertos.goleador ? "bg-success text-white" : ""}>
+                                {prediccion.goleador} {aciertos.goleador && `(${aciertos.goleador} pts)`}
+                              </td>
+                              <td><strong className="text-primary">{puntosTotales}</strong></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

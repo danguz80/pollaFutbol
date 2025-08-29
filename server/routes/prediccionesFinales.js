@@ -97,7 +97,7 @@ router.get('/', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         pf.*,
-        u.nombre as jugador_nombre
+        u.nombre
       FROM predicciones_finales pf
       JOIN usuarios u ON pf.jugador_id = u.id
       ORDER BY u.nombre
@@ -106,6 +106,108 @@ router.get('/', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener todas las predicciones finales:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// Calcular puntos comparando con predicciones reales
+router.post('/calcular-puntos', verifyToken, async (req, res) => {
+  try {
+    const prediccionesReales = req.body;
+    
+    // Obtener todas las predicciones de usuarios
+    const result = await pool.query(`
+      SELECT * FROM predicciones_finales
+    `);
+    
+    let usuariosActualizados = 0;
+    
+    for (const prediccion of result.rows) {
+      let puntos = 0;
+      
+      // Calcular puntos según aciertos
+      if (prediccion.campeon === prediccionesReales.campeon && prediccionesReales.campeon) {
+        puntos += 15;
+      }
+      if (prediccion.subcampeon === prediccionesReales.subcampeon && prediccionesReales.subcampeon) {
+        puntos += 10;
+      }
+      if (prediccion.tercero === prediccionesReales.tercero && prediccionesReales.tercero) {
+        puntos += 5;
+      }
+      if (prediccion.chile_4_lib === prediccionesReales.chile_4_lib && prediccionesReales.chile_4_lib) {
+        puntos += 5;
+      }
+      if (prediccion.cuarto === prediccionesReales.cuarto && prediccionesReales.cuarto) {
+        puntos += 5;
+      }
+      if (prediccion.quinto === prediccionesReales.quinto && prediccionesReales.quinto) {
+        puntos += 5;
+      }
+      if (prediccion.sexto === prediccionesReales.sexto && prediccionesReales.sexto) {
+        puntos += 5;
+      }
+      if (prediccion.septimo === prediccionesReales.septimo && prediccionesReales.septimo) {
+        puntos += 5;
+      }
+      if (prediccion.quinceto === prediccionesReales.quinceto && prediccionesReales.quinceto) {
+        puntos += 5;
+      }
+      if (prediccion.dieciseisavo === prediccionesReales.dieciseisavo && prediccionesReales.dieciseisavo) {
+        puntos += 5;
+      }
+      if (prediccion.goleador === prediccionesReales.goleador && prediccionesReales.goleador) {
+        puntos += 6;
+      }
+      
+      // Actualizar puntos en la tabla
+      await pool.query(
+        'UPDATE predicciones_finales SET puntos = $1 WHERE id = $2',
+        [puntos, prediccion.id]
+      );
+      
+      usuariosActualizados++;
+    }
+    
+    res.json({ 
+      message: 'Puntos calculados exitosamente',
+      usuariosActualizados
+    });
+  } catch (error) {
+    console.error('Error al calcular puntos:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// Sumar puntos del cuadro final al ranking general
+router.post('/sumar-ranking', verifyToken, async (req, res) => {
+  try {
+    // Obtener todas las predicciones finales con puntos
+    const result = await pool.query(`
+      SELECT jugador_id, puntos 
+      FROM predicciones_finales 
+      WHERE puntos > 0
+    `);
+    
+    let usuariosActualizados = 0;
+    
+    for (const prediccion of result.rows) {
+      // Sumar puntos al total del usuario
+      await pool.query(`
+        UPDATE usuarios 
+        SET puntaje_total = puntaje_total + $1 
+        WHERE id = $2
+      `, [prediccion.puntos, prediccion.jugador_id]);
+      
+      usuariosActualizados++;
+    }
+    
+    res.json({ 
+      message: 'Puntos sumados al ranking exitosamente',
+      usuariosActualizados
+    });
+  } catch (error) {
+    console.error('Error al sumar puntos al ranking:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
