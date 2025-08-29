@@ -10,6 +10,7 @@ export default function Clasificacion() {
   const [jornadas, setJornadas] = useState([]);
   const [jornadaActual, setJornadaActual] = useState("");
   const [selectedMatch, setSelectedMatch] = useState(""); // Nuevo estado para filtro por partido
+  const [selectedUser, setSelectedUser] = useState(""); // Nuevo estado para filtro por usuario
   const [detallePuntos, setDetallePuntos] = useState([]);
   const [rankingJornada, setRankingJornada] = useState([]);
   const [rankingAcumulado, setRankingAcumulado] = useState([]);
@@ -181,7 +182,20 @@ export default function Clasificacion() {
     return Array.from(matchesSet).sort();
   };
 
+  // Función para obtener lista única de usuarios de la jornada seleccionada
+  const getUsersForJornada = () => {
+    if (!detallePuntos || detallePuntos.length === 0) return [];
+    
+    const usersSet = new Set();
+    detallePuntos.forEach(p => {
+      usersSet.add(p.usuario);
+    });
+    
+    return Array.from(usersSet).sort();
+  };
+
   const availableMatches = getMatchesForJornada();
+  const availableUsers = getUsersForJornada();
 
   // Estilos de ranking
   function getJornadaCellStyle(i) {
@@ -199,13 +213,20 @@ export default function Clasificacion() {
 
   // -------------------- TABLA DETALLE UNIFICADO ---------------------
   function filasDetalleUnificado(array) {
-    // Aplicar filtro por partido específico si está seleccionado
+    // Aplicar filtros
     let arrayFiltrado = array;
+    
+    // Filtro por partido específico
     if (selectedMatch) {
-      arrayFiltrado = array.filter(p => {
+      arrayFiltrado = arrayFiltrado.filter(p => {
         const matchKey = `${p.nombre_local} vs ${p.nombre_visita}`;
         return matchKey === selectedMatch;
       });
+    }
+    
+    // Filtro por usuario específico
+    if (selectedUser) {
+      arrayFiltrado = arrayFiltrado.filter(p => p.usuario === selectedUser);
     }
 
     // Agrupar por jugador
@@ -222,6 +243,8 @@ export default function Clasificacion() {
           <td colSpan={6} className="text-center text-muted">
             {selectedMatch 
               ? `No hay pronósticos para el partido: ${selectedMatch}` 
+              : selectedUser
+              ? `No hay pronósticos para el usuario: ${selectedUser}`
               : "No hay datos disponibles"}
           </td>
         </tr>
@@ -259,7 +282,7 @@ export default function Clasificacion() {
       filas.push(
         <tr key={`total-${usuario}`} className="text-center" style={{ fontWeight: "bold", background: "#fff6d6" }}>
           <td colSpan={5} className="text-end">
-            Total {usuario} {selectedMatch ? '(partido filtrado)' : ''}:
+            Total {usuario} {(selectedMatch || selectedUser) ? '(filtrado)' : ''}:
           </td>
           <td>{total}</td>
         </tr>
@@ -303,6 +326,7 @@ export default function Clasificacion() {
               onChange={e => {
                 setJornadaActual(e.target.value);
                 setSelectedMatch(""); // Resetear filtro de partido al cambiar jornada
+                setSelectedUser(""); // Resetear filtro de usuario al cambiar jornada
               }}
             >
               <option value="">-- Selecciona jornada --</option>
@@ -325,11 +349,34 @@ export default function Clasificacion() {
                 className="form-select text-center"
                 style={{ maxWidth: 350, display: "inline-block" }}
                 value={selectedMatch}
-                onChange={e => setSelectedMatch(e.target.value)}
+                onChange={e => {
+                  setSelectedMatch(e.target.value);
+                  setSelectedUser(""); // Limpiar filtro de usuario al cambiar partido
+                }}
               >
                 <option value="">Todos los partidos</option>
                 {availableMatches.map(match => (
                   <option key={match} value={match}>{match}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          {jornadaCerrada && availableUsers.length > 0 && (
+            <div>
+              <label className="form-label fw-bold">Filtrar por usuario:</label>
+              <select
+                className="form-select text-center"
+                style={{ maxWidth: 300, display: "inline-block" }}
+                value={selectedUser}
+                onChange={e => {
+                  setSelectedUser(e.target.value);
+                  setSelectedMatch(""); // Limpiar filtro de partido al cambiar usuario
+                }}
+              >
+                <option value="">Todos los usuarios</option>
+                {availableUsers.map(user => (
+                  <option key={user} value={user}>{user}</option>
                 ))}
               </select>
             </div>
@@ -341,9 +388,11 @@ export default function Clasificacion() {
       <div id="detalle-pronosticos" className="mt-5">
         <h4 className="text-center">
           📝 Detalle de Todos los Pronósticos (Jornada {jornadaActual})
-          {selectedMatch && (
+          {(selectedMatch || selectedUser) && (
             <small className="d-block text-muted mt-1">
-              Filtrado por: {selectedMatch}
+              {selectedMatch && `Filtrado por partido: ${selectedMatch}`}
+              {selectedMatch && selectedUser && " • "}
+              {selectedUser && `Filtrado por usuario: ${selectedUser}`}
             </small>
           )}
         </h4>
