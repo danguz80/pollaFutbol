@@ -25,6 +25,7 @@ export default function CuadroFinal() {
   const [equiposDisponibles, setEquiposDisponibles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [jornadaCerrada, setJornadaCerrada] = useState(false);
 
   const equipos = [
     "Colo Colo", "Universidad de Chile", "Universidad Católica", "Palestino",
@@ -47,7 +48,22 @@ export default function CuadroFinal() {
 
   useEffect(() => {
     cargarPredicciones();
+    verificarEstadoJornada();
   }, [user]);
+
+  // Verificar si la jornada 999 (Cuadro Final) está cerrada
+  const verificarEstadoJornada = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/jornadas`);
+      if (response.ok) {
+        const jornadas = await response.json();
+        const jornadaCuadroFinal = jornadas.find(j => j.numero === 999);
+        setJornadaCerrada(jornadaCuadroFinal?.cerrada === true);
+      }
+    } catch (error) {
+      console.error("Error verificando estado de jornada:", error);
+    }
+  };
 
   useEffect(() => {
     // Actualizar equipos disponibles cuando cambian las predicciones
@@ -190,6 +206,14 @@ export default function CuadroFinal() {
       <CuentaRegresivaGlobal />
       <h2 className="text-center mb-4">🏆 Predicciones Cuadro Final</h2>
       
+      {jornadaCerrada && (
+        <div className="alert alert-warning text-center mb-4">
+          <strong>⚠️ Cuadro Final Cerrado</strong><br />
+          Las predicciones para el Cuadro Final han sido cerradas por el administrador. 
+          Ya no es posible modificar los pronósticos.
+        </div>
+      )}
+      
       {message && (
         <div className={`alert ${message.includes("exitosamente") ? "alert-success" : "alert-danger"} text-center`}>
           {message}
@@ -226,6 +250,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.campeon}
                   onChange={(e) => handleChange('campeon', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.campeon && <option value={predicciones.campeon}>{predicciones.campeon}</option>}
@@ -239,6 +264,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.subcampeon}
                   onChange={(e) => handleChange('subcampeon', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.subcampeon && <option value={predicciones.subcampeon}>{predicciones.subcampeon}</option>}
@@ -252,6 +278,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.tercero}
                   onChange={(e) => handleChange('tercero', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.tercero && <option value={predicciones.tercero}>{predicciones.tercero}</option>}
@@ -265,6 +292,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.chile_4_lib}
                   onChange={(e) => handleChange('chile_4_lib', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.chile_4_lib && <option value={predicciones.chile_4_lib}>{predicciones.chile_4_lib}</option>}
@@ -278,6 +306,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.cuarto}
                   onChange={(e) => handleChange('cuarto', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.cuarto && <option value={predicciones.cuarto}>{predicciones.cuarto}</option>}
@@ -291,6 +320,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.quinto}
                   onChange={(e) => handleChange('quinto', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.quinto && <option value={predicciones.quinto}>{predicciones.quinto}</option>}
@@ -304,6 +334,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.sexto}
                   onChange={(e) => handleChange('sexto', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.sexto && <option value={predicciones.sexto}>{predicciones.sexto}</option>}
@@ -317,6 +348,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.septimo}
                   onChange={(e) => handleChange('septimo', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.septimo && <option value={predicciones.septimo}>{predicciones.septimo}</option>}
@@ -330,6 +362,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.quinceto}
                   onChange={(e) => handleChange('quinceto', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.quinceto && <option value={predicciones.quinceto}>{predicciones.quinceto}</option>}
@@ -343,6 +376,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.dieciseisavo}
                   onChange={(e) => handleChange('dieciseisavo', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {predicciones.dieciseisavo && <option value={predicciones.dieciseisavo}>{predicciones.dieciseisavo}</option>}
@@ -356,6 +390,7 @@ export default function CuadroFinal() {
                   className="form-select"
                   value={predicciones.goleador}
                   onChange={(e) => handleChange('goleador', e.target.value)}
+                  disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
                   {goleadores.map(goleador => (
@@ -372,15 +407,15 @@ export default function CuadroFinal() {
         <button 
           className="btn btn-success btn-lg me-3"
           onClick={guardarPredicciones}
-          disabled={loading}
+          disabled={loading || jornadaCerrada}
         >
-          {loading ? "Guardando..." : "Guardar Pronósticos"}
+          {loading ? "Guardando..." : jornadaCerrada ? "Cuadro Final Cerrado" : "Guardar Pronósticos"}
         </button>
         
         <button 
           className="btn btn-outline-danger btn-lg"
           onClick={limpiarDatos}
-          disabled={loading}
+          disabled={loading || jornadaCerrada}
         >
           Limpiar Datos
         </button>
