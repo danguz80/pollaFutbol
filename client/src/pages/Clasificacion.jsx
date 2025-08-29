@@ -16,6 +16,11 @@ export default function Clasificacion() {
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
   const [ganadoresJornada, setGanadoresJornada] = useState([]);
   const [showFireworks, setShowFireworks] = useState(false);
+  
+  // Estados para Cuadro Final
+  const [prediccionesReales, setPrediccionesReales] = useState({});
+  const [prediccionesUsuarios, setPrediccionesUsuarios] = useState([]);
+  const [cuadroFinalCerrado, setCuadroFinalCerrado] = useState(false);
 
   // Cargar jornadas y definir por defecto la última
   useEffect(() => {
@@ -72,6 +77,96 @@ export default function Clasificacion() {
       setShowFireworks(false);
     }
   }, [jornadaActual, jornadaCerrada, jornadas]);
+
+  // Verificar estado del Cuadro Final
+  useEffect(() => {
+    if (jornadaActual === "999") {
+      // Verificar si hay una jornada especial "999" en el array
+      const cuadroFinalJornada = jornadas.find(j => j.numero === 999);
+      setCuadroFinalCerrado(cuadroFinalJornada?.cerrada === true);
+      
+      // Cargar datos del Cuadro Final si está cerrado
+      if (cuadroFinalJornada?.cerrada === true) {
+        cargarDatosCuadroFinal();
+      }
+    }
+  }, [jornadaActual, jornadas]);
+
+  // Función para cargar datos del Cuadro Final
+  const cargarDatosCuadroFinal = async () => {
+    try {
+      // Cargar predicciones reales del admin
+      const resReales = await fetch(`${API_BASE_URL}/api/prediccion-final-admin`);
+      if (resReales.ok) {
+        const datosReales = await resReales.json();
+        if (datosReales) {
+          setPrediccionesReales(datosReales);
+        }
+      }
+
+      // Cargar todas las predicciones de usuarios
+      const resUsuarios = await fetch(`${API_BASE_URL}/api/predicciones-finales`);
+      if (resUsuarios.ok) {
+        const datosUsuarios = await resUsuarios.json();
+        setPrediccionesUsuarios(datosUsuarios);
+      }
+    } catch (error) {
+      console.error("Error cargando datos cuadro final:", error);
+    }
+  };
+
+  // Función para calcular aciertos (igual que en AdminPanel)
+  const calcularAciertos = (prediccionUsuario) => {
+    const aciertos = {};
+    let puntosTotales = 0;
+
+    if (prediccionUsuario.campeon === prediccionesReales.campeon && prediccionesReales.campeon) {
+      aciertos.campeon = 15;
+      puntosTotales += 15;
+    }
+    if (prediccionUsuario.subcampeon === prediccionesReales.subcampeon && prediccionesReales.subcampeon) {
+      aciertos.subcampeon = 10;
+      puntosTotales += 10;
+    }
+    if (prediccionUsuario.tercero === prediccionesReales.tercero && prediccionesReales.tercero) {
+      aciertos.tercero = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.chile_4_lib === prediccionesReales.chile_4_lib && prediccionesReales.chile_4_lib) {
+      aciertos.chile_4_lib = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.cuarto === prediccionesReales.cuarto && prediccionesReales.cuarto) {
+      aciertos.cuarto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.quinto === prediccionesReales.quinto && prediccionesReales.quinto) {
+      aciertos.quinto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.sexto === prediccionesReales.sexto && prediccionesReales.sexto) {
+      aciertos.sexto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.septimo === prediccionesReales.septimo && prediccionesReales.septimo) {
+      aciertos.septimo = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.quinceto === prediccionesReales.quinceto && prediccionesReales.quinceto) {
+      aciertos.quinceto = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.dieciseisavo === prediccionesReales.dieciseisavo && prediccionesReales.dieciseisavo) {
+      aciertos.dieciseisavo = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.goleador === prediccionesReales.goleador && prediccionesReales.goleador) {
+      aciertos.goleador = 6;
+      puntosTotales += 6;
+    }
+
+    return { aciertos, puntosTotales };
+  };
 
   // Función para obtener lista única de partidos de la jornada seleccionada
   const getMatchesForJornada = () => {
@@ -211,9 +306,15 @@ export default function Clasificacion() {
               }}
             >
               <option value="">-- Selecciona jornada --</option>
-              {jornadas.map(j => (
-                <option key={j.numero} value={j.numero}>Jornada {j.numero}</option>
-              ))}
+              {jornadas.map(j => {
+                if (j.numero === 25) {
+                  return [
+                    <option key={j.numero} value={j.numero}>Jornada {j.numero}</option>,
+                    <option key="999" value="999">Cuadro Final</option>
+                  ];
+                }
+                return <option key={j.numero} value={j.numero}>Jornada {j.numero}</option>;
+              }).flat()}
             </select>
           </div>
           
@@ -278,9 +379,226 @@ export default function Clasificacion() {
         </div>
       )}
 
-      {/* 2. Ranking por jornada */}
-      <div id="ranking-jornada" className="mt-5">
-        <h4 className="text-center">🏆 Ranking Jornada {jornadaActual}</h4>
+      {/* CUADRO FINAL */}
+      {jornadaActual === "999" && (
+        <div className="mt-5">
+          <h3 className="text-center mb-4">🏆 Cuadro Final del Campeonato</h3>
+          
+          {!cuadroFinalCerrado ? (
+            <div className="alert alert-info text-center">
+              <h5>⏳ Cuadro Final en Proceso</h5>
+              <p>Los resultados del Cuadro Final se mostrarán una vez que el administrador cierre esta etapa.</p>
+            </div>
+          ) : (
+            <>
+              {/* Tabla de Predicciones Reales - Fija */}
+              {Object.keys(prediccionesReales).length > 0 && (
+                <div className="card mb-4" style={{ position: 'sticky', top: '10px', zIndex: 1000 }}>
+                  <div className="card-header bg-primary text-white">
+                    <h5 className="mb-0">📋 Resultados Oficiales del Campeonato</h5>
+                  </div>
+                  <div className="card-body bg-light">
+                    <div className="row text-center">
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>🥇 Campeón</strong><br />
+                        <span className="badge bg-warning text-dark">{prediccionesReales.campeon || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>🥈 Sub-Campeón</strong><br />
+                        <span className="badge bg-secondary">{prediccionesReales.subcampeon || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>🥉 3º Lugar</strong><br />
+                        <span className="badge bg-info">{prediccionesReales.tercero || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>🇨🇱 Chile 4</strong><br />
+                        <span className="badge bg-danger">{prediccionesReales.chile_4_lib || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>4º Lugar</strong><br />
+                        <span className="badge bg-dark">{prediccionesReales.cuarto || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>5º Lugar</strong><br />
+                        <span className="badge bg-dark">{prediccionesReales.quinto || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>6º Lugar</strong><br />
+                        <span className="badge bg-dark">{prediccionesReales.sexto || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>7º Lugar</strong><br />
+                        <span className="badge bg-dark">{prediccionesReales.septimo || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>15º Lugar</strong><br />
+                        <span className="badge bg-danger">{prediccionesReales.quinceto || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>16º Lugar</strong><br />
+                        <span className="badge bg-danger">{prediccionesReales.dieciseisavo || "-"}</span>
+                      </div>
+                      <div className="col-md-4 col-12 mb-2">
+                        <strong>⚽ Goleador</strong><br />
+                        <span className="badge bg-success">{prediccionesReales.goleador || "-"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tabla de Predicciones de Usuarios */}
+              {prediccionesUsuarios.length > 0 && (
+                <div className="card">
+                  <div className="card-header bg-info text-white">
+                    <h5 className="mb-0">📊 Predicciones de Todos los Usuarios</h5>
+                  </div>
+                  <div className="card-body">
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-dark">
+                          <tr className="text-center">
+                            <th>Usuario</th>
+                            <th>Campeón<br /><small>(15 pts)</small></th>
+                            <th>Sub-Campeón<br /><small>(10 pts)</small></th>
+                            <th>3º Lugar<br /><small>(5 pts)</small></th>
+                            <th>Chile 4<br /><small>(5 pts)</small></th>
+                            <th>4º Lugar<br /><small>(5 pts)</small></th>
+                            <th>5º Lugar<br /><small>(5 pts)</small></th>
+                            <th>6º Lugar<br /><small>(5 pts)</small></th>
+                            <th>7º Lugar<br /><small>(5 pts)</small></th>
+                            <th>15º Lugar<br /><small>(5 pts)</small></th>
+                            <th>16º Lugar<br /><small>(5 pts)</small></th>
+                            <th>Goleador<br /><small>(6 pts)</small></th>
+                            <th>Total Puntos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {prediccionesUsuarios.map((prediccion) => {
+                            const { aciertos, puntosTotales } = calcularAciertos(prediccion);
+                            return (
+                              <tr key={prediccion.jugador_id} className="text-center">
+                                <td className="text-start">
+                                  <strong>{prediccion.nombre}</strong>
+                                </td>
+                                <td className={aciertos.campeon ? "bg-success text-white" : ""}>
+                                  {prediccion.campeon}
+                                  {aciertos.campeon && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.campeon} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.subcampeon ? "bg-success text-white" : ""}>
+                                  {prediccion.subcampeon}
+                                  {aciertos.subcampeon && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.subcampeon} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.tercero ? "bg-success text-white" : ""}>
+                                  {prediccion.tercero}
+                                  {aciertos.tercero && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.tercero} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.chile_4_lib ? "bg-success text-white" : ""}>
+                                  {prediccion.chile_4_lib}
+                                  {aciertos.chile_4_lib && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.chile_4_lib} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.cuarto ? "bg-success text-white" : ""}>
+                                  {prediccion.cuarto}
+                                  {aciertos.cuarto && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.cuarto} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.quinto ? "bg-success text-white" : ""}>
+                                  {prediccion.quinto}
+                                  {aciertos.quinto && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.quinto} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.sexto ? "bg-success text-white" : ""}>
+                                  {prediccion.sexto}
+                                  {aciertos.sexto && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.sexto} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.septimo ? "bg-success text-white" : ""}>
+                                  {prediccion.septimo}
+                                  {aciertos.septimo && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.septimo} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.quinceto ? "bg-success text-white" : ""}>
+                                  {prediccion.quinceto}
+                                  {aciertos.quinceto && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.quinceto} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.dieciseisavo ? "bg-success text-white" : ""}>
+                                  {prediccion.dieciseisavo}
+                                  {aciertos.dieciseisavo && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.dieciseisavo} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.goleador ? "bg-success text-white" : ""}>
+                                  {prediccion.goleador}
+                                  {aciertos.goleador && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.goleador} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="table-warning">
+                                  <strong style={{ fontSize: '1.1em', color: '#d63384' }}>
+                                    {puntosTotales} pts
+                                  </strong>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          
+          <div className="text-center mt-4">
+            <a href="#top" className="btn btn-outline-primary">Volver arriba</a>
+          </div>
+        </div>
+      )}
+
+      {/* Las secciones normales solo se muestran si NO es cuadro-final */}
+      {jornadaActual !== "999" && (
+        <>
+          {/* 2. Ranking por jornada */}
+          <div id="ranking-jornada" className="mt-5">
+            <h4 className="text-center">🏆 Ranking Jornada {jornadaActual}</h4>
         <table className="table table-bordered text-center" style={{ marginBottom: "2rem" }}>
           <thead>
             <tr>
@@ -365,6 +683,8 @@ export default function Clasificacion() {
         </table>
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
+        </>
+      )}
     </div>
   );
 }

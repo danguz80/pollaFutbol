@@ -60,7 +60,7 @@ export default function AdminPanel() {
   useEffect(() => {
     if (!jornadaSeleccionada) return;
     
-    if (jornadaSeleccionada === "cuadro-final") {
+    if (jornadaSeleccionada === "999") {
       cargarDatosCuadroFinal();
     } else {
       fetchPartidos(jornadaSeleccionada);
@@ -210,6 +210,32 @@ export default function AdminPanel() {
     }
   };
 
+  // Toggle Cuadro Final
+  const toggleCuadroFinal = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/cuadro-final/toggle`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`✅ ${data.message}`);
+        // Recargar jornadas para actualizar el estado
+        const resJornadas = await fetch(`${API_BASE_URL}/api/jornadas`);
+        const jornadasActualizadas = await resJornadas.json();
+        setJornadas(jornadasActualizadas);
+      } else {
+        alert(`❌ Error: ${data.error}`);
+      }
+    } catch (error) {
+      alert("❌ Error al cambiar estado del Cuadro Final");
+      console.error(error);
+    }
+  };
+
   // PATCH actualizar ganadores
   const actualizarGanadores = async () => {
     if (!jornadaSeleccionada) return;
@@ -297,11 +323,13 @@ export default function AdminPanel() {
       if (response.ok) {
         const data = await response.json();
         console.log("Response data:", data);
-        setMessage("Predicciones reales guardadas exitosamente");
+        setMessage("✅ Predicciones reales guardadas exitosamente");
+        alert("✅ Predicciones reales guardadas exitosamente");
       } else {
         const errorData = await response.json();
         console.error("Error response:", errorData);
-        setMessage("Error al guardar predicciones reales");
+        setMessage(`❌ Error al guardar predicciones reales: ${errorData.error || 'Error desconocido'}`);
+        alert(`❌ Error al guardar predicciones reales: ${errorData.error || 'Error desconocido'}`);
       }
     } catch (error) {
       console.error("Error:", error);
@@ -326,7 +354,8 @@ export default function AdminPanel() {
         dieciseisavo: "",
         goleador: ""
       });
-      setMessage("Datos limpiados exitosamente");
+      setMessage("✅ Datos limpiados exitosamente");
+      alert("✅ Datos limpiados exitosamente");
     }
   };
 
@@ -338,7 +367,8 @@ export default function AdminPanel() {
     }
 
     if (Object.values(prediccionesReales).some(value => value === "")) {
-      setMessage("Debes completar todas las predicciones reales antes de calcular puntos");
+      setMessage("❌ Debes completar todas las predicciones reales antes de calcular puntos");
+      alert("❌ Debes completar todas las predicciones reales antes de calcular puntos");
       return;
     }
 
@@ -355,14 +385,18 @@ export default function AdminPanel() {
 
       if (response.ok) {
         const data = await response.json();
-        setMessage(`Puntos calculados exitosamente para ${data.usuariosActualizados} usuarios`);
+        setMessage(`✅ Puntos calculados exitosamente para ${data.usuariosActualizados} usuarios`);
+        alert(`✅ Puntos calculados exitosamente para ${data.usuariosActualizados} usuarios`);
         cargarDatosCuadroFinal(); // Recargar datos
       } else {
-        setMessage("Error al calcular puntos");
+        const errorData = await response.json();
+        setMessage(`❌ Error al calcular puntos: ${errorData.message || 'Error desconocido'}`);
+        alert(`❌ Error al calcular puntos: ${errorData.message || 'Error desconocido'}`);
       }
     } catch (error) {
       console.error("Error:", error);
-      setMessage("Error al calcular puntos");
+      setMessage("❌ Error de conexión al calcular puntos");
+      alert("❌ Error de conexión al calcular puntos");
     } finally {
       setLoading(false);
     }
@@ -387,13 +421,17 @@ export default function AdminPanel() {
 
       if (response.ok) {
         const data = await response.json();
-        setMessage(`Puntos sumados al ranking para ${data.usuariosActualizados} usuarios`);
+        setMessage(`✅ Puntos sumados al ranking para ${data.usuariosActualizados} usuarios`);
+        alert(`✅ Puntos sumados al ranking para ${data.usuariosActualizados} usuarios`);
       } else {
-        setMessage("Error al sumar puntos al ranking");
+        const errorData = await response.json();
+        setMessage(`❌ Error al sumar puntos al ranking: ${errorData.message || 'Error desconocido'}`);
+        alert(`❌ Error al sumar puntos al ranking: ${errorData.message || 'Error desconocido'}`);
       }
     } catch (error) {
       console.error("Error:", error);
-      setMessage("Error al sumar puntos al ranking");
+      setMessage("❌ Error de conexión al sumar puntos al ranking");
+      alert("❌ Error de conexión al sumar puntos al ranking");
     } finally {
       setLoading(false);
     }
@@ -479,7 +517,7 @@ export default function AdminPanel() {
                 <option key={j.id} value={j.numero}>
                   Jornada {j.numero}
                 </option>,
-                <option key="cuadro-final" value="cuadro-final">
+                <option key="999" value="999">
                   Cuadro Final
                 </option>
               ];
@@ -496,12 +534,23 @@ export default function AdminPanel() {
       {/* Botón cerrar/abrir jornada */}
       {jornadaSeleccionada && (
         <div className="mb-3">
-          <button
-            className={`btn ${jornadaCerrada ? "btn-danger" : "btn-outline-success"}`}
-            onClick={toggleCierreJornada}
-          >
-            {jornadaCerrada ? "🔓 Abrir Jornada" : "🔒 Cerrar Jornada"}
-          </button>
+          {jornadaSeleccionada === "999" ? (
+            <button
+              className={`btn ${jornadas.find(j => j.numero === 999)?.cerrada ? "btn-danger" : "btn-outline-success"}`}
+              onClick={toggleCuadroFinal}
+            >
+              {jornadas.find(j => j.numero === 999)?.cerrada 
+                ? "🔓 Abrir Cuadro Final" 
+                : "🔒 Cerrar Cuadro Final"}
+            </button>
+          ) : (
+            <button
+              className={`btn ${jornadaCerrada ? "btn-danger" : "btn-outline-success"}`}
+              onClick={toggleCierreJornada}
+            >
+              {jornadaCerrada ? "🔓 Abrir Jornada" : "🔒 Cerrar Jornada"}
+            </button>
+          )}
         </div>
       )}
 
@@ -575,10 +624,18 @@ export default function AdminPanel() {
       )}
 
       {/* CUADRO FINAL */}
-      {jornadaSeleccionada === "cuadro-final" && (
+      {jornadaSeleccionada === "999" && (
         <div className="row mt-4">
           <div className="col-12">
             <h4>Gestión del Cuadro Final</h4>
+            
+            {/* Área de mensajes */}
+            {message && (
+              <div className={`alert ${message.includes('✅') ? 'alert-success' : message.includes('❌') ? 'alert-danger' : 'alert-info'} alert-dismissible fade show`} role="alert">
+                {message}
+                <button type="button" className="btn-close" onClick={() => setMessage('')} aria-label="Close"></button>
+              </div>
+            )}
             
             {/* Formulario de Predicciones Reales */}
             <div className="card mb-4">

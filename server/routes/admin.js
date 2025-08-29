@@ -40,4 +40,61 @@ router.get("/usuarios-pendientes", verifyToken, authorizeRoles("admin"), async (
   }
 });
 
+// Abrir/Cerrar Cuadro Final
+router.post("/cuadro-final/toggle", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    // Verificar si ya existe la "jornada" cuadro-final (número 999)
+    const existingResult = await pool.query(
+      `SELECT * FROM jornadas WHERE numero = 999`
+    );
+
+    if (existingResult.rows.length === 0) {
+      // Crear la jornada cuadro-final
+      const createResult = await pool.query(
+        `INSERT INTO jornadas (numero, cerrada) VALUES (999, false) RETURNING *`
+      );
+      res.json({ 
+        message: "Jornada Cuadro Final creada",
+        jornada: createResult.rows[0]
+      });
+    } else {
+      // Toggle del estado cerrada
+      const newState = !existingResult.rows[0].cerrada;
+      const updateResult = await pool.query(
+        `UPDATE jornadas SET cerrada = $1 WHERE numero = 999 RETURNING *`,
+        [newState]
+      );
+      res.json({ 
+        message: `Cuadro Final ${newState ? 'cerrado' : 'abierto'}`,
+        jornada: updateResult.rows[0]
+      });
+    }
+  } catch (error) {
+    console.error("Error al toggle cuadro final:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// Obtener estado del Cuadro Final
+router.get("/cuadro-final/estado", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM jornadas WHERE numero = 999`
+    );
+    
+    if (result.rows.length === 0) {
+      res.json({ existe: false, cerrada: false });
+    } else {
+      res.json({ 
+        existe: true, 
+        cerrada: result.rows[0].cerrada,
+        jornada: result.rows[0]
+      });
+    }
+  } catch (error) {
+    console.error("Error al obtener estado cuadro final:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
 export default router;
