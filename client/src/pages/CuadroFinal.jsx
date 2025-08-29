@@ -30,7 +30,7 @@ export default function CuadroFinal() {
     "Colo Colo", "Universidad de Chile", "Universidad Católica", "Palestino",
     "Cobresal", "Everton", "Audax Italiano", "Deportes Iquique",
     "Ñublense", "Huachipato", "Unión La Calera", "Coquimbo Unido",
-    "Deportes Copiapó", "La Serena", "Deportes Limache", "O'Higgins"
+    "Unión Española", "La Serena", "Deportes Limache", "O'Higgins"
   ];
 
   const goleadores = [
@@ -60,8 +60,16 @@ export default function CuadroFinal() {
   const cargarPredicciones = async () => {
     if (!user?.id) return;
     
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    
     try {
-      const response = await fetch(`${API_BASE_URL}/api/predicciones-finales/${user.id}`);
+      const response = await fetch(`${API_BASE_URL}/api/predicciones-finales/${user.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
       if (response.ok) {
         const data = await response.json();
         if (data) {
@@ -79,6 +87,11 @@ export default function CuadroFinal() {
             goleador: data.goleador || ""
           });
         }
+      } else if (response.status === 404) {
+        // No hay predicciones guardadas, esto es normal para nuevos usuarios
+        console.log("No hay predicciones guardadas para este usuario");
+      } else {
+        console.error("Error cargando predicciones:", response.status);
       }
     } catch (error) {
       console.error("Error cargando predicciones:", error);
@@ -106,6 +119,12 @@ export default function CuadroFinal() {
       return;
     }
 
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMessage("No se encontró token de autenticación. Por favor, inicia sesión nuevamente.");
+      return;
+    }
+
     // Validar que todos los campos estén llenos
     const camposVacios = Object.entries(predicciones).filter(([key, value]) => value === "");
     if (camposVacios.length > 0) {
@@ -119,7 +138,7 @@ export default function CuadroFinal() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           jugador_id: user.id,
@@ -130,13 +149,38 @@ export default function CuadroFinal() {
       if (response.ok) {
         setMessage("Predicciones guardadas exitosamente");
       } else {
-        setMessage("Error al guardar predicciones");
+        const errorData = await response.text();
+        console.error("Error response:", errorData);
+        if (response.status === 403) {
+          setMessage("Error de autenticación. Por favor, inicia sesión nuevamente.");
+        } else {
+          setMessage(`Error al guardar predicciones: ${response.status}`);
+        }
       }
     } catch (error) {
       console.error("Error:", error);
       setMessage("Error al guardar predicciones");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const limpiarDatos = () => {
+    if (confirm("¿Estás seguro de que quieres limpiar todos los datos? Esta acción no se puede deshacer.")) {
+      setPredicciones({
+        campeon: "",
+        subcampeon: "",
+        tercero: "",
+        chile_4_lib: "",
+        cuarto: "",
+        quinto: "",
+        sexto: "",
+        septimo: "",
+        quinceto: "",
+        dieciseisavo: "",
+        goleador: ""
+      });
+      setMessage("Datos limpiados exitosamente");
     }
   };
 
@@ -326,11 +370,19 @@ export default function CuadroFinal() {
 
       <div className="text-center mt-4">
         <button 
-          className="btn btn-success btn-lg"
+          className="btn btn-success btn-lg me-3"
           onClick={guardarPredicciones}
           disabled={loading}
         >
           {loading ? "Guardando..." : "Guardar Pronósticos"}
+        </button>
+        
+        <button 
+          className="btn btn-outline-danger btn-lg"
+          onClick={limpiarDatos}
+          disabled={loading}
+        >
+          Limpiar Datos
         </button>
       </div>
     </div>
