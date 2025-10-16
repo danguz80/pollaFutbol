@@ -73,33 +73,11 @@ router.post("/calcular/:jornada", async (req, res) => {
       let goles_visita = p.real_visita;
       const bonus = parseInt(p.bonus) || 1;
 
-      // Si faltan resultados, intentamos obtenerlos desde la API
+      // Si faltan resultados, saltar este partido (no actualizar desde API)
       if (goles_local === null || goles_visita === null) {
-        try {
-          const response = await fetch(`https://api-football-v1.p.rapidapi.com/v3/fixtures?id=${p.partido_id}`, {
-            headers: {
-              "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
-              "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
-            }
-          });
-          const data = await response.json();
-          const partido = data.response[0];
-
-          if (partido && partido.goals.home !== null && partido.goals.away !== null) {
-            goles_local = partido.goals.home;
-            goles_visita = partido.goals.away;
-            // Actualizar tabla partidos con los goles obtenidos
-            await pool.query(
-              `UPDATE partidos SET goles_local = $1, goles_visita = $2 WHERE id = $3`,
-              [goles_local, goles_visita, p.partido_id]
-            );
-          }
-        } catch (apiErr) {
-          console.warn(`No se pudo obtener resultado de partido ${p.partido_id} desde la API`);
-        }
+        console.warn(`Partido ${p.partido_id} no tiene resultados, saltando cálculo de puntaje`);
+        continue;
       }
-
-      if (goles_local === null || goles_visita === null) continue;
 
       // Calcular puntaje base
       let puntosBase = 0;
