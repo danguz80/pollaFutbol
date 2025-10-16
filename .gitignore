@@ -43,3 +43,44 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Archivos de depuración y revisión
+*.md
+!README.md
+!DESPLIEGUE_PRODUCCION.md
+debug_*.js
+debug_*.mjs
+check_*.js
+check_*.mjs
+test_*.js
+verify_*.mjs
+generate_hash*.js
+generate_hash*.mjs
+fix_*.mjs
+migrate_*.js
+setup_*.js
+simular_*.js
+activate_*.mjs
+query_*.mjs
+reset_password*.js
+update_password*.js
+add_*.js
+corregir_*.js
+
+# Scripts de deploy temporales
+deploy_*_fix.sh
+
+# Archivos temporales del servidor
+server/debug_*
+server/check_*
+server/test_*
+server/verify_*
+server/generate_*
+server/fix_*
+server/migrate_*
+server/setup_*
+server/simular_*
+server/activate_*
+server/query_*
+server/add_*
+server/corregir_*
