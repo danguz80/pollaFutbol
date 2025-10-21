@@ -18,7 +18,7 @@ export default function CuentaRegresivaGlobal() {
   return (
     <CuentaRegresiva
       fechaCierre={proximaJornada.fecha_cierre}
-      numeroJornada={proximaJornada.numero}
+      numeroJornada={`Jornada ${proximaJornada.numero}`}
     />
   );
 }

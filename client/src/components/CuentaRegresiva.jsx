@@ -6,6 +6,17 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
 
   useEffect(() => {
     if (!fechaCierre) return;
+    
+    // Verificar inicialmente si ya expiró
+    const ahora = new Date();
+    const cierre = new Date(fechaCierre);
+    const diffInicial = cierre - ahora;
+    
+    if (diffInicial <= 0) {
+      setFinalizado(true);
+      return;
+    }
+    
     const interval = setInterval(() => {
       const ahora = new Date();
       const cierre = new Date(fechaCierre);
@@ -27,16 +38,15 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
   }, [fechaCierre, onCero]);
 
   if (!fechaCierre) return null;
+  
+  // Si la jornada ya expiró, no mostrar nada (la jornada debería estar cerrada)
   if (finalizado) {
-    const mensajeCierre = numeroJornada.includes('Sudamericana') 
-      ? '¡Edición de pronósticos Sudamericana cerrada!' 
-      : '¡Jornada cerrada!';
-    return <div className="alert alert-danger text-center">{mensajeCierre}</div>;
+    return null;
   }
 
   return (
     <div className="alert alert-info text-center" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
-      Tiempo restante antes de cerrar {numeroJornada}: {tiempo.dias}d {tiempo.horas}h {tiempo.minutos}m {tiempo.segundos}s
+      Tiempo restante antes de cerrar {numeroJornada || 'la jornada'}: {tiempo.dias}d {tiempo.horas}h {tiempo.minutos}m {tiempo.segundos}s
     </div>
   );
 }
