@@ -26,6 +26,7 @@ export default function CuadroFinal() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
+  const [todosLosPronosticos, setTodosLosPronosticos] = useState([]);
 
   const equipos = [
     "Colo Colo", "Universidad de Chile", "Universidad Católica", "Palestino",
@@ -58,10 +59,34 @@ export default function CuadroFinal() {
       if (response.ok) {
         const jornadas = await response.json();
         const jornadaCuadroFinal = jornadas.find(j => j.numero === 999);
-        setJornadaCerrada(jornadaCuadroFinal?.cerrada === true);
+        const estaCerrada = jornadaCuadroFinal?.cerrada === true;
+        setJornadaCerrada(estaCerrada);
+        
+        // Si está cerrada, cargar todos los pronósticos para mostrar
+        if (estaCerrada) {
+          cargarTodosLosPronosticos();
+        }
       }
     } catch (error) {
       console.error("Error verificando estado de jornada:", error);
+    }
+  };
+
+  // Cargar todos los pronósticos cuando esté cerrado
+  const cargarTodosLosPronosticos = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_BASE_URL}/api/predicciones-finales/todos`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTodosLosPronosticos(data);
+      }
+    } catch (error) {
+      console.error("Error cargando todos los pronósticos:", error);
     }
   };
 
@@ -207,10 +232,9 @@ export default function CuadroFinal() {
       <h2 className="text-center mb-4">🏆 Predicciones Cuadro Final</h2>
       
       {jornadaCerrada && (
-        <div className="alert alert-warning text-center mb-4">
-          <strong>⚠️ Cuadro Final Cerrado</strong><br />
-          Las predicciones para el Cuadro Final han sido cerradas por el administrador. 
-          Ya no es posible modificar los pronósticos.
+        <div className="alert alert-info text-center mb-4">
+          <strong>📋 Cuadro Final Cerrado</strong><br />
+          Visualiza todos los pronósticos realizados por los participantes.
         </div>
       )}
       
@@ -220,6 +244,52 @@ export default function CuadroFinal() {
         </div>
       )}
 
+      {jornadaCerrada ? (
+        // Vista de solo lectura con todos los pronósticos
+        <div className="row">
+          {todosLosPronosticos.map((pronostico, index) => (
+            <div key={index} className="col-md-6 col-lg-4 mb-4">
+              <div className="card">
+                <div className="card-header bg-primary text-white text-center">
+                  <div className="d-flex align-items-center justify-content-center">
+                    {pronostico.foto_perfil && (
+                      <img 
+                        src={`/perfil/${pronostico.foto_perfil}`} 
+                        alt={pronostico.jugador_nombre}
+                        className="rounded-circle me-2"
+                        style={{width: '30px', height: '30px', objectFit: 'cover'}}
+                      />
+                    )}
+                    <strong>{pronostico.jugador_nombre}</strong>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="table-responsive">
+                    <table className="table table-sm">
+                      <tbody>
+                        <tr><td className="fw-bold">🥇 Campeón:</td><td>{pronostico.campeon}</td></tr>
+                        <tr><td className="fw-bold">🥈 Sub-Campeón:</td><td>{pronostico.subcampeon}</td></tr>
+                        <tr><td className="fw-bold">🥉 Tercero:</td><td>{pronostico.tercero}</td></tr>
+                        <tr><td className="fw-bold">🇨🇱 Chile 4° Libertadores:</td><td>{pronostico.chile_4_lib}</td></tr>
+                        <tr><td className="fw-bold">4️⃣ Cuarto:</td><td>{pronostico.cuarto}</td></tr>
+                        <tr><td className="fw-bold">5️⃣ Quinto:</td><td>{pronostico.quinto}</td></tr>
+                        <tr><td className="fw-bold">6️⃣ Sexto:</td><td>{pronostico.sexto}</td></tr>
+                        <tr><td className="fw-bold">7️⃣ Séptimo:</td><td>{pronostico.septimo}</td></tr>
+                        <tr><td className="fw-bold">🔻 15° (Descenso):</td><td>{pronostico.quinceto}</td></tr>
+                        <tr><td className="fw-bold">🔻 16° (Descenso):</td><td>{pronostico.dieciseisavo}</td></tr>
+                        <tr><td className="fw-bold">⚽ Goleador:</td><td>{pronostico.goleador}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        // Vista de edición (formulario original)
+        <>
+      
       <div className="table-responsive">
         <table className="table table-bordered align-middle text-center">
           <thead className="table-dark">
@@ -420,6 +490,8 @@ export default function CuadroFinal() {
           Limpiar Datos
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 }

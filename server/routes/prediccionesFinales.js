@@ -4,6 +4,26 @@ import { verifyToken } from '../middleware/verifyToken.js';
 
 const router = express.Router();
 
+// Obtener todas las predicciones finales (para mostrar cuando esté cerrado)
+router.get('/todos', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        pf.*,
+        u.nombre as jugador_nombre,
+        u.foto_perfil
+      FROM predicciones_finales pf
+      JOIN usuarios u ON pf.jugador_id = u.id
+      ORDER BY u.nombre
+    `);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener todas las predicciones finales:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
 // Obtener predicciones finales de un jugador
 router.get('/:jugadorId', async (req, res) => {
   try {
