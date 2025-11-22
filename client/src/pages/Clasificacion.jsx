@@ -396,25 +396,21 @@ export default function Clasificacion() {
             </small>
           )}
         </h4>
-        {!jornadaCerrada ? (
-          <div className="alert alert-warning text-center">Esperando el cierre de jornada para mostrar resultados</div>
-        ) : (
-          <table className="table table-bordered table-sm text-center">
-            <thead className="table-secondary text-center">
-              <tr>
-                <th className="text-center">Jugador</th>
-                <th className="text-center">Partido</th>
-                <th className="text-center">Resultado real</th>
-                <th className="text-center">Mi resultado</th>
-                <th className="text-center">Bonus</th>
-                <th className="text-center">Puntos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filasDetalleUnificado(detallePuntos)}
-            </tbody>
-          </table>
-        )}
+        <table className="table table-bordered table-sm text-center">
+          <thead className="table-secondary text-center">
+            <tr>
+              <th className="text-center">Jugador</th>
+              <th className="text-center">Partido</th>
+              <th className="text-center">Resultado real</th>
+              <th className="text-center">Mi resultado</th>
+              <th className="text-center">Bonus</th>
+              <th className="text-center">Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filasDetalleUnificado(detallePuntos)}
+          </tbody>
+        </table>
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
 
