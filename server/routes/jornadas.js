@@ -8,6 +8,7 @@ import ganadoresRouter from "./ganadores.js";
 // import pronosticosSudamericanaRouter from "./pronosticosSudamericana.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { getWhatsAppService } from "../services/whatsappService.js";
 // COMENTADO - FASE 2: Moviendo código Sudamericana a archivos especializados
 // import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
@@ -239,7 +240,31 @@ router.patch("/:id/cerrar", async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Jornada no encontrada" });
     }
-    res.json({ mensaje: `Jornada actualizada`, jornada: result.rows[0] });
+    
+    const jornada = result.rows[0];
+    
+    // Si se está cerrando la jornada (cerrada = true), enviar mensaje WhatsApp
+    if (cerrada === true) {
+      try {
+        const whatsappService = getWhatsAppService();
+        
+        // Enviar mensaje en modo no bloqueante
+        setTimeout(async () => {
+          try {
+            await whatsappService.enviarMensajeJornadaCerrada(jornada.numero);
+            console.log(`✅ Mensaje WhatsApp enviado para jornada ${jornada.numero}`);
+          } catch (error) {
+            console.error(`❌ Error enviando WhatsApp para jornada ${jornada.numero}:`, error);
+          }
+        }, 2000); // 2 segundos de delay para asegurar que la respuesta HTTP se envíe primero
+        
+      } catch (error) {
+        console.error('Error inicializando WhatsApp service:', error);
+        // No fallar la respuesta por error de WhatsApp
+      }
+    }
+    
+    res.json({ mensaje: `Jornada actualizada`, jornada });
   } catch (err) {
     res.status(500).json({ error: "No se pudo actualizar el estado de la jornada" });
   }

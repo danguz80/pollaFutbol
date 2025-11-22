@@ -44,6 +44,10 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# WhatsApp session data
+server/whatsapp-session/
+**/whatsapp-session/
+
 # Archivos de depuración y revisión
 *.md
 !README.md

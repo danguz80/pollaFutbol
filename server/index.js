@@ -20,6 +20,8 @@ import adminSudamericanaRouter, { cierreAutomaticoSudamericana } from "./routes/
 import sudamericanaRouter from "./routes/sudamericana.js";
 import prediccionesFinalesRouter from "./routes/prediccionesFinales.js";
 import prediccionFinalAdminRouter from "./routes/prediccionFinalAdmin.js";
+import whatsappRoutes from "./routes/whatsapp.js";
+import { getWhatsAppService } from "./services/whatsappService.js";
 
 dotenv.config();
 
@@ -59,6 +61,7 @@ app.use("/api/sudamericana", pronosticosSudamericanaRouter);
 app.use('/api/sudamericana', puntajesSudamericanaRouter);
 app.use('/api/sudamericana', clasificacionSudamericanaRouter);
 app.use('/api/sudamericana', sudamericanaRankingRouter);
+app.use('/api/whatsapp', whatsappRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");
@@ -69,4 +72,9 @@ setInterval(cierreAutomaticoSudamericana, 60000);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
+  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
+  
+  // Inicializar WhatsApp
+  console.log('📱 Inicializando WhatsApp...');
+  getWhatsAppService();
 });
