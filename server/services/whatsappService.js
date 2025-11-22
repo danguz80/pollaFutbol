@@ -124,31 +124,40 @@ class WhatsAppService {
       }
 
       // Configurar transporter según el servicio
+      // Intentar primero con puerto 465 SSL (más compatible con Render)
       let transporter;
       if (emailService === 'gmail') {
         transporter = nodemailer.createTransport({
-          service: 'gmail',
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true, // SSL
           auth: {
             user: emailUser,
             pass: emailPass // App Password de Gmail
           },
-          connectionTimeout: 30000, // 30 segundos
+          connectionTimeout: 30000,
           greetingTimeout: 30000,
-          socketTimeout: 30000
+          socketTimeout: 30000,
+          tls: {
+            rejectUnauthorized: false
+          }
         });
       } else {
         // SMTP genérico
         transporter = nodemailer.createTransport({
           host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-          port: parseInt(process.env.EMAIL_PORT || '587'),
-          secure: false,
+          port: parseInt(process.env.EMAIL_PORT || '465'),
+          secure: true,
           auth: {
             user: emailUser,
             pass: emailPass
           },
           connectionTimeout: 30000,
           greetingTimeout: 30000,
-          socketTimeout: 30000
+          socketTimeout: 30000,
+          tls: {
+            rejectUnauthorized: false
+          }
         });
       }
 
