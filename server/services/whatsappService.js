@@ -131,7 +131,10 @@ class WhatsAppService {
           auth: {
             user: emailUser,
             pass: emailPass // App Password de Gmail
-          }
+          },
+          connectionTimeout: 30000, // 30 segundos
+          greetingTimeout: 30000,
+          socketTimeout: 30000
         });
       } else {
         // SMTP genérico
@@ -142,11 +145,20 @@ class WhatsAppService {
           auth: {
             user: emailUser,
             pass: emailPass
-          }
+          },
+          connectionTimeout: 30000,
+          greetingTimeout: 30000,
+          socketTimeout: 30000
         });
       }
 
+      // Verificar conexión primero
+      console.log('🔄 Verificando conexión SMTP...');
+      await transporter.verify();
+      console.log('✅ Conexión SMTP verificada');
+
       // Enviar email
+      console.log(`📧 Enviando email a ${emailTo}...`);
       const info = await transporter.sendMail({
         from: `"Polla Fútbol" <${emailUser}>`,
         to: emailTo,
@@ -155,7 +167,7 @@ class WhatsAppService {
         html: `<pre style="font-family: monospace; white-space: pre-wrap;">${mensaje}</pre>`
       });
 
-      console.log('Email enviado:', info.messageId);
+      console.log('✅ Email enviado:', info.messageId);
       return { success: true, mensaje: `Email enviado correctamente a ${emailTo}` };
       
     } catch (error) {
