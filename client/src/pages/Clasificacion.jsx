@@ -60,13 +60,11 @@ export default function Clasificacion() {
     setJornadaCerrada(jornadaSel?.cerrada === true);
   }, [jornadaActual, jornadas]);
 
-  // Cargar datos según jornada (solo si admin o jornada cerrada)
+  // Cargar datos según jornada
   useEffect(() => {
-    if (!jornadaActual || (!isAdmin && !jornadaCerrada)) return;
-    fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
-      .then(res => res.json())
-      .then(setDetallePuntos);
-
+    if (!jornadaActual) return;
+    
+    // Rankings siempre se cargan (visibles para todos)
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/jornada/${jornadaActual}`)
       .then(res => res.json())
       .then(setRankingJornada);
@@ -74,11 +72,20 @@ export default function Clasificacion() {
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
       .then(setRankingAcumulado);
+    
+    // Detalle de pronósticos solo si admin o cerrada
+    if (isAdmin || jornadaCerrada) {
+      fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
+        .then(res => res.json())
+        .then(setDetallePuntos);
+    } else {
+      setDetallePuntos([]);
+    }
   }, [jornadaActual, isAdmin, jornadaCerrada]);
 
-  // Obtener ganadores de la jornada seleccionada (solo si admin o jornada cerrada)
+  // Obtener ganadores de la jornada seleccionada (visible para todos)
   useEffect(() => {
-    if (!jornadaActual || (!isAdmin && !jornadaCerrada)) {
+    if (!jornadaActual) {
       setGanadoresJornada([]);
       setShowFireworks(false);
       return;
@@ -92,7 +99,7 @@ export default function Clasificacion() {
       setGanadoresJornada([]);
       setShowFireworks(false);
     }
-  }, [jornadaActual, isAdmin, jornadaCerrada, jornadas]);
+  }, [jornadaActual, jornadas]);
 
   // Verificar estado del Cuadro Final
   useEffect(() => {
@@ -357,7 +364,7 @@ export default function Clasificacion() {
             </select>
           </div>
           
-          {(isAdmin || jornadaCerrada) && availableMatches.length > 0 && (
+          {availableMatches.length > 0 && (
             <div>
               <label className="form-label fw-bold">Filtrar por partido:</label>
               <select
@@ -377,7 +384,7 @@ export default function Clasificacion() {
             </div>
           )}
           
-          {(isAdmin || jornadaCerrada) && availableUsers.length > 0 && (
+          {availableUsers.length > 0 && (
             <div>
               <label className="form-label fw-bold">Filtrar por usuario:</label>
               <select
@@ -434,7 +441,7 @@ export default function Clasificacion() {
       </div>
 
       {/* Ganador de la jornada */}
-      {(isAdmin || jornadaCerrada) && ganadoresJornada.length > 0 && (
+      {ganadoresJornada.length > 0 && (
         <div className="ganador-jornada-container" style={{ position: 'relative', margin: '2rem 0' }}>
           <h3 className="text-center" style={{ color: '#e67e22', fontWeight: 'bold', position: 'relative', zIndex: 2 }}>
             Ganador{ganadoresJornada.length > 1 ? 'es' : ''} de la Jornada {jornadaActual}: {ganadoresJornada.join(', ')} ¡Felicitaciones!
