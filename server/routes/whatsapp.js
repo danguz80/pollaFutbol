@@ -5,19 +5,19 @@ import { authorizeRoles } from '../middleware/authorizeRoles.js';
 
 const router = express.Router();
 
-// Obtener estado de conexión de WhatsApp
+// Obtener estado de conexión del servicio de notificaciones
 router.get('/status', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const whatsappService = getWhatsAppService();
     const status = await whatsappService.obtenerEstadoConexion();
     res.json(status);
   } catch (error) {
-    res.status(500).json({ error: 'Error obteniendo estado WhatsApp' });
+    res.status(500).json({ error: 'Error obteniendo estado del servicio' });
   }
 });
 
-// Enviar mensaje de prueba
-router.post('/test', verifyToken, authorizeRoles('admin'), async (req, res) => {
+// Enviar notificación por email para una jornada
+router.post('/enviar-jornada', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const { numeroJornada } = req.body;
     
@@ -28,13 +28,23 @@ router.post('/test', verifyToken, authorizeRoles('admin'), async (req, res) => {
     const whatsappService = getWhatsAppService();
     const resultado = await whatsappService.enviarMensajeJornadaCerrada(numeroJornada);
     
-    if (resultado) {
-      res.json({ mensaje: 'Mensaje de prueba enviado correctamente' });
+    if (resultado.success) {
+      res.json({ 
+        success: true, 
+        mensaje: `Notificación enviada correctamente para la jornada ${numeroJornada}` 
+      });
     } else {
-      res.status(500).json({ error: 'Error enviando mensaje de prueba' });
+      res.status(500).json({ 
+        success: false, 
+        error: resultado.mensaje || 'Error enviando notificación' 
+      });
     }
   } catch (error) {
-    res.status(500).json({ error: 'Error en mensaje de prueba' });
+    console.error('Error en endpoint enviar-jornada:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Error interno del servidor' 
+    });
   }
 });
 

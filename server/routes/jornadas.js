@@ -243,7 +243,7 @@ router.patch("/:id/cerrar", async (req, res) => {
     
     const jornada = result.rows[0];
     
-    // Si se está cerrando la jornada (cerrada = true), enviar mensaje WhatsApp
+    // Si se está cerrando la jornada (cerrada = true), enviar notificación por email
     if (cerrada === true) {
       try {
         const whatsappService = getWhatsAppService();
@@ -251,16 +251,20 @@ router.patch("/:id/cerrar", async (req, res) => {
         // Enviar mensaje en modo no bloqueante
         setTimeout(async () => {
           try {
-            await whatsappService.enviarMensajeJornadaCerrada(jornada.numero);
-            console.log(`✅ Mensaje WhatsApp enviado para jornada ${jornada.numero}`);
+            const resultado = await whatsappService.enviarMensajeJornadaCerrada(jornada.numero);
+            if (resultado.success) {
+              console.log(`✅ Notificación enviada para jornada ${jornada.numero}`);
+            } else {
+              console.error(`❌ Error enviando notificación para jornada ${jornada.numero}:`, resultado.mensaje);
+            }
           } catch (error) {
-            console.error(`❌ Error enviando WhatsApp para jornada ${jornada.numero}:`, error);
+            console.error(`❌ Error enviando notificación para jornada ${jornada.numero}:`, error);
           }
         }, 2000); // 2 segundos de delay para asegurar que la respuesta HTTP se envíe primero
         
       } catch (error) {
-        console.error('Error inicializando WhatsApp service:', error);
-        // No fallar la respuesta por error de WhatsApp
+        console.error('Error inicializando servicio de notificaciones:', error);
+        // No fallar la respuesta por error de notificación
       }
     }
     

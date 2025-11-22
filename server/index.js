@@ -73,8 +73,5 @@ setInterval(cierreAutomaticoSudamericana, 60000);
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  
-  // Inicializar WhatsApp
-  console.log('📱 Inicializando WhatsApp...');
-  getWhatsAppService();
+  console.log('📧 Servicio de notificaciones por email configurado');
 });

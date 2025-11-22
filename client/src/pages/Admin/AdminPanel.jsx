@@ -236,6 +236,40 @@ export default function AdminPanel() {
     }
   };
 
+  // Enviar mensaje por email manualmente
+  const enviarNotificacionEmail = async () => {
+    if (!jornadaSeleccionada || jornadaSeleccionada === "999") {
+      alert("❌ Selecciona una jornada válida");
+      return;
+    }
+
+    const confirmacion = confirm(`¿Enviar email con los pronósticos de la Jornada ${jornadaSeleccionada}?`);
+    if (!confirmacion) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/whatsapp/enviar-jornada`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ numeroJornada: parseInt(jornadaSeleccionada) })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        alert(`✅ ${data.mensaje}`);
+      } else {
+        alert(`❌ Error: ${data.error || 'No se pudo enviar el email'}`);
+      }
+    } catch (error) {
+      alert("❌ Error al enviar email");
+      console.error(error);
+    }
+  };
+
   // PATCH actualizar ganadores
   const actualizarGanadores = async () => {
     if (!jornadaSeleccionada) return;
@@ -606,7 +640,7 @@ export default function AdminPanel() {
             </tbody>
           </table>
 
-          <div className="d-flex justify-content-between mt-3 gap-2">
+          <div className="d-flex justify-content-between mt-3 gap-2 flex-wrap">
             <button className="btn btn-warning" onClick={actualizarDesdeAPI}>
               🔄 Actualizar Resultados desde API
             </button>
@@ -618,6 +652,9 @@ export default function AdminPanel() {
             </button>
             <button className="btn btn-dark" onClick={actualizarGanadores}>
               🏆 Actualizar Ganadores de la Jornada
+            </button>
+            <button className="btn btn-info" onClick={enviarNotificacionEmail}>
+              📧 Enviar Email
             </button>
           </div>
         </>
