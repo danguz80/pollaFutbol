@@ -231,6 +231,77 @@ export default function CuadroFinal() {
       <CuentaRegresivaGlobal />
       <h2 className="text-center mb-4">🏆 Predicciones Cuadro Final</h2>
       
+      {/* Tabla de Puntajes */}
+      <div className="card mb-4">
+        <div className="card-header bg-primary text-white">
+          <h5 className="mb-0">📊 Tabla de Puntajes</h5>
+        </div>
+        <div className="card-body">
+          <div className="table-responsive">
+            <table className="table table-bordered table-hover mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th>Posición</th>
+                  <th>Puntos</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Campeón</strong></td>
+                  <td className="text-center"><span className="badge bg-success">15 pts</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Sub-Campeón</strong></td>
+                  <td className="text-center"><span className="badge bg-info">10 pts</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Goleador</strong></td>
+                  <td className="text-center"><span className="badge bg-warning text-dark">6 pts</span></td>
+                </tr>
+                <tr>
+                  <td>3º Lugar</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>Chile 4 (Libertadores)</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>4º Lugar</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>5º Lugar</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>6º Lugar</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>7º Lugar</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>15º Lugar</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>16º Lugar</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+              </tbody>
+              <tfoot className="table-light">
+                <tr>
+                  <td><strong>Total Máximo</strong></td>
+                  <td className="text-center"><strong>71 puntos</strong></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+      
       {jornadaCerrada && (
         <div className="alert alert-info text-center mb-4">
           <strong>📋 Cuadro Final Cerrado</strong><br />
