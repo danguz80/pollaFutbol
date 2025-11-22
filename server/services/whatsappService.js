@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import { pool } from '../db/pool.js';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 class WhatsAppService {
   constructor() {
@@ -111,72 +111,34 @@ class WhatsAppService {
 
   async enviarViaEmail(mensaje, numeroJornada) {
     try {
-      const emailService = process.env.EMAIL_SERVICE || 'gmail';
-      const emailUser = process.env.EMAIL_USER;
-      const emailPass = process.env.EMAIL_PASS;
+      const resendApiKey = process.env.RESEND_API_KEY;
+      const emailFrom = process.env.EMAIL_FROM || 'onboarding@resend.dev';
       const emailTo = process.env.EMAIL_TO;
 
-      if (!emailUser || !emailPass || !emailTo) {
+      if (!resendApiKey || !emailTo) {
         return { 
           success: false, 
-          mensaje: 'Email no configurado. Configura EMAIL_USER, EMAIL_PASS y EMAIL_TO en .env' 
+          mensaje: 'Email no configurado. Configura RESEND_API_KEY y EMAIL_TO en .env' 
         };
       }
 
-      // Configurar transporter según el servicio
-      // Intentar primero con puerto 465 SSL (más compatible con Render)
-      let transporter;
-      if (emailService === 'gmail') {
-        transporter = nodemailer.createTransport({
-          host: 'smtp.gmail.com',
-          port: 465,
-          secure: true, // SSL
-          auth: {
-            user: emailUser,
-            pass: emailPass // App Password de Gmail
-          },
-          connectionTimeout: 30000,
-          greetingTimeout: 30000,
-          socketTimeout: 30000,
-          tls: {
-            rejectUnauthorized: false
-          }
-        });
-      } else {
-        // SMTP genérico
-        transporter = nodemailer.createTransport({
-          host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-          port: parseInt(process.env.EMAIL_PORT || '465'),
-          secure: true,
-          auth: {
-            user: emailUser,
-            pass: emailPass
-          },
-          connectionTimeout: 30000,
-          greetingTimeout: 30000,
-          socketTimeout: 30000,
-          tls: {
-            rejectUnauthorized: false
-          }
-        });
-      }
+      const resend = new Resend(resendApiKey);
 
-      // Verificar conexión primero
-      console.log('🔄 Verificando conexión SMTP...');
-      await transporter.verify();
-      console.log('✅ Conexión SMTP verificada');
-
-      // Enviar email
       console.log(`📧 Enviando email a ${emailTo}...`);
-      const info = await transporter.sendMail({
-        from: `"Polla Fútbol" <${emailUser}>`,
-        to: emailTo,
+      const { data, error } = await resend.emails.send({
+        from: emailFrom,
+        to: [emailTo],
         subject: `🏆 Jornada ${numeroJornada} Cerrada - Pronósticos Registrados`,
         text: mensaje,
         html: `<pre style="font-family: monospace; white-space: pre-wrap;">${mensaje}</pre>`
       });
 
-      console.log('✅ Email enviado:', info.messageId);
+      if (error) {
+        console.error('❌ Error Resend:', error);
+        return { success: false, mensaje: `Error al enviar email: ${error.message}` };
+      }
+
+      console.log('✅ Email enviado:', data.id);
       return { success: true, mensaje: `Email enviado correctamente a ${emailTo}` };
       
     } catch (error) {
