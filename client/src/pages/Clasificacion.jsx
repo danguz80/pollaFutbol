@@ -31,10 +31,15 @@ export default function Clasificacion() {
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        setIsAdmin(decoded.rol === "admin");
+        const esAdmin = decoded.rol === "admin";
+        setIsAdmin(esAdmin);
+        console.log("🔑 Usuario - Rol:", decoded.rol, "| Es Admin:", esAdmin);
       } catch (error) {
         setIsAdmin(false);
+        console.log("❌ Error decodificando token");
       }
+    } else {
+      console.log("⚠️ No hay token de sesión");
     }
   }, []);
 
@@ -419,7 +424,11 @@ export default function Clasificacion() {
           )}
         </h4>
         {!isAdmin && !jornadaCerrada ? (
-          <div className="alert alert-warning text-center">Esperando el cierre de jornada para mostrar resultados</div>
+          <div className="alert alert-warning text-center">
+            Esperando el cierre de jornada para mostrar resultados
+            <br />
+            <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
+          </div>
         ) : (
           <table className="table table-bordered table-sm text-center">
             <thead className="table-secondary text-center">
