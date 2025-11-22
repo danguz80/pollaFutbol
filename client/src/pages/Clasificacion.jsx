@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import FireworksEffect from "../components/FireworksEffect";
 import AccesosDirectos from "../components/AccesosDirectos";
 import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
+import { jwtDecode } from "jwt-decode";
 
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -17,11 +18,25 @@ export default function Clasificacion() {
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
   const [ganadoresJornada, setGanadoresJornada] = useState([]);
   const [showFireworks, setShowFireworks] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Estados para Cuadro Final
   const [prediccionesReales, setPrediccionesReales] = useState({});
   const [prediccionesUsuarios, setPrediccionesUsuarios] = useState([]);
   const [cuadroFinalCerrado, setCuadroFinalCerrado] = useState(false);
+
+  // Verificar si el usuario es admin
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        setIsAdmin(decoded.rol === "admin");
+      } catch (error) {
+        setIsAdmin(false);
+      }
+    }
+  }, []);
 
   // Cargar jornadas y definir por defecto la última
   useEffect(() => {
@@ -45,9 +60,9 @@ export default function Clasificacion() {
     setJornadaCerrada(jornadaSel?.cerrada === true);
   }, [jornadaActual, jornadas]);
 
-  // Cargar datos según jornada
+  // Cargar datos según jornada (solo si admin o jornada cerrada)
   useEffect(() => {
-    if (!jornadaActual) return;
+    if (!jornadaActual || (!isAdmin && !jornadaCerrada)) return;
     fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
       .then(res => res.json())
       .then(setDetallePuntos);
@@ -59,11 +74,11 @@ export default function Clasificacion() {
     fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
       .then(res => res.json())
       .then(setRankingAcumulado);
-  }, [jornadaActual]);
+  }, [jornadaActual, isAdmin, jornadaCerrada]);
 
-  // Obtener ganadores de la jornada seleccionada
+  // Obtener ganadores de la jornada seleccionada (solo si admin o jornada cerrada)
   useEffect(() => {
-    if (!jornadaActual) {
+    if (!jornadaActual || (!isAdmin && !jornadaCerrada)) {
       setGanadoresJornada([]);
       setShowFireworks(false);
       return;
@@ -77,7 +92,7 @@ export default function Clasificacion() {
       setGanadoresJornada([]);
       setShowFireworks(false);
     }
-  }, [jornadaActual, jornadas]);
+  }, [jornadaActual, isAdmin, jornadaCerrada, jornadas]);
 
   // Verificar estado del Cuadro Final
   useEffect(() => {
@@ -342,7 +357,7 @@ export default function Clasificacion() {
             </select>
           </div>
           
-          {availableMatches.length > 0 && (
+          {(isAdmin || jornadaCerrada) && availableMatches.length > 0 && (
             <div>
               <label className="form-label fw-bold">Filtrar por partido:</label>
               <select
@@ -362,7 +377,7 @@ export default function Clasificacion() {
             </div>
           )}
           
-          {availableUsers.length > 0 && (
+          {(isAdmin || jornadaCerrada) && availableUsers.length > 0 && (
             <div>
               <label className="form-label fw-bold">Filtrar por usuario:</label>
               <select
@@ -396,26 +411,30 @@ export default function Clasificacion() {
             </small>
           )}
         </h4>
-        <table className="table table-bordered table-sm text-center">
-          <thead className="table-secondary text-center">
-            <tr>
-              <th className="text-center">Jugador</th>
-              <th className="text-center">Partido</th>
-              <th className="text-center">Resultado real</th>
-              <th className="text-center">Mi resultado</th>
-              <th className="text-center">Bonus</th>
-              <th className="text-center">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filasDetalleUnificado(detallePuntos)}
-          </tbody>
-        </table>
+        {!isAdmin && !jornadaCerrada ? (
+          <div className="alert alert-warning text-center">Esperando el cierre de jornada para mostrar resultados</div>
+        ) : (
+          <table className="table table-bordered table-sm text-center">
+            <thead className="table-secondary text-center">
+              <tr>
+                <th className="text-center">Jugador</th>
+                <th className="text-center">Partido</th>
+                <th className="text-center">Resultado real</th>
+                <th className="text-center">Mi resultado</th>
+                <th className="text-center">Bonus</th>
+                <th className="text-center">Puntos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filasDetalleUnificado(detallePuntos)}
+            </tbody>
+          </table>
+        )}
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
 
       {/* Ganador de la jornada */}
-      {ganadoresJornada.length > 0 && (
+      {(isAdmin || jornadaCerrada) && ganadoresJornada.length > 0 && (
         <div className="ganador-jornada-container" style={{ position: 'relative', margin: '2rem 0' }}>
           <h3 className="text-center" style={{ color: '#e67e22', fontWeight: 'bold', position: 'relative', zIndex: 2 }}>
             Ganador{ganadoresJornada.length > 1 ? 'es' : ''} de la Jornada {jornadaActual}: {ganadoresJornada.join(', ')} ¡Felicitaciones!
