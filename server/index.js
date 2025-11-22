@@ -22,6 +22,7 @@ import prediccionesFinalesRouter from "./routes/prediccionesFinales.js";
 import prediccionFinalAdminRouter from "./routes/prediccionFinalAdmin.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import { getWhatsAppService } from "./services/whatsappService.js";
+import { cierreAutomaticoJornadas } from "./routes/jornadas.js";
 
 dotenv.config();
 
@@ -69,6 +70,9 @@ app.get("/", (req, res) => {
 
 // Cron para cierre automático de edición de pronósticos Sudamericana
 setInterval(cierreAutomaticoSudamericana, 60000);
+
+// Cron para cierre automático de jornadas normales
+setInterval(cierreAutomaticoJornadas, 60000);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

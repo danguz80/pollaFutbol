@@ -29,6 +29,8 @@ export default function AdminPanel() {
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState("");
   const [partidos, setPartidos] = useState([]);
   const [jornadaCerrada, setJornadaCerrada] = useState(false); // <--- CORREGIDO
+  const [fechaCierre, setFechaCierre] = useState(""); // Fecha y hora de cierre automático
+  const [jornadaId, setJornadaId] = useState(null);
   
   // Estados para Cuadro Final
   const [prediccionesReales, setPrediccionesReales] = useState({
@@ -92,8 +94,21 @@ export default function AdminPanel() {
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${numero}`);
       const data = await res.json();
       setJornadaCerrada(!!data.cerrada); // <--- CORREGIDO
+      setJornadaId(data.id);
+      // Convertir fecha_cierre a formato datetime-local (yyyy-MM-ddTHH:mm)
+      if (data.fecha_cierre) {
+        const fecha = new Date(data.fecha_cierre);
+        const fechaLocal = new Date(fecha.getTime() - fecha.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 16);
+        setFechaCierre(fechaLocal);
+      } else {
+        setFechaCierre("");
+      }
     } catch (err) {
       setJornadaCerrada(false); // <--- CORREGIDO
+      setFechaCierre("");
+      setJornadaId(null);
     }
   };
 
@@ -232,6 +247,35 @@ export default function AdminPanel() {
       }
     } catch (error) {
       alert("❌ Error al cambiar estado del Cuadro Final");
+      console.error(error);
+    }
+  };
+
+  // Actualizar fecha de cierre automático
+  const actualizarFechaCierre = async () => {
+    if (!jornadaId || !fechaCierre) {
+      alert("❌ Selecciona una jornada y una fecha válida");
+      return;
+    }
+    try {
+      const fechaISO = new Date(fechaCierre).toISOString();
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaId}/fecha-cierre`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ fecha_cierre: fechaISO })
+      });
+      
+      if (res.ok) {
+        alert("✅ Fecha de cierre actualizada");
+      } else {
+        alert("❌ Error al actualizar fecha de cierre");
+      }
+    } catch (error) {
+      alert("❌ Error al actualizar fecha de cierre");
       console.error(error);
     }
   };
@@ -564,6 +608,30 @@ export default function AdminPanel() {
           })}
         </select>
       </div>
+
+      {/* Fecha de cierre automático */}
+      {jornadaSeleccionada && jornadaSeleccionada !== "999" && (
+        <div className="mb-3 p-3 border rounded bg-light">
+          <h6>⏰ Cierre Automático</h6>
+          <div className="d-flex gap-2 align-items-center">
+            <label className="form-label mb-0">Fecha y hora de cierre:</label>
+            <input
+              type="datetime-local"
+              className="form-control w-auto"
+              value={fechaCierre}
+              onChange={(e) => setFechaCierre(e.target.value)}
+            />
+            <button className="btn btn-primary" onClick={actualizarFechaCierre}>
+              💾 Guardar
+            </button>
+          </div>
+          {fechaCierre && (
+            <small className="text-muted">
+              La jornada se cerrará automáticamente en esta fecha y se enviará un email
+            </small>
+          )}
+        </div>
+      )}
 
       {/* Botón cerrar/abrir jornada */}
       {jornadaSeleccionada && (

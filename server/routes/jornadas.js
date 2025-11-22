@@ -91,6 +91,32 @@ router.patch("/proxima/fecha-cierre", async (req, res) => {
   }
 });
 
+// 🔹 PATCH /api/jornadas/:id/fecha-cierre - Actualizar fecha de cierre de una jornada específica
+router.patch("/:id/fecha-cierre", verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { fecha_cierre } = req.body;
+  
+  if (!fecha_cierre) {
+    return res.status(400).json({ error: "Se requiere fecha_cierre" });
+  }
+  
+  try {
+    const result = await pool.query(
+      "UPDATE jornadas SET fecha_cierre = $1 WHERE id = $2 RETURNING id, numero, fecha_cierre",
+      [fecha_cierre, id]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Jornada no encontrada" });
+    }
+    
+    res.json({ ok: true, message: "Fecha de cierre actualizada", jornada: result.rows[0] });
+  } catch (err) {
+    console.error("Error al actualizar fecha de cierre:", err);
+    res.status(500).json({ error: "Error al actualizar fecha de cierre" });
+  }
+});
+
 // 🔹 GET /api/jornadas/proxima-abierta (antes de rutas dinámicas)
 router.get("/proxima-abierta", async (req, res) => {
   try {
@@ -112,7 +138,7 @@ router.get("/:numero", async (req, res) => {
   const { numero } = req.params;
   try {
     const result = await pool.query(
-      "SELECT id, numero, cerrada FROM jornadas WHERE numero = $1",
+      "SELECT id, numero, cerrada, fecha_cierre FROM jornadas WHERE numero = $1",
       [numero]
     );
     if (result.rowCount === 0) {
@@ -641,4 +667,45 @@ router.use("/ganadores", ganadoresRouter);
 //   }
 // });
 
+// Función para cierre automático de jornadas basándose en fecha_cierre
+async function cierreAutomaticoJornadas() {
+  try {
+    // Buscar jornadas abiertas con fecha_cierre definida y que ya hayan pasado esa fecha
+    const result = await pool.query(`
+      SELECT id, numero, fecha_cierre, cerrada 
+      FROM jornadas 
+      WHERE cerrada = false 
+        AND fecha_cierre IS NOT NULL 
+        AND fecha_cierre <= NOW()
+    `);
+
+    for (const jornada of result.rows) {
+      console.log(`🔒 Cerrando automáticamente jornada ${jornada.numero}`);
+      
+      // Cerrar la jornada
+      await pool.query(
+        "UPDATE jornadas SET cerrada = true WHERE id = $1",
+        [jornada.id]
+      );
+
+      // Enviar email de notificación
+      try {
+        const whatsappService = getWhatsAppService();
+        const resultado = await whatsappService.enviarMensajeJornadaCerrada(jornada.numero);
+        
+        if (resultado.success) {
+          console.log(`✅ Email enviado para jornada ${jornada.numero}`);
+        } else {
+          console.error(`❌ Error enviando email para jornada ${jornada.numero}:`, resultado.mensaje);
+        }
+      } catch (error) {
+        console.error(`❌ Error enviando email para jornada ${jornada.numero}:`, error);
+      }
+    }
+  } catch (err) {
+    console.error('❌ Error en cierre automático de jornadas:', err);
+  }
+}
+
+export { cierreAutomaticoJornadas };
 export default router;
