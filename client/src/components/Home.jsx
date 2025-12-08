@@ -7,7 +7,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL;
 export default function Home() {
     const navigate = useNavigate();
     const [rankingCampeonato, setRankingCampeonato] = useState([]);
-    const [rankingSudamericana, setRankingSudamericana] = useState([]);
     const [fotoPerfilMap, setFotoPerfilMap] = useState({});
 
     // Chequeo rápido si hay usuario logueado en localStorage
@@ -31,23 +30,6 @@ export default function Home() {
                         data.forEach(u => { map[u.usuario] = u.foto_perfil; });
                         return map;
                     });
-                });
-
-            // Ranking Sudamericana
-            fetch(`${API_BASE_URL}/api/sudamericana/ranking`)
-                .then(res => res.json())
-                .then(data => {
-                    setRankingSudamericana(data);
-                    // Mapear fotos de ranking sudamericana
-                    setFotoPerfilMap(prev => {
-                        const map = { ...prev };
-                        data.forEach(u => { map[u.nombre_usuario] = u.foto_perfil; });
-                        return map;
-                    });
-                })
-                .catch(err => {
-                    console.error('Error al cargar ranking sudamericana:', err);
-                    setRankingSudamericana([]);
                 });
         }
     }, [usuario]);
@@ -97,29 +79,15 @@ export default function Home() {
 
     return (
         <div className="container text-center mt-5">
-            <h1 className="mb-4">🏠 Home - Bienvenido a Polla de Torneos</h1>
+            <h1 className="mb-4">🏠 Home - Bienvenido a Polla del Campeonato</h1>
 
-            {/* Submenú */}
+            {/* Botón de acceso directo al campeonato */}
             <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3 mb-4">
                 <button
                     className="btn btn-primary px-4 py-2"
                     onClick={() => navigate("/campeonato")}
                 >
                     Campeonato Nacional
-                </button>
-
-                <button
-                    className="btn btn-danger px-4 py-2"
-                    onClick={() => navigate("/libertadores")}
-                >
-                    Copa Libertadores
-                </button>
-
-                <button
-                    className="btn btn-success px-4 py-2"
-                    onClick={() => navigate("/sudamericana")}
-                >
-                    Copa Sudamericana
                 </button>
             </div>
 
@@ -133,13 +101,6 @@ export default function Home() {
                         title="Top 3 Ranking Campeonato" 
                         ranking={rankingCampeonato} 
                         emoji="🏆"
-                    />
-
-                    {/* Top 3 Ranking Sudamericana */}
-                    <Top3Component 
-                        title="Top 3 Ranking Sudamericana" 
-                        ranking={rankingSudamericana} 
-                        emoji="🥇"
                     />
 
                     {/* Botón cambiar contraseña */}

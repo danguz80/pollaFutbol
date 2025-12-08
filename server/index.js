@@ -12,12 +12,6 @@ import asignarJornadas240 from "./routes/asignarJornadas240.js";
 import usuariosRoutes from "./routes/usuarios.js";
 import adminRoutes from "./routes/admin.js";
 import ganadoresRouter from "./routes/ganadores.js";
-import pronosticosSudamericanaRouter from "./routes/pronosticosSudamericana.js";
-import puntajesSudamericanaRouter from "./routes/puntajesSudamericana.js";
-import clasificacionSudamericanaRouter from './routes/clasificacionSudamericana.js';
-import sudamericanaRankingRouter from './routes/sudamericanaRanking.js';
-import adminSudamericanaRouter, { cierreAutomaticoSudamericana } from "./routes/admin_sud.js";
-import sudamericanaRouter from "./routes/sudamericana.js";
 import prediccionesFinalesRouter from "./routes/prediccionesFinales.js";
 import prediccionFinalAdminRouter from "./routes/prediccionFinalAdmin.js";
 import whatsappRoutes from "./routes/whatsapp.js";
@@ -44,7 +38,6 @@ app.use(cors({
 app.use(express.json());
 
 // IMPORTANTE: Rutas más específicas deben ir ANTES que las generales
-app.use("/api/admin/sudamericana", adminSudamericanaRouter);
 app.use("/api/jornadas", jornadasRoutes);
 app.use("/api/fixtures", fixturesRoutes);
 app.use("/api/chile", chileRoutes);
@@ -57,21 +50,13 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/ganadores", ganadoresRouter);
 app.use("/api/predicciones-finales", prediccionesFinalesRouter);
 app.use("/api/prediccion-final-admin", prediccionFinalAdminRouter);
-app.use("/api/sudamericana", sudamericanaRouter);
-app.use("/api/sudamericana", pronosticosSudamericanaRouter);
-app.use('/api/sudamericana', puntajesSudamericanaRouter);
-app.use('/api/sudamericana', clasificacionSudamericanaRouter);
-app.use('/api/sudamericana', sudamericanaRankingRouter);
 app.use('/api/whatsapp', whatsappRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");
 });
 
-// Cron para cierre automático de edición de pronósticos Sudamericana
-setInterval(cierreAutomaticoSudamericana, 60000);
-
-// Cron para cierre automático de jornadas normales
+// Cron para cierre automático de jornadas
 setInterval(cierreAutomaticoJornadas, 60000);
 
 const PORT = process.env.PORT || 3001;
