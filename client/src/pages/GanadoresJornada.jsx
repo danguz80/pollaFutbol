@@ -65,9 +65,17 @@ export default function GanadoresJornada() {
         const jugadoresRes = await fetch(`${API_BASE_URL}/api/usuarios`);
         const jugadoresData = await jugadoresRes.json();
         const map = {};
-        jugadoresData.forEach(j => { map[j.nombre] = j.foto_perfil; });
+        const rolMap = {};
+        jugadoresData.forEach(j => { 
+          map[j.nombre] = j.foto_perfil;
+          rolMap[j.nombre] = j.rol;
+        });
         setFotoPerfilMap(map);
-        setJugadores(jugadoresData.map(j => j.nombre));
+        // Filtrar usuarios con rol 'admin'
+        const jugadoresSinAdmin = jugadoresData
+          .filter(j => j.rol !== 'admin')
+          .map(j => j.nombre);
+        setJugadores(jugadoresSinAdmin);
         setJornadas(jornadasData);
         setLoading(false);
       } catch (error) {
@@ -115,7 +123,9 @@ export default function GanadoresJornada() {
             <tr key={j.numero}>
               <td style={{ fontWeight: 600 }}>{j.numero}</td>
               <td>
-                {j.ganadores.map((g, idx) => (
+                {j.ganadores
+                  .filter(g => jugadores.includes(g))
+                  .map((g, idx, arr) => (
                   <span key={g} style={{ marginRight: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center' }}>
                     {fotoPerfilMap[g] && (
                       <img
@@ -134,7 +144,7 @@ export default function GanadoresJornada() {
                     )}
                     {g}
                     <Star />
-                    {idx < j.ganadores.length - 1 && <span>, </span>}
+                    {idx < arr.length - 1 && <span>, </span>}
                   </span>
                 ))}
               </td>
@@ -207,7 +217,9 @@ export default function GanadoresJornada() {
             </tr>
           </thead>
           <tbody>
-            {ranking.map((jugador, idx) => (
+            {ranking
+              .filter(jugador => jugador.total > 0)
+              .map((jugador, idx) => (
               <tr key={jugador.nombre}>
                 <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>{posiciones[idx]}°</td>
                 <td style={{...getRankingGanadoresCellStyle(posiciones[idx]), fontSize: isMobile ? '1.1em' : undefined}}>
@@ -254,6 +266,7 @@ export default function GanadoresJornada() {
           <tbody>
             {ranking
               .filter(jugador => jugador.total === 0)
+              .sort((a, b) => b.nombre.localeCompare(a.nombre))
               .map((jugador) => (
                 <tr key={jugador.nombre} style={{ background: '#f8f8f8' }}>
                   <td>
