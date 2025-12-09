@@ -101,6 +101,7 @@ export default function Home() {
                     email: usuarioEditando.email,
                     rol: usuarioEditando.rol,
                     activo: usuarioEditando.activo,
+                    foto_perfil: usuarioEditando.foto_perfil || null,
                     activo_torneo_nacional: usuarioEditando.activo_torneo_nacional,
                     activo_libertadores: usuarioEditando.activo_libertadores,
                     activo_sudamericana: usuarioEditando.activo_sudamericana,
@@ -314,6 +315,7 @@ export default function Home() {
                                                 <thead className="table-dark">
                                                     <tr>
                                                         <th>ID</th>
+                                                        <th>Foto</th>
                                                         <th>Nombre</th>
                                                         <th>Email</th>
                                                         <th>Rol</th>
@@ -331,6 +333,32 @@ export default function Home() {
                                                             // Modo edición
                                                             <tr key={u.id} className="table-warning">
                                                                 <td>{u.id}</td>
+                                                                <td>
+                                                                    <div>
+                                                                        {usuarioEditando.foto_perfil && (
+                                                                            <img
+                                                                                src={usuarioEditando.foto_perfil.startsWith('/') ? usuarioEditando.foto_perfil : `/perfil/${usuarioEditando.foto_perfil}`}
+                                                                                alt="Perfil"
+                                                                                style={{
+                                                                                    width: 40,
+                                                                                    height: 40,
+                                                                                    borderRadius: '50%',
+                                                                                    objectFit: 'cover',
+                                                                                    border: '2px solid #ddd',
+                                                                                    objectPosition: 'center 30%',
+                                                                                    marginBottom: 5
+                                                                                }}
+                                                                            />
+                                                                        )}
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-control form-control-sm"
+                                                                            placeholder="nombre_foto.jpg"
+                                                                            value={usuarioEditando.foto_perfil || ''}
+                                                                            onChange={(e) => setUsuarioEditando({...usuarioEditando, foto_perfil: e.target.value})}
+                                                                        />
+                                                                    </div>
+                                                                </td>
                                                                 <td>
                                                                     <input
                                                                         type="text"
@@ -416,6 +444,36 @@ export default function Home() {
                                                             // Modo vista
                                                             <tr key={u.id}>
                                                                 <td>{u.id}</td>
+                                                                <td className="text-center">
+                                                                    {u.foto_perfil ? (
+                                                                        <img
+                                                                            src={u.foto_perfil.startsWith('/') ? u.foto_perfil : `/perfil/${u.foto_perfil}`}
+                                                                            alt="Perfil"
+                                                                            style={{
+                                                                                width: 40,
+                                                                                height: 40,
+                                                                                borderRadius: '50%',
+                                                                                objectFit: 'cover',
+                                                                                border: '2px solid #ddd',
+                                                                                objectPosition: 'center 30%'
+                                                                            }}
+                                                                        />
+                                                                    ) : (
+                                                                        <div style={{
+                                                                            width: 40,
+                                                                            height: 40,
+                                                                            borderRadius: '50%',
+                                                                            backgroundColor: '#ccc',
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            fontSize: '1.2em',
+                                                                            color: '#666'
+                                                                        }}>
+                                                                            {u.nombre.charAt(0).toUpperCase()}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
                                                                 <td>{u.nombre}</td>
                                                                 <td style={{fontSize: '0.85em'}}>{u.email}</td>
                                                                 <td>

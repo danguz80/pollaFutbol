@@ -56,6 +56,7 @@ router.put("/actualizar-usuario/:id", verifyToken, authorizeRoles("admin"), asyn
     email, 
     rol, 
     activo,
+    foto_perfil,
     activo_torneo_nacional,
     activo_libertadores,
     activo_sudamericana,
@@ -69,14 +70,15 @@ router.put("/actualizar-usuario/:id", verifyToken, authorizeRoles("admin"), asyn
            email = $2, 
            rol = $3, 
            activo = $4,
-           activo_torneo_nacional = $5,
-           activo_libertadores = $6,
-           activo_sudamericana = $7,
-           activo_copa_mundo = $8
-       WHERE id = $9 
-       RETURNING id, nombre, email, rol, activo, activo_torneo_nacional, 
+           foto_perfil = $5,
+           activo_torneo_nacional = $6,
+           activo_libertadores = $7,
+           activo_sudamericana = $8,
+           activo_copa_mundo = $9
+       WHERE id = $10 
+       RETURNING id, nombre, email, rol, activo, foto_perfil, activo_torneo_nacional, 
                  activo_libertadores, activo_sudamericana, activo_copa_mundo`,
-      [nombre, email, rol, activo, activo_torneo_nacional, activo_libertadores, 
+      [nombre, email, rol, activo, foto_perfil, activo_torneo_nacional, activo_libertadores, 
        activo_sudamericana, activo_copa_mundo, id]
     );
 

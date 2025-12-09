@@ -131,7 +131,7 @@ router.get("/", async (req, res) => {
 router.get("/admin", verifyToken, authorizeRoles("admin"), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, nombre, email, activo, rol,
+      `SELECT id, nombre, email, activo, rol, foto_perfil,
               activo_torneo_nacional, activo_libertadores, 
               activo_sudamericana, activo_copa_mundo
        FROM usuarios 
