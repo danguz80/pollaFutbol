@@ -8,6 +8,10 @@ export default function Home() {
     const navigate = useNavigate();
     const [rankingCampeonato, setRankingCampeonato] = useState([]);
     const [fotoPerfilMap, setFotoPerfilMap] = useState({});
+    const [usuarios, setUsuarios] = useState([]);
+    const [mostrarAdmin, setMostrarAdmin] = useState(false);
+    const [usuarioEditando, setUsuarioEditando] = useState(null);
+    const [formNuevo, setFormNuevo] = useState({ nombre: '', email: '', password: '', rol: 'jugador' });
 
     // Chequeo rápido si hay usuario logueado en localStorage
     let usuario = null;
@@ -16,6 +20,8 @@ export default function Home() {
     } catch {
         usuario = null;
     }
+
+    const esAdmin = usuario && usuario.rol === 'admin';
 
     useEffect(() => {
         if (usuario) {
@@ -31,8 +37,132 @@ export default function Home() {
                         return map;
                     });
                 });
+
+            // Si es admin, cargar todos los usuarios
+            if (esAdmin) {
+                cargarUsuarios();
+            }
         }
-    }, [usuario]);
+    }, [usuario, esAdmin]);
+
+    const cargarUsuarios = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_BASE_URL}/api/usuarios/admin`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            setUsuarios(data);
+        } catch (error) {
+            console.error('Error al cargar usuarios:', error);
+        }
+    };
+
+    const handleCrearUsuario = async (e) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_BASE_URL}/api/usuarios/register`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(formNuevo)
+            });
+            
+            if (res.ok) {
+                alert('✅ Usuario creado exitosamente');
+                setFormNuevo({ nombre: '', email: '', password: '', rol: 'jugador' });
+                cargarUsuarios();
+            } else {
+                const error = await res.json();
+                alert('❌ Error: ' + error.error);
+            }
+        } catch (error) {
+            console.error('Error al crear usuario:', error);
+            alert('❌ Error al crear usuario');
+        }
+    };
+
+    const handleActualizarUsuario = async () => {
+        if (!usuarioEditando) return;
+        
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_BASE_URL}/api/admin/actualizar-usuario/${usuarioEditando.id}`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    nombre: usuarioEditando.nombre,
+                    email: usuarioEditando.email,
+                    rol: usuarioEditando.rol,
+                    activo: usuarioEditando.activo,
+                    activo_torneo_nacional: usuarioEditando.activo_torneo_nacional,
+                    activo_libertadores: usuarioEditando.activo_libertadores,
+                    activo_sudamericana: usuarioEditando.activo_sudamericana,
+                    activo_copa_mundo: usuarioEditando.activo_copa_mundo
+                })
+            });
+            
+            if (res.ok) {
+                alert('✅ Usuario actualizado');
+                setUsuarioEditando(null);
+                cargarUsuarios();
+            } else {
+                alert('❌ Error al actualizar usuario');
+            }
+        } catch (error) {
+            console.error('Error al actualizar usuario:', error);
+            alert('❌ Error al actualizar usuario');
+        }
+    };
+
+    const handleEliminarUsuario = async (id, nombre) => {
+        if (!confirm(`¿Estás seguro de eliminar al usuario "${nombre}"?`)) return;
+        
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_BASE_URL}/api/admin/eliminar-usuario/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (res.ok) {
+                alert('✅ Usuario eliminado');
+                cargarUsuarios();
+            } else {
+                const error = await res.json();
+                alert('❌ Error: ' + error.error);
+            }
+        } catch (error) {
+            console.error('Error al eliminar usuario:', error);
+            alert('❌ Error al eliminar usuario');
+        }
+    };
+
+    const handleToggleActivo = async (id, activoActual) => {
+        try {
+            const token = localStorage.getItem('token');
+            const endpoint = activoActual 
+                ? `${API_BASE_URL}/api/admin/desactivar-usuario/${id}`
+                : `${API_BASE_URL}/api/admin/activar-usuario/${id}`;
+            
+            const res = await fetch(endpoint, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (res.ok) {
+                cargarUsuarios();
+            }
+        } catch (error) {
+            console.error('Error al cambiar estado:', error);
+        }
+    };
 
     // Componente de Top 3
     const Top3Component = ({ title, ranking, emoji }) => {
@@ -102,6 +232,238 @@ export default function Home() {
                         ranking={rankingCampeonato} 
                         emoji="🏆"
                     />
+
+                    {/* SECCIÓN DE ADMINISTRACIÓN DE USUARIOS - SOLO ADMIN */}
+                    {esAdmin && (
+                        <div className="mt-5 mb-4">
+                            <button 
+                                className="btn btn-primary btn-lg"
+                                onClick={() => setMostrarAdmin(!mostrarAdmin)}
+                            >
+                                {mostrarAdmin ? '🔒 Ocultar' : '👥'} Administración de Usuarios
+                            </button>
+
+                            {mostrarAdmin && (
+                                <div className="card mt-3" style={{ maxWidth: 1400, margin: '20px auto' }}>
+                                    <div className="card-body">
+                                        <h3 className="card-title">👥 Gestión de Usuarios</h3>
+                                        
+                                        {/* Leyenda */}
+                                        <div className="alert alert-info mb-3">
+                                            <strong>📋 Instrucciones:</strong> Haz clic en "✏️" para editar un usuario. 
+                                            Marca los checkboxes para activar/desactivar al usuario en cada competición específica.
+                                            <br/>
+                                            <strong>Competiciones:</strong> 🏆 Nacional | 🔴 Libertadores | 🟢 Sudamericana | 🌍 Copa del Mundo
+                                        </div>
+                                        
+                                        {/* Formulario para crear nuevo usuario */}
+                                        <div className="mb-4 p-3 border rounded bg-light">
+                                            <h5>➕ Crear Nuevo Usuario</h5>
+                                            <form onSubmit={handleCrearUsuario} className="row g-2">
+                                                <div className="col-md-3">
+                                                    <input
+                                                        type="text"
+                                                        className="form-control"
+                                                        placeholder="Nombre"
+                                                        value={formNuevo.nombre}
+                                                        onChange={(e) => setFormNuevo({...formNuevo, nombre: e.target.value})}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="col-md-3">
+                                                    <input
+                                                        type="email"
+                                                        className="form-control"
+                                                        placeholder="Email"
+                                                        value={formNuevo.email}
+                                                        onChange={(e) => setFormNuevo({...formNuevo, email: e.target.value})}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="col-md-2">
+                                                    <input
+                                                        type="password"
+                                                        className="form-control"
+                                                        placeholder="Contraseña"
+                                                        value={formNuevo.password}
+                                                        onChange={(e) => setFormNuevo({...formNuevo, password: e.target.value})}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="col-md-2">
+                                                    <select
+                                                        className="form-select"
+                                                        value={formNuevo.rol}
+                                                        onChange={(e) => setFormNuevo({...formNuevo, rol: e.target.value})}
+                                                    >
+                                                        <option value="jugador">Jugador</option>
+                                                        <option value="admin">Admin</option>
+                                                    </select>
+                                                </div>
+                                                <div className="col-md-2">
+                                                    <button type="submit" className="btn btn-success w-100">
+                                                        ➕ Crear
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+
+                                        {/* Tabla de usuarios */}
+                                        <div className="table-responsive">
+                                            <table className="table table-hover table-bordered table-sm">
+                                                <thead className="table-dark">
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Nombre</th>
+                                                        <th>Email</th>
+                                                        <th>Rol</th>
+                                                        <th>General</th>
+                                                        <th>🏆 Nacional</th>
+                                                        <th>🔴 Libertadores</th>
+                                                        <th>🟢 Sudamericana</th>
+                                                        <th>🌍 Mundial</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {usuarios.map(u => (
+                                                        usuarioEditando?.id === u.id ? (
+                                                            // Modo edición
+                                                            <tr key={u.id} className="table-warning">
+                                                                <td>{u.id}</td>
+                                                                <td>
+                                                                    <input
+                                                                        type="text"
+                                                                        className="form-control form-control-sm"
+                                                                        value={usuarioEditando.nombre}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, nombre: e.target.value})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="email"
+                                                                        className="form-control form-control-sm"
+                                                                        value={usuarioEditando.email}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, email: e.target.value})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <select
+                                                                        className="form-select form-select-sm"
+                                                                        value={usuarioEditando.rol}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, rol: e.target.value})}
+                                                                    >
+                                                                        <option value="jugador">Jugador</option>
+                                                                        <option value="admin">Admin</option>
+                                                                    </select>
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={usuarioEditando.activo}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo: e.target.checked})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={usuarioEditando.activo_torneo_nacional || false}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo_torneo_nacional: e.target.checked})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={usuarioEditando.activo_libertadores || false}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo_libertadores: e.target.checked})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={usuarioEditando.activo_sudamericana || false}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo_sudamericana: e.target.checked})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={usuarioEditando.activo_copa_mundo || false}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo_copa_mundo: e.target.checked})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <button 
+                                                                        className="btn btn-sm btn-success me-1"
+                                                                        onClick={handleActualizarUsuario}
+                                                                    >
+                                                                        ✅
+                                                                    </button>
+                                                                    <button 
+                                                                        className="btn btn-sm btn-secondary"
+                                                                        onClick={() => setUsuarioEditando(null)}
+                                                                    >
+                                                                        ❌
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            // Modo vista
+                                                            <tr key={u.id}>
+                                                                <td>{u.id}</td>
+                                                                <td>{u.nombre}</td>
+                                                                <td style={{fontSize: '0.85em'}}>{u.email}</td>
+                                                                <td>
+                                                                    <span className={`badge ${u.rol === 'admin' ? 'bg-danger' : 'bg-primary'}`}>
+                                                                        {u.rol}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="text-center">
+                                                                    {u.activo ? '✅' : '❌'}
+                                                                </td>
+                                                                <td className="text-center">
+                                                                    {u.activo_torneo_nacional ? '✅' : '❌'}
+                                                                </td>
+                                                                <td className="text-center">
+                                                                    {u.activo_libertadores ? '✅' : '❌'}
+                                                                </td>
+                                                                <td className="text-center">
+                                                                    {u.activo_sudamericana ? '✅' : '❌'}
+                                                                </td>
+                                                                <td className="text-center">
+                                                                    {u.activo_copa_mundo ? '✅' : '❌'}
+                                                                </td>
+                                                                <td>
+                                                                    <button 
+                                                                        className="btn btn-sm btn-warning me-1"
+                                                                        onClick={() => setUsuarioEditando({...u})}
+                                                                    >
+                                                                        ✏️
+                                                                    </button>
+                                                                    <button 
+                                                                        className="btn btn-sm btn-danger"
+                                                                        onClick={() => handleEliminarUsuario(u.id, u.nombre)}
+                                                                        disabled={u.id === usuario.id}
+                                                                    >
+                                                                        🗑️
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        )
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Botón cambiar contraseña */}
                     <button

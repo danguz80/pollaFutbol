@@ -27,6 +27,91 @@ router.patch("/activar-usuario/:id", verifyToken, authorizeRoles("admin"), async
   }
 });
 
+// Desactivar un usuario (solo admins)
+router.patch("/desactivar-usuario/:id", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `UPDATE usuarios SET activo = false WHERE id = $1 RETURNING id, nombre, email, activo`,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({ mensaje: "✅ Usuario desactivado", usuario: result.rows[0] });
+  } catch (error) {
+    console.error("Error al desactivar usuario:", error);
+    res.status(500).json({ error: "No se pudo desactivar el usuario" });
+  }
+});
+
+// Actualizar usuario (solo admins)
+router.put("/actualizar-usuario/:id", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  const { id } = req.params;
+  const { 
+    nombre, 
+    email, 
+    rol, 
+    activo,
+    activo_torneo_nacional,
+    activo_libertadores,
+    activo_sudamericana,
+    activo_copa_mundo
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE usuarios 
+       SET nombre = $1, 
+           email = $2, 
+           rol = $3, 
+           activo = $4,
+           activo_torneo_nacional = $5,
+           activo_libertadores = $6,
+           activo_sudamericana = $7,
+           activo_copa_mundo = $8
+       WHERE id = $9 
+       RETURNING id, nombre, email, rol, activo, activo_torneo_nacional, 
+                 activo_libertadores, activo_sudamericana, activo_copa_mundo`,
+      [nombre, email, rol, activo, activo_torneo_nacional, activo_libertadores, 
+       activo_sudamericana, activo_copa_mundo, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({ mensaje: "✅ Usuario actualizado", usuario: result.rows[0] });
+  } catch (error) {
+    console.error("Error al actualizar usuario:", error);
+    res.status(500).json({ error: "No se pudo actualizar el usuario" });
+  }
+});
+
+// Eliminar usuario (solo admins)
+router.delete("/eliminar-usuario/:id", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM usuarios WHERE id = $1 RETURNING id, nombre, email`,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({ mensaje: "✅ Usuario eliminado", usuario: result.rows[0] });
+  } catch (error) {
+    console.error("Error al eliminar usuario:", error);
+    res.status(500).json({ error: "No se pudo eliminar el usuario. Puede tener datos asociados." });
+  }
+});
+
 // Obtener usuarios inactivos (solo admins)
 router.get("/usuarios-pendientes", verifyToken, authorizeRoles("admin"), async (req, res) => {
   try {
