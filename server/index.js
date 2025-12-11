@@ -17,6 +17,8 @@ import prediccionFinalAdminRouter from "./routes/prediccionFinalAdmin.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import { getWhatsAppService } from "./services/whatsappService.js";
 import { cierreAutomaticoJornadas } from "./routes/jornadas.js";
+import libertadoresRoutes from "./routes/libertadores.js";
+import libertadoresPronosticosRoutes from "./routes/libertadoresPronosticos.js";
 
 dotenv.config();
 
@@ -51,6 +53,8 @@ app.use("/api/ganadores", ganadoresRouter);
 app.use("/api/predicciones-finales", prediccionesFinalesRouter);
 app.use("/api/prediccion-final-admin", prediccionFinalAdminRouter);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/libertadores', libertadoresRoutes);
+app.use('/api/libertadores-pronosticos', libertadoresPronosticosRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");

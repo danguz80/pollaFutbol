@@ -1,0 +1,285 @@
+import express from 'express';
+import { pool } from '../db/pool.js';
+import { verifyToken } from '../middleware/verifyToken.js';
+import { authorizeRoles } from '../middleware/authorizeRoles.js';
+
+const router = express.Router();
+
+// ==================== GESTIÓN DE EQUIPOS ====================
+
+// Obtener todos los equipos
+router.get('/equipos', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM libertadores_equipos 
+      ORDER BY grupo, posicion_grupo
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo equipos:', error);
+    res.status(500).json({ error: 'Error obteniendo equipos' });
+  }
+});
+
+// Guardar/Actualizar equipos (Admin)
+router.post('/equipos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { equipos } = req.body; // Array de 32 equipos
+    
+    if (!Array.isArray(equipos) || equipos.length !== 32) {
+      return res.status(400).json({ error: 'Se requieren exactamente 32 equipos' });
+    }
+
+    // Limpiar equipos existentes
+    await pool.query('DELETE FROM libertadores_equipos');
+
+    // Insertar nuevos equipos
+    const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    let index = 0;
+
+    for (const grupo of grupos) {
+      for (let pos = 1; pos <= 4; pos++) {
+        const equipo = equipos[index];
+        if (equipo && equipo.nombre) {
+          await pool.query(`
+            INSERT INTO libertadores_equipos (nombre, grupo, posicion_grupo, api_id)
+            VALUES ($1, $2, $3, $4)
+          `, [equipo.nombre, grupo, pos, equipo.api_id || null]);
+        }
+        index++;
+      }
+    }
+
+    res.json({ mensaje: 'Equipos guardados exitosamente' });
+  } catch (error) {
+    console.error('Error guardando equipos:', error);
+    res.status(500).json({ error: 'Error guardando equipos' });
+  }
+});
+
+// ==================== GESTIÓN DE JORNADAS ====================
+
+// Obtener todas las jornadas
+router.get('/jornadas', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM libertadores_jornadas 
+      ORDER BY numero
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo jornadas:', error);
+    res.status(500).json({ error: 'Error obteniendo jornadas' });
+  }
+});
+
+// Obtener jornada específica
+router.get('/jornadas/:numero', async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const jornadaResult = await pool.query(`
+      SELECT * FROM libertadores_jornadas WHERE numero = $1
+    `, [numero]);
+    
+    if (jornadaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+    
+    // Obtener partidos de esta jornada
+    const partidosResult = await pool.query(`
+      SELECT * FROM libertadores_partidos 
+      WHERE jornada_id = $1
+      ORDER BY fecha, id
+    `, [jornadaResult.rows[0].id]);
+    
+    res.json({
+      ...jornadaResult.rows[0],
+      partidos: partidosResult.rows
+    });
+  } catch (error) {
+    console.error('Error obteniendo jornada:', error);
+    res.status(500).json({ error: 'Error obteniendo jornada' });
+  }
+});
+
+// Actualizar fecha de cierre de jornada
+router.patch('/jornadas/:numero/cierre', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const { fecha_cierre } = req.body;
+
+    const result = await pool.query(`
+      UPDATE libertadores_jornadas 
+      SET fecha_cierre = $1 
+      WHERE numero = $2
+      RETURNING *
+    `, [fecha_cierre, numero]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    res.json({ mensaje: 'Fecha de cierre actualizada', jornada: result.rows[0] });
+  } catch (error) {
+    console.error('Error actualizando fecha de cierre:', error);
+    res.status(500).json({ error: 'Error actualizando fecha de cierre' });
+  }
+});
+
+// Cerrar/Abrir jornada
+router.patch('/jornadas/:numero/toggle', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const { cerrada } = req.body;
+
+    const result = await pool.query(`
+      UPDATE libertadores_jornadas 
+      SET cerrada = $1 
+      WHERE numero = $2
+      RETURNING *
+    `, [cerrada, numero]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    res.json({ mensaje: `Jornada ${cerrada ? 'cerrada' : 'abierta'}`, jornada: result.rows[0] });
+  } catch (error) {
+    console.error('Error cambiando estado de jornada:', error);
+    res.status(500).json({ error: 'Error cambiando estado de jornada' });
+  }
+});
+
+// ==================== GESTIÓN DE PARTIDOS ====================
+
+// Obtener partidos de una jornada
+router.get('/jornadas/:numero/partidos', async (req, res) => {
+  try {
+    const { numero } = req.params;
+    
+    const result = await pool.query(`
+      SELECT p.*, j.numero as jornada_numero, j.cerrada
+      FROM libertadores_partidos p
+      JOIN libertadores_jornadas j ON p.jornada_id = j.id
+      WHERE j.numero = $1
+      ORDER BY p.fecha, p.id
+    `, [numero]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo partidos:', error);
+    res.status(500).json({ error: 'Error obteniendo partidos' });
+  }
+});
+
+// Guardar partidos manualmente (Admin)
+router.post('/jornadas/:numero/partidos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const { equipo_local, equipo_visitante, fecha_hora, bonus } = req.body;
+
+    // Si viene un array de partidos (importación masiva)
+    if (req.body.partidos) {
+      const { partidos } = req.body;
+      
+      // Obtener ID de la jornada
+      const jornadaResult = await pool.query(
+        'SELECT id FROM libertadores_jornadas WHERE numero = $1',
+        [numero]
+      );
+
+      if (jornadaResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Jornada no encontrada' });
+      }
+
+      const jornadaId = jornadaResult.rows[0].id;
+
+      // Limpiar partidos existentes de esta jornada
+      await pool.query('DELETE FROM libertadores_partidos WHERE jornada_id = $1', [jornadaId]);
+
+      // Insertar nuevos partidos
+      for (const partido of partidos) {
+        await pool.query(`
+          INSERT INTO libertadores_partidos 
+          (jornada_id, nombre_local, nombre_visita, fecha, bonus)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [
+          jornadaId,
+          partido.equipo_local,
+          partido.equipo_visitante,
+          partido.fecha_hora || new Date(),
+          partido.bonus || 1
+        ]);
+      }
+
+      return res.json({ mensaje: 'Partidos guardados exitosamente' });
+    }
+
+    // Crear un partido individual
+    const jornadaResult = await pool.query(
+      'SELECT id FROM libertadores_jornadas WHERE numero = $1',
+      [numero]
+    );
+
+    if (jornadaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    const jornadaId = jornadaResult.rows[0].id;
+
+    const result = await pool.query(`
+      INSERT INTO libertadores_partidos 
+      (jornada_id, nombre_local, nombre_visita, fecha, bonus)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [jornadaId, equipo_local, equipo_visitante, fecha_hora, bonus || 1]);
+
+    res.json({ mensaje: 'Partido creado exitosamente', partido: result.rows[0] });
+  } catch (error) {
+    console.error('Error guardando partido:', error);
+    res.status(500).json({ error: 'Error guardando partido' });
+  }
+});
+
+// Actualizar resultados de partidos (Admin)
+router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { partidos } = req.body;
+
+    for (const partido of partidos) {
+      await pool.query(`
+        UPDATE libertadores_partidos
+        SET goles_local = $1, goles_visita = $2, bonus = $3
+        WHERE id = $4
+      `, [partido.goles_local, partido.goles_visita, partido.bonus || 1, partido.id]);
+    }
+
+    res.json({ mensaje: 'Resultados guardados exitosamente' });
+  } catch (error) {
+    console.error('Error guardando resultados:', error);
+    res.status(500).json({ error: 'Error guardando resultados' });
+  }
+});
+
+// Eliminar partido (Admin)
+router.delete('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM libertadores_partidos WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Partido no encontrado' });
+    }
+
+    res.json({ mensaje: 'Partido eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error eliminando partido:', error);
+    res.status(500).json({ error: 'Error eliminando partido' });
+  }
+});
+
+export default router;

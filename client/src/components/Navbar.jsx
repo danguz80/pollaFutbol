@@ -22,6 +22,9 @@ export default function NavigationBar() {
         <Navbar.Collapse id="main-navbar">
           <Nav className="me-auto">
             <Nav.Link as={NavLink} to="/">Inicio</Nav.Link>
+            {rol === 'admin' && (
+              <Nav.Link as={NavLink} to="/admin">⚙️ Admin</Nav.Link>
+            )}
           </Nav>
 
           <Nav>

@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import UsuariosPendientes from "./pages/Admin/UsuariosPendientes";
 import RutaProtegidaAdmin from "./components/RutaProtegidaAdmin";
 import CambiarPassword from "./pages/CambiarPassword";
+import AdminLibertadores from "./pages/AdminLibertadores";
 
 export default function AppRouter() {
   return (
@@ -38,6 +39,11 @@ export default function AppRouter() {
         <Route path="/admin/usuarios" element={
           <RutaProtegidaAdmin>
             <UsuariosPendientes />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/libertadores" element={
+          <RutaProtegidaAdmin>
+            <AdminLibertadores />
           </RutaProtegidaAdmin>
         } />
 

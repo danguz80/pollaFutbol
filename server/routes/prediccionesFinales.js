@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
+import { authorizeRoles } from '../middleware/authorizeRoles.js';
 
 const router = express.Router();
 
@@ -200,7 +201,7 @@ router.post('/calcular-puntos', verifyToken, async (req, res) => {
 });
 
 // Sumar puntos del cuadro final al ranking general
-router.post('/sumar-ranking', verifyToken, async (req, res) => {
+router.post('/sumar-ranking', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     // Obtener todas las predicciones finales con puntos
     const result = await pool.query(`

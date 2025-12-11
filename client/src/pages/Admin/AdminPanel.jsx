@@ -578,6 +578,9 @@ export default function AdminPanel() {
         <button onClick={() => navigate("/admin/chile-fixtures")} className="btn btn-outline-secondary">
           📅 Ver Partidos Liga Chilena
         </button>
+        <button onClick={() => navigate("/admin/libertadores")} className="btn btn-warning">
+          🏆 Copa Libertadores 2026
+        </button>
       </div>
 
       {/* Selector de jornada */}
