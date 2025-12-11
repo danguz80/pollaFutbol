@@ -210,15 +210,33 @@ router.post('/sumar-ranking', verifyToken, authorizeRoles('admin'), async (req, 
       WHERE puntos > 0
     `);
     
+    if (result.rows.length === 0) {
+      return res.json({ 
+        message: 'No hay puntos para sumar',
+        usuariosActualizados: 0
+      });
+    }
+    
     let usuariosActualizados = 0;
     
+    // Crear una jornada especial "Cuadro Final" si no existe
+    const jornadaFinalResult = await pool.query(`
+      INSERT INTO jornadas (numero, nombre, cerrada)
+      VALUES (999, 'Cuadro Final', true)
+      ON CONFLICT (numero) DO UPDATE SET nombre = 'Cuadro Final'
+      RETURNING id
+    `);
+    
+    const jornadaFinalId = jornadaFinalResult.rows[0].id;
+    
     for (const prediccion of result.rows) {
-      // Sumar puntos al total del usuario
+      // Insertar o actualizar los puntos en la tabla de pronósticos
       await pool.query(`
-        UPDATE usuarios 
-        SET puntaje_total = puntaje_total + $1 
-        WHERE id = $2
-      `, [prediccion.puntos, prediccion.jugador_id]);
+        INSERT INTO pronosticos (usuario_id, jornada_id, puntos_totales)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (usuario_id, jornada_id) 
+        DO UPDATE SET puntos_totales = $3
+      `, [prediccion.jugador_id, jornadaFinalId, prediccion.puntos]);
       
       usuariosActualizados++;
     }
@@ -229,7 +247,10 @@ router.post('/sumar-ranking', verifyToken, authorizeRoles('admin'), async (req, 
     });
   } catch (error) {
     console.error('Error al sumar puntos al ranking:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: error.message 
+    });
   }
 });
 
