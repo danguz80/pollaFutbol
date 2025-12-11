@@ -200,46 +200,161 @@ router.post('/calcular-puntos', verifyToken, async (req, res) => {
   }
 });
 
+// Actualizar ganadores del cuadro final en jornada 999
+router.post('/actualizar-ganadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    // Verificar/crear jornada 999
+    let jornadaFinal = await pool.query(`
+      SELECT id FROM jornadas WHERE numero = 999
+    `);
+    
+    if (jornadaFinal.rows.length === 0) {
+      jornadaFinal = await pool.query(`
+        INSERT INTO jornadas (numero, nombre, cerrada)
+        VALUES (999, 'Cuadro Final', true)
+        RETURNING id
+      `);
+    }
+    
+    const jornadaFinalId = jornadaFinal.rows[0].id;
+    
+    // Eliminar ganadores anteriores de la jornada 999
+    await pool.query(`
+      DELETE FROM ganadores_jornada WHERE jornada_id = $1
+    `, [jornadaFinalId]);
+    
+    // Obtener el máximo puntaje del cuadro final
+    const maxPuntaje = await pool.query(`
+      SELECT MAX(puntos) as max_puntos FROM predicciones_finales
+    `);
+    
+    const puntajeMaximo = maxPuntaje.rows[0].max_puntos;
+    
+    if (!puntajeMaximo || puntajeMaximo === 0) {
+      return res.json({
+        message: 'No hay puntos calculados en el cuadro final',
+        ganadoresActualizados: 0
+      });
+    }
+    
+    // Obtener todos los jugadores con el máximo puntaje
+    const ganadoresResult = await pool.query(`
+      SELECT jugador_id FROM predicciones_finales 
+      WHERE puntos = $1
+    `, [puntajeMaximo]);
+    
+    // Registrar ganadores en ganadores_jornada
+    for (const ganador of ganadoresResult.rows) {
+      await pool.query(`
+        INSERT INTO ganadores_jornada (jornada_id, jugador_id, acierto)
+        VALUES ($1, $2, true)
+      `, [jornadaFinalId, ganador.jugador_id]);
+    }
+    
+    // Actualizar columna ganadores en jornadas con los nombres
+    const nombresGanadores = await pool.query(`
+      SELECT u.nombre 
+      FROM usuarios u
+      INNER JOIN ganadores_jornada gj ON u.id = gj.jugador_id
+      WHERE gj.jornada_id = $1
+    `, [jornadaFinalId]);
+    
+    const arrayNombres = nombresGanadores.rows.map(row => row.nombre);
+    
+    await pool.query(`
+      UPDATE jornadas 
+      SET ganadores = $1
+      WHERE id = $2
+    `, [arrayNombres, jornadaFinalId]);
+    
+    console.log(`🏆 ${ganadoresResult.rows.length} ganador(es) del cuadro final actualizados:`, arrayNombres);
+    
+    res.json({
+      message: 'Ganadores del cuadro final actualizados',
+      ganadores: arrayNombres,
+      puntajeMaximo
+    });
+  } catch (error) {
+    console.error('Error actualizando ganadores:', error);
+    res.status(500).json({ 
+      message: 'Error al actualizar ganadores',
+      error: error.message 
+    });
+  }
+});
+
 // Sumar puntos del cuadro final al ranking general
 router.post('/sumar-ranking', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    // Obtener todas las predicciones finales con puntos
-    const result = await pool.query(`
-      SELECT jugador_id, puntos 
-      FROM predicciones_finales 
-      WHERE puntos > 0
+    // Verificar que exista la jornada 999 (Cuadro Final)
+    let jornadaFinal = await pool.query(`
+      SELECT id FROM jornadas WHERE numero = 999
     `);
     
-    if (result.rows.length === 0) {
+    if (jornadaFinal.rows.length === 0) {
+      // Crear la jornada Cuadro Final
+      jornadaFinal = await pool.query(`
+        INSERT INTO jornadas (numero, nombre, cerrada)
+        VALUES (999, 'Cuadro Final', true)
+        RETURNING id
+      `);
+    }
+    
+    const jornadaFinalId = jornadaFinal.rows[0].id;
+    
+    // PRIMERO: Limpiar todos los pronósticos existentes de la jornada 999
+    await pool.query(`
+      DELETE FROM pronosticos WHERE jornada_id = $1
+    `, [jornadaFinalId]);
+    
+    console.log('🗑️  Pronósticos anteriores de jornada 999 eliminados');
+    
+    // Crear un partido ficticio para la jornada 999 si no existe
+    let partidoFinal = await pool.query(`
+      SELECT id FROM partidos WHERE jornada_id = $1 LIMIT 1
+    `, [jornadaFinalId]);
+    
+    if (partidoFinal.rows.length === 0) {
+      partidoFinal = await pool.query(`
+        INSERT INTO partidos (jornada_id, nombre_local, nombre_visita, fecha, estado)
+        VALUES ($1, 'Cuadro Final', 'Cuadro Final', NOW(), 'Finalizado')
+        RETURNING id
+      `, [jornadaFinalId]);
+    }
+    
+    const partidoFinalId = partidoFinal.rows[0].id;
+    
+    // Obtener todas las predicciones finales (incluyendo las de 0 puntos)
+    const predicciones = await pool.query(`
+      SELECT jugador_id, puntos 
+      FROM predicciones_finales 
+      WHERE puntos IS NOT NULL
+    `);
+    
+    console.log(`📊 Predicciones finales encontradas: ${predicciones.rows.length}`);
+    
+    if (predicciones.rows.length === 0) {
       return res.json({ 
-        message: 'No hay puntos para sumar',
+        message: 'No hay predicciones finales para sumar',
         usuariosActualizados: 0
       });
     }
     
     let usuariosActualizados = 0;
     
-    // Crear una jornada especial "Cuadro Final" si no existe
-    const jornadaFinalResult = await pool.query(`
-      INSERT INTO jornadas (numero, nombre, cerrada)
-      VALUES (999, 'Cuadro Final', true)
-      ON CONFLICT (numero) DO UPDATE SET nombre = 'Cuadro Final'
-      RETURNING id
-    `);
-    
-    const jornadaFinalId = jornadaFinalResult.rows[0].id;
-    
-    for (const prediccion of result.rows) {
-      // Insertar o actualizar los puntos en la tabla de pronósticos
+    for (const prediccion of predicciones.rows) {
+      console.log(`💾 Sumando ${prediccion.puntos} puntos para jugador ${prediccion.jugador_id}`);
+      
+      // Insertar pronóstico con los puntos del cuadro final
       await pool.query(`
-        INSERT INTO pronosticos (usuario_id, jornada_id, puntos_totales)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (usuario_id, jornada_id) 
-        DO UPDATE SET puntos_totales = $3
-      `, [prediccion.jugador_id, jornadaFinalId, prediccion.puntos]);
+        INSERT INTO pronosticos (usuario_id, jornada_id, partido_id, goles_local, goles_visita, puntos)
+        VALUES ($1, $2, $3, 0, 0, $4)
+      `, [prediccion.jugador_id, jornadaFinalId, partidoFinalId, prediccion.puntos]);
       
       usuariosActualizados++;
     }
+    
+    console.log(`✅ Total de usuarios actualizados: ${usuariosActualizados}`);
     
     res.json({ 
       message: 'Puntos sumados al ranking exitosamente',

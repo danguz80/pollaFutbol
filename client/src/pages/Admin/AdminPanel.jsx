@@ -480,6 +480,41 @@ export default function AdminPanel() {
     }
   };
 
+  const actualizarGanadoresCuadroFinal = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMessage("No se encontró token de autenticación");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/predicciones-finales/actualizar-ganadores`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessage(`✅ Ganadores actualizados: ${data.ganadores.join(', ')}`);
+        alert(`✅ Ganadores del Cuadro Final actualizados:\n${data.ganadores.join(', ')}\nPuntaje: ${data.puntajeMaximo} puntos`);
+      } else {
+        const errorData = await response.json();
+        setMessage(`❌ Error: ${errorData.message || 'Error desconocido'}`);
+        alert(`❌ Error: ${errorData.message || 'Error desconocido'}`);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setMessage("❌ Error de conexión");
+      alert("❌ Error de conexión");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sumarARanking = async () => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -982,6 +1017,13 @@ export default function AdminPanel() {
                     disabled={loading}
                   >
                     {loading ? "Calculando..." : "Calcular Puntos"}
+                  </button>
+                  <button
+                    className="btn btn-warning me-2"
+                    onClick={actualizarGanadoresCuadroFinal}
+                    disabled={loading}
+                  >
+                    {loading ? "Actualizando..." : "Actualizar Ganadores"}
                   </button>
                   <button
                     className="btn btn-info"

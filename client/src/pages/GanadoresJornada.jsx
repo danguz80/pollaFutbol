@@ -55,12 +55,20 @@ export default function GanadoresJornada() {
   const [jugadores, setJugadores] = useState([]);
   const [fotoPerfilMap, setFotoPerfilMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [ganadoresCuadroFinal, setGanadoresCuadroFinal] = useState([]);
 
   useEffect(() => {
     async function fetchData() {
       try {
         const jornadasRes = await fetch(`${API_BASE_URL}/api/jornadas`);
         const jornadasData = await jornadasRes.json();
+        
+        // Obtener ganadores del cuadro final (jornada 999) para excluirlos de la tabla de vergüenza
+        const jornadaCuadroFinal = jornadasData.find(j => j.numero === 999);
+        if (jornadaCuadroFinal && jornadaCuadroFinal.ganadores) {
+          setGanadoresCuadroFinal(jornadaCuadroFinal.ganadores);
+        }
+        
         // Relacionar nombre de usuario con foto_perfil
         const jugadoresRes = await fetch(`${API_BASE_URL}/api/usuarios`);
         const jugadoresData = await jugadoresRes.json();
@@ -265,7 +273,10 @@ export default function GanadoresJornada() {
           </thead>
           <tbody>
             {ranking
-              .filter(jugador => jugador.total === 0)
+              .filter(jugador => 
+                jugador.total === 0 && 
+                !ganadoresCuadroFinal.includes(jugador.nombre)
+              )
               .sort((a, b) => b.nombre.localeCompare(a.nombre))
               .map((jugador) => (
                 <tr key={jugador.nombre} style={{ background: '#f8f8f8' }}>
