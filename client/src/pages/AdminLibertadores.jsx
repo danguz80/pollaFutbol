@@ -318,32 +318,21 @@ export default function AdminLibertadores() {
     // Obtener todos los partidos ya asignados a esa jornada
     const partidosEnJornada = Object.entries(jornadasAsignadas)
       .filter(([idx, jornada]) => Number(idx) !== partidoIndex && jornada === jornadaSeleccionada)
-      .map(([idx]) => {
-        // Encontrar el partido por índice
-        let partidoEncontrado = null;
-        Object.values(fixtureGenerado).some(partidosGrupo => {
-          partidosGrupo.forEach((p, i) => {
-            const globalIndex = Object.values(fixtureGenerado)
-              .flat()
-              .findIndex(fp => fp.local === p.local && fp.visita === p.visita && fp.tipo === p.tipo);
-            if (globalIndex === Number(idx)) {
-              partidoEncontrado = p;
-              return true;
-            }
-          });
-          return partidoEncontrado !== null;
-        });
-        return partidoEncontrado;
-      })
-      .filter(p => p !== null);
+      .map(([idx]) => Number(idx));
     
-    // Verificar si algún equipo se repite
+    // Obtener equipos ya usados en esa jornada
     const equiposEnJornada = new Set();
-    partidosEnJornada.forEach(p => {
-      equiposEnJornada.add(p.local);
-      equiposEnJornada.add(p.visita);
+    const todosPartidos = Object.values(fixtureGenerado).flat();
+    
+    partidosEnJornada.forEach(idx => {
+      const p = todosPartidos[idx];
+      if (p) {
+        equiposEnJornada.add(p.local);
+        equiposEnJornada.add(p.visita);
+      }
     });
     
+    // Verificar si algún equipo se repite
     if (equiposEnJornada.has(partido.local) || equiposEnJornada.has(partido.visita)) {
       return false;
     }
@@ -354,6 +343,14 @@ export default function AdminLibertadores() {
   const asignarJornada = (partidoIndex, jornadaSeleccionada) => {
     const todosPartidos = Object.values(fixtureGenerado).flat();
     const partido = todosPartidos[partidoIndex];
+    
+    // Si ya está asignado a esta jornada, desasignar
+    if (jornadasAsignadas[partidoIndex] === jornadaSeleccionada) {
+      const nuevasJornadas = { ...jornadasAsignadas };
+      delete nuevasJornadas[partidoIndex];
+      setJornadasAsignadas(nuevasJornadas);
+      return;
+    }
     
     if (!validarAsignacionJornada(partidoIndex, jornadaSeleccionada, partido)) {
       setMessage({ 
@@ -628,28 +625,50 @@ export default function AdminLibertadores() {
                     {Object.entries(fixtureGenerado).map(([grupo, partidosGrupo]) => (
                       <div key={grupo} className="bg-white p-4 rounded-lg shadow">
                         <h4 className="font-bold text-lg mb-3 text-blue-800">GRUPO {grupo}</h4>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {partidosGrupo.map((partido, idx) => {
                             const globalIndex = Object.values(fixtureGenerado)
                               .flat()
                               .findIndex(p => p.local === partido.local && p.visita === partido.visita && p.tipo === partido.tipo);
                             
+                            const jornadaAsignada = jornadasAsignadas[globalIndex];
+                            
                             return (
-                              <div key={idx} className="flex items-center gap-2 text-sm border-b pb-2">
-                                <span className="flex-1">
+                              <div key={idx} className="border rounded p-2 bg-gray-50">
+                                <div className="text-sm mb-2">
                                   <span className="font-semibold">{partido.local}</span> vs {partido.visita}
                                   <span className="text-xs text-gray-500 ml-1">({partido.tipo})</span>
-                                </span>
-                                <select
-                                  value={jornadasAsignadas[globalIndex] || ''}
-                                  onChange={(e) => asignarJornada(globalIndex, Number(e.target.value))}
-                                  className="p-1 border rounded text-xs w-32"
-                                >
-                                  <option value="">Sin asignar</option>
-                                  {[1, 2, 3, 4, 5, 6].map(j => (
-                                    <option key={j} value={j}>Jornada {j}</option>
-                                  ))}
-                                </select>
+                                </div>
+                                <div className="flex gap-1 flex-wrap">
+                                  {[1, 2, 3, 4, 5, 6].map(j => {
+                                    const esValido = validarAsignacionJornada(globalIndex, j, partido);
+                                    const estaAsignado = jornadaAsignada === j;
+                                    
+                                    return (
+                                      <button
+                                        key={j}
+                                        onClick={() => asignarJornada(globalIndex, j)}
+                                        disabled={!esValido && !estaAsignado}
+                                        className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
+                                          estaAsignado
+                                            ? 'bg-green-600 text-white'
+                                            : esValido
+                                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50'
+                                        }`}
+                                        title={
+                                          estaAsignado
+                                            ? 'Click para desasignar'
+                                            : esValido
+                                            ? `Asignar a Jornada ${j}`
+                                            : 'Equipo ya en esta jornada'
+                                        }
+                                      >
+                                        J{j}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             );
                           })}
