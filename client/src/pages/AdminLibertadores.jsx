@@ -402,10 +402,11 @@ export default function AdminLibertadores() {
                 >
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                     <option key={n} value={n}>
-                      {n <= 6 ? `Fecha ${n} (Grupos)` : 
-                       n === 7 ? 'Octavos de Final' :
-                       n === 8 ? 'Cuartos de Final' :
-                       n === 9 ? 'Semifinales' : 'Final'}
+                      {n <= 6 ? `Jornada ${n} - Fase de Grupos` : 
+                       n === 7 ? 'Jornada 7 - Octavos de Final IDA' :
+                       n === 8 ? 'Jornada 8 - Octavos de Final VUELTA' :
+                       n === 9 ? 'Jornada 9 - Cuartos de Final IDA/VUELTA' : 
+                       'Jornada 10 - Semifinales IDA/VUELTA + Final + Cuadro Final'}
                     </option>
                   ))}
                 </select>
