@@ -160,28 +160,41 @@ router.get("/torneo-nacional-2025", async (req, res) => {
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil,
-        pf.puntos_cuadro_final
+        pf.puntos
       FROM predicciones_finales pf
-      JOIN usuarios u ON pf.usuario_id = u.id
-      WHERE pf.puntos_cuadro_final IS NOT NULL
-        AND pf.puntos_cuadro_final = (
-          SELECT MAX(puntos_cuadro_final) 
+      JOIN usuarios u ON pf.jugador_id = u.id
+      WHERE pf.puntos IS NOT NULL
+        AND pf.puntos = (
+          SELECT MAX(puntos) 
           FROM predicciones_finales 
-          WHERE puntos_cuadro_final IS NOT NULL
+          WHERE puntos IS NOT NULL
         )
       ORDER BY u.nombre
     `);
 
-    // Top 3 del ranking acumulado
+    // Top 3 del ranking general acumulado (suma de puntos de todas las jornadas)
     const rankingAcumulado = await pool.query(`
       SELECT 
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil,
-        c.puntos
-      FROM clasificacion c
-      JOIN usuarios u ON c.jugador_id = u.id
-      ORDER BY c.puntos DESC
+        SUM(
+          CASE 
+            WHEN p.resultado = 'local' AND pa.resultado = 'local' THEN 5
+            WHEN p.resultado = 'empate' AND pa.resultado = 'empate' THEN 5
+            WHEN p.resultado = 'visita' AND pa.resultado = 'visita' THEN 5
+            WHEN ABS(p.goles_local - p.goles_visita) = ABS(pa.goles_local - pa.goles_visita) 
+              AND p.resultado = pa.resultado THEN 3
+            ELSE 0
+          END
+        ) as puntos
+      FROM pronosticos p
+      JOIN partidos pa ON p.partido_id = pa.id
+      JOIN jornadas j ON pa.jornada_id = j.id
+      JOIN usuarios u ON p.jugador_id = u.id
+      WHERE j.cerrada = true
+      GROUP BY u.id, u.nombre, u.foto_perfil
+      ORDER BY puntos DESC
       LIMIT 3
     `);
 
