@@ -24,15 +24,36 @@ dotenv.config();
 
 const app = express();
 
-// Configuración de CORS para permitir frontend local y de Netlify
+// Configuración de CORS para permitir frontend local, Netlify y Codespaces
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://pollafutbol.netlify.app"
+  "https://pollafutbol.netlify.app",
+  /https:\/\/.*\.app\.github\.dev$/ // Permitir todos los Codespaces
 ];
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como mobile apps o curl)
+    if (!origin) return callback(null, true);
+    
+    // Verificar si el origin está en la lista permitida
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 }));
