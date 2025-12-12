@@ -332,35 +332,7 @@ function RankingsHistoricos() {
         <div className="cuadro-honor mayor">
           <h3>🏅 Cuadro de Honor Mayor</h3>
           
-          {/* Torneo Nacional - Ranking Acumulado (automático desde BD) */}
-          {torneoNacional2025?.rankingAcumulado?.length > 0 && (
-            <div className="competencia-card">
-              <h4>Torneo Nacional - Ranking Acumulado</h4>
-              <div className="podio">
-                {[1, 2, 3].map(pos => {
-                  const ganador = torneoNacional2025.rankingAcumulado[pos - 1];
-                  return (
-                    <div key={pos} className={`podio-item pos-${pos}`}>
-                      <div className="medalla">
-                        {pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉'}
-                      </div>
-                      {ganador ? (
-                        <div className="podio-contenido">
-                          {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.nombre} className="foto-perfil" />}
-                          <div className="nombre">{ganador.nombre}</div>
-                          <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
-                        </div>
-                      ) : (
-                        <div className="vacio">-</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Otras competencias (Copa Libertadores, Sudamericana) - desde rankings_historicos */}
+          {/* Competencias desde rankings_historicos (incluye Torneo Nacional si se agregó manualmente) */}
           {Object.entries(agruparPorCompetencia(rankings[2025]?.mayor || [])).map(([comp, items]) => (
             <div key={comp} className="competencia-card">
               <h4>{comp}</h4>
