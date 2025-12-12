@@ -137,4 +137,59 @@ router.get("/estadisticas/usuarios", async (req, res) => {
   }
 });
 
+// 📊 GET - Obtener ganadores de jornadas del Torneo Nacional 2025 (J11-J30 + Cuadro Final)
+router.get("/torneo-nacional-2025", async (req, res) => {
+  try {
+    // Ganadores por jornada (J11 a J30)
+    const ganadoresJornadas = await pool.query(`
+      SELECT 
+        gj.jornada_numero,
+        u.id as usuario_id,
+        u.nombre,
+        u.foto_perfil
+      FROM ganadores_jornada gj
+      JOIN usuarios u ON gj.jugador_id = u.id
+      WHERE gj.jornada_numero BETWEEN 11 AND 30
+      ORDER BY gj.jornada_numero, u.nombre
+    `);
+
+    // Ganadores del cuadro final
+    const ganadoresCuadroFinal = await pool.query(`
+      SELECT 
+        u.id as usuario_id,
+        u.nombre,
+        u.foto_perfil,
+        pf.puntos_cuadro_final
+      FROM predicciones_finales pf
+      JOIN usuarios u ON pf.usuario_id = u.id
+      WHERE pf.puntos_cuadro_final = (
+        SELECT MAX(puntos_cuadro_final) FROM predicciones_finales
+      )
+      ORDER BY u.nombre
+    `);
+
+    // Top 3 del ranking acumulado
+    const rankingAcumulado = await pool.query(`
+      SELECT 
+        u.id as usuario_id,
+        u.nombre,
+        u.foto_perfil,
+        c.puntos
+      FROM clasificacion c
+      JOIN usuarios u ON c.jugador_id = u.id
+      ORDER BY c.puntos DESC
+      LIMIT 3
+    `);
+
+    res.json({
+      jornadas: ganadoresJornadas.rows,
+      cuadroFinal: ganadoresCuadroFinal.rows,
+      rankingAcumulado: rankingAcumulado.rows
+    });
+  } catch (err) {
+    console.error("Error al obtener ganadores torneo nacional:", err);
+    res.status(500).json({ error: "Error al obtener ganadores del torneo nacional" });
+  }
+});
+
 export default router;

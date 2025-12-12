@@ -305,6 +305,19 @@
   border-bottom: 2px solid #ecf0f1;
 }
 
+.cuadro-final-card {
+  background: linear-gradient(135deg, #fff9e6 0%, #fff 100%);
+  border: 3px solid #f39c12;
+  grid-column: span 2;
+}
+
+.cuadro-final-card h5 {
+  color: #f39c12;
+  font-size: 1.3rem;
+  font-weight: 700;
+  border-bottom: 3px solid #f39c12;
+}
+
 .ganadores-list {
   display: flex;
   flex-direction: column;

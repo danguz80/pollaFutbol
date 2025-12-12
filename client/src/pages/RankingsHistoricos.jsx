@@ -6,6 +6,7 @@ import './RankingsHistoricos.css';
 function RankingsHistoricos() {
   const navigate = useNavigate();
   const [rankings, setRankings] = useState({ 2024: { mayor: [], estandar: [] }, 2025: { mayor: [], estandar: [] } });
+  const [torneoNacional2025, setTorneoNacional2025] = useState({ jornadas: [], cuadroFinal: [], rankingAcumulado: [] });
   const [usuarios, setUsuarios] = useState([]);
   const [usuario, setUsuario] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,13 @@ function RankingsHistoricos() {
       });
       const dataRankings = await resRankings.json();
       setRankings(dataRankings);
+
+      // Cargar ganadores del Torneo Nacional 2025 automáticamente
+      const resTorneo = await fetch(buildApiUrl('/api/rankings-historicos/torneo-nacional-2025'), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const dataTorneo = await resTorneo.json();
+      setTorneoNacional2025(dataTorneo);
 
       // Cargar usuarios activos (para admin)
       if (payload.rol === 'admin') {
@@ -311,6 +319,36 @@ function RankingsHistoricos() {
         {/* Cuadro de Honor Mayor 2025 */}
         <div className="cuadro-honor mayor">
           <h3>🏅 Cuadro de Honor Mayor</h3>
+          
+          {/* Torneo Nacional - Ranking Acumulado (automático desde BD) */}
+          {torneoNacional2025.rankingAcumulado.length > 0 && (
+            <div className="competencia-card">
+              <h4>Torneo Nacional - Ranking Acumulado</h4>
+              <div className="podio">
+                {[1, 2, 3].map(pos => {
+                  const ganador = torneoNacional2025.rankingAcumulado[pos - 1];
+                  return (
+                    <div key={pos} className={`podio-item pos-${pos}`}>
+                      <div className="medalla">
+                        {pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉'}
+                      </div>
+                      {ganador ? (
+                        <div className="podio-contenido">
+                          {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.nombre} className="foto-perfil" />}
+                          <div className="nombre">{ganador.nombre}</div>
+                          <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
+                        </div>
+                      ) : (
+                        <div className="vacio">-</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Otras competencias (Copa Libertadores, Sudamericana) - desde rankings_historicos */}
           {Object.entries(agruparPorCompetencia(rankings[2025]?.mayor || [])).map(([comp, items]) => (
             <div key={comp} className="competencia-card">
               <h4>{comp}</h4>
@@ -348,23 +386,44 @@ function RankingsHistoricos() {
           <p className="subtitle">Ganadores por Jornada - Torneo Nacional 2025</p>
           
           <div className="jornadas-grid">
-            {Object.entries(agruparPorCategoria(rankings[2025]?.estandar || [])).map(([cat, items]) => (
-              <div key={cat} className="jornada-card">
-                <h5>{cat}</h5>
-                <div className="ganadores-list">
-                  {items.map(item => (
-                    <div key={item.id} className="ganador-item">
-                      {item.foto_perfil && <img src={item.foto_perfil} alt={item.usuario_nombre} />}
-                      <span>{item.usuario_nombre}</span>
-                      {usuario?.rol === 'admin' && (
-                        <button onClick={() => eliminarRanking(item.id)} className="btn-delete-small">🗑️</button>
-                      )}
-                    </div>
-                  ))}
-                  {items.length === 0 && <div className="sin-ganadores">Sin ganadores aún</div>}
+            {/* Jornadas 11 a 30 */}
+            {Array.from({length: 20}, (_, i) => i + 11).map(jornadaNum => {
+              const ganadoresJornada = torneoNacional2025.jornadas.filter(g => g.jornada_numero === jornadaNum);
+              return (
+                <div key={`J${jornadaNum}`} className="jornada-card">
+                  <h5>Jornada {jornadaNum}</h5>
+                  <div className="ganadores-list">
+                    {ganadoresJornada.length > 0 ? (
+                      ganadoresJornada.map(ganador => (
+                        <div key={ganador.usuario_id} className="ganador-item">
+                          {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.nombre} />}
+                          <span>{ganador.nombre}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="sin-ganadores">Sin ganadores</div>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+
+            {/* Cuadro Final */}
+            <div className="jornada-card cuadro-final-card">
+              <h5>🏆 Cuadro Final</h5>
+              <div className="ganadores-list">
+                {torneoNacional2025.cuadroFinal.length > 0 ? (
+                  torneoNacional2025.cuadroFinal.map(ganador => (
+                    <div key={ganador.usuario_id} className="ganador-item">
+                      {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.nombre} />}
+                      <span>{ganador.nombre}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="sin-ganadores">Sin ganadores</div>
+                )}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </section>
