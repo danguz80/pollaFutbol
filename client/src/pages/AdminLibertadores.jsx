@@ -275,7 +275,7 @@ export default function AdminLibertadores() {
     }
   };
 
-  const generarFixtureFaseGrupos = () => {
+  const generarFixtureFaseGrupos = async () => {
     const fixture = {};
     
     // Para cada grupo
@@ -309,8 +309,56 @@ export default function AdminLibertadores() {
     });
     
     setFixtureGenerado(fixture);
-    setJornadasAsignadas({});
-    setMessage({ type: 'success', text: `✅ Fixture generado: ${Object.values(fixture).flat().length} partidos` });
+    
+    // Cargar partidos existentes para recuperar asignaciones previas
+    try {
+      const token = localStorage.getItem('token');
+      const asignacionesPrevias = {};
+      
+      // Cargar partidos de jornadas 1-6
+      for (let j = 1; j <= 6; j++) {
+        const response = await axios.get(
+          `${API_URL}/api/libertadores/jornadas/${j}/partidos`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        const partidosJornada = response.data;
+        const todosPartidosFixture = Object.values(fixture).flat();
+        
+        // Mapear partidos existentes con el fixture generado
+        partidosJornada.forEach(partidoExistente => {
+          const globalIndex = todosPartidosFixture.findIndex(
+            p => p.local === partidoExistente.nombre_local && 
+                 p.visita === partidoExistente.nombre_visita
+          );
+          
+          if (globalIndex !== -1) {
+            asignacionesPrevias[globalIndex] = j;
+          }
+        });
+      }
+      
+      setJornadasAsignadas(asignacionesPrevias);
+      
+      const totalAsignados = Object.keys(asignacionesPrevias).length;
+      if (totalAsignados > 0) {
+        setMessage({ 
+          type: 'success', 
+          text: `✅ Fixture generado: ${Object.values(fixture).flat().length} partidos (${totalAsignados} ya asignados)` 
+        });
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: `✅ Fixture generado: ${Object.values(fixture).flat().length} partidos` 
+        });
+      }
+    } catch (error) {
+      setMessage({ 
+        type: 'success', 
+        text: `✅ Fixture generado: ${Object.values(fixture).flat().length} partidos` 
+      });
+    }
+    
     setTimeout(() => setMessage({ type: '', text: '' }), 3000);
   };
 
@@ -369,12 +417,12 @@ export default function AdminLibertadores() {
 
   const guardarFixtureCompleto = async () => {
     const todosPartidos = Object.values(fixtureGenerado).flat();
-    const partidosSinJornada = todosPartidos.filter((_, idx) => !jornadasAsignadas[idx]);
+    const partidosConJornada = Object.keys(jornadasAsignadas).length;
     
-    if (partidosSinJornada.length > 0) {
-      if (!confirm(`⚠️ Hay ${partidosSinJornada.length} partidos sin jornada asignada. ¿Continuar de todas formas?`)) {
-        return;
-      }
+    if (partidosConJornada === 0) {
+      setMessage({ type: 'error', text: '⚠️ Debes asignar al menos un partido a una jornada' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      return;
     }
     
     setLoading(true);
@@ -407,7 +455,11 @@ export default function AdminLibertadores() {
         );
       }
       
-      setMessage({ type: 'success', text: '✅ Fixture guardado exitosamente' });
+      const partidosSinJornada = todosPartidos.length - partidosConJornada;
+      setMessage({ 
+        type: 'success', 
+        text: `✅ ${partidosConJornada} partidos guardados${partidosSinJornada > 0 ? ` (${partidosSinJornada} pendientes)` : ''}` 
+      });
       setFixtureGenerado(null);
       setJornadasAsignadas({});
       cargarPartidos();
