@@ -57,6 +57,19 @@ app.use(cors({
 
 app.use(express.json());
 
+// Migración automática: agregar columna 'activa' si no existe
+(async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE libertadores_jornadas 
+      ADD COLUMN IF NOT EXISTS activa BOOLEAN DEFAULT false
+    `);
+    console.log('✅ Columna "activa" verificada en libertadores_jornadas');
+  } catch (error) {
+    console.error('❌ Error en migración de columna "activa":', error.message);
+  }
+})();
+
 // IMPORTANTE: Rutas más específicas deben ir ANTES que las generales
 app.use("/api/jornadas", jornadasRoutes);
 app.use("/api/fixtures", fixturesRoutes);
