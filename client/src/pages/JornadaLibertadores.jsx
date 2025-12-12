@@ -87,6 +87,17 @@ export default function JornadaLibertadores() {
     setPronosticos(nuevosPronosticos);
   };
 
+  const resetearTodos = () => {
+    const nuevosPronosticos = {};
+    partidos.forEach(partido => {
+      nuevosPronosticos[partido.id] = {
+        goles_local: 0,
+        goles_visita: 0,
+      };
+    });
+    setPronosticos(nuevosPronosticos);
+  };
+
   const handleEnviar = async () => {
     if (!jornada || jornada.cerrada) return;
 
@@ -205,6 +216,7 @@ export default function JornadaLibertadores() {
                           type="number"
                           min="0"
                           className="form-control form-control-lg text-center fw-bold"
+                          style={{ MozAppearance: 'textfield' }}
                           value={pronosticos[partido.id]?.goles_local ?? ""}
                           onChange={(e) => handleChange(partido.id, "goles_local", e.target.value)}
                           disabled={jornada.cerrada}
@@ -222,6 +234,7 @@ export default function JornadaLibertadores() {
                           type="number"
                           min="0"
                           className="form-control form-control-lg text-center fw-bold"
+                          style={{ MozAppearance: 'textfield' }}
                           value={pronosticos[partido.id]?.goles_visita ?? ""}
                           onChange={(e) => handleChange(partido.id, "goles_visita", e.target.value)}
                           disabled={jornada.cerrada}
@@ -244,9 +257,12 @@ export default function JornadaLibertadores() {
           </div>
 
           {!jornada.cerrada && (
-            <div className="text-center d-flex gap-3 justify-content-center">
+            <div className="text-center d-flex gap-3 justify-content-center flex-wrap">
               <button className="btn btn-outline-info btn-lg px-4" onClick={generarAleatorioTodos}>
                 🎲 Azar
+              </button>
+              <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
+                🔄 Resetear
               </button>
               <button className="btn btn-danger btn-lg px-5" onClick={handleEnviar}>
                 💾 Guardar Pronósticos
