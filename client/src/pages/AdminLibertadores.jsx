@@ -649,12 +649,12 @@ export default function AdminLibertadores() {
                                         key={j}
                                         onClick={() => asignarJornada(globalIndex, j)}
                                         disabled={!esValido && !estaAsignado}
-                                        className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
+                                        className={`px-3 py-1.5 text-xs rounded font-bold transition-all ${
                                           estaAsignado
-                                            ? 'bg-green-600 text-white'
+                                            ? 'bg-red-600 text-white ring-2 ring-red-300'
                                             : esValido
-                                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50'
+                                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300'
+                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-40'
                                         }`}
                                         title={
                                           estaAsignado
