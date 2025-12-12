@@ -449,137 +449,65 @@ export default function AdminLibertadores() {
               </div>
 
               {/* Lista de partidos */}
-              <div className="mt-6">
-                <h3 className="font-bold text-xl mb-4 text-gray-800">📋 Partidos de la Jornada {jornadaActual}</h3>
+              <div className="space-y-3">
+                <h3 className="font-bold text-lg">Partidos de la Jornada {jornadaActual}</h3>
                 {partidos.length === 0 ? (
                   <p className="text-gray-500 italic">No hay partidos configurados</p>
                 ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {partidos.map((partido, index) => {
-                      const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
-                      return (
-                        <div 
-                          key={partido.id} 
-                          className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-5 shadow-lg hover:shadow-xl transition-all relative overflow-hidden"
-                        >
-                          {/* Decoración de fondo */}
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
-                          
-                          {/* Header */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <span className="bg-blue-500 text-white text-sm font-bold px-3 py-1 rounded-lg">
-                                #{index + 1}
+                  partidos.map(partido => {
+                    const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
+                    return (
+                      <div key={partido.id} className="flex items-center justify-between bg-white border rounded-lg p-4">
+                        <div>
+                          <p className="font-semibold">
+                            {partido.nombre_local} vs {partido.nombre_visita}
+                            {grupoLocal && <span className="ml-2 text-sm font-normal text-blue-600 bg-blue-50 px-2 py-1 rounded">Grupo {grupoLocal}</span>}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {new Date(partido.fecha).toLocaleString('es-CL')} • 
+                            {editandoBonus === partido.id ? (
+                              <span className="ml-2">
+                                <select
+                                  defaultValue={partido.bonus}
+                                  onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
+                                  className="px-2 py-1 border rounded text-sm"
+                                  autoFocus
+                                >
+                                  <option value={1}>Bonus x1</option>
+                                  <option value={2}>Bonus x2</option>
+                                  <option value={3}>Bonus x3</option>
+                                </select>
+                                <button
+                                  onClick={() => setEditandoBonus(null)}
+                                  className="ml-1 text-gray-400 hover:text-gray-600"
+                                >
+                                  ✕
+                                </button>
                               </span>
-                              {grupoLocal && (
-                                <span className="bg-amber-500 text-white text-sm font-bold px-3 py-1 rounded-lg">
-                                  GRUPO {grupoLocal}
-                                </span>
-                              )}
-                            </div>
-                            {partido.goles_local !== null && (
-                              <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                                ✓ FINALIZADO
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Equipos */}
-                          <div className="bg-white bg-opacity-10 rounded-lg p-4 mb-4">
-                            <div className="text-center">
-                              <div className="flex items-center justify-center gap-4">
-                                <div className="flex-1 text-right">
-                                  <p className="text-white font-bold text-lg leading-tight">
-                                    {partido.nombre_local}
-                                  </p>
-                                </div>
-                                
-                                <div className="flex flex-col items-center px-3">
-                                  {partido.goles_local !== null ? (
-                                    <div className="bg-white rounded-lg px-4 py-2 shadow-md">
-                                      <p className="text-slate-800 font-black text-2xl">
-                                        {partido.goles_local} - {partido.goles_visita}
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    <p className="text-white font-bold text-xl opacity-60">VS</p>
-                                  )}
-                                </div>
-
-                                <div className="flex-1 text-left">
-                                  <p className="text-white font-bold text-lg leading-tight">
-                                    {partido.nombre_visita}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Footer con info */}
-                          <div className="flex items-center justify-between text-sm">
-                            <div className="text-gray-300 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                              </svg>
-                              <span className="font-medium">
-                                {new Date(partido.fecha).toLocaleDateString('es-CL', { 
-                                  day: 'numeric', 
-                                  month: 'short' 
-                                })} - {new Date(partido.fecha).toLocaleTimeString('es-CL', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
-                                })}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              {/* Bonus editable */}
-                              <div className="flex items-center gap-2">
-                                {editandoBonus === partido.id ? (
-                                  <div className="flex items-center gap-2">
-                                    <select
-                                      defaultValue={partido.bonus}
-                                      onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
-                                      className="bg-yellow-400 text-gray-900 font-bold px-2 py-1 rounded text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                                      autoFocus
-                                    >
-                                      <option value={1}>⭐ x1</option>
-                                      <option value={2}>⭐ x2</option>
-                                      <option value={3}>⭐ x3</option>
-                                    </select>
-                                    <button
-                                      onClick={() => setEditandoBonus(null)}
-                                      className="text-gray-300 hover:text-white"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => setEditandoBonus(partido.id)}
-                                    className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold px-3 py-1 rounded-lg text-sm transition-all"
-                                  >
-                                    ⭐ x{partido.bonus}
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* Botón eliminar */}
+                            ) : (
                               <button
-                                onClick={() => eliminarPartido(partido.id)}
-                                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
-                                title="Eliminar partido"
+                                onClick={() => setEditandoBonus(partido.id)}
+                                className="ml-2 text-blue-600 hover:text-blue-800 underline text-sm"
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
+                                Bonus x{partido.bonus}
                               </button>
-                            </div>
-                          </div>
+                            )}
+                          </p>
+                          {partido.goles_local !== null && (
+                            <p className="text-sm font-semibold text-blue-600">
+                              Resultado: {partido.goles_local} - {partido.goles_visita}
+                            </p>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+                        <button
+                          onClick={() => eliminarPartido(partido.id)}
+                          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    );
+                  })
                 )}
               </div>
 
