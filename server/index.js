@@ -70,6 +70,34 @@ app.use(express.json());
   }
 })();
 
+// Actualizar nombres de jornadas existentes
+(async () => {
+  try {
+    const updates = [
+      { numero: 1, nombre: 'Jornada 1 - Fase de Grupos' },
+      { numero: 2, nombre: 'Jornada 2 - Fase de Grupos' },
+      { numero: 3, nombre: 'Jornada 3 - Fase de Grupos' },
+      { numero: 4, nombre: 'Jornada 4 - Fase de Grupos' },
+      { numero: 5, nombre: 'Jornada 5 - Fase de Grupos' },
+      { numero: 6, nombre: 'Jornada 6 - Fase de Grupos' },
+      { numero: 7, nombre: 'Octavos de Final IDA' },
+      { numero: 8, nombre: 'Octavos de Final VUELTA' },
+      { numero: 9, nombre: 'Cuartos de Final IDA/VUELTA' },
+      { numero: 10, nombre: 'Semifinales IDA/VUELTA + Final + Cuadro Final' }
+    ];
+
+    for (const jornada of updates) {
+      await pool.query(
+        'UPDATE libertadores_jornadas SET nombre = $1 WHERE numero = $2',
+        [jornada.nombre, jornada.numero]
+      );
+    }
+    console.log('✅ Nombres de jornadas actualizados');
+  } catch (error) {
+    console.error('❌ Error actualizando nombres de jornadas:', error.message);
+  }
+})();
+
 // IMPORTANTE: Rutas más específicas deben ir ANTES que las generales
 app.use("/api/jornadas", jornadasRoutes);
 app.use("/api/fixtures", fixturesRoutes);
