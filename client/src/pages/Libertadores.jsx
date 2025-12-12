@@ -27,6 +27,15 @@ export default function Libertadores() {
     }
   };
 
+  const getSubtitulo = (numero) => {
+    if (numero <= 6) return 'Fase de Grupos';
+    if (numero === 7) return 'Octavos de Final IDA';
+    if (numero === 8) return 'Octavos de Final VUELTA';
+    if (numero === 9) return 'Cuartos de Final IDA/VUELTA';
+    if (numero === 10) return 'Semifinales IDA/VUELTA + Final + Cuadro Final';
+    return '';
+  };
+
   const getEstadoJornada = (jornada) => {
     if (jornada.cerrada) return { texto: 'Cerrada', clase: 'danger' };
     if (jornada.activa) return { texto: 'Abierta', clase: 'success' };
@@ -58,7 +67,10 @@ export default function Libertadores() {
               <div className="card h-100 shadow-sm hover-shadow">
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-start mb-3">
-                    <h5 className="card-title mb-0">{jornada.nombre}</h5>
+                    <div>
+                      <h5 className="card-title mb-0">{jornada.nombre}</h5>
+                      <p className="text-muted small mb-0">{getSubtitulo(jornada.numero)}</p>
+                    </div>
                     <span className={`badge bg-${estado.clase}`}>{estado.texto}</span>
                   </div>
                   

@@ -133,13 +133,13 @@ export default function JornadaLibertadores() {
     }
   };
 
-  const getNombreJornada = (numero) => {
-    if (numero <= 6) return `Jornada ${numero} - Fase de Grupos`;
+  const getSubtitulo = (numero) => {
+    if (numero <= 6) return 'Fase de Grupos';
     if (numero === 7) return 'Octavos de Final IDA';
     if (numero === 8) return 'Octavos de Final VUELTA';
     if (numero === 9) return 'Cuartos de Final IDA/VUELTA';
     if (numero === 10) return 'Semifinales IDA/VUELTA + Final + Cuadro Final';
-    return `Jornada ${numero}`;
+    return '';
   };
 
   if (loading) {
@@ -167,7 +167,8 @@ export default function JornadaLibertadores() {
     <div className="container mt-4 mb-5">
       <div className="text-center mb-4">
         <h1 className="display-6 fw-bold text-danger">🔴 Copa Libertadores 2026</h1>
-        <h2 className="h4">{getNombreJornada(Number(numero))}</h2>
+        <h2 className="h4">Jornada {numero}</h2>
+        <p className="text-muted">{getSubtitulo(Number(numero))}</p>
         {jornada.cerrada && (
           <div className="alert alert-warning mt-3">
             🔒 Esta jornada está cerrada. No puedes modificar los pronósticos.

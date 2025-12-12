@@ -70,16 +70,16 @@ router.get('/jornadas', async (req, res) => {
     // Si no hay jornadas, crearlas automáticamente
     if (result.rows.length === 0) {
       const jornadas = [
-        { numero: 1, nombre: 'Jornada 1 - Fase de Grupos', activa: false },
-        { numero: 2, nombre: 'Jornada 2 - Fase de Grupos', activa: false },
-        { numero: 3, nombre: 'Jornada 3 - Fase de Grupos', activa: false },
-        { numero: 4, nombre: 'Jornada 4 - Fase de Grupos', activa: false },
-        { numero: 5, nombre: 'Jornada 5 - Fase de Grupos', activa: false },
-        { numero: 6, nombre: 'Jornada 6 - Fase de Grupos', activa: false },
-        { numero: 7, nombre: 'Octavos de Final IDA', activa: false },
-        { numero: 8, nombre: 'Octavos de Final VUELTA', activa: false },
-        { numero: 9, nombre: 'Cuartos de Final IDA/VUELTA', activa: false },
-        { numero: 10, nombre: 'Semifinales IDA/VUELTA + Final + Cuadro Final', activa: false }
+        { numero: 1, nombre: 'Jornada 1', activa: false },
+        { numero: 2, nombre: 'Jornada 2', activa: false },
+        { numero: 3, nombre: 'Jornada 3', activa: false },
+        { numero: 4, nombre: 'Jornada 4', activa: false },
+        { numero: 5, nombre: 'Jornada 5', activa: false },
+        { numero: 6, nombre: 'Jornada 6', activa: false },
+        { numero: 7, nombre: 'Jornada 7', activa: false },
+        { numero: 8, nombre: 'Jornada 8', activa: false },
+        { numero: 9, nombre: 'Jornada 9', activa: false },
+        { numero: 10, nombre: 'Jornada 10', activa: false }
       ];
 
       for (const jornada of jornadas) {

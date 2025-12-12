@@ -74,16 +74,16 @@ app.use(express.json());
 (async () => {
   try {
     const updates = [
-      { numero: 1, nombre: 'Jornada 1 - Fase de Grupos' },
-      { numero: 2, nombre: 'Jornada 2 - Fase de Grupos' },
-      { numero: 3, nombre: 'Jornada 3 - Fase de Grupos' },
-      { numero: 4, nombre: 'Jornada 4 - Fase de Grupos' },
-      { numero: 5, nombre: 'Jornada 5 - Fase de Grupos' },
-      { numero: 6, nombre: 'Jornada 6 - Fase de Grupos' },
-      { numero: 7, nombre: 'Octavos de Final IDA' },
-      { numero: 8, nombre: 'Octavos de Final VUELTA' },
-      { numero: 9, nombre: 'Cuartos de Final IDA/VUELTA' },
-      { numero: 10, nombre: 'Semifinales IDA/VUELTA + Final + Cuadro Final' }
+      { numero: 1, nombre: 'Jornada 1' },
+      { numero: 2, nombre: 'Jornada 2' },
+      { numero: 3, nombre: 'Jornada 3' },
+      { numero: 4, nombre: 'Jornada 4' },
+      { numero: 5, nombre: 'Jornada 5' },
+      { numero: 6, nombre: 'Jornada 6' },
+      { numero: 7, nombre: 'Jornada 7' },
+      { numero: 8, nombre: 'Jornada 8' },
+      { numero: 9, nombre: 'Jornada 9' },
+      { numero: 10, nombre: 'Jornada 10' }
     ];
 
     for (const jornada of updates) {
