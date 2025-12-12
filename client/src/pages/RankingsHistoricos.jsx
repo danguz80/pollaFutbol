@@ -306,6 +306,7 @@ function RankingsHistoricos() {
                       </div>
                       {ganador ? (
                         <div className="podio-contenido">
+                          {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.usuario_nombre || ganador.nombre_manual} className="foto-perfil" />}
                           <div className="nombre">{ganador.usuario_nombre || ganador.nombre_manual}</div>
                           <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
                           {usuario?.rol === 'admin' && (
