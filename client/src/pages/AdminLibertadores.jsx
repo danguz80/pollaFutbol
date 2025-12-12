@@ -515,7 +515,6 @@ export default function AdminLibertadores() {
                             </div>
                           </div>
                         </div>
-                        </div>
                       </div>
                     );
                   })}
