@@ -644,35 +644,41 @@ export default function AdminLibertadores() {
                                         <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({partido.tipo})</span>
                                       </div>
                                       <div className="d-flex gap-1 flex-wrap">
-                                        {[1, 2, 3, 4, 5, 6].map(j => {
-                                          const esValido = validarAsignacionJornada(globalIndex, j, partido);
-                                          const estaAsignado = jornadaAsignada === j;
-                                          
-                                          return (
-                                            <button
-                                              key={j}
-                                              onClick={() => asignarJornada(globalIndex, j)}
-                                              disabled={!esValido && !estaAsignado}
-                                              className={`btn btn-sm fw-bold ${
-                                                estaAsignado
-                                                  ? 'btn-danger'
-                                                  : esValido
-                                                  ? 'btn-outline-primary'
-                                                  : 'btn-outline-secondary disabled opacity-50'
-                                              }`}
-                                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                                              title={
-                                                estaAsignado
-                                                  ? 'Click para desasignar'
-                                                  : esValido
-                                                  ? `Asignar a Jornada ${j}`
-                                                  : 'Equipo ya en esta jornada'
-                                              }
-                                            >
-                                              J{j}
-                                            </button>
-                                          );
-                                        })}
+                                        {jornadaAsignada ? (
+                                          <button
+                                            onClick={() => asignarJornada(globalIndex, jornadaAsignada)}
+                                            className="btn btn-danger btn-sm fw-bold"
+                                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                            title="Click para desasignar y cambiar de jornada"
+                                          >
+                                            J{jornadaAsignada} ✓
+                                          </button>
+                                        ) : (
+                                          [1, 2, 3, 4, 5, 6].map(j => {
+                                            const esValido = validarAsignacionJornada(globalIndex, j, partido);
+                                            
+                                            return (
+                                              <button
+                                                key={j}
+                                                onClick={() => asignarJornada(globalIndex, j)}
+                                                disabled={!esValido}
+                                                className={`btn btn-sm fw-bold ${
+                                                  esValido
+                                                    ? 'btn-outline-primary'
+                                                    : 'btn-outline-secondary disabled opacity-50'
+                                                }`}
+                                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                                title={
+                                                  esValido
+                                                    ? `Asignar a Jornada ${j}`
+                                                    : 'Equipo ya en esta jornada'
+                                                }
+                                              >
+                                                J{j}
+                                              </button>
+                                            );
+                                          })
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -696,35 +702,41 @@ export default function AdminLibertadores() {
                                         <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({partido.tipo})</span>
                                       </div>
                                       <div className="d-flex gap-1 flex-wrap">
-                                        {[1, 2, 3, 4, 5, 6].map(j => {
-                                          const esValido = validarAsignacionJornada(globalIndex, j, partido);
-                                          const estaAsignado = jornadaAsignada === j;
-                                          
-                                          return (
-                                            <button
-                                              key={j}
-                                              onClick={() => asignarJornada(globalIndex, j)}
-                                              disabled={!esValido && !estaAsignado}
-                                              className={`btn btn-sm fw-bold ${
-                                                estaAsignado
-                                                  ? 'btn-danger'
-                                                  : esValido
-                                                  ? 'btn-outline-primary'
-                                                  : 'btn-outline-secondary disabled opacity-50'
-                                              }`}
-                                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                                              title={
-                                                estaAsignado
-                                                  ? 'Click para desasignar'
-                                                  : esValido
-                                                  ? `Asignar a Jornada ${j}`
-                                                  : 'Equipo ya en esta jornada'
-                                              }
-                                            >
-                                              J{j}
-                                            </button>
-                                          );
-                                        })}
+                                        {jornadaAsignada ? (
+                                          <button
+                                            onClick={() => asignarJornada(globalIndex, jornadaAsignada)}
+                                            className="btn btn-danger btn-sm fw-bold"
+                                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                            title="Click para desasignar y cambiar de jornada"
+                                          >
+                                            J{jornadaAsignada} ✓
+                                          </button>
+                                        ) : (
+                                          [1, 2, 3, 4, 5, 6].map(j => {
+                                            const esValido = validarAsignacionJornada(globalIndex, j, partido);
+                                            
+                                            return (
+                                              <button
+                                                key={j}
+                                                onClick={() => asignarJornada(globalIndex, j)}
+                                                disabled={!esValido}
+                                                className={`btn btn-sm fw-bold ${
+                                                  esValido
+                                                    ? 'btn-outline-primary'
+                                                    : 'btn-outline-secondary disabled opacity-50'
+                                                }`}
+                                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                                title={
+                                                  esValido
+                                                    ? `Asignar a Jornada ${j}`
+                                                    : 'Equipo ya en esta jornada'
+                                                }
+                                              >
+                                                J{j}
+                                              </button>
+                                            );
+                                          })
+                                        )}
                                       </div>
                                     </div>
                                   );
