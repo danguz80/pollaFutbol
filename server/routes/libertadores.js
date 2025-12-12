@@ -379,4 +379,24 @@ router.delete('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req,
   }
 });
 
+// Eliminar todos los partidos de una jornada (Admin)
+router.delete('/jornadas/:jornadaId/partidos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { jornadaId } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM libertadores_partidos WHERE jornada_id = $1 RETURNING *',
+      [jornadaId]
+    );
+
+    res.json({ 
+      mensaje: 'Partidos eliminados exitosamente', 
+      cantidad: result.rows.length 
+    });
+  } catch (error) {
+    console.error('Error eliminando partidos:', error);
+    res.status(500).json({ error: 'Error eliminando partidos' });
+  }
+});
+
 export default router;

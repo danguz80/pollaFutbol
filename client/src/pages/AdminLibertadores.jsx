@@ -249,6 +249,32 @@ export default function AdminLibertadores() {
     }
   };
 
+  const borrarTodosPartidos = async () => {
+    if (!confirm(`⚠️ ¿BORRAR TODOS los partidos de la jornada ${jornadaActual}? Esta acción no se puede deshacer.`)) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const jornadaData = await axios.get(
+        `${API_URL}/api/libertadores/jornadas/${jornadaActual}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      await axios.delete(
+        `${API_URL}/api/libertadores/jornadas/${jornadaData.data.id}/partidos`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setMessage({ type: 'success', text: '✅ Todos los partidos eliminados' });
+      cargarPartidos();
+      setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEquipoChange = (grupo, index, value) => {
     setEquipos(prev => ({
       ...prev,
@@ -410,6 +436,15 @@ export default function AdminLibertadores() {
                     </option>
                   ))}
                 </select>
+                
+                <button
+                  onClick={borrarTodosPartidos}
+                  disabled={loading || partidos.length === 0}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Borrar todos los partidos de esta jornada"
+                >
+                  🗑️ Borrar Todos los Partidos
+                </button>
               </div>
 
               {/* Formulario agregar partido */}
