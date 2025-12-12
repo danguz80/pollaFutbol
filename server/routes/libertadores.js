@@ -261,6 +261,32 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
   }
 });
 
+// Actualizar bonus de un partido (Admin)
+router.patch('/partidos/:id/bonus', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bonus } = req.body;
+
+    if (!bonus || ![1, 2, 3].includes(Number(bonus))) {
+      return res.status(400).json({ error: 'Bonus inválido. Debe ser 1, 2 o 3' });
+    }
+
+    const result = await pool.query(
+      'UPDATE libertadores_partidos SET bonus = $1 WHERE id = $2 RETURNING *',
+      [bonus, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Partido no encontrado' });
+    }
+
+    res.json({ mensaje: 'Bonus actualizado exitosamente', partido: result.rows[0] });
+  } catch (error) {
+    console.error('Error actualizando bonus:', error);
+    res.status(500).json({ error: 'Error actualizando bonus' });
+  }
+});
+
 // Eliminar partido (Admin)
 router.delete('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
