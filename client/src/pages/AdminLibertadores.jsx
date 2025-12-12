@@ -621,57 +621,117 @@ export default function AdminLibertadores() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="row g-4">
                     {Object.entries(fixtureGenerado).map(([grupo, partidosGrupo]) => (
-                      <div key={grupo} className="bg-white p-4 rounded-lg shadow">
-                        <h4 className="font-bold text-lg mb-3 text-blue-800">GRUPO {grupo}</h4>
-                        <div className="space-y-3">
-                          {partidosGrupo.map((partido, idx) => {
-                            const globalIndex = Object.values(fixtureGenerado)
-                              .flat()
-                              .findIndex(p => p.local === partido.local && p.visita === partido.visita && p.tipo === partido.tipo);
-                            
-                            const jornadaAsignada = jornadasAsignadas[globalIndex];
-                            
-                            return (
-                              <div key={idx} className="border rounded p-2 bg-gray-50">
-                                <div className="text-sm mb-2">
-                                  <span className="font-semibold">{partido.local}</span> vs {partido.visita}
-                                  <span className="text-xs text-gray-500 ml-1">({partido.tipo})</span>
-                                </div>
-                                <div className="flex gap-1 flex-wrap">
-                                  {[1, 2, 3, 4, 5, 6].map(j => {
-                                    const esValido = validarAsignacionJornada(globalIndex, j, partido);
-                                    const estaAsignado = jornadaAsignada === j;
-                                    
-                                    return (
-                                      <button
-                                        key={j}
-                                        onClick={() => asignarJornada(globalIndex, j)}
-                                        disabled={!esValido && !estaAsignado}
-                                        className={`px-3 py-1.5 text-xs rounded font-bold transition-all ${
-                                          estaAsignado
-                                            ? 'bg-red-600 text-white ring-2 ring-red-300'
-                                            : esValido
-                                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300'
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-40'
-                                        }`}
-                                        title={
-                                          estaAsignado
-                                            ? 'Click para desasignar'
-                                            : esValido
-                                            ? `Asignar a Jornada ${j}`
-                                            : 'Equipo ya en esta jornada'
-                                        }
-                                      >
-                                        J{j}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                      <div key={grupo} className="col-12">
+                        <div className="card shadow">
+                          <div className="card-body">
+                            <h4 className="card-title fw-bold text-primary mb-3">GRUPO {grupo}</h4>
+                            <div className="row">
+                              {/* Primera columna - primeros 6 partidos */}
+                              <div className="col-12 col-lg-6">
+                                {partidosGrupo.slice(0, 6).map((partido, idx) => {
+                                  const globalIndex = Object.values(fixtureGenerado)
+                                    .flat()
+                                    .findIndex(p => p.local === partido.local && p.visita === partido.visita && p.tipo === partido.tipo);
+                                  
+                                  const jornadaAsignada = jornadasAsignadas[globalIndex];
+                                  
+                                  return (
+                                    <div key={idx} className="border rounded p-2 mb-2 bg-light">
+                                      <div className="small mb-2">
+                                        <span className="fw-bold">{partido.local}</span> vs {partido.visita}
+                                        <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({partido.tipo})</span>
+                                      </div>
+                                      <div className="d-flex gap-1 flex-wrap">
+                                        {[1, 2, 3, 4, 5, 6].map(j => {
+                                          const esValido = validarAsignacionJornada(globalIndex, j, partido);
+                                          const estaAsignado = jornadaAsignada === j;
+                                          
+                                          return (
+                                            <button
+                                              key={j}
+                                              onClick={() => asignarJornada(globalIndex, j)}
+                                              disabled={!esValido && !estaAsignado}
+                                              className={`btn btn-sm fw-bold ${
+                                                estaAsignado
+                                                  ? 'btn-danger'
+                                                  : esValido
+                                                  ? 'btn-outline-primary'
+                                                  : 'btn-outline-secondary disabled opacity-50'
+                                              }`}
+                                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                              title={
+                                                estaAsignado
+                                                  ? 'Click para desasignar'
+                                                  : esValido
+                                                  ? `Asignar a Jornada ${j}`
+                                                  : 'Equipo ya en esta jornada'
+                                              }
+                                            >
+                                              J{j}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
+                              
+                              {/* Segunda columna - últimos 6 partidos */}
+                              <div className="col-12 col-lg-6">
+                                {partidosGrupo.slice(6, 12).map((partido, idx) => {
+                                  const realIdx = idx + 6;
+                                  const globalIndex = Object.values(fixtureGenerado)
+                                    .flat()
+                                    .findIndex(p => p.local === partido.local && p.visita === partido.visita && p.tipo === partido.tipo);
+                                  
+                                  const jornadaAsignada = jornadasAsignadas[globalIndex];
+                                  
+                                  return (
+                                    <div key={realIdx} className="border rounded p-2 mb-2 bg-light">
+                                      <div className="small mb-2">
+                                        <span className="fw-bold">{partido.local}</span> vs {partido.visita}
+                                        <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({partido.tipo})</span>
+                                      </div>
+                                      <div className="d-flex gap-1 flex-wrap">
+                                        {[1, 2, 3, 4, 5, 6].map(j => {
+                                          const esValido = validarAsignacionJornada(globalIndex, j, partido);
+                                          const estaAsignado = jornadaAsignada === j;
+                                          
+                                          return (
+                                            <button
+                                              key={j}
+                                              onClick={() => asignarJornada(globalIndex, j)}
+                                              disabled={!esValido && !estaAsignado}
+                                              className={`btn btn-sm fw-bold ${
+                                                estaAsignado
+                                                  ? 'btn-danger'
+                                                  : esValido
+                                                  ? 'btn-outline-primary'
+                                                  : 'btn-outline-secondary disabled opacity-50'
+                                              }`}
+                                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                              title={
+                                                estaAsignado
+                                                  ? 'Click para desasignar'
+                                                  : esValido
+                                                  ? `Asignar a Jornada ${j}`
+                                                  : 'Equipo ya en esta jornada'
+                                              }
+                                            >
+                                              J{j}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
