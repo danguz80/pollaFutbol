@@ -76,6 +76,17 @@ export default function JornadaLibertadores() {
     }));
   };
 
+  const generarAleatorioTodos = () => {
+    const nuevosPronosticos = {};
+    partidos.forEach(partido => {
+      nuevosPronosticos[partido.id] = {
+        goles_local: Math.floor(Math.random() * 5), // 0 a 4
+        goles_visita: Math.floor(Math.random() * 5), // 0 a 4
+      };
+    });
+    setPronosticos(nuevosPronosticos);
+  };
+
   const handleEnviar = async () => {
     if (!jornada || jornada.cerrada) return;
 
@@ -179,16 +190,17 @@ export default function JornadaLibertadores() {
                       )}
                     </div>
 
+                    {(partido.grupo_local || partido.grupo_visita) && (
+                      <div className="text-center mb-2">
+                        <span className="badge bg-primary" style={{ fontSize: '0.7rem' }}>
+                          GRUPO {partido.grupo_local || partido.grupo_visita}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="row align-items-center text-center">
                       <div className="col-5">
-                        <div className="d-flex flex-column align-items-center">
-                          {partido.grupo_local && (
-                            <span className="badge bg-primary mb-2" style={{ fontSize: '0.7rem' }}>
-                              GRUPO {partido.grupo_local}
-                            </span>
-                          )}
-                          <p className="fw-bold mb-2">{partido.nombre_local}</p>
-                        </div>
+                        <p className="fw-bold mb-2">{partido.nombre_local}</p>
                         <input
                           type="number"
                           min="0"
@@ -205,14 +217,7 @@ export default function JornadaLibertadores() {
                       </div>
 
                       <div className="col-5">
-                        <div className="d-flex flex-column align-items-center">
-                          {partido.grupo_visita && (
-                            <span className="badge bg-primary mb-2" style={{ fontSize: '0.7rem' }}>
-                              GRUPO {partido.grupo_visita}
-                            </span>
-                          )}
-                          <p className="fw-bold mb-2">{partido.nombre_visita}</p>
-                        </div>
+                        <p className="fw-bold mb-2">{partido.nombre_visita}</p>
                         <input
                           type="number"
                           min="0"
@@ -239,7 +244,10 @@ export default function JornadaLibertadores() {
           </div>
 
           {!jornada.cerrada && (
-            <div className="text-center">
+            <div className="text-center d-flex gap-3 justify-content-center">
+              <button className="btn btn-outline-info btn-lg px-4" onClick={generarAleatorioTodos}>
+                🎲 Azar
+              </button>
               <button className="btn btn-danger btn-lg px-5" onClick={handleEnviar}>
                 💾 Guardar Pronósticos
               </button>
