@@ -22,6 +22,7 @@ export default function NavigationBar() {
         <Navbar.Collapse id="main-navbar">
           <Nav className="me-auto">
             <Nav.Link as={NavLink} to="/">Inicio</Nav.Link>
+            <Nav.Link as={NavLink} to="/rankings-historicos">🏆 Rankings Históricos</Nav.Link>
             {rol === 'admin' && (
               <Nav.Link as={NavLink} to="/admin">⚙️ Admin</Nav.Link>
             )}

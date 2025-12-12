@@ -1,0 +1,382 @@
+.rankings-historicos {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.rankings-historicos h1 {
+  text-align: center;
+  color: #1a1a2e;
+  margin-bottom: 30px;
+  font-size: 2.5rem;
+}
+
+/* Panel de Administración */
+.admin-panel {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.btn-toggle-edit {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-toggle-edit:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+}
+
+.form-ranking {
+  background: white;
+  padding: 25px;
+  border-radius: 10px;
+  margin-top: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.form-ranking h3 {
+  margin-top: 0;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.form-ranking label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-weight: 600;
+  color: #555;
+}
+
+.form-ranking input,
+.form-ranking select {
+  padding: 10px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+}
+
+.form-ranking input:focus,
+.form-ranking select:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.btn-guardar {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 600;
+  width: 100%;
+  margin-top: 10px;
+  transition: all 0.3s;
+}
+
+.btn-guardar:hover {
+  background: #218838;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+}
+
+/* Secciones por Año */
+.anio-section {
+  margin-bottom: 50px;
+}
+
+.anio-section h2 {
+  color: #2c3e50;
+  font-size: 2rem;
+  margin-bottom: 25px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid #3498db;
+}
+
+/* Cuadro de Honor */
+.cuadro-honor {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-bottom: 30px;
+}
+
+.cuadro-honor h3 {
+  margin-top: 0;
+  font-size: 1.8rem;
+  color: #34495e;
+  margin-bottom: 10px;
+}
+
+.cuadro-honor.mayor {
+  background: linear-gradient(135deg, #fff9e6 0%, #fff 100%);
+  border: 2px solid #f39c12;
+}
+
+.cuadro-honor.estandar {
+  background: linear-gradient(135deg, #e8f5ff 0%, #fff 100%);
+  border: 2px solid #3498db;
+}
+
+.subtitle {
+  color: #7f8c8d;
+  font-style: italic;
+  margin-bottom: 20px;
+}
+
+/* Competencias */
+.competencia-card {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.competencia-card h4 {
+  text-align: center;
+  color: #2c3e50;
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #ecf0f1;
+}
+
+/* Podio */
+.podio {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 20px;
+  padding: 20px;
+}
+
+.podio-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  border-radius: 12px;
+  min-width: 150px;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.podio-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.podio-item.pos-1 {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  border: 3px solid #d4af37;
+  order: 2;
+  height: 200px;
+}
+
+.podio-item.pos-2 {
+  background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+  border: 3px solid #a8a8a8;
+  order: 1;
+  height: 170px;
+}
+
+.podio-item.pos-3 {
+  background: linear-gradient(135deg, #cd7f32 0%, #e8a87c 100%);
+  border: 3px solid #a0522d;
+  order: 3;
+  height: 150px;
+}
+
+.medalla {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+
+.podio-item .foto-perfil {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.podio-item .nombre {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #2c3e50;
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+.podio-item .puntos {
+  font-size: 0.95rem;
+  color: #7f8c8d;
+  font-weight: 600;
+}
+
+.podio-item .vacio {
+  color: #bdc3c7;
+  font-style: italic;
+  font-size: 1.5rem;
+}
+
+/* Jornadas Grid */
+.jornadas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.jornada-card {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  border: 2px solid #ecf0f1;
+  transition: all 0.3s;
+}
+
+.jornada-card:hover {
+  border-color: #3498db;
+  box-shadow: 0 4px 12px rgba(52,152,219,0.2);
+  transform: translateY(-3px);
+}
+
+.jornada-card h5 {
+  margin: 0 0 12px 0;
+  color: #2c3e50;
+  font-size: 1.1rem;
+  text-align: center;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #ecf0f1;
+}
+
+.ganadores-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ganador-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.ganador-item:hover {
+  background: #e9ecef;
+}
+
+.ganador-item img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid white;
+}
+
+.ganador-item span {
+  flex: 1;
+  font-weight: 600;
+  color: #34495e;
+  font-size: 0.9rem;
+}
+
+.sin-ganadores {
+  color: #95a5a6;
+  text-align: center;
+  padding: 10px;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Botones de Eliminación */
+.btn-delete,
+.btn-delete-small {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.btn-delete-small {
+  padding: 3px 6px;
+  font-size: 0.8rem;
+}
+
+.btn-delete:hover,
+.btn-delete-small:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  font-size: 1.5rem;
+  color: #7f8c8d;
+  padding: 50px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .podio {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .podio-item {
+    width: 100%;
+    max-width: 300px;
+    height: auto !important;
+  }
+
+  .podio-item.pos-1,
+  .podio-item.pos-2,
+  .podio-item.pos-3 {
+    order: 0;
+  }
+
+  .jornadas-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .rankings-historicos h1 {
+    font-size: 1.8rem;
+  }
+}

@@ -1,6 +1,6 @@
 // Configuración centralizada de la API
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || 'https://campeonato-itau-backend.onrender.com',
+  BASE_URL: import.meta.env.VITE_API_URL || 'https://pollafutbol.onrender.com',
   ENDPOINTS: {
     AUTH: '/api/usuarios',
     SUDAMERICANA: '/api/sudamericana',
