@@ -186,15 +186,26 @@ router.patch('/jornadas/:numero', verifyToken, authorizeRoles('admin'), async (r
     const { numero } = req.params;
     const { activa } = req.body;
 
-    const result = await pool.query(`
+    // Primero intentar actualizar
+    let result = await pool.query(`
       UPDATE libertadores_jornadas 
       SET activa = $1 
       WHERE numero = $2
       RETURNING *
     `, [activa, numero]);
 
+    // Si no existe, crearla
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Jornada no encontrada' });
+      const nombreJornada = numero <= 6 ? `Fecha ${numero} (Grupos)` : 
+                           numero === 7 ? 'Octavos de Final' :
+                           numero === 8 ? 'Cuartos de Final' :
+                           numero === 9 ? 'Semifinales' : 'Final';
+      
+      result = await pool.query(`
+        INSERT INTO libertadores_jornadas (numero, nombre, activa, cerrada)
+        VALUES ($1, $2, $3, false)
+        RETURNING *
+      `, [numero, nombreJornada, activa]);
     }
 
     res.json({ mensaje: `Jornada ${activa ? 'activada' : 'desactivada'}`, jornada: result.rows[0] });
