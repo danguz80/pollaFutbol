@@ -358,9 +358,22 @@ export default function AdminLibertadores() {
                     className="p-2 border rounded"
                   >
                     <option value="">Local</option>
-                    {obtenerEquiposDisponiblesLocal().map(eq => (
-                      <option key={eq} value={eq}>{eq}</option>
-                    ))}
+                    {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(grupo => {
+                      const equiposDelGrupo = equipos[grupo].filter(eq => {
+                        const equiposUsados = obtenerEquiposUsados();
+                        return eq.trim() && !equiposUsados.has(eq);
+                      });
+                      
+                      if (equiposDelGrupo.length === 0) return null;
+                      
+                      return (
+                        <optgroup key={grupo} label={`GRUPO ${grupo}`}>
+                          {equiposDelGrupo.map(eq => (
+                            <option key={eq} value={eq}>{eq}</option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
 
                   <select
@@ -370,9 +383,20 @@ export default function AdminLibertadores() {
                     disabled={!nuevoPartido.equipo_local}
                   >
                     <option value="">Visitante</option>
-                    {obtenerRivalesDisponibles().map(eq => (
-                      <option key={eq} value={eq}>{eq}</option>
-                    ))}
+                    {nuevoPartido.equipo_local && (() => {
+                      const grupoLocal = obtenerGrupoEquipo(nuevoPartido.equipo_local);
+                      if (!grupoLocal) return null;
+                      
+                      const rivalesDisponibles = obtenerRivalesDisponibles();
+                      
+                      return (
+                        <optgroup label={`GRUPO ${grupoLocal}`}>
+                          {rivalesDisponibles.map(eq => (
+                            <option key={eq} value={eq}>{eq}</option>
+                          ))}
+                        </optgroup>
+                      );
+                    })()}
                   </select>
 
                   <input
@@ -408,29 +432,33 @@ export default function AdminLibertadores() {
                 {partidos.length === 0 ? (
                   <p className="text-gray-500 italic">No hay partidos configurados</p>
                 ) : (
-                  partidos.map(partido => (
-                    <div key={partido.id} className="flex items-center justify-between bg-white border rounded-lg p-4">
-                      <div>
-                        <p className="font-semibold">
-                          {partido.nombre_local} vs {partido.nombre_visita}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {new Date(partido.fecha).toLocaleString('es-CL')} • Bonus x{partido.bonus}
-                        </p>
-                        {partido.goles_local !== null && (
-                          <p className="text-sm font-semibold text-blue-600">
-                            Resultado: {partido.goles_local} - {partido.goles_visita}
+                  partidos.map(partido => {
+                    const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
+                    return (
+                      <div key={partido.id} className="flex items-center justify-between bg-white border rounded-lg p-4">
+                        <div>
+                          <p className="font-semibold">
+                            {partido.nombre_local} vs {partido.nombre_visita}
+                            {grupoLocal && <span className="ml-2 text-sm font-normal text-blue-600 bg-blue-50 px-2 py-1 rounded">Grupo {grupoLocal}</span>}
                           </p>
-                        )}
+                          <p className="text-sm text-gray-600">
+                            {new Date(partido.fecha).toLocaleString('es-CL')} • Bonus x{partido.bonus}
+                          </p>
+                          {partido.goles_local !== null && (
+                            <p className="text-sm font-semibold text-blue-600">
+                              Resultado: {partido.goles_local} - {partido.goles_visita}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => eliminarPartido(partido.id)}
+                          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                        >
+                          🗑️
+                        </button>
                       </div>
-                      <button
-                        onClick={() => eliminarPartido(partido.id)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
