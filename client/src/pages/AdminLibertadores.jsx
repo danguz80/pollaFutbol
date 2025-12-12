@@ -248,9 +248,6 @@ export default function AdminLibertadores() {
       setLoading(false);
     }
   };
-      setLoading(false);
-    }
-  };
 
   const handleEquipoChange = (grupo, index, value) => {
     setEquipos(prev => ({
