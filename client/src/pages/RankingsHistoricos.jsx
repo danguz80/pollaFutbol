@@ -321,7 +321,7 @@ function RankingsHistoricos() {
           <h3>🏅 Cuadro de Honor Mayor</h3>
           
           {/* Torneo Nacional - Ranking Acumulado (automático desde BD) */}
-          {torneoNacional2025.rankingAcumulado.length > 0 && (
+          {torneoNacional2025?.rankingAcumulado?.length > 0 && (
             <div className="competencia-card">
               <h4>Torneo Nacional - Ranking Acumulado</h4>
               <div className="podio">

@@ -143,17 +143,18 @@ router.get("/torneo-nacional-2025", async (req, res) => {
     // Ganadores por jornada (J11 a J30)
     const ganadoresJornadas = await pool.query(`
       SELECT 
-        gj.jornada_numero,
+        j.numero as jornada_numero,
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil
       FROM ganadores_jornada gj
+      JOIN jornadas j ON gj.jornada_id = j.id
       JOIN usuarios u ON gj.jugador_id = u.id
-      WHERE gj.jornada_numero BETWEEN 11 AND 30
-      ORDER BY gj.jornada_numero, u.nombre
+      WHERE j.numero BETWEEN 11 AND 30
+      ORDER BY j.numero, u.nombre
     `);
 
-    // Ganadores del cuadro final
+    // Ganadores del cuadro final (los que tienen el puntaje máximo)
     const ganadoresCuadroFinal = await pool.query(`
       SELECT 
         u.id as usuario_id,
@@ -162,9 +163,12 @@ router.get("/torneo-nacional-2025", async (req, res) => {
         pf.puntos_cuadro_final
       FROM predicciones_finales pf
       JOIN usuarios u ON pf.usuario_id = u.id
-      WHERE pf.puntos_cuadro_final = (
-        SELECT MAX(puntos_cuadro_final) FROM predicciones_finales
-      )
+      WHERE pf.puntos_cuadro_final IS NOT NULL
+        AND pf.puntos_cuadro_final = (
+          SELECT MAX(puntos_cuadro_final) 
+          FROM predicciones_finales 
+          WHERE puntos_cuadro_final IS NOT NULL
+        )
       ORDER BY u.nombre
     `);
 
@@ -188,7 +192,7 @@ router.get("/torneo-nacional-2025", async (req, res) => {
     });
   } catch (err) {
     console.error("Error al obtener ganadores torneo nacional:", err);
-    res.status(500).json({ error: "Error al obtener ganadores del torneo nacional" });
+    res.status(500).json({ error: "Error al obtener ganadores del torneo nacional", details: err.message });
   }
 });
 
