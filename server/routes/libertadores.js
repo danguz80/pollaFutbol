@@ -115,11 +115,17 @@ router.get('/jornadas/:numero', async (req, res) => {
       return res.status(404).json({ error: 'Jornada no encontrada' });
     }
     
-    // Obtener partidos de esta jornada
+    // Obtener partidos de esta jornada con grupos de equipos
     const partidosResult = await pool.query(`
-      SELECT * FROM libertadores_partidos 
-      WHERE jornada_id = $1
-      ORDER BY fecha, id
+      SELECT 
+        p.*,
+        el.grupo as grupo_local,
+        ev.grupo as grupo_visita
+      FROM libertadores_partidos p
+      LEFT JOIN libertadores_equipos el ON el.nombre = p.nombre_local
+      LEFT JOIN libertadores_equipos ev ON ev.nombre = p.nombre_visita
+      WHERE p.jornada_id = $1
+      ORDER BY p.fecha, p.id
     `, [jornadaResult.rows[0].id]);
     
     res.json({

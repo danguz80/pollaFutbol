@@ -181,7 +181,14 @@ export default function JornadaLibertadores() {
 
                     <div className="row align-items-center text-center">
                       <div className="col-5">
-                        <p className="fw-bold mb-2">{partido.nombre_local}</p>
+                        <div className="d-flex flex-column align-items-center">
+                          {partido.grupo_local && (
+                            <span className="badge bg-primary mb-2" style={{ fontSize: '0.7rem' }}>
+                              GRUPO {partido.grupo_local}
+                            </span>
+                          )}
+                          <p className="fw-bold mb-2">{partido.nombre_local}</p>
+                        </div>
                         <input
                           type="number"
                           min="0"
@@ -198,7 +205,14 @@ export default function JornadaLibertadores() {
                       </div>
 
                       <div className="col-5">
-                        <p className="fw-bold mb-2">{partido.nombre_visita}</p>
+                        <div className="d-flex flex-column align-items-center">
+                          {partido.grupo_visita && (
+                            <span className="badge bg-primary mb-2" style={{ fontSize: '0.7rem' }}>
+                              GRUPO {partido.grupo_visita}
+                            </span>
+                          )}
+                          <p className="fw-bold mb-2">{partido.nombre_visita}</p>
+                        </div>
                         <input
                           type="number"
                           min="0"
