@@ -134,11 +134,11 @@ export default function JornadaLibertadores() {
   };
 
   const getNombreJornada = (numero) => {
-    if (numero <= 6) return `Fecha ${numero} - Fase de Grupos`;
-    if (numero === 7) return 'Octavos de Final';
-    if (numero === 8) return 'Cuartos de Final';
-    if (numero === 9) return 'Semifinales';
-    if (numero === 10) return 'Final';
+    if (numero <= 6) return `Jornada ${numero} - Fase de Grupos`;
+    if (numero === 7) return 'Octavos de Final IDA';
+    if (numero === 8) return 'Octavos de Final VUELTA';
+    if (numero === 9) return 'Cuartos de Final IDA/VUELTA';
+    if (numero === 10) return 'Semifinales IDA/VUELTA + Final + Cuadro Final';
     return `Jornada ${numero}`;
   };
 
