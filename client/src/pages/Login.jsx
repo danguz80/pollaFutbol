@@ -18,7 +18,7 @@ function Login() {
 
     try {
       // Usar la configuración centralizada de API
-      const res = await fetch(buildApiUrl('/api/usuarios/login'), {
+      const res = await fetch(buildApiUrl('/api/auth/login'), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
