@@ -79,6 +79,24 @@ export default function AdminLibertadores() {
       setPartidos(response.data.partidos || []);
     } catch (error) {
       console.error('Error cargando jornada:', error);
+      // Si la jornada no existe, intentar crearla
+      if (error.response?.status === 404) {
+        await crearJornadaSiNoExiste();
+      }
+    }
+  };
+
+  const crearJornadaSiNoExiste = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      // Simplemente hacer un GET a /jornadas que las creará automáticamente
+      await axios.get(`${API_URL}/api/libertadores/jornadas`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Recargar después de crear
+      cargarJornada();
+    } catch (error) {
+      console.error('Error creando jornada:', error);
     }
   };
 
@@ -187,8 +205,8 @@ export default function AdminLibertadores() {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(
-        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/cierre`,
-        {},
+        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/toggle`,
+        { cerrada: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -198,6 +216,38 @@ export default function AdminLibertadores() {
     } catch (error) {
       setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const activarJornada = async () => {
+    if (!confirm(`¿Activar jornada ${jornadaActual}? Los usuarios podrán ingresar pronósticos.`)) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/toggle`,
+        { cerrada: false },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Activar la jornada
+      await axios.patch(
+        `${API_URL}/api/libertadores/jornadas/${jornadaActual}`,
+        { activa: true },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setMessage({ type: 'success', text: '✅ Jornada activada' });
+      cargarJornada();
+      setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
       setLoading(false);
     }
   };
@@ -523,11 +573,18 @@ export default function AdminLibertadores() {
               </div>
 
               {/* Acciones de jornada */}
-              <div className="mt-6 flex gap-4">
+              <div className="mt-4 d-flex gap-3">
+                <button
+                  onClick={activarJornada}
+                  disabled={loading}
+                  className="btn btn-success"
+                >
+                  ✅ Activar Jornada {jornadaActual}
+                </button>
                 <button
                   onClick={cerrarJornada}
                   disabled={loading || partidos.length === 0}
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50"
+                  className="btn btn-warning"
                 >
                   🔒 Cerrar Jornada {jornadaActual}
                 </button>

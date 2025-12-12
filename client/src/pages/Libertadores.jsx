@@ -37,8 +37,8 @@ export default function Libertadores() {
   };
 
   const getEstadoJornada = (jornada) => {
+    if (jornada.cerrada) return { texto: 'Cerrada', clase: 'danger' };
     if (jornada.activa) return { texto: 'Abierta', clase: 'success' };
-    if (jornada.fecha_cierre) return { texto: 'Cerrada', clase: 'danger' };
     return { texto: 'Próximamente', clase: 'secondary' };
   };
 
@@ -84,9 +84,9 @@ export default function Libertadores() {
                   <button
                     className="btn btn-primary w-100 mt-2"
                     onClick={() => navigate(`/libertadores/jornada/${jornada.numero}`)}
-                    disabled={!jornada.activa && !jornada.fecha_cierre}
+                    disabled={!jornada.activa && jornada.cerrada}
                   >
-                    {jornada.activa ? '⚽ Ingresar Pronósticos' : '👁️ Ver Detalles'}
+                    {jornada.activa ? '⚽ Ingresar Pronósticos' : jornada.cerrada ? '👁️ Ver Resultados' : '👁️ Ver Detalles'}
                   </button>
                 </div>
               </div>

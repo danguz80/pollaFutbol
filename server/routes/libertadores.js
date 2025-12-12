@@ -62,10 +62,40 @@ router.post('/equipos', verifyToken, authorizeRoles('admin'), async (req, res) =
 // Obtener todas las jornadas
 router.get('/jornadas', async (req, res) => {
   try {
-    const result = await pool.query(`
+    let result = await pool.query(`
       SELECT * FROM libertadores_jornadas 
       ORDER BY numero
     `);
+
+    // Si no hay jornadas, crearlas automáticamente
+    if (result.rows.length === 0) {
+      const jornadas = [
+        { numero: 1, nombre: 'Fecha 1 (Grupos)', activa: false },
+        { numero: 2, nombre: 'Fecha 2 (Grupos)', activa: false },
+        { numero: 3, nombre: 'Fecha 3 (Grupos)', activa: false },
+        { numero: 4, nombre: 'Fecha 4 (Grupos)', activa: false },
+        { numero: 5, nombre: 'Fecha 5 (Grupos)', activa: false },
+        { numero: 6, nombre: 'Fecha 6 (Grupos)', activa: false },
+        { numero: 7, nombre: 'Octavos de Final', activa: false },
+        { numero: 8, nombre: 'Cuartos de Final', activa: false },
+        { numero: 9, nombre: 'Semifinales', activa: false },
+        { numero: 10, nombre: 'Final', activa: false }
+      ];
+
+      for (const jornada of jornadas) {
+        await pool.query(`
+          INSERT INTO libertadores_jornadas (numero, nombre, activa, cerrada)
+          VALUES ($1, $2, $3, false)
+          ON CONFLICT (numero) DO NOTHING
+        `, [jornada.numero, jornada.nombre, jornada.activa]);
+      }
+
+      result = await pool.query(`
+        SELECT * FROM libertadores_jornadas 
+        ORDER BY numero
+      `);
+    }
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo jornadas:', error);
@@ -147,6 +177,30 @@ router.patch('/jornadas/:numero/toggle', verifyToken, authorizeRoles('admin'), a
   } catch (error) {
     console.error('Error cambiando estado de jornada:', error);
     res.status(500).json({ error: 'Error cambiando estado de jornada' });
+  }
+});
+
+// Activar/Desactivar jornada
+router.patch('/jornadas/:numero', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const { activa } = req.body;
+
+    const result = await pool.query(`
+      UPDATE libertadores_jornadas 
+      SET activa = $1 
+      WHERE numero = $2
+      RETURNING *
+    `, [activa, numero]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    res.json({ mensaje: `Jornada ${activa ? 'activada' : 'desactivada'}`, jornada: result.rows[0] });
+  } catch (error) {
+    console.error('Error cambiando activación de jornada:', error);
+    res.status(500).json({ error: 'Error cambiando activación de jornada' });
   }
 });
 
