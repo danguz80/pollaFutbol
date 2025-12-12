@@ -14,6 +14,7 @@ import UsuariosPendientes from "./pages/Admin/UsuariosPendientes";
 import RutaProtegidaAdmin from "./components/RutaProtegidaAdmin";
 import CambiarPassword from "./pages/CambiarPassword";
 import AdminLibertadores from "./pages/AdminLibertadores";
+import Libertadores from "./pages/Libertadores";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 
 export default function AppRouter() {
@@ -49,6 +50,7 @@ export default function AppRouter() {
         } />
 
         <Route path="/campeonato" element={<Campeonato />} />
+        <Route path="/libertadores" element={<Libertadores />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />

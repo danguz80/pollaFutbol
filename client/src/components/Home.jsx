@@ -218,7 +218,13 @@ export default function Home() {
                     className="btn btn-primary px-4 py-2"
                     onClick={() => navigate("/campeonato")}
                 >
-                    Campeonato Nacional
+                    🏆 Campeonato Nacional
+                </button>
+                <button
+                    className="btn btn-danger px-4 py-2"
+                    onClick={() => navigate("/libertadores")}
+                >
+                    🔴 Copa Libertadores 2026
                 </button>
             </div>
 
