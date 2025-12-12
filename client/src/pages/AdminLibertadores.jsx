@@ -33,6 +33,10 @@ export default function AdminLibertadores() {
   });
   const [editandoBonus, setEditandoBonus] = useState(null); // ID del partido siendo editado
 
+  // Estado para generador de fixture
+  const [fixtureGenerado, setFixtureGenerado] = useState(null);
+  const [jornadasAsignadas, setJornadasAsignadas] = useState({}); // { partidoIndex: numeroJornada }
+
   useEffect(() => {
     cargarEquipos();
     cargarJornada();
@@ -271,6 +275,153 @@ export default function AdminLibertadores() {
     }
   };
 
+  const generarFixtureFaseGrupos = () => {
+    const fixture = {};
+    
+    // Para cada grupo
+    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach(grupo => {
+      const equiposGrupo = equipos[grupo].filter(e => e.trim());
+      if (equiposGrupo.length < 4) return; // Saltar si no hay 4 equipos
+      
+      const partidosGrupo = [];
+      
+      // Generar todos los cruces (ida y vuelta)
+      for (let i = 0; i < equiposGrupo.length; i++) {
+        for (let j = i + 1; j < equiposGrupo.length; j++) {
+          // Partido IDA
+          partidosGrupo.push({
+            local: equiposGrupo[i],
+            visita: equiposGrupo[j],
+            grupo: grupo,
+            tipo: 'IDA'
+          });
+          // Partido VUELTA
+          partidosGrupo.push({
+            local: equiposGrupo[j],
+            visita: equiposGrupo[i],
+            grupo: grupo,
+            tipo: 'VUELTA'
+          });
+        }
+      }
+      
+      fixture[grupo] = partidosGrupo;
+    });
+    
+    setFixtureGenerado(fixture);
+    setJornadasAsignadas({});
+    setMessage({ type: 'success', text: `✅ Fixture generado: ${Object.values(fixture).flat().length} partidos` });
+    setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+  };
+
+  const validarAsignacionJornada = (partidoIndex, jornadaSeleccionada, partido) => {
+    // Obtener todos los partidos ya asignados a esa jornada
+    const partidosEnJornada = Object.entries(jornadasAsignadas)
+      .filter(([idx, jornada]) => Number(idx) !== partidoIndex && jornada === jornadaSeleccionada)
+      .map(([idx]) => {
+        // Encontrar el partido por índice
+        let partidoEncontrado = null;
+        Object.values(fixtureGenerado).some(partidosGrupo => {
+          partidosGrupo.forEach((p, i) => {
+            const globalIndex = Object.values(fixtureGenerado)
+              .flat()
+              .findIndex(fp => fp.local === p.local && fp.visita === p.visita && fp.tipo === p.tipo);
+            if (globalIndex === Number(idx)) {
+              partidoEncontrado = p;
+              return true;
+            }
+          });
+          return partidoEncontrado !== null;
+        });
+        return partidoEncontrado;
+      })
+      .filter(p => p !== null);
+    
+    // Verificar si algún equipo se repite
+    const equiposEnJornada = new Set();
+    partidosEnJornada.forEach(p => {
+      equiposEnJornada.add(p.local);
+      equiposEnJornada.add(p.visita);
+    });
+    
+    if (equiposEnJornada.has(partido.local) || equiposEnJornada.has(partido.visita)) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  const asignarJornada = (partidoIndex, jornadaSeleccionada) => {
+    const todosPartidos = Object.values(fixtureGenerado).flat();
+    const partido = todosPartidos[partidoIndex];
+    
+    if (!validarAsignacionJornada(partidoIndex, jornadaSeleccionada, partido)) {
+      setMessage({ 
+        type: 'error', 
+        text: `❌ ${partido.local} o ${partido.visita} ya está en la Jornada ${jornadaSeleccionada}` 
+      });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      return;
+    }
+    
+    setJornadasAsignadas(prev => ({
+      ...prev,
+      [partidoIndex]: Number(jornadaSeleccionada)
+    }));
+  };
+
+  const guardarFixtureCompleto = async () => {
+    const todosPartidos = Object.values(fixtureGenerado).flat();
+    const partidosSinJornada = todosPartidos.filter((_, idx) => !jornadasAsignadas[idx]);
+    
+    if (partidosSinJornada.length > 0) {
+      if (!confirm(`⚠️ Hay ${partidosSinJornada.length} partidos sin jornada asignada. ¿Continuar de todas formas?`)) {
+        return;
+      }
+    }
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Agrupar partidos por jornada
+      const partidosPorJornada = {};
+      todosPartidos.forEach((partido, idx) => {
+        const jornada = jornadasAsignadas[idx];
+        if (jornada) {
+          if (!partidosPorJornada[jornada]) {
+            partidosPorJornada[jornada] = [];
+          }
+          partidosPorJornada[jornada].push({
+            equipo_local: partido.local,
+            equipo_visitante: partido.visita,
+            fecha_hora: new Date().toISOString(),
+            bonus: 1
+          });
+        }
+      });
+      
+      // Guardar cada jornada
+      for (const [jornada, partidos] of Object.entries(partidosPorJornada)) {
+        await axios.post(
+          `${API_URL}/api/libertadores/jornadas/${jornada}/partidos`,
+          { partidos },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      
+      setMessage({ type: 'success', text: '✅ Fixture guardado exitosamente' });
+      setFixtureGenerado(null);
+      setJornadasAsignadas({});
+      cargarPartidos();
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEquipoChange = (grupo, index, value) => {
     setEquipos(prev => ({
       ...prev,
@@ -441,7 +592,73 @@ export default function AdminLibertadores() {
                 >
                   🗑️ Borrar Todos los Partidos
                 </button>
+                
+                <button
+                  onClick={generarFixtureFaseGrupos}
+                  disabled={loading}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+                >
+                  ⚽ Generar Fixture Fase de Grupos
+                </button>
               </div>
+
+              {/* Vista del generador de fixture */}
+              {fixtureGenerado && (
+                <div className="bg-blue-50 p-6 rounded-lg mb-6 border-2 border-blue-300">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-xl text-blue-900">📋 Fixture Generado - Asignar Jornadas</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={guardarFixtureCompleto}
+                        disabled={loading}
+                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg disabled:opacity-50"
+                      >
+                        💾 Guardar Fixture Completo
+                      </button>
+                      <button
+                        onClick={() => setFixtureGenerado(null)}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                      >
+                        ✕ Cancelar
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {Object.entries(fixtureGenerado).map(([grupo, partidosGrupo]) => (
+                      <div key={grupo} className="bg-white p-4 rounded-lg shadow">
+                        <h4 className="font-bold text-lg mb-3 text-blue-800">GRUPO {grupo}</h4>
+                        <div className="space-y-2">
+                          {partidosGrupo.map((partido, idx) => {
+                            const globalIndex = Object.values(fixtureGenerado)
+                              .flat()
+                              .findIndex(p => p.local === partido.local && p.visita === partido.visita && p.tipo === partido.tipo);
+                            
+                            return (
+                              <div key={idx} className="flex items-center gap-2 text-sm border-b pb-2">
+                                <span className="flex-1">
+                                  <span className="font-semibold">{partido.local}</span> vs {partido.visita}
+                                  <span className="text-xs text-gray-500 ml-1">({partido.tipo})</span>
+                                </span>
+                                <select
+                                  value={jornadasAsignadas[globalIndex] || ''}
+                                  onChange={(e) => asignarJornada(globalIndex, Number(e.target.value))}
+                                  className="p-1 border rounded text-xs w-32"
+                                >
+                                  <option value="">Sin asignar</option>
+                                  {[1, 2, 3, 4, 5, 6].map(j => (
+                                    <option key={j} value={j}>Jornada {j}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Formulario agregar partido */}
               <div className="bg-gray-50 p-4 rounded-lg mb-6">
