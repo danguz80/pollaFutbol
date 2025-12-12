@@ -30,7 +30,7 @@ export default function JornadaLibertadores() {
       return;
     }
     cargarDatos();
-  }, [numero, usuario]);
+  }, [numero]);
 
   const cargarDatos = async () => {
     try {
