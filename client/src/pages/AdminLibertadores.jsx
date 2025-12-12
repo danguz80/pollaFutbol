@@ -255,13 +255,9 @@ export default function AdminLibertadores() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const jornadaData = await axios.get(
-        `${API_URL}/api/libertadores/jornadas/${jornadaActual}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
       
       await axios.delete(
-        `${API_URL}/api/libertadores/jornadas/${jornadaData.data.id}/partidos`,
+        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/partidos`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
