@@ -101,16 +101,6 @@ export default function Libertadores() {
           <p className="mb-0">Las jornadas de la Copa Libertadores se habilitarán próximamente.</p>
         </div>
       )}
-
-      <style jsx>{`
-        .hover-shadow {
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .hover-shadow:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-        }
-      `}</style>
     </div>
   );
 }
