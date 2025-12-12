@@ -220,14 +220,12 @@ export default function Home() {
                 >
                     🏆 Campeonato Nacional
                 </button>
-                {/* Temporalmente comentado - En construcción
                 <button
                     className="btn btn-danger px-4 py-2"
                     onClick={() => navigate("/libertadores")}
                 >
                     🔴 Copa Libertadores 2026
                 </button>
-                */}
             </div>
 
             {usuario && (
