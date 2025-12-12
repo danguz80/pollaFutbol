@@ -454,61 +454,67 @@ export default function AdminLibertadores() {
                 {partidos.length === 0 ? (
                   <p className="text-gray-500 italic">No hay partidos configurados</p>
                 ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="row g-3">
                     {partidos.map(partido => {
                     const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
                     return (
-                      <div key={partido.id} className="bg-white border rounded-lg p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-base mb-2">
-                              {partido.nombre_local} vs {partido.nombre_visita}
-                              {grupoLocal && <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded whitespace-nowrap">Grupo {grupoLocal}</span>}
-                            </p>
-                            <p className="text-sm text-gray-600 mb-1">
-                              {new Date(partido.fecha).toLocaleString('es-CL')}
-                            </p>
-                            <div className="text-sm">
-                              {editandoBonus === partido.id ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <select
-                                    defaultValue={partido.bonus}
-                                    onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
-                                    className="px-2 py-1 border rounded text-sm"
-                                    autoFocus
-                                  >
-                                    <option value={1}>Bonus x1</option>
-                                    <option value={2}>Bonus x2</option>
-                                    <option value={3}>Bonus x3</option>
-                                  </select>
-                                  <button
-                                    onClick={() => setEditandoBonus(null)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                  >
-                                    ✕
-                                  </button>
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => setEditandoBonus(partido.id)}
-                                  className="text-blue-600 hover:text-blue-800 underline"
-                                >
-                                  Bonus x{partido.bonus}
-                                </button>
-                              )}
+                      <div key={partido.id} className="col-12 col-lg-6">
+                        <div className="card">
+                          <div className="card-body">
+                            <div className="d-flex justify-content-between align-items-start gap-3">
+                              <div className="flex-grow-1">
+                                <p className="fw-bold mb-2">
+                                  {partido.nombre_local} vs {partido.nombre_visita}
+                                  {grupoLocal && <span className="ms-2 badge bg-primary">Grupo {grupoLocal}</span>}
+                                </p>
+                                <p className="text-muted small mb-2">
+                                  {new Date(partido.fecha).toLocaleString('es-CL')}
+                                </p>
+                                <div className="mb-2">
+                                  {editandoBonus === partido.id ? (
+                                    <span className="d-inline-flex align-items-center gap-2">
+                                      <select
+                                        defaultValue={partido.bonus}
+                                        onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
+                                        className="form-select form-select-sm"
+                                        autoFocus
+                                        style={{ width: 'auto' }}
+                                      >
+                                        <option value={1}>Bonus x1</option>
+                                        <option value={2}>Bonus x2</option>
+                                        <option value={3}>Bonus x3</option>
+                                      </select>
+                                      <button
+                                        onClick={() => setEditandoBonus(null)}
+                                        className="btn btn-sm btn-link text-muted"
+                                      >
+                                        ✕
+                                      </button>
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => setEditandoBonus(partido.id)}
+                                      className="btn btn-link btn-sm p-0 text-decoration-underline"
+                                    >
+                                      Bonus x{partido.bonus}
+                                    </button>
+                                  )}
+                                </div>
+                                {partido.goles_local !== null && (
+                                  <p className="text-primary fw-bold small mb-0">
+                                    Resultado: {partido.goles_local} - {partido.goles_visita}
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => eliminarPartido(partido.id)}
+                                className="btn btn-danger btn-sm"
+                              >
+                                🗑️
+                              </button>
                             </div>
-                            {partido.goles_local !== null && (
-                              <p className="text-sm font-semibold text-blue-600 mt-2">
-                                Resultado: {partido.goles_local} - {partido.goles_visita}
-                              </p>
-                            )}
                           </div>
-                          <button
-                            onClick={() => eliminarPartido(partido.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded flex-shrink-0"
-                          >
-                            🗑️
-                          </button>
+                        </div>
                         </div>
                       </div>
                     );
