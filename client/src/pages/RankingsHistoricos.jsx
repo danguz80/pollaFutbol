@@ -190,9 +190,9 @@ function RankingsHistoricos() {
                     <option value="">Seleccionar...</option>
                     <option value="Copa América">Copa América</option>
                     <option value="Eurocopa">Eurocopa</option>
-                    <option value="Libertadores">Copa Libertadores</option>
-                    <option value="Sudamericana">Copa Sudamericana</option>
-                    <option value="Nacional">Torneo Nacional</option>
+                    <option value="Copa Libertadores">Copa Libertadores</option>
+                    <option value="Copa Sudamericana">Copa Sudamericana</option>
+                    <option value="Torneo Nacional">Torneo Nacional</option>
                   </select>
                 </label>
 
@@ -285,13 +285,13 @@ function RankingsHistoricos() {
                         {pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉'}
                       </div>
                       {ganador ? (
-                        <>
+                        <div className="podio-contenido">
                           <div className="nombre">{ganador.usuario_nombre || ganador.nombre_manual}</div>
-                          <div className="puntos">{ganador.puntos} pts</div>
+                          <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
                           {usuario?.rol === 'admin' && (
                             <button onClick={() => eliminarRanking(ganador.id)} className="btn-delete">🗑️</button>
                           )}
-                        </>
+                        </div>
                       ) : (
                         <div className="vacio">-</div>
                       )}
@@ -323,14 +323,14 @@ function RankingsHistoricos() {
                         {pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉'}
                       </div>
                       {ganador ? (
-                        <>
+                        <div className="podio-contenido">
                           {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.usuario_nombre} className="foto-perfil" />}
                           <div className="nombre">{ganador.usuario_nombre}</div>
-                          <div className="puntos">{ganador.puntos} pts</div>
+                          <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
                           {usuario?.rol === 'admin' && (
                             <button onClick={() => eliminarRanking(ganador.id)} className="btn-delete">🗑️</button>
                           )}
-                        </>
+                        </div>
                       ) : (
                         <div className="vacio">-</div>
                       )}
