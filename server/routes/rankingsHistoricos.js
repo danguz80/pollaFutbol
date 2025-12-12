@@ -178,22 +178,13 @@ router.get("/torneo-nacional-2025", async (req, res) => {
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil,
-        SUM(
-          CASE 
-            WHEN p.resultado = 'local' AND pa.resultado = 'local' THEN 5
-            WHEN p.resultado = 'empate' AND pa.resultado = 'empate' THEN 5
-            WHEN p.resultado = 'visita' AND pa.resultado = 'visita' THEN 5
-            WHEN ABS(p.goles_local - p.goles_visita) = ABS(pa.goles_local - pa.goles_visita) 
-              AND p.resultado = pa.resultado THEN 3
-            ELSE 0
-          END
-        ) as puntos
-      FROM pronosticos p
-      JOIN partidos pa ON p.partido_id = pa.id
-      JOIN jornadas j ON pa.jornada_id = j.id
-      JOIN usuarios u ON p.jugador_id = u.id
-      WHERE j.cerrada = true
+        COALESCE(SUM(p.puntos), 0) as puntos
+      FROM usuarios u
+      LEFT JOIN pronosticos p ON u.id = p.usuario_id
+      LEFT JOIN jornadas j ON p.jornada_id = j.id
+      WHERE j.cerrada = true OR j.cerrada IS NULL
       GROUP BY u.id, u.nombre, u.foto_perfil
+      HAVING SUM(p.puntos) > 0
       ORDER BY puntos DESC
       LIMIT 3
     `);
