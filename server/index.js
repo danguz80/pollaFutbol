@@ -28,8 +28,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://pollafutbol.netlify.app",
-  /https:\/\/.*\.app\.github\.dev$/ // Permitir todos los Codespaces
+  "https://pollafutbol.netlify.app"
 ];
 
 app.use(cors({
@@ -37,23 +36,18 @@ app.use(cors({
     // Permitir requests sin origin (como mobile apps o curl)
     if (!origin) return callback(null, true);
     
-    // Verificar si el origin está en la lista permitida
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (typeof allowed === 'string') {
-        return allowed === origin;
-      }
-      if (allowed instanceof RegExp) {
-        return allowed.test(origin);
-      }
-      return false;
-    });
-    
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.log('Origin no permitido:', origin);
-      callback(new Error('Not allowed by CORS'));
+    // Permitir cualquier origin de Codespaces
+    if (origin.includes('.app.github.dev')) {
+      return callback(null, true);
     }
+    
+    // Verificar si el origin está en la lista permitida
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    console.log('Origin no permitido:', origin);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
