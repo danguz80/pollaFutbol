@@ -449,12 +449,13 @@ export default function AdminLibertadores() {
               </div>
 
               {/* Lista de partidos */}
-              <div className="space-y-3">
-                <h3 className="font-bold text-lg">Partidos de la Jornada {jornadaActual}</h3>
+              <div>
+                <h3 className="font-bold text-lg mb-4">Partidos de la Jornada {jornadaActual}</h3>
                 {partidos.length === 0 ? (
                   <p className="text-gray-500 italic">No hay partidos configurados</p>
                 ) : (
-                  partidos.map(partido => {
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {partidos.map(partido => {
                     const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
                     return (
                       <div key={partido.id} className="flex items-center justify-between bg-white border rounded-lg p-4">
@@ -507,7 +508,8 @@ export default function AdminLibertadores() {
                         </button>
                       </div>
                     );
-                  })
+                  })}
+                  </div>
                 )}
               </div>
 
