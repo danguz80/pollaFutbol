@@ -48,11 +48,23 @@ function RankingsHistoricos() {
       setRankings(dataRankings);
 
       // Cargar ganadores del Torneo Nacional 2025 automáticamente
-      const resTorneo = await fetch(buildApiUrl('/api/rankings-historicos/torneo-nacional-2025'), {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const dataTorneo = await resTorneo.json();
-      setTorneoNacional2025(dataTorneo);
+      try {
+        const resTorneo = await fetch(buildApiUrl('/api/rankings-historicos/torneo-nacional-2025'), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (resTorneo.ok) {
+          const dataTorneo = await resTorneo.json();
+          setTorneoNacional2025(dataTorneo);
+        } else {
+          console.error('Error al cargar torneo nacional 2025:', await resTorneo.text());
+          // Mantener valores por defecto
+          setTorneoNacional2025({ jornadas: [], cuadroFinal: [], rankingAcumulado: [] });
+        }
+      } catch (errTorneo) {
+        console.error('Error de red al cargar torneo nacional:', errTorneo);
+        setTorneoNacional2025({ jornadas: [], cuadroFinal: [], rankingAcumulado: [] });
+      }
 
       // Cargar usuarios activos (para admin)
       if (payload.rol === 'admin') {
@@ -388,7 +400,7 @@ function RankingsHistoricos() {
           <div className="jornadas-grid">
             {/* Jornadas 11 a 30 */}
             {Array.from({length: 20}, (_, i) => i + 11).map(jornadaNum => {
-              const ganadoresJornada = torneoNacional2025.jornadas.filter(g => g.jornada_numero === jornadaNum);
+              const ganadoresJornada = (torneoNacional2025?.jornadas || []).filter(g => g.jornada_numero === jornadaNum);
               return (
                 <div key={`J${jornadaNum}`} className="jornada-card">
                   <h5>Jornada {jornadaNum}</h5>
@@ -412,7 +424,7 @@ function RankingsHistoricos() {
             <div className="jornada-card cuadro-final-card">
               <h5>🏆 Cuadro Final</h5>
               <div className="ganadores-list">
-                {torneoNacional2025.cuadroFinal.length > 0 ? (
+                {(torneoNacional2025?.cuadroFinal || []).length > 0 ? (
                   torneoNacional2025.cuadroFinal.map(ganador => (
                     <div key={ganador.usuario_id} className="ganador-item">
                       {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.nombre} />}
