@@ -396,13 +396,20 @@ router.delete('/jornadas/:numero/partidos', verifyToken, authorizeRoles('admin')
 
     const jornadaId = jornadaResult.rows[0].id;
     
+    // Primero borrar los pronósticos asociados a esta jornada
+    await pool.query(
+      'DELETE FROM libertadores_pronosticos WHERE jornada_id = $1',
+      [jornadaId]
+    );
+    
+    // Luego borrar los partidos
     const result = await pool.query(
       'DELETE FROM libertadores_partidos WHERE jornada_id = $1 RETURNING *',
       [jornadaId]
     );
 
     res.json({ 
-      mensaje: 'Partidos eliminados exitosamente', 
+      mensaje: 'Partidos y pronósticos eliminados exitosamente', 
       cantidad: result.rows.length 
     });
   } catch (error) {
