@@ -18,8 +18,17 @@ export default function PuntuacionLibertadores() {
   }, []);
 
   const verificarAdmin = () => {
-    const rol = localStorage.getItem('rol');
-    setEsAdmin(rol === 'admin');
+    try {
+      const usuarioStr = localStorage.getItem('usuario');
+      if (usuarioStr) {
+        const usuario = JSON.parse(usuarioStr);
+        setEsAdmin(usuario.rol === 'admin');
+        console.log('Rol del usuario:', usuario.rol);
+      }
+    } catch (error) {
+      console.error('Error verificando rol:', error);
+      setEsAdmin(false);
+    }
   };
 
   const cargarReglas = async () => {
@@ -213,7 +222,7 @@ export default function PuntuacionLibertadores() {
             <li><strong>Diferencia de goles:</strong> Acertar la diferencia de goles del resultado</li>
             <li><strong>Resultado exacto:</strong> Acertar el marcador exacto del partido</li>
             <li><strong>Posición exacta:</strong> Acertar la posición final de un equipo en su grupo</li>
-            <li>Los puntos son <strong>acumulativos</strong>: si aciertas el resultado exacto, también obtienes los puntos de diferencia de goles y signo 1X2</li>
+            <li className="text-danger fw-bold">Los puntos <strong>NO son acumulativos</strong>: solo se otorga la puntuación más alta. Si aciertas el resultado exacto (5 pts), solo obtienes 5 puntos, no se suman los puntos de diferencia ni signo.</li>
           </ul>
         </div>
       </div>
