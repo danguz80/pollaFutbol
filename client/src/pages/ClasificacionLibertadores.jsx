@@ -13,7 +13,7 @@ export default function ClasificacionLibertadores() {
   // Filtros
   const [filtroNombre, setFiltroNombre] = useState('');
   const [filtroPartido, setFiltroPartido] = useState('');
-  const [filtroJornada, setFiltroJornada] = useState('');
+  const [filtroJornada, setFiltroJornada] = useState('1');
   
   // Datos para los selectores
   const [partidos, setPartidos] = useState([]);
@@ -133,6 +133,44 @@ export default function ClasificacionLibertadores() {
   const formatearNombreEquipo = (nombre, pais) => {
     if (!nombre) return '-';
     return pais ? `${nombre} (${pais})` : nombre;
+  };
+
+  // Agrupar pronósticos por jornada y jugador
+  const agruparPronosticos = () => {
+    if (filtroJornada) {
+      // Si hay jornada seleccionada, agrupar solo por jugador
+      const grupos = {};
+      pronosticos.forEach(p => {
+        const key = `${p.usuario.id}`;
+        if (!grupos[key]) {
+          grupos[key] = {
+            jugador: p.usuario.nombre,
+            jornada: p.jornada.numero,
+            pronosticos: []
+          };
+        }
+        grupos[key].pronosticos.push(p);
+      });
+      return Object.values(grupos);
+    } else {
+      // Si no hay jornada, agrupar por jornada y jugador
+      const grupos = {};
+      pronosticos.forEach(p => {
+        const key = `${p.jornada.numero}-${p.usuario.id}`;
+        if (!grupos[key]) {
+          grupos[key] = {
+            jugador: p.usuario.nombre,
+            jornada: p.jornada.numero,
+            pronosticos: []
+          };
+        }
+        grupos[key].pronosticos.push(p);
+      });
+      return Object.values(grupos).sort((a, b) => {
+        if (a.jornada !== b.jornada) return b.jornada - a.jornada;
+        return a.jugador.localeCompare(b.jugador);
+      });
+    }
   };
 
   return (
@@ -288,50 +326,69 @@ export default function ClasificacionLibertadores() {
                 </tr>
               </thead>
               <tbody>
-                {pronosticos.map((pronostico) => (
-                  <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
-                    <td className="fw-bold">{pronostico.usuario.nombre}</td>
-                    <td className="text-center">
-                      <span className="badge bg-primary">
-                        Jornada {pronostico.jornada.numero}
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      {pronostico.partido.grupo ? (
-                        <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
-                      ) : (
-                        <span className="text-muted">-</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="d-flex flex-column">
-                        <small className="fw-bold">
-                          {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
-                        </small>
-                        <small className="fw-bold">
-                          {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
-                        </small>
-                      </div>
-                    </td>
-                    <td className="text-center fw-bold fs-5">
-                      {pronostico.pronostico.local} - {pronostico.pronostico.visita}
-                    </td>
-                    <td className="text-center fw-bold fs-5">
-                      {pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null
-                        ? `${pronostico.partido.resultado.local} - ${pronostico.partido.resultado.visita}`
-                        : <span className="text-muted">Pendiente</span>
-                      }
-                    </td>
-                    <td className="text-center fw-bold">
-                      {pronostico.puntos !== null ? (
-                        <span className="badge bg-warning text-dark fs-6">
-                          {pronostico.puntos} pts
+                {agruparPronosticos().map((grupo, grupoIndex) => (
+                  <>
+                    {grupo.pronosticos.map((pronostico, index) => (
+                      <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
+                        <td className="fw-bold">{pronostico.usuario.nombre}</td>
+                        <td className="text-center">
+                          <span className="badge bg-primary">
+                            Jornada {pronostico.jornada.numero}
+                          </span>
+                        </td>
+                        <td className="text-center">
+                          {pronostico.partido.grupo ? (
+                            <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="d-flex flex-column">
+                            <small className="fw-bold">
+                              {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                            </small>
+                            <small className="fw-bold">
+                              {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                            </small>
+                          </div>
+                        </td>
+                        <td className="text-center fw-bold fs-5">
+                          {pronostico.pronostico.local} - {pronostico.pronostico.visita}
+                        </td>
+                        <td className="text-center fw-bold fs-5">
+                          {pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null
+                            ? `${pronostico.partido.resultado.local} - ${pronostico.partido.resultado.visita}`
+                            : <span className="text-muted">Pendiente</span>
+                          }
+                        </td>
+                        <td className="text-center fw-bold">
+                          {pronostico.puntos !== null ? (
+                            <span className="badge bg-warning text-dark fs-6">
+                              {pronostico.puntos} pts
+                            </span>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Fila de total */}
+                    <tr className="table-info fw-bold">
+                      <td colSpan="6" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
+                      <td className="text-center">
+                        <span className="badge bg-dark fs-5">
+                          {grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0)} pts
                         </span>
-                      ) : (
-                        <span className="text-muted">-</span>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                    {/* Separador entre grupos */}
+                    {grupoIndex < agruparPronosticos().length - 1 && (
+                      <tr style={{ height: '20px', backgroundColor: '#e9ecef' }}>
+                        <td colSpan="7" className="p-0"></td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>
