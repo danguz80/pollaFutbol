@@ -1078,13 +1078,25 @@ export default function AdminLibertadores() {
                 )}
               </div>
 
-              {/* Botón para guardar resultados */}
+              {/* Botones para guardar/generar resultados */}
               {partidos.length > 0 && (
-                <div className="mt-4">
+                <div className="mt-4 d-flex gap-2 flex-wrap">
+                  <button
+                    onClick={generarResultadosAleatorios}
+                    className="btn btn-outline-info px-4"
+                  >
+                    🎲 Azar (0-4)
+                  </button>
+                  <button
+                    onClick={resetearResultados}
+                    className="btn btn-outline-secondary px-4"
+                  >
+                    🔄 Resetear
+                  </button>
                   <button
                     onClick={guardarResultados}
                     disabled={loading}
-                    className="btn btn-success btn-lg px-4"
+                    className="btn btn-success px-4"
                   >
                     💾 Guardar Todos los Resultados
                   </button>
