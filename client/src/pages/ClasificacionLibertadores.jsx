@@ -17,6 +17,7 @@ export default function ClasificacionLibertadores() {
   // Datos para los selectores
   const [partidos, setPartidos] = useState([]);
   const [jornadas, setJornadas] = useState([]);
+  const [jugadores, setJugadores] = useState([]);
 
   useEffect(() => {
     cargarDatosIniciales();
@@ -31,14 +32,16 @@ export default function ClasificacionLibertadores() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Cargar partidos y jornadas en paralelo
-      const [partidosRes, jornadasRes] = await Promise.all([
+      // Cargar partidos, jornadas y jugadores en paralelo
+      const [partidosRes, jornadasRes, jugadoresRes] = await Promise.all([
         axios.get(`${API_URL}/api/libertadores-clasificacion/partidos`, { headers }),
-        axios.get(`${API_URL}/api/libertadores-clasificacion/jornadas`, { headers })
+        axios.get(`${API_URL}/api/libertadores-clasificacion/jornadas`, { headers }),
+        axios.get(`${API_URL}/api/libertadores-clasificacion/jugadores`, { headers })
       ]);
 
       setPartidos(partidosRes.data);
       setJornadas(jornadasRes.data);
+      setJugadores(jugadoresRes.data);
     } catch (error) {
       console.error('Error cargando datos iniciales:', error);
     }
@@ -51,7 +54,7 @@ export default function ClasificacionLibertadores() {
       
       // Construir query params
       const params = new URLSearchParams();
-      if (filtroNombre) params.append('nombre', filtroNombre);
+      if (filtroNombre) params.append('usuario_id', filtroNombre);
       if (filtroPartido) params.append('partido_id', filtroPartido);
       if (filtroJornada) params.append('jornada_numero', filtroJornada);
 
@@ -127,14 +130,19 @@ export default function ClasificacionLibertadores() {
           <div className="row g-3">
             {/* Filtro por Nombre */}
             <div className="col-12 col-md-4">
-              <label className="form-label fw-bold">Por Nombre de Jugador</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Buscar por nombre..."
+              <label className="form-label fw-bold">Por Jugador</label>
+              <select
+                className="form-select"
                 value={filtroNombre}
                 onChange={(e) => setFiltroNombre(e.target.value)}
-              />
+              >
+                <option value="">Todos los jugadores</option>
+                {jugadores.map(jugador => (
+                  <option key={jugador.id} value={jugador.id}>
+                    {jugador.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Filtro por Jornada */}
@@ -219,7 +227,6 @@ export default function ClasificacionLibertadores() {
                   <th style={{ width: '100px' }}>Pronóstico</th>
                   <th style={{ width: '100px' }}>Resultado</th>
                   <th style={{ width: '80px' }}>Puntos</th>
-                  <th style={{ width: '150px' }}>Fecha</th>
                 </tr>
               </thead>
               <tbody>
@@ -265,16 +272,6 @@ export default function ClasificacionLibertadores() {
                       ) : (
                         <span className="text-muted">-</span>
                       )}
-                    </td>
-                    <td className="text-center">
-                      <small>
-                        {new Date(pronostico.fecha_pronostico).toLocaleDateString('es-CL')}
-                        <br />
-                        {new Date(pronostico.fecha_pronostico).toLocaleTimeString('es-CL', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </small>
                     </td>
                   </tr>
                 ))}

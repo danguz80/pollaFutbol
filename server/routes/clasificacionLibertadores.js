@@ -8,7 +8,7 @@ const router = express.Router();
 // GET /api/libertadores-clasificacion/pronosticos - Obtener pronósticos con filtros
 router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    const { nombre, partido_id, jornada_numero } = req.query;
+    const { usuario_id, partido_id, jornada_numero } = req.query;
 
     let query = `
       SELECT 
@@ -44,10 +44,10 @@ router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res
     const params = [];
     let paramIndex = 1;
 
-    // Filtro por nombre de usuario
-    if (nombre && nombre.trim() !== '') {
-      query += ` AND LOWER(u.nombre) LIKE LOWER($${paramIndex})`;
-      params.push(`%${nombre.trim()}%`);
+    // Filtro por usuario_id
+    if (usuario_id && !isNaN(usuario_id)) {
+      query += ` AND lp.usuario_id = $${paramIndex}`;
+      params.push(parseInt(usuario_id));
       paramIndex++;
     }
 
@@ -153,6 +153,23 @@ router.get('/jornadas', verifyToken, authorizeRoles('admin'), async (req, res) =
   } catch (error) {
     console.error('Error obteniendo jornadas:', error);
     res.status(500).json({ error: 'Error obteniendo jornadas' });
+  }
+});
+
+// GET /api/libertadores-clasificacion/jugadores - Obtener lista de jugadores con pronósticos
+router.get('/jugadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT u.id, u.nombre
+      FROM libertadores_pronosticos lp
+      INNER JOIN usuarios u ON lp.usuario_id = u.id
+      ORDER BY u.nombre ASC
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo jugadores:', error);
+    res.status(500).json({ error: 'Error obteniendo jugadores' });
   }
 });
 
