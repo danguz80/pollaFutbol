@@ -16,6 +16,7 @@ import CambiarPassword from "./pages/CambiarPassword";
 import AdminLibertadores from "./pages/AdminLibertadores";
 import Libertadores from "./pages/Libertadores";
 import JornadaLibertadores from "./pages/JornadaLibertadores";
+import EstadisticasLibertadores from "./pages/EstadisticasLibertadores";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 
 export default function AppRouter() {
@@ -53,6 +54,7 @@ export default function AppRouter() {
         <Route path="/campeonato" element={<Campeonato />} />
         <Route path="/libertadores" element={<Libertadores />} />
         <Route path="/libertadores/jornada/:numero" element={<JornadaLibertadores />} />
+        <Route path="/libertadores/estadisticas" element={<EstadisticasLibertadores />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />

@@ -59,6 +59,16 @@ export default function Libertadores() {
         <p className="text-muted">La competición más importante de clubes de Sudamérica</p>
       </div>
 
+      {/* Botón de Estadísticas */}
+      <div className="mb-4 text-center">
+        <button 
+          className="btn btn-danger btn-lg px-4"
+          onClick={() => navigate('/libertadores/estadisticas')}
+        >
+          📊 Ver Estadísticas y Tablas de Posiciones
+        </button>
+      </div>
+
       <div className="row g-3">
         {jornadas.map((jornada) => {
           const estado = getEstadoJornada(jornada);
