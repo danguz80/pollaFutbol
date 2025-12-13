@@ -168,7 +168,10 @@ export default function AdminLibertadores() {
       cargarJornada(); // Recargar partidos
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
-      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+      console.error('Error completo:', error);
+      console.error('Response data:', error.response?.data);
+      const mensajeError = error.response?.data?.detalle || error.response?.data?.error || error.message;
+      setMessage({ type: 'error', text: `Error: ${mensajeError}` });
     } finally {
       setLoading(false);
     }

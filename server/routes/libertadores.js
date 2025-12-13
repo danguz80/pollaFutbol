@@ -427,12 +427,16 @@ router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) =
   try {
     const { partidos } = req.body; // Array de 8 partidos con nombre_local, nombre_visita, jornada_numero
 
+    console.log('Recibiendo request para guardar octavos:', { cantidadPartidos: partidos?.length });
+
     if (!Array.isArray(partidos) || partidos.length !== 8) {
+      console.error('Error: Número incorrecto de partidos:', partidos?.length);
       return res.status(400).json({ error: 'Se requieren exactamente 8 partidos para octavos' });
     }
 
     // Obtener el número de jornada del primer partido (todos deberían tener el mismo)
     const jornadaNumero = partidos[0].jornada_numero || 7;
+    console.log('Guardando para jornada:', jornadaNumero);
 
     // Obtener la jornada correspondiente (7 u 8)
     const jornadaResult = await pool.query(
@@ -441,22 +445,33 @@ router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) =
     );
 
     if (jornadaResult.rows.length === 0) {
+      console.error('Error: Jornada no encontrada:', jornadaNumero);
       return res.status(404).json({ error: `Jornada ${jornadaNumero} no encontrada` });
     }
 
     const jornadaId = jornadaResult.rows[0].id;
+    console.log('ID de jornada encontrado:', jornadaId);
 
     // Primero eliminar pronósticos asociados a esta jornada
-    await pool.query('DELETE FROM libertadores_pronosticos WHERE jornada_id = $1', [jornadaId]);
+    const deletePronosticosResult = await pool.query(
+      'DELETE FROM libertadores_pronosticos WHERE jornada_id = $1', 
+      [jornadaId]
+    );
+    console.log('Pronósticos eliminados:', deletePronosticosResult.rowCount);
 
     // Luego eliminar partidos existentes de la jornada
-    await pool.query('DELETE FROM libertadores_partidos WHERE jornada_id = $1', [jornadaId]);
+    const deletePartidosResult = await pool.query(
+      'DELETE FROM libertadores_partidos WHERE jornada_id = $1', 
+      [jornadaId]
+    );
+    console.log('Partidos eliminados:', deletePartidosResult.rowCount);
 
     // Insertar los nuevos cruces
     for (const partido of partidos) {
+      console.log('Insertando partido:', partido.nombre_local, 'vs', partido.nombre_visita);
       await pool.query(`
         INSERT INTO libertadores_partidos 
-        (nombre_local, nombre_visita, jornada_id, fecha_hora, bonus, goles_local, goles_visita)
+        (nombre_local, nombre_visita, jornada_id, fecha, bonus, goles_local, goles_visita)
         VALUES ($1, $2, $3, NOW(), 1, NULL, NULL)
       `, [
         partido.nombre_local,
@@ -465,13 +480,18 @@ router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) =
       ]);
     }
 
+    console.log('Todos los partidos insertados exitosamente');
     res.json({ 
       mensaje: `Cruces de jornada ${jornadaNumero} guardados exitosamente`,
       cantidad: partidos.length
     });
   } catch (error) {
-    console.error('Error guardando octavos:', error);
-    res.status(500).json({ error: 'Error guardando octavos' });
+    console.error('Error completo guardando octavos:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Error guardando octavos',
+      detalle: error.message 
+    });
   }
 });
 
