@@ -198,12 +198,12 @@ export default function JornadaLibertadores() {
       ) : (
         <>
           <div className="row">
-            {/* Columna de partidos - 2/3 del ancho */}
+            {/* Columna de partidos - 2/3 del ancho con 2 columnas internas */}
             <div className="col-12 col-lg-8">
               <h5 className="fw-bold mb-3">🎯 Tus Pronósticos</h5>
               <div className="row g-3 mb-4">
                 {partidos.map((partido) => (
-                  <div key={partido.id} className="col-12">
+                  <div key={partido.id} className="col-12 col-md-6">
                     <div className="card shadow-sm">
                   <div className="card-body">
                     <div className="d-flex justify-content-between align-items-center mb-3">
@@ -280,8 +280,9 @@ export default function JornadaLibertadores() {
             {/* Columna de estadísticas - 1/3 del ancho - Solo en fase de grupos */}
             {Number(numero) <= 6 && Object.keys(estadisticas).length > 0 && (
               <div className="col-12 col-lg-4">
-                <h5 className="fw-bold mb-3 sticky-top bg-white pt-2">📊 Tabla de Posiciones</h5>
-                <div className="d-flex flex-column gap-3">
+                <div style={{ position: 'sticky', top: '80px' }}>
+                  <h5 className="fw-bold mb-3">📊 Tabla de Posiciones</h5>
+                  <div className="d-flex flex-column gap-3" style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
                   {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(grupo => {
                     const equiposGrupo = estadisticas[grupo] || [];
                     if (equiposGrupo.length === 0) return null;
@@ -320,6 +321,7 @@ export default function JornadaLibertadores() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               </div>
             )}
