@@ -159,7 +159,26 @@ export default function Jornada() {
 
       {jornadaSeleccionada && (
         <>
-          <h5 className="mt-4">Jornada {jornadaSeleccionada}</h5>
+          {/* Navegación entre jornadas */}
+          <div className="d-flex justify-content-center align-items-center gap-3 mb-3 mt-4">
+            <button
+              className="btn btn-outline-secondary"
+              onClick={() => setJornadaSeleccionada(jornadaSeleccionada - 1)}
+              disabled={jornadaSeleccionada <= 1}
+            >
+              ← Anterior
+            </button>
+            
+            <h5 className="mb-0">Jornada {jornadaSeleccionada}</h5>
+            
+            <button
+              className="btn btn-outline-secondary"
+              onClick={() => setJornadaSeleccionada(jornadaSeleccionada + 1)}
+              disabled={jornadaSeleccionada >= Math.max(...jornadas.map(j => j.numero))}
+            >
+              Siguiente →
+            </button>
+          </div>
 
           {cerrada && (
             <div className="alert alert-danger mb-3">

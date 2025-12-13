@@ -167,8 +167,31 @@ export default function JornadaLibertadores() {
     <div className="container mt-4 mb-5">
       <div className="text-center mb-4">
         <h1 className="display-6 fw-bold text-danger">🔴 Copa Libertadores 2026</h1>
-        <h2 className="h4">Jornada {numero}</h2>
-        <p className="text-muted">{getSubtitulo(Number(numero))}</p>
+        
+        {/* Navegación entre jornadas */}
+        <div className="d-flex justify-content-center align-items-center gap-3 mb-3">
+          <button
+            className="btn btn-outline-secondary"
+            onClick={() => navigate(`/libertadores/jornada/${Number(numero) - 1}`)}
+            disabled={Number(numero) <= 1}
+          >
+            ← Anterior
+          </button>
+          
+          <div className="text-center">
+            <h2 className="h4 mb-0">Jornada {numero}</h2>
+            <p className="text-muted small mb-0">{getSubtitulo(Number(numero))}</p>
+          </div>
+          
+          <button
+            className="btn btn-outline-secondary"
+            onClick={() => navigate(`/libertadores/jornada/${Number(numero) + 1}`)}
+            disabled={Number(numero) >= 10}
+          >
+            Siguiente →
+          </button>
+        </div>
+        
         {jornada.cerrada && (
           <div className="alert alert-warning mt-3">
             🔒 Esta jornada está cerrada. No puedes modificar los pronósticos.
