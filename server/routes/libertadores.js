@@ -495,4 +495,35 @@ router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) =
   }
 });
 
+// ==================== GESTIÓN DE ESTADO DE JORNADAS ====================
+
+// Cambiar estado cerrada/abierta de una jornada (Admin)
+router.patch('/jornadas/:id/estado', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cerrada } = req.body;
+
+    if (typeof cerrada !== 'boolean') {
+      return res.status(400).json({ error: 'El campo cerrada debe ser booleano' });
+    }
+
+    const result = await pool.query(
+      'UPDATE libertadores_jornadas SET cerrada = $1 WHERE id = $2 RETURNING *',
+      [cerrada, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    res.json({ 
+      mensaje: `Jornada ${result.rows[0].nombre} ${cerrada ? 'cerrada' : 'abierta'} exitosamente`,
+      jornada: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error cambiando estado de jornada:', error);
+    res.status(500).json({ error: 'Error cambiando estado de jornada' });
+  }
+});
+
 export default router;
