@@ -21,6 +21,7 @@ export default function JornadaLibertadores() {
   const [jornada, setJornada] = useState(null);
   const [partidos, setPartidos] = useState([]);
   const [pronosticos, setPronosticos] = useState({});
+  const [estadisticas, setEstadisticas] = useState({});
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -58,6 +59,12 @@ export default function JornadaLibertadores() {
         };
       });
       setPronosticos(map);
+
+      // Cargar estadísticas (solo para fase de grupos)
+      if (Number(numero) <= 6) {
+        const estadisticasRes = await axios.get(`${API_URL}/api/libertadores-estadisticas/estadisticas`);
+        setEstadisticas(estadisticasRes.data);
+      }
     } catch (error) {
       console.error('Error cargando datos:', error);
       setMensaje("❌ Error al cargar los datos");
@@ -190,10 +197,14 @@ export default function JornadaLibertadores() {
         </div>
       ) : (
         <>
-          <div className="row g-3 mb-4">
-            {partidos.map((partido) => (
-              <div key={partido.id} className="col-12 col-md-6">
-                <div className="card shadow-sm">
+          <div className="row">
+            {/* Columna de partidos - 2/3 del ancho */}
+            <div className="col-12 col-lg-8">
+              <h5 className="fw-bold mb-3">🎯 Tus Pronósticos</h5>
+              <div className="row g-3 mb-4">
+                {partidos.map((partido) => (
+                  <div key={partido.id} className="col-12">
+                    <div className="card shadow-sm">
                   <div className="card-body">
                     <div className="d-flex justify-content-between align-items-center mb-3">
                       <h6 className="mb-0 text-muted">
@@ -261,8 +272,57 @@ export default function JornadaLibertadores() {
                     )}
                   </div>
                 </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Columna de estadísticas - 1/3 del ancho - Solo en fase de grupos */}
+            {Number(numero) <= 6 && Object.keys(estadisticas).length > 0 && (
+              <div className="col-12 col-lg-4">
+                <h5 className="fw-bold mb-3 sticky-top bg-white pt-2">📊 Tabla de Posiciones</h5>
+                <div className="d-flex flex-column gap-3">
+                  {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(grupo => {
+                    const equiposGrupo = estadisticas[grupo] || [];
+                    if (equiposGrupo.length === 0) return null;
+                    
+                    return (
+                      <div key={grupo} className="card shadow-sm">
+                        <div className="card-header bg-danger text-white py-2">
+                          <h6 className="mb-0 fw-bold">GRUPO {grupo}</h6>
+                        </div>
+                        <div className="card-body p-0">
+                          <table className="table table-sm table-hover mb-0" style={{ fontSize: '0.8rem' }}>
+                            <thead className="table-light">
+                              <tr>
+                                <th className="text-center" style={{ width: '25px' }}>#</th>
+                                <th>Equipo</th>
+                                <th className="text-center" style={{ width: '30px' }}>PJ</th>
+                                <th className="text-center" style={{ width: '30px' }}>DIF</th>
+                                <th className="text-center fw-bold" style={{ width: '30px' }}>PTS</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {equiposGrupo.map((equipo, index) => (
+                                <tr key={equipo.nombre} className={index < 2 ? 'table-success' : ''}>
+                                  <td className="text-center fw-bold">{equipo.posicion}</td>
+                                  <td className="small">
+                                    {equipo.nombre.length > 15 ? equipo.nombre.substring(0, 15) + '...' : equipo.nombre}
+                                  </td>
+                                  <td className="text-center">{equipo.pj}</td>
+                                  <td className="text-center">{equipo.dif > 0 ? '+' : ''}{equipo.dif}</td>
+                                  <td className="text-center fw-bold">{equipo.pts}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {!jornada.cerrada && (
