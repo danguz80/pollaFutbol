@@ -244,6 +244,32 @@ export default function AdminLibertadores() {
     }
   };
 
+  const generarResultadosAleatorios = () => {
+    const nuevosResultados = {};
+    partidos.forEach(partido => {
+      nuevosResultados[partido.id] = {
+        goles_local: Math.floor(Math.random() * 5), // 0 a 4
+        goles_visita: Math.floor(Math.random() * 5)  // 0 a 4
+      };
+    });
+    setResultados(nuevosResultados);
+    setMessage({ type: 'success', text: '🎲 Resultados aleatorios generados' });
+    setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+  };
+
+  const resetearResultados = () => {
+    const resultadosVacios = {};
+    partidos.forEach(partido => {
+      resultadosVacios[partido.id] = {
+        goles_local: 0,
+        goles_visita: 0
+      };
+    });
+    setResultados(resultadosVacios);
+    setMessage({ type: 'success', text: '🔄 Resultados reseteados a 0' });
+    setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+  };
+
   const actualizarBonus = async (id, nuevoBonus) => {
     setLoading(true);
     try {
