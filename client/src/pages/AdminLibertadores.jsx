@@ -32,6 +32,7 @@ export default function AdminLibertadores() {
     bonus: 1
   });
   const [editandoBonus, setEditandoBonus] = useState(null); // ID del partido siendo editado
+  const [resultados, setResultados] = useState({}); // { partidoId: { goles_local, goles_visita } }
 
   // Estado para generador de fixture
   const [fixtureGenerado, setFixtureGenerado] = useState(null);
@@ -80,7 +81,18 @@ export default function AdminLibertadores() {
       const response = await axios.get(`${API_URL}/api/libertadores/jornadas/${jornadaActual}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setPartidos(response.data.partidos || []);
+      const partidosCargados = response.data.partidos || [];
+      setPartidos(partidosCargados);
+      
+      // Inicializar resultados con valores existentes
+      const resultadosIniciales = {};
+      partidosCargados.forEach(p => {
+        resultadosIniciales[p.id] = {
+          goles_local: p.goles_local ?? '',
+          goles_visita: p.goles_visita ?? ''
+        };
+      });
+      setResultados(resultadosIniciales);
     } catch (error) {
       console.error('Error cargando jornada:', error);
       // Si la jornada no existe, intentar crearla
@@ -178,6 +190,53 @@ export default function AdminLibertadores() {
       setMessage({ type: 'success', text: '✅ Partido eliminado' });
       cargarJornada();
       setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResultadoChange = (partidoId, campo, valor) => {
+    setResultados(prev => ({
+      ...prev,
+      [partidoId]: {
+        ...prev[partidoId],
+        [campo]: valor === '' ? '' : Number(valor)
+      }
+    }));
+  };
+
+  const guardarResultados = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Preparar array de partidos con resultados
+      const partidosConResultados = partidos
+        .filter(p => resultados[p.id]?.goles_local !== '' && resultados[p.id]?.goles_visita !== '')
+        .map(p => ({
+          id: p.id,
+          goles_local: resultados[p.id].goles_local,
+          goles_visita: resultados[p.id].goles_visita,
+          bonus: p.bonus
+        }));
+      
+      if (partidosConResultados.length === 0) {
+        setMessage({ type: 'error', text: 'No hay resultados para guardar' });
+        setLoading(false);
+        return;
+      }
+      
+      await axios.patch(
+        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/resultados`,
+        { partidos: partidosConResultados },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setMessage({ type: 'success', text: `✅ ${partidosConResultados.length} resultado(s) guardado(s)` });
+      cargarJornada();
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
       setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
     } finally {
@@ -972,10 +1031,36 @@ export default function AdminLibertadores() {
                                   )}
                                 </div>
                                 {partido.goles_local !== null && (
-                                  <p className="text-primary fw-bold small mb-0">
-                                    Resultado: {partido.goles_local} - {partido.goles_visita}
+                                  <p className="text-success fw-bold small mb-2">
+                                    ✅ Resultado guardado: {partido.goles_local} - {partido.goles_visita}
                                   </p>
                                 )}
+                                
+                                {/* Inputs para ingresar resultados */}
+                                <div className="mt-2">
+                                  <label className="form-label small mb-1">Ingresar Resultado:</label>
+                                  <div className="d-flex gap-2 align-items-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="Local"
+                                      value={resultados[partido.id]?.goles_local ?? ''}
+                                      onChange={(e) => handleResultadoChange(partido.id, 'goles_local', e.target.value)}
+                                      className="form-control form-control-sm text-center"
+                                      style={{ width: '60px' }}
+                                    />
+                                    <span className="fw-bold">-</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="Visita"
+                                      value={resultados[partido.id]?.goles_visita ?? ''}
+                                      onChange={(e) => handleResultadoChange(partido.id, 'goles_visita', e.target.value)}
+                                      className="form-control form-control-sm text-center"
+                                      style={{ width: '60px' }}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                               <button
                                 onClick={() => eliminarPartido(partido.id)}
@@ -992,6 +1077,19 @@ export default function AdminLibertadores() {
                   </div>
                 )}
               </div>
+
+              {/* Botón para guardar resultados */}
+              {partidos.length > 0 && (
+                <div className="mt-4">
+                  <button
+                    onClick={guardarResultados}
+                    disabled={loading}
+                    className="btn btn-success btn-lg px-4"
+                  >
+                    💾 Guardar Todos los Resultados
+                  </button>
+                </div>
+              )}
 
               {/* Acciones de jornada */}
               <div className="mt-4 d-flex gap-3">
