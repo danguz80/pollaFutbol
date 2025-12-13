@@ -446,7 +446,10 @@ router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) =
 
     const jornadaId = jornadaResult.rows[0].id;
 
-    // Eliminar partidos existentes de la jornada
+    // Primero eliminar pronósticos asociados a esta jornada
+    await pool.query('DELETE FROM libertadores_pronosticos WHERE jornada_id = $1', [jornadaId]);
+
+    // Luego eliminar partidos existentes de la jornada
     await pool.query('DELETE FROM libertadores_partidos WHERE jornada_id = $1', [jornadaId]);
 
     // Insertar los nuevos cruces
