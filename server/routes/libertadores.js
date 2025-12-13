@@ -140,6 +140,22 @@ router.get('/jornadas/:numero', async (req, res) => {
   }
 });
 
+// Debug: Ver estado de todas las jornadas
+router.get('/jornadas/debug/estado', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, numero, nombre, activa, cerrada, 
+             CASE WHEN cerrada THEN '🔒 CERRADA' ELSE '🔓 ABIERTA' END as estado
+      FROM libertadores_jornadas 
+      ORDER BY numero
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Abrir todas las jornadas (Helper endpoint) - DEBE IR ANTES de rutas con :numero
 router.patch('/jornadas/abrir-todas', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
