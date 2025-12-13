@@ -8,6 +8,7 @@ export default function ClasificacionLibertadores() {
   const navigate = useNavigate();
   const [pronosticos, setPronosticos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [calculando, setCalculando] = useState(false);
   
   // Filtros
   const [filtroNombre, setFiltroNombre] = useState('');
@@ -82,6 +83,36 @@ export default function ClasificacionLibertadores() {
     setFiltroJornada('');
   };
 
+  const calcularPuntos = async () => {
+    if (!window.confirm('¿Estás seguro de calcular los puntos? Esto actualizará todos los pronósticos que tengan resultado real.')) {
+      return;
+    }
+
+    try {
+      setCalculando(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.post(
+        `${API_URL}/api/libertadores-calcular/puntos`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      alert(`✅ Puntos calculados exitosamente\n\n` +
+        `Total de pronósticos: ${response.data.total_pronosticos}\n` +
+        `Pronósticos con puntos: ${response.data.pronosticos_con_puntos}\n` +
+        `Puntos totales asignados: ${response.data.puntos_totales_asignados}`);
+      
+      // Recargar pronósticos para ver los puntos actualizados
+      cargarPronosticos();
+    } catch (error) {
+      console.error('Error calculando puntos:', error);
+      alert('❌ Error al calcular los puntos');
+    } finally {
+      setCalculando(false);
+    }
+  };
+
   const getResultadoClase = (pronostico) => {
     const { partido, pronostico: pron, puntos } = pronostico;
     
@@ -132,6 +163,20 @@ export default function ClasificacionLibertadores() {
         >
           🏆 Puntuación
         </button>
+      </div>
+
+      {/* Botón Calcular Puntos (Solo Admin) */}
+      <div className="mb-4 text-center">
+        <button 
+          className="btn btn-success btn-lg px-5"
+          onClick={calcularPuntos}
+          disabled={calculando}
+        >
+          {calculando ? '⏳ Calculando...' : '🧮 Calcular Puntos'}
+        </button>
+        <p className="text-muted mt-2 mb-0">
+          <small>Esto comparará todos los pronósticos con los resultados reales y asignará puntos según el sistema de puntuación</small>
+        </p>
       </div>
 
       {/* Filtros */}

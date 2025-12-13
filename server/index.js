@@ -22,6 +22,7 @@ import libertadoresPronosticosRoutes from "./routes/libertadoresPronosticos.js";
 import estadisticasLibertadoresRoutes from "./routes/estadisticasLibertadores.js";
 import clasificacionLibertadoresRoutes from "./routes/clasificacionLibertadores.js";
 import puntuacionLibertadoresRoutes from "./routes/puntuacionLibertadores.js";
+import calcularPuntosLibertadoresRoutes from "./routes/calcularPuntosLibertadores.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 
 dotenv.config();
@@ -151,6 +152,7 @@ app.use('/api/libertadores-pronosticos', libertadoresPronosticosRoutes);
 app.use('/api/libertadores-estadisticas', estadisticasLibertadoresRoutes);
 app.use('/api/libertadores-clasificacion', clasificacionLibertadoresRoutes);
 app.use('/api/libertadores-puntuacion', puntuacionLibertadoresRoutes);
+app.use('/api/libertadores-calcular', calcularPuntosLibertadoresRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 
 app.get("/", (req, res) => {
