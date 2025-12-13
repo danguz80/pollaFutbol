@@ -126,6 +126,12 @@ export default function ClasificacionLibertadores() {
         >
           📋 Clasificación
         </button>
+        <button 
+          className="btn btn-warning btn-lg px-4"
+          onClick={() => navigate('/libertadores/puntuacion')}
+        >
+          🏆 Puntuación
+        </button>
       </div>
 
       {/* Filtros */}

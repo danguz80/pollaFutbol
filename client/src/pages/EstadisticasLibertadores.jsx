@@ -56,6 +56,12 @@ export default function EstadisticasLibertadores() {
         >
           📋 Clasificación
         </button>
+        <button 
+          className="btn btn-warning btn-lg px-4"
+          onClick={() => navigate('/libertadores/puntuacion')}
+        >
+          🏆 Puntuación
+        </button>
       </div>
 
       {/* Botón volver */}

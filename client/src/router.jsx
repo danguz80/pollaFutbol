@@ -18,6 +18,7 @@ import Libertadores from "./pages/Libertadores";
 import JornadaLibertadores from "./pages/JornadaLibertadores";
 import EstadisticasLibertadores from "./pages/EstadisticasLibertadores";
 import ClasificacionLibertadores from "./pages/ClasificacionLibertadores";
+import PuntuacionLibertadores from "./pages/PuntuacionLibertadores";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 
 export default function AppRouter() {
@@ -61,6 +62,7 @@ export default function AppRouter() {
             <ClasificacionLibertadores />
           </RutaProtegidaAdmin>
         } />
+        <Route path="/libertadores/puntuacion" element={<PuntuacionLibertadores />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />

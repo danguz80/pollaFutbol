@@ -21,6 +21,7 @@ import libertadoresRoutes from "./routes/libertadores.js";
 import libertadoresPronosticosRoutes from "./routes/libertadoresPronosticos.js";
 import estadisticasLibertadoresRoutes from "./routes/estadisticasLibertadores.js";
 import clasificacionLibertadoresRoutes from "./routes/clasificacionLibertadores.js";
+import puntuacionLibertadoresRoutes from "./routes/puntuacionLibertadores.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 
 dotenv.config();
@@ -85,6 +86,24 @@ app.use(express.json());
   }
 })();
 
+// Migración automática: crear tabla libertadores_puntuacion
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS libertadores_puntuacion (
+        id SERIAL PRIMARY KEY,
+        fase VARCHAR(50) NOT NULL,
+        concepto VARCHAR(100) NOT NULL,
+        puntos INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Tabla "libertadores_puntuacion" verificada');
+  } catch (error) {
+    console.error('❌ Error creando tabla libertadores_puntuacion:', error.message);
+  }
+})();
+
 // Actualizar nombres de jornadas existentes
 (async () => {
   try {
@@ -131,6 +150,7 @@ app.use('/api/libertadores', libertadoresRoutes);
 app.use('/api/libertadores-pronosticos', libertadoresPronosticosRoutes);
 app.use('/api/libertadores-estadisticas', estadisticasLibertadoresRoutes);
 app.use('/api/libertadores-clasificacion', clasificacionLibertadoresRoutes);
+app.use('/api/libertadores-puntuacion', puntuacionLibertadoresRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 
 app.get("/", (req, res) => {

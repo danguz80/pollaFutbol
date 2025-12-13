@@ -73,6 +73,12 @@ export default function Libertadores() {
         >
           📋 Clasificación
         </button>
+        <button 
+          className="btn btn-warning btn-lg px-4"
+          onClick={() => navigate('/libertadores/puntuacion')}
+        >
+          🏆 Puntuación
+        </button>
       </div>
 
       <div className="row g-3">
