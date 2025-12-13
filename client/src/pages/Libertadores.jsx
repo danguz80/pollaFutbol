@@ -59,13 +59,19 @@ export default function Libertadores() {
         <p className="text-muted">La competición más importante de clubes de Sudamérica</p>
       </div>
 
-      {/* Botón de Estadísticas */}
-      <div className="mb-4 text-center">
+      {/* Botonera Principal */}
+      <div className="mb-4 text-center d-flex gap-3 justify-content-center flex-wrap">
         <button 
           className="btn btn-danger btn-lg px-4"
           onClick={() => navigate('/libertadores/estadisticas')}
         >
-          📊 Ver Estadísticas y Tablas de Posiciones
+          📊 Estadísticas
+        </button>
+        <button 
+          className="btn btn-primary btn-lg px-4"
+          onClick={() => navigate('/libertadores/clasificacion')}
+        >
+          📋 Clasificación
         </button>
       </div>
 

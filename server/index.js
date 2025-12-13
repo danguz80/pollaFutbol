@@ -20,6 +20,7 @@ import { cierreAutomaticoJornadas } from "./routes/jornadas.js";
 import libertadoresRoutes from "./routes/libertadores.js";
 import libertadoresPronosticosRoutes from "./routes/libertadoresPronosticos.js";
 import estadisticasLibertadoresRoutes from "./routes/estadisticasLibertadores.js";
+import clasificacionLibertadoresRoutes from "./routes/clasificacionLibertadores.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 
 dotenv.config();
@@ -129,6 +130,7 @@ app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/libertadores', libertadoresRoutes);
 app.use('/api/libertadores-pronosticos', libertadoresPronosticosRoutes);
 app.use('/api/libertadores-estadisticas', estadisticasLibertadoresRoutes);
+app.use('/api/libertadores-clasificacion', clasificacionLibertadoresRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 
 app.get("/", (req, res) => {

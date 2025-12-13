@@ -41,6 +41,23 @@ export default function EstadisticasLibertadores() {
         <p className="text-muted">Tablas de Posiciones - Fase de Grupos</p>
       </div>
 
+      {/* Botonera Principal */}
+      <div className="mb-4 text-center d-flex gap-3 justify-content-center flex-wrap">
+        <button 
+          className="btn btn-danger btn-lg px-4"
+          onClick={() => navigate('/libertadores/estadisticas')}
+          disabled
+        >
+          📊 Estadísticas
+        </button>
+        <button 
+          className="btn btn-primary btn-lg px-4"
+          onClick={() => navigate('/libertadores/clasificacion')}
+        >
+          📋 Clasificación
+        </button>
+      </div>
+
       {/* Botón volver */}
       <div className="mb-4">
         <button 
