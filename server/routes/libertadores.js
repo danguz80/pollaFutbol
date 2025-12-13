@@ -526,4 +526,15 @@ router.patch('/jornadas/:id/estado', verifyToken, authorizeRoles('admin'), async
   }
 });
 
+// Abrir todas las jornadas (Helper endpoint)
+router.patch('/jornadas/abrir-todas', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    await pool.query('UPDATE libertadores_jornadas SET cerrada = false');
+    res.json({ mensaje: 'Todas las jornadas abiertas exitosamente' });
+  } catch (error) {
+    console.error('Error abriendo jornadas:', error);
+    res.status(500).json({ error: 'Error abriendo jornadas' });
+  }
+});
+
 export default router;
