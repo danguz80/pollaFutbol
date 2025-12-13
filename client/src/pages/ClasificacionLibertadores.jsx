@@ -27,6 +27,11 @@ export default function ClasificacionLibertadores() {
     cargarPronosticos();
   }, [filtroNombre, filtroPartido, filtroJornada]);
 
+  // Resetear filtro de partido cuando cambia la jornada
+  useEffect(() => {
+    setFiltroPartido('');
+  }, [filtroJornada]);
+
   const cargarDatosIniciales = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -171,7 +176,9 @@ export default function ClasificacionLibertadores() {
                 onChange={(e) => setFiltroPartido(e.target.value)}
               >
                 <option value="">Todos los partidos</option>
-                {partidos.map(partido => (
+                {partidos
+                  .filter(partido => !filtroJornada || partido.jornada_numero === parseInt(filtroJornada))
+                  .map(partido => (
                   <option key={partido.id} value={partido.id}>
                     {formatearNombreEquipo(partido.nombre_local, partido.pais_local)} vs{' '}
                     {formatearNombreEquipo(partido.nombre_visita, partido.pais_visita)}
