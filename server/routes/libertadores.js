@@ -140,6 +140,21 @@ router.get('/jornadas/:numero', async (req, res) => {
   }
 });
 
+// Abrir todas las jornadas (Helper endpoint) - DEBE IR ANTES de rutas con :numero
+router.patch('/jornadas/abrir-todas', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    await pool.query('UPDATE libertadores_jornadas SET cerrada = false');
+    const result = await pool.query('SELECT * FROM libertadores_jornadas ORDER BY numero');
+    res.json({ 
+      mensaje: 'Todas las jornadas abiertas exitosamente',
+      jornadas: result.rows
+    });
+  } catch (error) {
+    console.error('Error abriendo jornadas:', error);
+    res.status(500).json({ error: 'Error abriendo jornadas' });
+  }
+});
+
 // Actualizar fecha de cierre de jornada
 router.patch('/jornadas/:numero/cierre', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
@@ -523,17 +538,6 @@ router.patch('/jornadas/:id/estado', verifyToken, authorizeRoles('admin'), async
   } catch (error) {
     console.error('Error cambiando estado de jornada:', error);
     res.status(500).json({ error: 'Error cambiando estado de jornada' });
-  }
-});
-
-// Abrir todas las jornadas (Helper endpoint)
-router.patch('/jornadas/abrir-todas', verifyToken, authorizeRoles('admin'), async (req, res) => {
-  try {
-    await pool.query('UPDATE libertadores_jornadas SET cerrada = false');
-    res.json({ mensaje: 'Todas las jornadas abiertas exitosamente' });
-  } catch (error) {
-    console.error('Error abriendo jornadas:', error);
-    res.status(500).json({ error: 'Error abriendo jornadas' });
   }
 });
 
