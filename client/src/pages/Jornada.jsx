@@ -159,26 +159,7 @@ export default function Jornada() {
 
       {jornadaSeleccionada && (
         <>
-          {/* Navegación entre jornadas */}
-          <div className="d-flex justify-content-center align-items-center gap-3 mb-3 mt-4">
-            <button
-              className="btn btn-outline-secondary"
-              onClick={() => setJornadaSeleccionada(jornadaSeleccionada - 1)}
-              disabled={jornadaSeleccionada <= 1}
-            >
-              ← Anterior
-            </button>
-            
-            <h5 className="mb-0">Jornada {jornadaSeleccionada}</h5>
-            
-            <button
-              className="btn btn-outline-secondary"
-              onClick={() => setJornadaSeleccionada(jornadaSeleccionada + 1)}
-              disabled={jornadaSeleccionada >= Math.max(...jornadas.map(j => j.numero))}
-            >
-              Siguiente →
-            </button>
-          </div>
+          <h5 className="mt-4 mb-3">Jornada {jornadaSeleccionada}</h5>
 
           {cerrada && (
             <div className="alert alert-danger mb-3">
@@ -221,13 +202,29 @@ export default function Jornada() {
           {mensaje && <div className="alert alert-info mt-3">{mensaje}</div>}
 
           {partidos.length > 0 && (
-            <button
-              className="btn btn-success w-100 mt-3"
-              onClick={handleEnviar}
-              disabled={cerrada || loading}
-            >
-              Guardar Pronósticos
-            </button>
+            <div className="d-flex gap-2 mt-3">
+              <button
+                className="btn btn-success flex-grow-1"
+                onClick={handleEnviar}
+                disabled={cerrada || loading}
+              >
+                Guardar Pronósticos
+              </button>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => setJornadaSeleccionada(jornadaSeleccionada - 1)}
+                disabled={jornadaSeleccionada <= 1}
+              >
+                ← Anterior
+              </button>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => setJornadaSeleccionada(jornadaSeleccionada + 1)}
+                disabled={jornadaSeleccionada >= Math.max(...jornadas.map(j => j.numero))}
+              >
+                Siguiente →
+              </button>
+            </div>
           )}
         </>
       )}

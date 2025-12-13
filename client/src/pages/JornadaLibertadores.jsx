@@ -168,29 +168,8 @@ export default function JornadaLibertadores() {
       <div className="text-center mb-4">
         <h1 className="display-6 fw-bold text-danger">🔴 Copa Libertadores 2026</h1>
         
-        {/* Navegación entre jornadas */}
-        <div className="d-flex justify-content-center align-items-center gap-3 mb-3">
-          <button
-            className="btn btn-outline-secondary"
-            onClick={() => navigate(`/libertadores/jornada/${Number(numero) - 1}`)}
-            disabled={Number(numero) <= 1}
-          >
-            ← Anterior
-          </button>
-          
-          <div className="text-center">
-            <h2 className="h4 mb-0">Jornada {numero}</h2>
-            <p className="text-muted small mb-0">{getSubtitulo(Number(numero))}</p>
-          </div>
-          
-          <button
-            className="btn btn-outline-secondary"
-            onClick={() => navigate(`/libertadores/jornada/${Number(numero) + 1}`)}
-            disabled={Number(numero) >= 10}
-          >
-            Siguiente →
-          </button>
-        </div>
+        <h2 className="h4 mb-1">Jornada {numero}</h2>
+        <p className="text-muted small mb-3">{getSubtitulo(Number(numero))}</p>
         
         {jornada.cerrada && (
           <div className="alert alert-warning mt-3">
@@ -235,7 +214,10 @@ export default function JornadaLibertadores() {
 
                     <div className="row align-items-center text-center">
                       <div className="col-5">
-                        <p className="fw-bold mb-2">{partido.nombre_local}</p>
+                        <p className="fw-bold mb-2">
+                          {partido.nombre_local}
+                          {partido.pais_local && <span className="text-muted ms-1">({partido.pais_local})</span>}
+                        </p>
                         <input
                           type="number"
                           min="0"
@@ -253,7 +235,10 @@ export default function JornadaLibertadores() {
                       </div>
 
                       <div className="col-5">
-                        <p className="fw-bold mb-2">{partido.nombre_visita}</p>
+                        <p className="fw-bold mb-2">
+                          {partido.nombre_visita}
+                          {partido.pais_visita && <span className="text-muted ms-1">({partido.pais_visita})</span>}
+                        </p>
                         <input
                           type="number"
                           min="0"
@@ -290,6 +275,20 @@ export default function JornadaLibertadores() {
               </button>
               <button className="btn btn-danger btn-lg px-5" onClick={handleEnviar}>
                 💾 Guardar Pronósticos
+              </button>
+              <button
+                className="btn btn-outline-secondary btn-lg"
+                onClick={() => navigate(`/libertadores/jornada/${Number(numero) - 1}`)}
+                disabled={Number(numero) <= 1}
+              >
+                ← Anterior
+              </button>
+              <button
+                className="btn btn-outline-secondary btn-lg"
+                onClick={() => navigate(`/libertadores/jornada/${Number(numero) + 1}`)}
+                disabled={Number(numero) >= 10}
+              >
+                Siguiente →
               </button>
             </div>
           )}

@@ -42,9 +42,9 @@ router.post('/equipos', verifyToken, authorizeRoles('admin'), async (req, res) =
         const equipo = equipos[index];
         if (equipo && equipo.nombre) {
           await pool.query(`
-            INSERT INTO libertadores_equipos (nombre, grupo, posicion_grupo, api_id)
-            VALUES ($1, $2, $3, $4)
-          `, [equipo.nombre, grupo, pos, equipo.api_id || null]);
+            INSERT INTO libertadores_equipos (nombre, grupo, posicion_grupo, api_id, pais)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [equipo.nombre, grupo, pos, equipo.api_id || null, equipo.pais || '']);
         }
         index++;
       }
@@ -115,12 +115,14 @@ router.get('/jornadas/:numero', async (req, res) => {
       return res.status(404).json({ error: 'Jornada no encontrada' });
     }
     
-    // Obtener partidos de esta jornada con grupos de equipos
+    // Obtener partidos de esta jornada con grupos y países de equipos
     const partidosResult = await pool.query(`
       SELECT 
         p.*,
         el.grupo as grupo_local,
-        ev.grupo as grupo_visita
+        ev.grupo as grupo_visita,
+        el.pais as pais_local,
+        ev.pais as pais_visita
       FROM libertadores_partidos p
       LEFT JOIN libertadores_equipos el ON el.nombre = p.nombre_local
       LEFT JOIN libertadores_equipos ev ON ev.nombre = p.nombre_visita

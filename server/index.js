@@ -70,6 +70,19 @@ app.use(express.json());
   }
 })();
 
+// Migración automática: agregar columna 'pais' a libertadores_equipos
+(async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE libertadores_equipos 
+      ADD COLUMN IF NOT EXISTS pais VARCHAR(10)
+    `);
+    console.log('✅ Columna "pais" verificada en libertadores_equipos');
+  } catch (error) {
+    console.error('❌ Error en migración de columna "pais":', error.message);
+  }
+})();
+
 // Actualizar nombres de jornadas existentes
 (async () => {
   try {

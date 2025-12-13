@@ -11,16 +11,16 @@ export default function AdminLibertadores() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   
-  // Estado para equipos
+  // Estado para equipos (cada equipo es un objeto {nombre, pais})
   const [equipos, setEquipos] = useState({
-    A: ['', '', '', ''],
-    B: ['', '', '', ''],
-    C: ['', '', '', ''],
-    D: ['', '', '', ''],
-    E: ['', '', '', ''],
-    F: ['', '', '', ''],
-    G: ['', '', '', ''],
-    H: ['', '', '', '']
+    A: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
+    B: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
+    C: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
+    D: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
+    E: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
+    F: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
+    G: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
+    H: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }]
   });
 
   // Estado para partidos de la jornada actual
@@ -52,17 +52,17 @@ export default function AdminLibertadores() {
       if (response.data.length > 0) {
         const equiposPorGrupo = response.data.reduce((acc, equipo) => {
           if (!acc[equipo.grupo]) acc[equipo.grupo] = [];
-          acc[equipo.grupo].push(equipo.nombre);
+          acc[equipo.grupo].push({ nombre: equipo.nombre, pais: equipo.pais || '' });
           return acc;
         }, {});
         
         // Completar con vacíos si faltan equipos
         ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach(grupo => {
           if (!equiposPorGrupo[grupo]) {
-            equiposPorGrupo[grupo] = ['', '', '', ''];
+            equiposPorGrupo[grupo] = [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }];
           } else {
             while (equiposPorGrupo[grupo].length < 4) {
-              equiposPorGrupo[grupo].push('');
+              equiposPorGrupo[grupo].push({ nombre: '', pais: '' });
             }
           }
         });
@@ -113,9 +113,13 @@ export default function AdminLibertadores() {
       const equiposArray = [];
       
       Object.entries(equipos).forEach(([grupo, teams]) => {
-        teams.forEach(nombre => {
-          if (nombre.trim()) {
-            equiposArray.push({ nombre: nombre.trim(), grupo });
+        teams.forEach(equipo => {
+          if (equipo.nombre.trim()) {
+            equiposArray.push({ 
+              nombre: equipo.nombre.trim(), 
+              pais: equipo.pais.trim(),
+              grupo 
+            });
           }
         });
       });
@@ -280,7 +284,7 @@ export default function AdminLibertadores() {
     
     // Para cada grupo
     ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach(grupo => {
-      const equiposGrupo = equipos[grupo].filter(e => e.trim());
+      const equiposGrupo = equipos[grupo].filter(e => e.nombre.trim());
       if (equiposGrupo.length < 4) return; // Saltar si no hay 4 equipos
       
       const partidosGrupo = [];
@@ -290,15 +294,15 @@ export default function AdminLibertadores() {
         for (let j = i + 1; j < equiposGrupo.length; j++) {
           // Partido IDA
           partidosGrupo.push({
-            local: equiposGrupo[i],
-            visita: equiposGrupo[j],
+            local: equiposGrupo[i].nombre,
+            visita: equiposGrupo[j].nombre,
             grupo: grupo,
             tipo: 'IDA'
           });
           // Partido VUELTA
           partidosGrupo.push({
-            local: equiposGrupo[j],
-            visita: equiposGrupo[i],
+            local: equiposGrupo[j].nombre,
+            visita: equiposGrupo[i].nombre,
             grupo: grupo,
             tipo: 'VUELTA'
           });
@@ -471,23 +475,36 @@ export default function AdminLibertadores() {
     }
   };
 
-  const handleEquipoChange = (grupo, index, value) => {
+  const handleEquipoChange = (grupo, index, field, value) => {
     setEquipos(prev => ({
       ...prev,
-      [grupo]: prev[grupo].map((eq, i) => i === index ? value : eq)
+      [grupo]: prev[grupo].map((eq, i) => 
+        i === index ? { ...eq, [field]: value } : eq
+      )
     }));
   };
 
-  const todosLosEquipos = Object.values(equipos).flat().filter(eq => eq.trim());
+  const todosLosEquipos = Object.values(equipos).flat().filter(eq => eq.nombre.trim());
 
   // Obtener el grupo de un equipo
   const obtenerGrupoEquipo = (nombreEquipo) => {
     for (const [grupo, teams] of Object.entries(equipos)) {
-      if (teams.includes(nombreEquipo)) {
+      if (teams.some(eq => eq.nombre === nombreEquipo)) {
         return grupo;
       }
     }
     return null;
+  };
+
+  // Función para obtener el nombre completo con sufijo de país
+  const getNombreConPais = (nombreEquipo) => {
+    for (const teams of Object.values(equipos)) {
+      const equipo = teams.find(eq => eq.nombre === nombreEquipo);
+      if (equipo && equipo.pais) {
+        return `${equipo.nombre} (${equipo.pais})`;
+      }
+    }
+    return nombreEquipo;
   };
 
   // Obtener equipos que ya tienen partido en esta jornada
@@ -514,13 +531,13 @@ export default function AdminLibertadores() {
     if (!grupoLocal) return [];
     
     // Equipos del mismo grupo
-    const equiposDelGrupo = equipos[grupoLocal].filter(eq => eq.trim() && eq !== nuevoPartido.equipo_local);
+    const equiposDelGrupo = equipos[grupoLocal].filter(eq => eq.nombre.trim() && eq.nombre !== nuevoPartido.equipo_local);
     
     // Equipos ya usados en partidos de esta jornada
     const equiposUsados = obtenerEquiposUsados();
     
     // Filtrar equipos disponibles
-    return equiposDelGrupo.filter(eq => !equiposUsados.has(eq));
+    return equiposDelGrupo.filter(eq => !equiposUsados.has(eq.nombre));
   };
 
   return (
@@ -582,14 +599,25 @@ export default function AdminLibertadores() {
                   <div key={grupo} className="border rounded-lg p-4 bg-gray-50">
                     <h3 className="text-xl font-bold text-blue-900 mb-3">Grupo {grupo}</h3>
                     {[0, 1, 2, 3].map(i => (
-                      <input
-                        key={i}
-                        type="text"
-                        placeholder={`Equipo ${i + 1}`}
-                        value={equipos[grupo][i]}
-                        onChange={(e) => handleEquipoChange(grupo, i, e.target.value)}
-                        className="w-full p-2 border rounded mb-2"
-                      />
+                      <div key={i} className="mb-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder={`Equipo ${i + 1}`}
+                            value={equipos[grupo][i].nombre}
+                            onChange={(e) => handleEquipoChange(grupo, i, 'nombre', e.target.value)}
+                            className="flex-1 p-2 border rounded"
+                          />
+                          <input
+                            type="text"
+                            placeholder="País"
+                            value={equipos[grupo][i].pais}
+                            onChange={(e) => handleEquipoChange(grupo, i, 'pais', e.target.value)}
+                            className="w-20 p-2 border rounded text-center"
+                            maxLength="6"
+                          />
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ))}
@@ -692,7 +720,7 @@ export default function AdminLibertadores() {
                                   return (
                                     <div key={idx} className="border rounded p-2 mb-2 bg-light">
                                       <div className="small mb-2">
-                                        <span className="fw-bold">{partido.local}</span> vs {partido.visita}
+                                        <span className="fw-bold">{getNombreConPais(partido.local)}</span> vs {getNombreConPais(partido.visita)}
                                         <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({partido.tipo})</span>
                                       </div>
                                       <div className="d-flex gap-1 flex-wrap">
@@ -750,7 +778,7 @@ export default function AdminLibertadores() {
                                   return (
                                     <div key={realIdx} className="border rounded p-2 mb-2 bg-light">
                                       <div className="small mb-2">
-                                        <span className="fw-bold">{partido.local}</span> vs {partido.visita}
+                                        <span className="fw-bold">{getNombreConPais(partido.local)}</span> vs {getNombreConPais(partido.visita)}
                                         <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({partido.tipo})</span>
                                       </div>
                                       <div className="d-flex gap-1 flex-wrap">
@@ -822,7 +850,7 @@ export default function AdminLibertadores() {
                     {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(grupo => {
                       const equiposDelGrupo = equipos[grupo].filter(eq => {
                         const equiposUsados = obtenerEquiposUsados();
-                        return eq.trim() && !equiposUsados.has(eq);
+                        return eq.nombre.trim() && !equiposUsados.has(eq.nombre);
                       });
                       
                       if (equiposDelGrupo.length === 0) return null;
@@ -830,7 +858,9 @@ export default function AdminLibertadores() {
                       return (
                         <optgroup key={grupo} label={`GRUPO ${grupo}`}>
                           {equiposDelGrupo.map(eq => (
-                            <option key={eq} value={eq}>{eq}</option>
+                            <option key={eq.nombre} value={eq.nombre}>
+                              {eq.nombre}{eq.pais && ` (${eq.pais})`}
+                            </option>
                           ))}
                         </optgroup>
                       );
@@ -853,7 +883,9 @@ export default function AdminLibertadores() {
                       return (
                         <optgroup label={`GRUPO ${grupoLocal}`}>
                           {rivalesDisponibles.map(eq => (
-                            <option key={eq} value={eq}>{eq}</option>
+                            <option key={eq.nombre} value={eq.nombre}>
+                              {eq.nombre}{eq.pais && ` (${eq.pais})`}
+                            </option>
                           ))}
                         </optgroup>
                       );
@@ -903,7 +935,7 @@ export default function AdminLibertadores() {
                             <div className="d-flex justify-content-between align-items-start gap-3">
                               <div className="flex-grow-1">
                                 <p className="fw-bold mb-2">
-                                  {partido.nombre_local} vs {partido.nombre_visita}
+                                  {getNombreConPais(partido.nombre_local)} vs {getNombreConPais(partido.nombre_visita)}
                                   {grupoLocal && <span className="ms-2 badge bg-primary">Grupo {grupoLocal}</span>}
                                 </p>
                                 <p className="text-muted small mb-2">
