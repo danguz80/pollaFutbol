@@ -929,7 +929,7 @@ export default function AdminLibertadores() {
                     {partidos.map(partido => {
                     const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
                     return (
-                      <div key={partido.id} className="col-12 col-lg-6">
+                      <div key={partido.id} className="col-12 col-md-6">
                         <div className="card">
                           <div className="card-body">
                             <div className="d-flex justify-content-between align-items-start gap-3">
@@ -937,9 +937,6 @@ export default function AdminLibertadores() {
                                 <p className="fw-bold mb-2">
                                   {getNombreConPais(partido.nombre_local)} vs {getNombreConPais(partido.nombre_visita)}
                                   {grupoLocal && <span className="ms-2 badge bg-primary">Grupo {grupoLocal}</span>}
-                                </p>
-                                <p className="text-muted small mb-2">
-                                  {new Date(partido.fecha).toLocaleString('es-CL')}
                                 </p>
                                 <div className="mb-2">
                                   {editandoBonus === partido.id ? (
