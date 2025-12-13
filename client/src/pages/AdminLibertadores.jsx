@@ -594,31 +594,34 @@ export default function AdminLibertadores() {
           {/* SECCIÓN: EQUIPOS */}
           {step === 'teams' && (
             <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+              <div className="row g-4 mb-4">
                 {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(grupo => (
-                  <div key={grupo} className="border rounded-lg p-4 bg-gray-50">
-                    <h3 className="text-xl font-bold text-blue-900 mb-3">Grupo {grupo}</h3>
-                    {[0, 1, 2, 3].map(i => (
-                      <div key={i} className="mb-2">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder={`Equipo ${i + 1}`}
-                            value={equipos[grupo][i].nombre}
-                            onChange={(e) => handleEquipoChange(grupo, i, 'nombre', e.target.value)}
-                            className="flex-1 p-2 border rounded"
-                          />
-                          <input
-                            type="text"
-                            placeholder="País"
-                            value={equipos[grupo][i].pais}
-                            onChange={(e) => handleEquipoChange(grupo, i, 'pais', e.target.value)}
-                            className="w-20 p-2 border rounded text-center"
-                            maxLength="6"
-                          />
+                  <div key={grupo} className="col-12 col-md-6">
+                    <div className="border rounded p-3 bg-light">
+                      <h3 className="fs-5 fw-bold text-primary mb-3">Grupo {grupo}</h3>
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} className="mb-2">
+                          <div className="d-flex gap-2">
+                            <input
+                              type="text"
+                              placeholder={`Equipo ${i + 1}`}
+                              value={equipos[grupo][i].nombre}
+                              onChange={(e) => handleEquipoChange(grupo, i, 'nombre', e.target.value)}
+                              className="form-control"
+                            />
+                            <input
+                              type="text"
+                              placeholder="País"
+                              value={equipos[grupo][i].pais}
+                              onChange={(e) => handleEquipoChange(grupo, i, 'pais', e.target.value)}
+                              className="form-control text-center"
+                              style={{ width: '80px' }}
+                              maxLength="6"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -626,13 +629,13 @@ export default function AdminLibertadores() {
               <button
                 onClick={guardarEquipos}
                 disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold disabled:opacity-50"
+                className="btn btn-primary btn-lg px-4"
               >
                 {loading ? 'Guardando...' : '💾 Guardar Equipos'}
               </button>
 
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-900">
+              <div className="mt-4 p-3 bg-light rounded">
+                <p className="small text-primary mb-0">
                   Total de equipos ingresados: <strong>{todosLosEquipos.length}/32</strong>
                 </p>
               </div>
