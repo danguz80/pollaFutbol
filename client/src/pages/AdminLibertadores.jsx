@@ -920,10 +920,10 @@ export default function AdminLibertadores() {
               </div>
 
               {/* Lista de partidos */}
-              <div>
-                <h3 className="font-bold text-lg mb-4">Partidos de la Jornada {jornadaActual}</h3>
+              <div className="mt-4">
+                <h3 className="fw-bold fs-5 mb-3">Partidos de la Jornada {jornadaActual}</h3>
                 {partidos.length === 0 ? (
-                  <p className="text-gray-500 italic">No hay partidos configurados</p>
+                  <p className="text-muted fst-italic">No hay partidos configurados</p>
                 ) : (
                   <div className="row g-3">
                     {partidos.map(partido => {
