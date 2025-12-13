@@ -11,6 +11,20 @@ export default function AdminLibertadores() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   
+  // Estados para octavos de final
+  const [equiposClasificados, setEquiposClasificados] = useState({ primeros: [], segundos: [] });
+  const [crucesOctavos, setCrucesOctavos] = useState([
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null }
+  ]);
+  const [equiposSeleccionados, setEquiposSeleccionados] = useState([]);
+  
   // Estado para equipos (cada equipo es un objeto {nombre, pais})
   const [equipos, setEquipos] = useState({
     A: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
@@ -42,6 +56,98 @@ export default function AdminLibertadores() {
     cargarEquipos();
     cargarJornada();
   }, [jornadaActual]);
+
+  useEffect(() => {
+    if (step === 'finales') {
+      cargarEquiposClasificados();
+    }
+  }, [step]);
+
+  const cargarEquiposClasificados = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/libertadores/equipos`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Filtrar primeros y segundos de cada grupo
+      const primeros = response.data.filter(eq => eq.posicion_grupo === 1).sort((a, b) => a.grupo.localeCompare(b.grupo));
+      const segundos = response.data.filter(eq => eq.posicion_grupo === 2).sort((a, b) => a.grupo.localeCompare(b.grupo));
+      
+      setEquiposClasificados({ primeros, segundos });
+    } catch (error) {
+      console.error('Error cargando equipos clasificados:', error);
+    }
+  };
+
+  const seleccionarEquipo = (equipo) => {
+    // Agregar equipo a la lista de seleccionados
+    const nuevosSeleccionados = [...equiposSeleccionados, equipo];
+    setEquiposSeleccionados(nuevosSeleccionados);
+
+    // Calcular en qué cruce y posición va
+    const indice = nuevosSeleccionados.length - 1;
+    const cruceIndex = Math.floor(indice / 2);
+    const esLocal = indice % 2 === 0;
+
+    // Actualizar el cruce correspondiente
+    const nuevosCruces = [...crucesOctavos];
+    if (esLocal) {
+      nuevosCruces[cruceIndex].local = equipo;
+    } else {
+      nuevosCruces[cruceIndex].visita = equipo;
+    }
+    setCrucesOctavos(nuevosCruces);
+  };
+
+  const reiniciarSeleccion = () => {
+    setEquiposSeleccionados([]);
+    setCrucesOctavos([
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null }
+    ]);
+  };
+
+  const guardarCrucesOctavos = async () => {
+    // Validar que todos los cruces estén completos
+    const crucesCompletos = crucesOctavos.filter(c => c.local && c.visita);
+    if (crucesCompletos.length !== 8) {
+      setMessage({ type: 'error', text: 'Debes completar los 8 cruces antes de guardar' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Preparar partidos para la jornada 7 (octavos)
+      const partidos = crucesCompletos.map((cruce, index) => ({
+        nombre_local: cruce.local.nombre,
+        nombre_visita: cruce.visita.nombre,
+        jornada_numero: 7,
+        orden: index + 1
+      }));
+
+      await axios.post(
+        `${API_URL}/api/libertadores/octavos`,
+        { partidos },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setMessage({ type: 'success', text: '✅ Cruces de octavos guardados exitosamente' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const cargarEquipos = async () => {
     try {
@@ -1149,15 +1255,145 @@ export default function AdminLibertadores() {
             </div>
           )}
 
-          {/* SECCIÓN: PREDICCIONES FINALES */}
+          {/* SECCIÓN: OCTAVOS DE FINAL */}
           {step === 'finales' && (
-            <div className="text-center p-12">
-              <h3 className="text-2xl font-bold text-gray-600 mb-4">
-                🏆 Predicciones Finales
-              </h3>
-              <p className="text-gray-500">
-                Funcionalidad próximamente disponible
-              </p>
+            <div>
+              <div className="card shadow-sm mb-4">
+                <div className="card-header bg-danger text-white">
+                  <h3 className="mb-0">⚽ Formar Fixture de Octavos de Final</h3>
+                </div>
+                <div className="card-body">
+                  <div className="alert alert-info mb-4">
+                    <strong>Instrucciones:</strong> Haz clic en los equipos en el orden deseado. 
+                    El primer clic irá a Local del Cruce 1, el segundo a Visita del Cruce 1, y así sucesivamente.
+                  </div>
+
+                  {/* Equipos Clasificados - Primeros */}
+                  <div className="mb-4">
+                    <h5 className="text-center mb-3 fw-bold">🥇 Primeros de Grupo</h5>
+                    <div className="d-flex flex-wrap justify-content-center gap-2">
+                      {equiposClasificados.primeros.map((equipo) => {
+                        const yaSeleccionado = equiposSeleccionados.some(e => e.nombre === equipo.nombre);
+                        return (
+                          <button
+                            key={equipo.id}
+                            className={`btn ${
+                              yaSeleccionado 
+                                ? 'btn-secondary' 
+                                : 'btn-outline-primary'
+                            }`}
+                            onClick={() => !yaSeleccionado && seleccionarEquipo(equipo)}
+                            disabled={yaSeleccionado}
+                            style={{ minWidth: '140px' }}
+                          >
+                            {equipo.nombre} {equipo.pais && `(${equipo.pais})`}
+                            {yaSeleccionado && ' ✓'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Equipos Clasificados - Segundos */}
+                  <div className="mb-4">
+                    <h5 className="text-center mb-3 fw-bold">🥈 Segundos de Grupo</h5>
+                    <div className="d-flex flex-wrap justify-content-center gap-2">
+                      {equiposClasificados.segundos.map((equipo) => {
+                        const yaSeleccionado = equiposSeleccionados.some(e => e.nombre === equipo.nombre);
+                        return (
+                          <button
+                            key={equipo.id}
+                            className={`btn ${
+                              yaSeleccionado 
+                                ? 'btn-secondary' 
+                                : 'btn-outline-success'
+                            }`}
+                            onClick={() => !yaSeleccionado && seleccionarEquipo(equipo)}
+                            disabled={yaSeleccionado}
+                            style={{ minWidth: '140px' }}
+                          >
+                            {equipo.nombre} {equipo.pais && `(${equipo.pais})`}
+                            {yaSeleccionado && ' ✓'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Botón Reiniciar */}
+                  <div className="text-center mb-4">
+                    <button
+                      className="btn btn-warning"
+                      onClick={reiniciarSeleccion}
+                    >
+                      🔄 Reiniciar Selección
+                    </button>
+                  </div>
+
+                  <hr />
+
+                  {/* Cruces de Octavos */}
+                  <h5 className="text-center mb-4 fw-bold">🏆 Cruces de Octavos de Final</h5>
+                  <div className="row g-3">
+                    {crucesOctavos.map((cruce, index) => (
+                      <div key={index} className="col-12 col-md-6 col-lg-3">
+                        <div className="card h-100 border-primary">
+                          <div className="card-header bg-primary text-white text-center">
+                            <strong>Cruce {index + 1}</strong>
+                          </div>
+                          <div className="card-body">
+                            {/* Equipo Local */}
+                            <div className="mb-3">
+                              <small className="text-muted d-block mb-1">Local</small>
+                              <div className={
+                                cruce.local 
+                                  ? 'alert alert-success mb-0 py-2' 
+                                  : 'alert alert-light mb-0 py-2 text-muted'
+                              }>
+                                {cruce.local 
+                                  ? `${cruce.local.nombre} ${cruce.local.pais ? `(${cruce.local.pais})` : ''}`
+                                  : 'Esperando...'
+                                }
+                              </div>
+                            </div>
+
+                            {/* VS */}
+                            <div className="text-center mb-3">
+                              <strong className="text-danger">VS</strong>
+                            </div>
+
+                            {/* Equipo Visita */}
+                            <div>
+                              <small className="text-muted d-block mb-1">Visita</small>
+                              <div className={
+                                cruce.visita 
+                                  ? 'alert alert-info mb-0 py-2' 
+                                  : 'alert alert-light mb-0 py-2 text-muted'
+                              }>
+                                {cruce.visita 
+                                  ? `${cruce.visita.nombre} ${cruce.visita.pais ? `(${cruce.visita.pais})` : ''}`
+                                  : 'Esperando...'
+                                }
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Botón Guardar */}
+                  <div className="text-center mt-4">
+                    <button
+                      className="btn btn-success btn-lg px-5"
+                      onClick={guardarCrucesOctavos}
+                      disabled={loading || crucesOctavos.filter(c => c.local && c.visita).length !== 8}
+                    >
+                      {loading ? '⏳ Guardando...' : '💾 Guardar Cruces de Octavos'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -339,6 +339,22 @@ export default function ClasificacionLibertadores() {
               🔄 Limpiar Filtros
             </button>
           </div>
+
+          {/* Botones de acceso directo a Rankings */}
+          <div className="d-flex justify-content-center gap-2 mt-3">
+            <button
+              className="btn btn-primary"
+              onClick={() => document.getElementById('ranking-jornada')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              🏆 Ir a Ranking Jornada
+            </button>
+            <button
+              className="btn btn-success"
+              onClick={() => document.getElementById('ranking-acumulado')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              📊 Ir a Ranking Acumulado
+            </button>
+          </div>
         </div>
       </div>
 
@@ -436,8 +452,16 @@ export default function ClasificacionLibertadores() {
                     </tr>
                     {/* Separador entre grupos */}
                     {grupoIndex < agruparPronosticos().length - 1 && (
-                      <tr style={{ height: '20px', backgroundColor: '#e9ecef' }}>
-                        <td colSpan="7" className="p-0"></td>
+                      <tr style={{ height: '30px', backgroundColor: '#e9ecef' }}>
+                        <td colSpan="7" className="p-0 text-center align-middle">
+                          <button
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                            style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                          >
+                            ⬆️ Ir arriba
+                          </button>
+                        </td>
                       </tr>
                     )}
                   </>
@@ -454,7 +478,7 @@ export default function ClasificacionLibertadores() {
           <hr className="my-5" />
           
           {/* Ranking de Jornada */}
-          <div className="card shadow-sm mb-4">
+          <div id="ranking-jornada" className="card shadow-sm mb-4">
             <div className="card-header bg-primary text-white">
               <h4 className="mb-0">🏆 Ranking Jornada {mostrarActual ? jornadaActual : filtroJornada}</h4>
             </div>
@@ -510,7 +534,7 @@ export default function ClasificacionLibertadores() {
           </div>
 
           {/* Ranking Acumulado */}
-          <div className="card shadow-sm mb-4">
+          <div id="ranking-acumulado" className="card shadow-sm mb-4">
             <div className="card-header bg-success text-white">
               <h4 className="mb-0">📊 Ranking Acumulado {mostrarActual ? `(Hasta Jornada ${jornadaActual})` : `(Hasta Jornada ${filtroJornada})`}</h4>
             </div>

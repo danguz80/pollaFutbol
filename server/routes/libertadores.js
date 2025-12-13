@@ -420,4 +420,52 @@ router.delete('/jornadas/:numero/partidos', verifyToken, authorizeRoles('admin')
   }
 });
 
+// ==================== OCTAVOS DE FINAL ====================
+
+// Guardar cruces de octavos de final
+router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { partidos } = req.body; // Array de 8 partidos con nombre_local, nombre_visita, orden
+
+    if (!Array.isArray(partidos) || partidos.length !== 8) {
+      return res.status(400).json({ error: 'Se requieren exactamente 8 partidos para octavos' });
+    }
+
+    // Obtener la jornada 7 (octavos)
+    const jornadaResult = await pool.query(
+      'SELECT id FROM libertadores_jornadas WHERE numero = 7'
+    );
+
+    if (jornadaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada 7 no encontrada' });
+    }
+
+    const jornadaId = jornadaResult.rows[0].id;
+
+    // Eliminar partidos existentes de la jornada 7
+    await pool.query('DELETE FROM libertadores_partidos WHERE jornada_id = $1', [jornadaId]);
+
+    // Insertar los nuevos cruces
+    for (const partido of partidos) {
+      await pool.query(`
+        INSERT INTO libertadores_partidos 
+        (nombre_local, nombre_visita, jornada_id, fecha_hora, bonus, goles_local, goles_visita)
+        VALUES ($1, $2, $3, NOW(), 1, NULL, NULL)
+      `, [
+        partido.nombre_local,
+        partido.nombre_visita,
+        jornadaId
+      ]);
+    }
+
+    res.json({ 
+      mensaje: 'Cruces de octavos guardados exitosamente',
+      cantidad: partidos.length
+    });
+  } catch (error) {
+    console.error('Error guardando octavos:', error);
+    res.status(500).json({ error: 'Error guardando octavos' });
+  }
+});
+
 export default router;
