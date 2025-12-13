@@ -422,27 +422,31 @@ router.delete('/jornadas/:numero/partidos', verifyToken, authorizeRoles('admin')
 
 // ==================== OCTAVOS DE FINAL ====================
 
-// Guardar cruces de octavos de final
+// Guardar cruces de octavos de final (jornada 7 o 8)
 router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    const { partidos } = req.body; // Array de 8 partidos con nombre_local, nombre_visita, orden
+    const { partidos } = req.body; // Array de 8 partidos con nombre_local, nombre_visita, jornada_numero
 
     if (!Array.isArray(partidos) || partidos.length !== 8) {
       return res.status(400).json({ error: 'Se requieren exactamente 8 partidos para octavos' });
     }
 
-    // Obtener la jornada 7 (octavos)
+    // Obtener el número de jornada del primer partido (todos deberían tener el mismo)
+    const jornadaNumero = partidos[0].jornada_numero || 7;
+
+    // Obtener la jornada correspondiente (7 u 8)
     const jornadaResult = await pool.query(
-      'SELECT id FROM libertadores_jornadas WHERE numero = 7'
+      'SELECT id FROM libertadores_jornadas WHERE numero = $1',
+      [jornadaNumero]
     );
 
     if (jornadaResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Jornada 7 no encontrada' });
+      return res.status(404).json({ error: `Jornada ${jornadaNumero} no encontrada` });
     }
 
     const jornadaId = jornadaResult.rows[0].id;
 
-    // Eliminar partidos existentes de la jornada 7
+    // Eliminar partidos existentes de la jornada
     await pool.query('DELETE FROM libertadores_partidos WHERE jornada_id = $1', [jornadaId]);
 
     // Insertar los nuevos cruces
@@ -459,7 +463,7 @@ router.post('/octavos', verifyToken, authorizeRoles('admin'), async (req, res) =
     }
 
     res.json({ 
-      mensaje: 'Cruces de octavos guardados exitosamente',
+      mensaje: `Cruces de jornada ${jornadaNumero} guardados exitosamente`,
       cantidad: partidos.length
     });
   } catch (error) {

@@ -84,14 +84,32 @@ export default function AdminLibertadores() {
   };
 
   const seleccionarEquipo = (equipo) => {
+    // Calcular en qué posición va el equipo
+    const indice = equiposSeleccionados.length;
+    const cruceIndex = Math.floor(indice / 2);
+    const esLocal = indice % 2 === 0;
+
+    // VALIDACIÓN: Si es visitante, validar que no sea del mismo tipo que el local
+    if (!esLocal) {
+      const equipoLocal = crucesOctavos[cruceIndex].local;
+      if (equipoLocal) {
+        const localEsPrimero = equiposClasificados.primeros.some(e => e.nombre === equipoLocal.nombre);
+        const nuevoEsPrimero = equiposClasificados.primeros.some(e => e.nombre === equipo.nombre);
+        
+        if (localEsPrimero === nuevoEsPrimero) {
+          setMessage({ 
+            type: 'error', 
+            text: `❌ No se pueden enfrentar dos ${localEsPrimero ? 'primeros' : 'segundos'} de grupo` 
+          });
+          setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+          return;
+        }
+      }
+    }
+
     // Agregar equipo a la lista de seleccionados
     const nuevosSeleccionados = [...equiposSeleccionados, equipo];
     setEquiposSeleccionados(nuevosSeleccionados);
-
-    // Calcular en qué cruce y posición va
-    const indice = nuevosSeleccionados.length - 1;
-    const cruceIndex = Math.floor(indice / 2);
-    const esLocal = indice % 2 === 0;
 
     // Actualizar el cruce correspondiente
     const nuevosCruces = [...crucesOctavos];
@@ -101,6 +119,9 @@ export default function AdminLibertadores() {
       nuevosCruces[cruceIndex].visita = equipo;
     }
     setCrucesOctavos(nuevosCruces);
+
+    // Limpiar mensaje de error si había
+    setMessage({ type: '', text: '' });
   };
 
   const reiniciarSeleccion = () => {
@@ -144,6 +165,53 @@ export default function AdminLibertadores() {
       );
 
       setMessage({ type: 'success', text: '✅ Cruces de octavos guardados exitosamente' });
+      cargarJornada(); // Recargar partidos
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const invertirJornada7ParaJornada8 = async () => {
+    if (!confirm('¿Invertir los cruces de la Jornada 7 para crear la Jornada 8 (vuelta)?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Obtener partidos de jornada 7
+      const responseJ7 = await axios.get(`${API_URL}/api/libertadores/jornadas/7`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const partidosJ7 = responseJ7.data.partidos || [];
+      
+      if (partidosJ7.length === 0) {
+        setMessage({ type: 'error', text: 'No hay partidos en la Jornada 7 para invertir' });
+        setLoading(false);
+        return;
+      }
+
+      // Invertir local/visita para jornada 8
+      const partidosJ8 = partidosJ7.map((partido, index) => ({
+        nombre_local: partido.nombre_visita,
+        nombre_visita: partido.nombre_local,
+        jornada_numero: 8,
+        orden: index + 1
+      }));
+
+      // Guardar en jornada 8
+      await axios.post(
+        `${API_URL}/api/libertadores/octavos`,
+        { partidos: partidosJ8 },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setMessage({ type: 'success', text: '✅ Jornada 8 creada exitosamente (partidos invertidos)' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
       setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
@@ -1158,15 +1226,54 @@ export default function AdminLibertadores() {
                       {/* Botón Guardar */}
                       <div className="text-center mt-4">
                         <button
-                          className="btn btn-success btn-lg px-5"
+                          className="btn btn-success btn-lg px-5 me-3"
                           onClick={guardarCrucesOctavos}
                           disabled={loading || crucesOctavos.filter(c => c.local && c.visita).length !== 8}
                         >
-                          {loading ? '⏳ Guardando...' : '💾 Guardar Cruces de Octavos'}
+                          {loading ? '⏳ Guardando...' : '💾 Guardar Cruces de Octavos (IDA)'}
                         </button>
+                        
+                        {/* Botón para crear jornada 8 invirtiendo */}
+                        {partidos.length > 0 && (
+                          <button
+                            className="btn btn-info btn-lg px-5"
+                            onClick={invertirJornada7ParaJornada8}
+                            disabled={loading}
+                          >
+                            {loading ? '⏳ Creando...' : '🔄 Invertir para Jornada 8 (VUELTA)'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
+                </div>
+              ) : jornadaActual === 8 ? (
+                /* JORNADA 8 - OCTAVOS VUELTA */
+                <div>
+                  <div className="alert alert-info mb-4">
+                    <h5 className="mb-3">🔄 Jornada 8 - Octavos de Final VUELTA</h5>
+                    <p className="mb-0">
+                      Esta jornada se genera automáticamente invirtiendo los cruces de la Jornada 7.
+                      Los equipos locales pasan a ser visitantes y viceversa.
+                    </p>
+                  </div>
+
+                  {partidos.length === 0 ? (
+                    <div className="text-center py-5">
+                      <p className="text-muted mb-4">Aún no se han creado los partidos de vuelta</p>
+                      <button
+                        className="btn btn-primary btn-lg px-5"
+                        onClick={invertirJornada7ParaJornada8}
+                        disabled={loading}
+                      >
+                        {loading ? '⏳ Creando...' : '🔄 Crear Jornada 8 desde Jornada 7'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="alert alert-success">
+                      <h6 className="mb-0">✅ Jornada 8 configurada con {partidos.length} partidos (vuelta de octavos)</h6>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* FORMULARIO NORMAL PARA OTRAS JORNADAS */
