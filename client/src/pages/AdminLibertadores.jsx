@@ -8,6 +8,7 @@ export default function AdminLibertadores() {
   const navigate = useNavigate();
   const [step, setStep] = useState('teams'); // 'teams', 'fixtures', 'finales'
   const [jornadaActual, setJornadaActual] = useState(1);
+  const [jornadaCerrada, setJornadaCerrada] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   
@@ -263,6 +264,7 @@ export default function AdminLibertadores() {
       });
       const partidosCargados = response.data.partidos || [];
       setPartidos(partidosCargados);
+      setJornadaCerrada(response.data.jornada?.cerrada || false);
       
       // Inicializar resultados con valores existentes
       const resultadosIniciales = {};
@@ -471,51 +473,38 @@ export default function AdminLibertadores() {
     }
   };
 
-  const cerrarJornada = async () => {
-    if (!confirm(`¿Cerrar jornada ${jornadaActual}? Los usuarios ya no podrán ingresar pronósticos.`)) return;
+  const toggleJornada = async () => {
+    const nuevoCerrada = !jornadaCerrada;
+    const accion = nuevoCerrada ? 'cerrar' : 'abrir';
+    const mensaje = nuevoCerrada 
+      ? `¿Cerrar jornada ${jornadaActual}? Los usuarios ya no podrán ingresar pronósticos.`
+      : `¿Abrir jornada ${jornadaActual}? Los usuarios podrán modificar sus pronósticos.`;
+    
+    if (!confirm(mensaje)) return;
     
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.patch(
-        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/toggle`,
-        { cerrada: true },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
       
-      setMessage({ type: 'success', text: '✅ Jornada cerrada' });
-      cargarJornada();
-      setTimeout(() => setMessage({ type: '', text: '' }), 2000);
-    } catch (error) {
-      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const activarJornada = async () => {
-    if (!confirm(`¿Activar jornada ${jornadaActual}? Los usuarios podrán ingresar pronósticos.`)) return;
-    
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.patch(
-        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/toggle`,
-        { cerrada: false },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      // Activar la jornada
-      await axios.patch(
+      // Obtener el ID de la jornada primero
+      const jornadaResponse = await axios.get(
         `${API_URL}/api/libertadores/jornadas/${jornadaActual}`,
-        { activa: true },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const jornadaId = jornadaResponse.data.jornada.id;
+      
+      // Cambiar estado con el endpoint correcto
+      await axios.patch(
+        `${API_URL}/api/libertadores/jornadas/${jornadaId}/estado`,
+        { cerrada: nuevoCerrada },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      setMessage({ type: 'success', text: '✅ Jornada activada' });
+      setMessage({ type: 'success', text: `✅ Jornada ${nuevoCerrada ? 'cerrada' : 'abierta'}` });
       cargarJornada();
       setTimeout(() => setMessage({ type: '', text: '' }), 2000);
     } catch (error) {
+      console.error(`Error al ${accion} jornada:`, error);
       setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
     } finally {
       setLoading(false);
@@ -1494,18 +1483,11 @@ export default function AdminLibertadores() {
               {/* Acciones de jornada */}
               <div className="mt-4 d-flex gap-3">
                 <button
-                  onClick={activarJornada}
-                  disabled={loading}
-                  className="btn btn-success"
+                  onClick={toggleJornada}
+                  disabled={loading || (!jornadaCerrada && partidos.length === 0)}
+                  className={`btn ${jornadaCerrada ? 'btn-success' : 'btn-warning'}`}
                 >
-                  ✅ Activar Jornada {jornadaActual}
-                </button>
-                <button
-                  onClick={cerrarJornada}
-                  disabled={loading || partidos.length === 0}
-                  className="btn btn-warning"
-                >
-                  🔒 Cerrar Jornada {jornadaActual}
+                  {jornadaCerrada ? '🔓 Abrir' : '🔒 Cerrar'} Jornada {jornadaActual}
                 </button>
               </div>
               </div>
