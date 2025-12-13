@@ -6,7 +6,7 @@ import { authorizeRoles } from '../middleware/authorizeRoles.js';
 const router = express.Router();
 
 // GET /api/libertadores-clasificacion/pronosticos - Obtener pronósticos con filtros
-router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.get('/pronosticos', verifyToken, async (req, res) => {
   try {
     const { usuario_id, partido_id, jornada_numero } = req.query;
 
@@ -15,9 +15,11 @@ router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res
         lp.id,
         lp.usuario_id,
         u.nombre as usuario_nombre,
+        u.foto_perfil as usuario_foto_perfil,
         lp.jornada_id,
         lj.numero as jornada_numero,
         lj.nombre as jornada_nombre,
+        lj.cerrada as jornada_cerrada,
         lp.partido_id,
         p.nombre_local,
         p.nombre_visita,
@@ -74,12 +76,14 @@ router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res
       id: row.id,
       usuario: {
         id: row.usuario_id,
-        nombre: row.usuario_nombre
+        nombre: row.usuario_nombre,
+        foto_perfil: row.usuario_foto_perfil
       },
       jornada: {
         id: row.jornada_id,
         numero: row.jornada_numero,
-        nombre: row.jornada_nombre
+        nombre: row.jornada_nombre,
+        cerrada: row.jornada_cerrada
       },
       partido: {
         id: row.partido_id,
@@ -114,7 +118,7 @@ router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res
 });
 
 // GET /api/libertadores-clasificacion/partidos - Obtener lista de partidos para el filtro
-router.get('/partidos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.get('/partidos', verifyToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
@@ -141,10 +145,10 @@ router.get('/partidos', verifyToken, authorizeRoles('admin'), async (req, res) =
 });
 
 // GET /api/libertadores-clasificacion/jornadas - Obtener lista de jornadas para el filtro
-router.get('/jornadas', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.get('/jornadas', verifyToken, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, numero, nombre
+      SELECT id, numero, nombre, cerrada
       FROM libertadores_jornadas
       ORDER BY numero
     `);
@@ -157,7 +161,7 @@ router.get('/jornadas', verifyToken, authorizeRoles('admin'), async (req, res) =
 });
 
 // GET /api/libertadores-clasificacion/jugadores - Obtener lista de jugadores con pronósticos
-router.get('/jugadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.get('/jugadores', verifyToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT u.id, u.nombre
