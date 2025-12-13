@@ -19,14 +19,13 @@ router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res
         lj.numero as jornada_numero,
         lj.nombre as jornada_nombre,
         lp.partido_id,
-        p.equipo_local,
-        p.equipo_visita,
-        el.nombre as nombre_local,
+        p.nombre_local,
+        p.nombre_visita,
         el.pais as pais_local,
-        ev.nombre as nombre_visita,
         ev.pais as pais_visita,
+        el.grupo as grupo_local,
+        ev.grupo as grupo_visita,
         p.fecha as partido_fecha,
-        p.grupo_local,
         lp.goles_local as pronostico_local,
         lp.goles_visita as pronostico_visita,
         p.goles_local as resultado_local,
@@ -37,8 +36,8 @@ router.get('/pronosticos', verifyToken, authorizeRoles('admin'), async (req, res
       INNER JOIN usuarios u ON lp.usuario_id = u.id
       INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
       INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
-      LEFT JOIN libertadores_equipos el ON p.equipo_local = el.id
-      LEFT JOIN libertadores_equipos ev ON p.equipo_visita = ev.id
+      LEFT JOIN libertadores_equipos el ON p.nombre_local = el.nombre
+      LEFT JOIN libertadores_equipos ev ON p.nombre_visita = ev.nombre
       WHERE 1=1
     `;
 
@@ -121,15 +120,15 @@ router.get('/partidos', verifyToken, authorizeRoles('admin'), async (req, res) =
       SELECT 
         p.id,
         p.fecha,
-        el.nombre as nombre_local,
+        p.nombre_local,
+        p.nombre_visita,
         el.pais as pais_local,
-        ev.nombre as nombre_visita,
         ev.pais as pais_visita,
-        p.grupo_local as grupo,
+        el.grupo as grupo,
         lj.numero as jornada_numero
       FROM libertadores_partidos p
-      LEFT JOIN libertadores_equipos el ON p.equipo_local = el.id
-      LEFT JOIN libertadores_equipos ev ON p.equipo_visita = ev.id
+      LEFT JOIN libertadores_equipos el ON p.nombre_local = el.nombre
+      LEFT JOIN libertadores_equipos ev ON p.nombre_visita = ev.nombre
       LEFT JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
       ORDER BY lj.numero DESC, p.fecha DESC
     `);
