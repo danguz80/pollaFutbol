@@ -23,6 +23,7 @@ import estadisticasLibertadoresRoutes from "./routes/estadisticasLibertadores.js
 import clasificacionLibertadoresRoutes from "./routes/clasificacionLibertadores.js";
 import puntuacionLibertadoresRoutes from "./routes/puntuacionLibertadores.js";
 import calcularPuntosLibertadoresRoutes from "./routes/calcularPuntosLibertadores.js";
+import rankingsLibertadoresRoutes from "./routes/rankingsLibertadores.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 
 dotenv.config();
@@ -153,6 +154,7 @@ app.use('/api/libertadores-estadisticas', estadisticasLibertadoresRoutes);
 app.use('/api/libertadores-clasificacion', clasificacionLibertadoresRoutes);
 app.use('/api/libertadores-puntuacion', puntuacionLibertadoresRoutes);
 app.use('/api/libertadores-calcular', calcularPuntosLibertadoresRoutes);
+app.use('/api/libertadores-rankings', rankingsLibertadoresRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 
 app.get("/", (req, res) => {

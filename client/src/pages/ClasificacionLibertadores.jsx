@@ -10,6 +10,12 @@ export default function ClasificacionLibertadores() {
   const [loading, setLoading] = useState(true);
   const [calculando, setCalculando] = useState(false);
   
+  // Rankings
+  const [rankingJornada, setRankingJornada] = useState([]);
+  const [rankingAcumulado, setRankingAcumulado] = useState([]);
+  const [mostrarActual, setMostrarActual] = useState(false);
+  const [jornadaActual, setJornadaActual] = useState(null);
+  
   // Filtros
   const [filtroNombre, setFiltroNombre] = useState('');
   const [filtroPartido, setFiltroPartido] = useState('');
@@ -26,12 +32,22 @@ export default function ClasificacionLibertadores() {
 
   useEffect(() => {
     cargarPronosticos();
+    if (filtroJornada) {
+      cargarRankings();
+    }
   }, [filtroNombre, filtroPartido, filtroJornada]);
 
   // Resetear filtro de partido cuando cambia la jornada
   useEffect(() => {
     setFiltroPartido('');
   }, [filtroJornada]);
+
+  // Recargar rankings cuando cambia el modo de visualización
+  useEffect(() => {
+    if (filtroJornada) {
+      cargarRankings();
+    }
+  }, [mostrarActual]);
 
   const cargarDatosIniciales = async () => {
     try {
@@ -103,13 +119,49 @@ export default function ClasificacionLibertadores() {
         `Pronósticos con puntos: ${response.data.pronosticos_con_puntos}\n` +
         `Puntos totales asignados: ${response.data.puntos_totales_asignados}`);
       
-      // Recargar pronósticos para ver los puntos actualizados
+      // Recargar pronósticos y rankings
       cargarPronosticos();
+      cargarRankings();
     } catch (error) {
       console.error('Error calculando puntos:', error);
       alert('❌ Error al calcular los puntos');
     } finally {
       setCalculando(false);
+    }
+  };
+
+  const cargarRankings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      if (mostrarActual) {
+        // Cargar ranking actual
+        const actualRes = await axios.get(
+          `${API_URL}/api/libertadores-rankings/actual`,
+          { headers }
+        );
+        setJornadaActual(actualRes.data.jornada);
+        setRankingAcumulado(actualRes.data.ranking);
+        
+        // Cargar ranking de esa jornada
+        const jornadaRes = await axios.get(
+          `${API_URL}/api/libertadores-rankings/jornada/${actualRes.data.jornada}`,
+          { headers }
+        );
+        setRankingJornada(jornadaRes.data);
+      } else {
+        // Cargar ranking de jornada seleccionada
+        const jornadaNum = filtroJornada || 1;
+        const [jornadaRes, acumuladoRes] = await Promise.all([
+          axios.get(`${API_URL}/api/libertadores-rankings/jornada/${jornadaNum}`, { headers }),
+          axios.get(`${API_URL}/api/libertadores-rankings/acumulado/${jornadaNum}`, { headers })
+        ]);
+        setRankingJornada(jornadaRes.data);
+        setRankingAcumulado(acumuladoRes.data);
+      }
+    } catch (error) {
+      console.error('Error cargando rankings:', error);
     }
   };
 
@@ -394,6 +446,141 @@ export default function ClasificacionLibertadores() {
             </table>
           </div>
         </>
+      )}
+
+      {/* Rankings */}
+      {rankingJornada.length > 0 && (
+        <div className="mt-5">
+          <hr className="my-5" />
+          
+          {/* Ranking de Jornada */}
+          <div className="card shadow-sm mb-4">
+            <div className="card-header bg-primary text-white">
+              <h4 className="mb-0">🏆 Ranking Jornada {mostrarActual ? jornadaActual : filtroJornada}</h4>
+            </div>
+            <div className="card-body">
+              <div className="row g-3">
+                {rankingJornada.map((jugador, index) => {
+                  let bgClass = '';
+                  let textClass = 'text-dark';
+                  let positionIcon = '';
+                  
+                  if (index === 0) {
+                    bgClass = 'bg-warning';
+                    positionIcon = '🥇';
+                  } else if (index === 1) {
+                    bgClass = 'bg-secondary';
+                    textClass = 'text-white';
+                    positionIcon = '🥈';
+                  } else if (index === 2) {
+                    bgClass = 'bg-danger';
+                    textClass = 'text-white';
+                    positionIcon = '🥉';
+                  }
+                  
+                  return (
+                    <div key={jugador.id} className="col-12 col-md-6 col-lg-4">
+                      <div className={`card h-100 ${bgClass} ${textClass}`}>
+                        <div className="card-body d-flex align-items-center">
+                          <div className="me-3">
+                            <span className="fs-3 fw-bold">{positionIcon || `${index + 1}º`}</span>
+                          </div>
+                          <div className="me-3">
+                            <img
+                              src={jugador.foto_perfil || '/perfil/default.png'}
+                              alt={jugador.nombre}
+                              className="rounded-circle"
+                              style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.target.src = '/perfil/default.png';
+                              }}
+                            />
+                          </div>
+                          <div className="flex-grow-1">
+                            <h5 className="mb-1">{jugador.nombre}</h5>
+                            <p className="mb-0 fs-4 fw-bold">{jugador.puntos_jornada} pts</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Ranking Acumulado */}
+          <div className="card shadow-sm mb-4">
+            <div className="card-header bg-success text-white">
+              <h4 className="mb-0">📊 Ranking Acumulado {mostrarActual ? `(Hasta Jornada ${jornadaActual})` : `(Hasta Jornada ${filtroJornada})`}</h4>
+            </div>
+            <div className="card-body">
+              <div className="row g-3">
+                {rankingAcumulado.map((jugador, index) => {
+                  let bgClass = '';
+                  let textClass = 'text-dark';
+                  let positionIcon = '';
+                  
+                  if (index === 0) {
+                    bgClass = 'bg-warning';
+                    positionIcon = '🥇';
+                  } else if (index === 1) {
+                    bgClass = 'bg-secondary';
+                    textClass = 'text-white';
+                    positionIcon = '🥈';
+                  } else if (index === 2) {
+                    bgClass = 'bg-danger';
+                    textClass = 'text-white';
+                    positionIcon = '🥉';
+                  }
+                  
+                  return (
+                    <div key={jugador.id} className="col-12 col-md-6 col-lg-4">
+                      <div className={`card h-100 ${bgClass} ${textClass}`}>
+                        <div className="card-body d-flex align-items-center">
+                          <div className="me-3">
+                            <span className="fs-3 fw-bold">{positionIcon || `${index + 1}º`}</span>
+                          </div>
+                          <div className="me-3">
+                            <img
+                              src={jugador.foto_perfil || '/perfil/default.png'}
+                              alt={jugador.nombre}
+                              className="rounded-circle"
+                              style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.target.src = '/perfil/default.png';
+                              }}
+                            />
+                          </div>
+                          <div className="flex-grow-1">
+                            <h5 className="mb-1">{jugador.nombre}</h5>
+                            <p className="mb-0 fs-4 fw-bold">{jugador.puntos_acumulados} pts</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Botones de control de ranking */}
+          <div className="text-center mb-4 d-flex gap-3 justify-content-center flex-wrap">
+            <button 
+              className={`btn ${mostrarActual ? 'btn-success' : 'btn-outline-success'} btn-lg px-4`}
+              onClick={() => setMostrarActual(true)}
+            >
+              📈 Mostrar Ranking Actual
+            </button>
+            <button 
+              className={`btn ${!mostrarActual ? 'btn-primary' : 'btn-outline-primary'} btn-lg px-4`}
+              onClick={() => setMostrarActual(false)}
+            >
+              🔍 Mostrar Ranking de Jornada Seleccionada
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Botón Volver */}
