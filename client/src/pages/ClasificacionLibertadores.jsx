@@ -9,6 +9,9 @@ export default function ClasificacionLibertadores() {
   const [pronosticos, setPronosticos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [calculando, setCalculando] = useState(false);
+  const [esAdmin, setEsAdmin] = useState(false);
+  const [jornadaAbierta, setJornadaAbierta] = useState(false);
+  const [participantes, setParticipantes] = useState([]);
   
   // Rankings
   const [rankingJornada, setRankingJornada] = useState([]);
@@ -27,6 +30,10 @@ export default function ClasificacionLibertadores() {
   const [jugadores, setJugadores] = useState([]);
 
   useEffect(() => {
+    // Verificar si es admin
+    const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
+    setEsAdmin(usuario.rol === 'admin');
+    
     cargarDatosIniciales();
   }, []);
 
@@ -85,7 +92,40 @@ export default function ClasificacionLibertadores() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setPronosticos(response.data);
+      // Verificar si la jornada seleccionada está abierta (no cerrada)
+      const jornadaSeleccionada = jornadas.find(j => j.numero === parseInt(filtroJornada));
+      const estaAbierta = jornadaSeleccionada && !jornadaSeleccionada.cerrada;
+      setJornadaAbierta(estaAbierta);
+
+      // Si no es admin y la jornada está abierta, solo mostrar participantes
+      if (!esAdmin && estaAbierta) {
+        // Extraer usuarios únicos que tienen pronósticos
+        const usuariosUnicos = [];
+        const idsVistos = new Set();
+        
+        response.data.forEach(p => {
+          if (!idsVistos.has(p.usuario.id)) {
+            idsVistos.add(p.usuario.id);
+            usuariosUnicos.push({
+              id: p.usuario.id,
+              nombre: p.usuario.nombre,
+              foto_perfil: p.usuario.foto_perfil
+            });
+          }
+        });
+        
+        setParticipantes(usuariosUnicos);
+        setPronosticos([]);
+      } else {
+        // Si es admin o la jornada está cerrada, mostrar pronósticos normalmente
+        if (!esAdmin) {
+          const pronosticosFiltrados = response.data.filter(p => p.jornada.cerrada === true);
+          setPronosticos(pronosticosFiltrados);
+        } else {
+          setPronosticos(response.data);
+        }
+        setParticipantes([]);
+      }
     } catch (error) {
       console.error('Error cargando pronósticos:', error);
     } finally {
@@ -256,18 +296,27 @@ export default function ClasificacionLibertadores() {
       </div>
 
       {/* Botón Calcular Puntos (Solo Admin) */}
-      <div className="mb-4 text-center">
-        <button 
-          className="btn btn-success btn-lg px-5"
-          onClick={calcularPuntos}
-          disabled={calculando}
-        >
-          {calculando ? '⏳ Calculando...' : '🧮 Calcular Puntos'}
-        </button>
-        <p className="text-muted mt-2 mb-0">
-          <small>Esto comparará todos los pronósticos con los resultados reales y asignará puntos según el sistema de puntuación</small>
-        </p>
-      </div>
+      {esAdmin && (
+        <div className="mb-4 text-center">
+          <button 
+            className="btn btn-success btn-lg px-5"
+            onClick={calcularPuntos}
+            disabled={calculando}
+          >
+            {calculando ? '⏳ Calculando...' : '🧮 Calcular Puntos'}
+          </button>
+          <p className="text-muted mt-2 mb-0">
+            <small>Esto comparará todos los pronósticos con los resultados reales y asignará puntos según el sistema de puntuación</small>
+          </p>
+        </div>
+      )}
+
+      {/* Mensaje informativo para usuarios */}
+      {!esAdmin && (
+        <div className="alert alert-info mb-4">
+          <strong>ℹ️ Información:</strong> Solo puedes ver los pronósticos de las jornadas cerradas.
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="card shadow-sm mb-4">
@@ -300,9 +349,11 @@ export default function ClasificacionLibertadores() {
                 onChange={(e) => setFiltroJornada(e.target.value)}
               >
                 <option value="">Todas las jornadas</option>
-                {jornadas.map(jornada => (
+                {jornadas
+                  .filter(jornada => esAdmin || jornada.cerrada)
+                  .map(jornada => (
                   <option key={jornada.id} value={jornada.numero}>
-                    {jornada.nombre}
+                    {jornada.nombre} {!esAdmin && jornada.cerrada && '(Cerrada)'}
                   </option>
                 ))}
               </select>
@@ -363,6 +414,44 @@ export default function ClasificacionLibertadores() {
         <div className="text-center py-5">
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Cargando...</span>
+          </div>
+        </div>
+      ) : !esAdmin && jornadaAbierta && participantes.length > 0 ? (
+        /* Mostrar solo participantes si la jornada está abierta */
+        <div className="card shadow-sm mb-4">
+          <div className="card-header bg-warning text-dark">
+            <h5 className="mb-0">⏳ Jornada Abierta - Participantes que han subido pronósticos</h5>
+          </div>
+          <div className="card-body">
+            <p className="text-muted mb-4">
+              Esta jornada aún está abierta. Los pronósticos se revelarán cuando la jornada se cierre.
+            </p>
+            <div className="row g-3">
+              {participantes.map((participante) => (
+                <div key={participante.id} className="col-6 col-sm-4 col-md-3 col-lg-2">
+                  <div className="card h-100 text-center">
+                    <div className="card-body p-3">
+                      <img
+                        src={participante.foto_perfil || '/perfil/default.png'}
+                        alt={participante.nombre}
+                        className="rounded-circle mb-2"
+                        style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.target.src = '/perfil/default.png';
+                        }}
+                      />
+                      <p className="mb-0 small fw-bold">{participante.nombre}</p>
+                      <span className="badge bg-success mt-1">✓ Pronóstico enviado</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-center mt-4">
+              <p className="text-muted mb-0">
+                <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante ha' : 'participantes han'} enviado sus pronósticos
+              </p>
+            </div>
           </div>
         </div>
       ) : pronosticos.length === 0 ? (

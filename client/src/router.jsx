@@ -57,11 +57,7 @@ export default function AppRouter() {
         <Route path="/libertadores" element={<Libertadores />} />
         <Route path="/libertadores/jornada/:numero" element={<JornadaLibertadores />} />
         <Route path="/libertadores/estadisticas" element={<EstadisticasLibertadores />} />
-        <Route path="/libertadores/clasificacion" element={
-          <RutaProtegidaAdmin>
-            <ClasificacionLibertadores />
-          </RutaProtegidaAdmin>
-        } />
+        <Route path="/libertadores/clasificacion" element={<ClasificacionLibertadores />} />
         <Route path="/libertadores/puntuacion" element={<PuntuacionLibertadores />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/register" element={<Register />} />
