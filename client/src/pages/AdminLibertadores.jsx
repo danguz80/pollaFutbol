@@ -798,9 +798,9 @@ export default function AdminLibertadores() {
   return (
     <>
       <style>{`
-        @keyframes slideDown {
+        @keyframes slideUp {
           from {
-            transform: translate(-50%, -100%);
+            transform: translate(-50%, 100%);
             opacity: 0;
           }
           to {
@@ -811,13 +811,13 @@ export default function AdminLibertadores() {
       `}</style>
       <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Mensajes - Fixed en la parte superior */}
+        {/* Mensajes - Fixed en la parte inferior */}
         {message.text && (
           <div 
-            className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 p-4 rounded-lg shadow-lg min-w-[300px] max-w-[600px] text-center ${
+            className={`fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 p-4 rounded-lg shadow-lg min-w-[300px] max-w-[600px] text-center font-bold text-lg ${
               message.type === 'success' ? 'bg-green-100 text-green-800 border-2 border-green-500' : 'bg-red-100 text-red-800 border-2 border-red-500'
             }`}
-            style={{ animation: 'slideDown 0.3s ease-out' }}
+            style={{ animation: 'slideUp 0.3s ease-out' }}
           >
             {message.text}
           </div>
