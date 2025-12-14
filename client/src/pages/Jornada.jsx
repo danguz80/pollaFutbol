@@ -512,8 +512,6 @@ export default function Jornada() {
             </>
           )}
 
-          {mensaje && <div className="alert alert-info mt-3">{mensaje}</div>}
-
           {partidos.length > 0 && (
             <div className="d-flex gap-2 mt-3">
               <button
@@ -539,6 +537,8 @@ export default function Jornada() {
               </button>
             </div>
           )}
+          
+          {mensaje && <div className="alert alert-info mt-3 text-center">{mensaje}</div>}
         </>
       )}
     </div>

@@ -400,12 +400,6 @@ export default function JornadaLibertadores() {
         )}
       </div>
 
-      {mensaje && (
-        <div className={`alert ${mensaje.includes('✅') ? 'alert-success' : 'alert-danger'} text-center`}>
-          {mensaje}
-        </div>
-      )}
-
       {partidos.length === 0 ? (
         <div className="alert alert-info text-center">
           No hay partidos configurados para esta jornada
@@ -750,6 +744,12 @@ export default function JornadaLibertadores() {
             </div>
           )}
         </>
+      )}
+
+      {mensaje && (
+        <div className={`alert ${mensaje.includes('✅') ? 'alert-success' : 'alert-danger'} text-center mt-4`}>
+          {mensaje}
+        </div>
       )}
 
       <div className="text-center mt-4">
