@@ -36,6 +36,16 @@ export default function AdminLibertadores() {
   const [equiposCuartosSeleccionados, setEquiposCuartosSeleccionados] = useState([]);
   const [equiposClasificadosCuartos, setEquiposClasificadosCuartos] = useState([]);
   
+  // Estado para semifinales y final (jornada 10)
+  const [crucesSemifinal, setCrucesSemifinal] = useState([
+    { local: null, visita: null },
+    { local: null, visita: null }
+  ]);
+  const [equiposSemifinalSeleccionados, setEquiposSemifinalSeleccionados] = useState([]);
+  const [equiposClasificadosSemifinal, setEquiposClasificadosSemifinal] = useState([]);
+  const [equiposClasificadosFinal, setEquiposClasificadosFinal] = useState([]);
+  const [campeon, setCampeon] = useState(null);
+  
   // Estado para equipos (cada equipo es un objeto {nombre, pais})
   const [equipos, setEquipos] = useState({
     A: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
@@ -75,6 +85,9 @@ export default function AdminLibertadores() {
     }
     if (jornadaActual === 9) {
       cargarGanadoresOctavos();
+    }
+    if (jornadaActual === 10) {
+      cargarGanadoresCuartos();
     }
   }, [jornadaActual]);
 
@@ -405,6 +418,307 @@ export default function AdminLibertadores() {
       setLoading(false);
     }
   };
+
+  // ========== FUNCIONES PARA JORNADA 10 (SEMIFINALES Y FINAL) ==========
+  
+  // Cargar ganadores de cuartos de final (jornada 9)
+  const cargarGanadoresCuartos = async () => {
+    try {
+      const ganadores = await calcularGanadoresCuartos();
+      setEquiposClasificadosSemifinal(ganadores);
+    } catch (error) {
+      console.error('Error cargando ganadores de cuartos:', error);
+    }
+  };
+
+  // Calcular ganadores de cuartos de final (jornada 9)
+  const calcularGanadoresCuartos = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Obtener partidos de jornada 9
+      const response = await axios.get(
+        `${API_URL}/api/libertadores/jornadas/9`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const partidos = response.data.partidos || [];
+      
+      // Separar IDA y VUELTA
+      const partidosIda = partidos.filter((p, index) => index % 2 === 0);
+      const partidosVuelta = partidos.filter((p, index) => index % 2 !== 0);
+      
+      const ganadores = [];
+      
+      partidosIda.forEach((ida) => {
+        // Buscar partido de vuelta (equipos invertidos)
+        const vuelta = partidosVuelta.find(v => 
+          v.nombre_local === ida.nombre_visita && 
+          v.nombre_visita === ida.nombre_local
+        );
+        
+        if (!vuelta) return;
+        
+        // Calcular marcador global
+        const golesLocalGlobal = (ida.goles_local || 0) + (vuelta.goles_visita || 0);
+        const golesVisitaGlobal = (ida.goles_visita || 0) + (vuelta.goles_local || 0);
+        
+        let ganador = null;
+        
+        if (golesLocalGlobal > golesVisitaGlobal) {
+          ganador = { nombre: ida.nombre_local, pais: ida.pais_local };
+        } else if (golesVisitaGlobal > golesLocalGlobal) {
+          ganador = { nombre: ida.nombre_visita, pais: ida.pais_visita };
+        } else {
+          // Empate en el global - revisar penales
+          if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
+            if (vuelta.penales_local > vuelta.penales_visita) {
+              ganador = { nombre: vuelta.nombre_local, pais: vuelta.pais_local };
+            } else {
+              ganador = { nombre: vuelta.nombre_visita, pais: vuelta.pais_visita };
+            }
+          }
+        }
+        
+        if (ganador) {
+          ganadores.push(ganador);
+        }
+      });
+      
+      return ganadores;
+    } catch (error) {
+      console.error('Error calculando ganadores de cuartos:', error);
+      return [];
+    }
+  };
+
+  // Seleccionar equipos para semifinales
+  const seleccionarEquipoSemifinal = (equipo) => {
+    const indice = equiposSemifinalSeleccionados.length;
+    const cruceIndex = Math.floor(indice / 2);
+    const esLocal = indice % 2 === 0;
+
+    const nuevosSeleccionados = [...equiposSemifinalSeleccionados, equipo];
+    setEquiposSemifinalSeleccionados(nuevosSeleccionados);
+
+    const nuevosCruces = [...crucesSemifinal];
+    if (esLocal) {
+      nuevosCruces[cruceIndex].local = equipo;
+    } else {
+      nuevosCruces[cruceIndex].visita = equipo;
+    }
+    setCrucesSemifinal(nuevosCruces);
+  };
+
+  const reiniciarSeleccionSemifinal = () => {
+    setEquiposSemifinalSeleccionados([]);
+    setCrucesSemifinal([
+      { local: null, visita: null },
+      { local: null, visita: null }
+    ]);
+  };
+
+  // Guardar cruces de semifinales
+  const guardarCrucesSemifinal = async () => {
+    const crucesCompletos = crucesSemifinal.filter(c => c.local && c.visita);
+    if (crucesCompletos.length !== 2) {
+      setMessage({ type: 'error', text: 'Debes completar los 2 cruces antes de guardar' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Crear 4 partidos: 2 de IDA y 2 de VUELTA
+      const partidos = [];
+      
+      crucesCompletos.forEach((cruce, index) => {
+        // Partido de IDA
+        partidos.push({
+          nombre_local: cruce.local.nombre,
+          nombre_visita: cruce.visita.nombre
+        });
+        
+        // Partido de VUELTA (invertido)
+        partidos.push({
+          nombre_local: cruce.visita.nombre,
+          nombre_visita: cruce.local.nombre
+        });
+      });
+
+      await axios.post(
+        `${API_URL}/api/libertadores/semifinales`,
+        { partidos },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setMessage({ type: 'success', text: '✅ Cruces de semifinales guardados (4 partidos: 2 IDA + 2 VUELTA)' });
+      cargarJornada();
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      const mensajeError = error.response?.data?.error || error.message;
+      setMessage({ type: 'error', text: `Error: ${mensajeError}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calcular ganadores de semifinales
+  const calcularGanadoresSemifinal = () => {
+    const ganadores = [];
+    const partidosIda = partidos.filter((p, index) => index % 2 === 0);
+    const partidosVuelta = partidos.filter((p, index) => index % 2 !== 0);
+    
+    partidosIda.forEach((ida) => {
+      const vuelta = partidosVuelta.find(v => 
+        v.nombre_local === ida.nombre_visita && 
+        v.nombre_visita === ida.nombre_local
+      );
+      
+      if (!vuelta) return;
+      
+      const golesLocalGlobal = (ida.goles_local || 0) + (vuelta.goles_visita || 0);
+      const golesVisitaGlobal = (ida.goles_visita || 0) + (vuelta.goles_local || 0);
+      
+      let ganador = null;
+      
+      if (golesLocalGlobal > golesVisitaGlobal) {
+        ganador = { nombre: ida.nombre_local, pais: ida.pais_local };
+      } else if (golesVisitaGlobal > golesLocalGlobal) {
+        ganador = { nombre: ida.nombre_visita, pais: ida.pais_visita };
+      } else {
+        if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
+          if (vuelta.penales_local > vuelta.penales_visita) {
+            ganador = { nombre: vuelta.nombre_local, pais: vuelta.pais_local };
+          } else {
+            ganador = { nombre: vuelta.nombre_visita, pais: vuelta.pais_visita };
+          }
+        }
+      }
+      
+      if (ganador) {
+        ganadores.push(ganador);
+      }
+    });
+    
+    return ganadores;
+  };
+
+  // Crear partido final automáticamente
+  const crearFinal = async () => {
+    const ganadores = calcularGanadoresSemifinal();
+    
+    if (ganadores.length !== 2) {
+      setMessage({ type: 'error', text: 'Se necesitan los 2 ganadores de semifinales para crear la final' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      await axios.post(
+        `${API_URL}/api/libertadores/final`,
+        { 
+          nombre_local: ganadores[0].nombre,
+          nombre_visita: ganadores[1].nombre
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setMessage({ type: 'success', text: '✅ Final creada automáticamente' });
+      setEquiposClasificadosFinal(ganadores);
+      cargarJornada();
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      const mensajeError = error.response?.data?.error || error.message;
+      setMessage({ type: 'error', text: `Error: ${mensajeError}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calcular campeón basado en resultado de final
+  const calcularCampeon = () => {
+    const partidoFinal = partidos.find(p => 
+      !partidos.some(otro => 
+        otro.nombre_local === p.nombre_visita && 
+        otro.nombre_visita === p.nombre_local
+      )
+    );
+    
+    if (!partidoFinal || partidoFinal.goles_local === null) return null;
+    
+    const golesLocal = partidoFinal.goles_local || 0;
+    const golesVisita = partidoFinal.goles_visita || 0;
+    
+    if (golesLocal > golesVisita) {
+      return {
+        campeon: { nombre: partidoFinal.nombre_local, pais: partidoFinal.pais_local },
+        subcampeon: { nombre: partidoFinal.nombre_visita, pais: partidoFinal.pais_visita }
+      };
+    } else if (golesVisita > golesLocal) {
+      return {
+        campeon: { nombre: partidoFinal.nombre_visita, pais: partidoFinal.pais_visita },
+        subcampeon: { nombre: partidoFinal.nombre_local, pais: partidoFinal.pais_local }
+      };
+    } else {
+      // Empate - revisar penales
+      if (partidoFinal.penales_local !== null && partidoFinal.penales_visita !== null) {
+        if (partidoFinal.penales_local > partidoFinal.penales_visita) {
+          return {
+            campeon: { nombre: partidoFinal.nombre_local, pais: partidoFinal.pais_local },
+            subcampeon: { nombre: partidoFinal.nombre_visita, pais: partidoFinal.pais_visita }
+          };
+        } else {
+          return {
+            campeon: { nombre: partidoFinal.nombre_visita, pais: partidoFinal.pais_visita },
+            subcampeon: { nombre: partidoFinal.nombre_local, pais: partidoFinal.pais_local }
+          };
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  // Calcular marcador global para semifinales (jornada 10)
+  const calcularMarcadorGlobalSemifinal = (partidoVuelta) => {
+    if (jornadaActual !== 10) return null;
+    
+    const partidoIda = partidos.find(p => 
+      p.nombre_local === partidoVuelta.nombre_visita && 
+      p.nombre_visita === partidoVuelta.nombre_local
+    );
+    
+    if (!partidoIda) return null;
+    
+    const golesIdaLocal = partidoIda.goles_local ?? resultados[partidoIda.id]?.goles_local ?? 0;
+    const golesIdaVisita = partidoIda.goles_visita ?? resultados[partidoIda.id]?.goles_visita ?? 0;
+    const golesVueltaLocal = partidoVuelta.goles_local ?? resultados[partidoVuelta.id]?.goles_local ?? 0;
+    const golesVueltaVisita = partidoVuelta.goles_visita ?? resultados[partidoVuelta.id]?.goles_visita ?? 0;
+    
+    const golesEquipoA = Number(golesIdaLocal) + Number(golesVueltaVisita);
+    const golesEquipoB = Number(golesIdaVisita) + Number(golesVueltaLocal);
+    
+    return {
+      equipoA: partidoIda.nombre_local,
+      equipoB: partidoIda.nombre_visita,
+      golesA: golesEquipoA,
+      golesB: golesEquipoB,
+      hayEmpate: golesEquipoA === golesEquipoB && (golesIdaLocal > 0 || golesIdaVisita > 0 || golesVueltaLocal > 0 || golesVueltaVisita > 0)
+    };
+  };
+
+  // Detectar si un partido es la final (partido único sin IDA/VUELTA)
+  const esPartidoFinal = (partido) => {
+    return !partidos.some(p => 
+      p.nombre_local === partido.nombre_visita && 
+      p.nombre_visita === partido.nombre_local
+    );
+  };
+
+  // ========== FIN DE FUNCIONES JORNADA 10 ==========
 
   // Calcular marcador global y si hay empate (para jornada 8)
   const calcularMarcadorGlobal = (partidoVuelta) => {
@@ -2229,6 +2543,541 @@ export default function AdminLibertadores() {
                       </div>
                       
                       {/* Botón de cerrar/abrir jornada */}
+                      <div className="mt-4 d-flex gap-3">
+                        <button
+                          onClick={toggleJornada}
+                          disabled={loading || (!jornadaCerrada && partidos.length === 0)}
+                          className={`btn ${jornadaCerrada ? 'btn-success' : 'btn-warning'}`}
+                        >
+                          {jornadaCerrada ? '🔓 Abrir' : '🔒 Cerrar'} Jornada {jornadaActual}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : jornadaActual === 10 ? (
+                /* JORNADA 10 - SEMIFINALES Y FINAL */
+                <div>
+                  {partidos.length === 0 ? (
+                    /* FORMULARIO PARA ARMAR SEMIFINALES */
+                    <>
+                      <div className="card mb-4">
+                        <div className="card-header bg-warning text-dark">
+                          <h5 className="mb-0">🏆 Semifinales - Formar Cruces (IDA + VUELTA)</h5>
+                        </div>
+                        <div className="card-body">
+                          <div className="alert alert-info mb-4">
+                            <strong>📋 Instrucciones:</strong>
+                            <ul className="mb-0 mt-2">
+                              <li>Selecciona 4 equipos (ganadores de cuartos)</li>
+                              <li>Primeros 2 clicks = Semifinal 1, siguientes 2 = Semifinal 2</li>
+                              <li>Se crearán automáticamente 4 partidos (2 IDA + 2 VUELTA)</li>
+                            </ul>
+                          </div>
+
+                          {/* Ganadores de cuartos */}
+                          <div className="mb-4">
+                            <h6 className="fw-bold mb-3">Ganadores de Cuartos:</h6>
+                            <div className="d-flex flex-wrap gap-2">
+                              {equiposClasificadosSemifinal.length === 0 ? (
+                                <p className="text-muted">Cargando ganadores...</p>
+                              ) : (
+                                equiposClasificadosSemifinal.map((equipo, index) => {
+                                  const yaSeleccionado = equiposSemifinalSeleccionados.some(e => e.nombre === equipo.nombre);
+                                  return (
+                                    <button
+                                      key={index}
+                                      onClick={() => !yaSeleccionado && seleccionarEquipoSemifinal(equipo)}
+                                      disabled={yaSeleccionado}
+                                      className={`btn ${yaSeleccionado ? 'btn-secondary' : 'btn-outline-warning'}`}
+                                    >
+                                      {equipo.nombre} {paisEmoji(equipo.pais)}
+                                      {yaSeleccionado && ' ✓'}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Cruces de semifinal */}
+                          <div className="row g-3 mb-4">
+                            {crucesSemifinal.map((cruce, index) => (
+                              <div key={index} className="col-md-6">
+                                <div className="card">
+                                  <div className="card-body">
+                                    <h6 className="text-center fw-bold mb-3">Semifinal {index + 1}</h6>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                      <div className="text-center flex-grow-1">
+                                        <div className="badge bg-primary mb-2">IDA: Local</div>
+                                        <div className="fw-bold">
+                                          {cruce.local ? `${cruce.local.nombre} ${paisEmoji(cruce.local.pais)}` : '❓'}
+                                        </div>
+                                      </div>
+                                      <div className="mx-3 fs-4">VS</div>
+                                      <div className="text-center flex-grow-1">
+                                        <div className="badge bg-success mb-2">IDA: Visita</div>
+                                        <div className="fw-bold">
+                                          {cruce.visita ? `${cruce.visita.nombre} ${paisEmoji(cruce.visita.pais)}` : '❓'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="text-center mt-2 small text-muted">
+                                      VUELTA: Se invierte automáticamente
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Botones de acción */}
+                          <div className="d-flex gap-3 justify-content-center">
+                            <button
+                              onClick={reiniciarSeleccionSemifinal}
+                              className="btn btn-outline-secondary"
+                              disabled={equiposSemifinalSeleccionados.length === 0}
+                            >
+                              🔄 Reiniciar Selección
+                            </button>
+                            <button
+                              onClick={guardarCrucesSemifinal}
+                              disabled={loading || crucesSemifinal.filter(c => c.local && c.visita).length !== 2}
+                              className="btn btn-warning btn-lg px-5"
+                            >
+                              {loading ? '⏳ Guardando...' : '💾 Guardar Semifinales (IDA + VUELTA)'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    /* MOSTRAR PARTIDOS DE SEMIFINAL Y FINAL */
+                    <>
+                      {/* Navegación */}
+                      <div className="d-flex justify-content-between align-items-center mb-4">
+                        <button
+                          onClick={() => setJornadaActual(9)}
+                          className="btn btn-outline-primary"
+                        >
+                          ← Jornada Anterior
+                        </button>
+                        <div>
+                          <select
+                            value={jornadaActual}
+                            onChange={(e) => setJornadaActual(Number(e.target.value))}
+                            className="form-select d-inline-block w-auto"
+                          >
+                            {[...Array(10)].map((_, i) => (
+                              <option key={i + 1} value={i + 1}>
+                                Jornada {i + 1}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ width: '150px' }}></div>
+                      </div>
+
+                      <div className="alert alert-warning mb-4">
+                        <h5 className="mb-2">⚡ Jornada 10 - Semifinales y Final</h5>
+                        <p className="mb-0 small">
+                          {partidos.length === 4 ? '4 partidos de semifinales (2 IDA + 2 VUELTA)' : 
+                           partidos.length === 5 ? '5 partidos (4 semifinales + Final)' : 
+                           `${partidos.length} partidos`}
+                        </p>
+                      </div>
+
+                      {/* Partidos de Semifinal */}
+                      {partidos.length > 0 && partidos.length <= 4 && (
+                        <div className="mb-5">
+                          <h4 className="fw-bold mb-3">🔥 Semifinales</h4>
+                          <div className="row g-3 mb-4">
+                            {partidos.map((partido, index) => {
+                              const esPartidoIda = index % 2 === 0;
+                              const marcadorGlobal = !esPartidoIda ? calcularMarcadorGlobalSemifinal(partido) : null;
+                              const hayEmpate = marcadorGlobal?.hayEmpate || false;
+
+                              return (
+                                <div key={partido.id} className="col-md-6">
+                                  <div className="card h-100">
+                                    <div className="card-body">
+                                      <div className="d-flex justify-content-between align-items-start mb-3">
+                                        <div className="flex-grow-1">
+                                          <div className="d-flex align-items-center gap-2 mb-2">
+                                            <span className={`badge ${esPartidoIda ? 'bg-primary' : 'bg-success'}`}>
+                                              {esPartidoIda ? 'IDA' : 'VUELTA'}
+                                            </span>
+                                          </div>
+                                          <p className="fw-bold mb-2">
+                                            {partido.nombre_local} {paisEmoji(partido.pais_local)} vs {partido.nombre_visita} {paisEmoji(partido.pais_visita)}
+                                          </p>
+                                          
+                                          {/* Marcador global */}
+                                          {marcadorGlobal && (marcadorGlobal.golesA > 0 || marcadorGlobal.golesB > 0) && (
+                                            <div className={`alert ${marcadorGlobal.hayEmpate ? 'alert-warning' : 'alert-info'} py-2 mb-2`}>
+                                              <small className="fw-bold">
+                                                📊 Global: {marcadorGlobal.equipoA} {marcadorGlobal.golesA} - {marcadorGlobal.golesB} {marcadorGlobal.equipoB}
+                                                {marcadorGlobal.hayEmpate && ' ⚠️ EMPATE'}
+                                              </small>
+                                            </div>
+                                          )}
+                                          
+                                          {/* Resultado guardado */}
+                                          {partido.goles_local !== null && (
+                                            <div className="alert alert-success py-2 mb-2">
+                                              <strong>✅ {partido.goles_local} - {partido.goles_visita}</strong>
+                                              {partido.penales_local !== null && ` (Pen: ${partido.penales_local}-${partido.penales_visita})`}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <button
+                                          onClick={() => eliminarPartido(partido.id)}
+                                          className="btn btn-sm btn-outline-danger"
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
+
+                                      {/* Inputs goles */}
+                                      <div className="d-flex align-items-center gap-2 mb-2">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="Goles L"
+                                          value={resultados[partido.id]?.goles_local ?? ''}
+                                          onChange={(e) => handleResultadoChange(partido.id, 'goles_local', e.target.value)}
+                                          className="form-control form-control-sm text-center"
+                                          style={{ width: '80px' }}
+                                        />
+                                        <span>-</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="Goles V"
+                                          value={resultados[partido.id]?.goles_visita ?? ''}
+                                          onChange={(e) => handleResultadoChange(partido.id, 'goles_visita', e.target.value)}
+                                          className="form-control form-control-sm text-center"
+                                          style={{ width: '80px' }}
+                                        />
+                                        <button
+                                          onClick={() => guardarResultado(partido.id)}
+                                          disabled={loading}
+                                          className="btn btn-sm btn-primary"
+                                        >
+                                          💾
+                                        </button>
+                                      </div>
+                                      
+                                      {/* Inputs penales */}
+                                      {!esPartidoIda && hayEmpate && (
+                                        <div className="mt-2 p-2 bg-warning bg-opacity-10 rounded border border-warning">
+                                          <label className="form-label small mb-1 fw-bold text-danger">
+                                            ⚠️ Empate Global - Definir por Penales:
+                                          </label>
+                                          <div className="d-flex gap-2 align-items-center">
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="10"
+                                              placeholder="Pen L"
+                                              value={resultados[partido.id]?.penales_local ?? ''}
+                                              onChange={(e) => handleResultadoChange(partido.id, 'penales_local', e.target.value)}
+                                              className="form-control form-control-sm border-danger"
+                                              style={{ width: '60px' }}
+                                            />
+                                            <span className="text-danger fw-bold">PEN</span>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="10"
+                                              placeholder="Pen V"
+                                              value={resultados[partido.id]?.penales_visita ?? ''}
+                                              onChange={(e) => handleResultadoChange(partido.id, 'penales_visita', e.target.value)}
+                                              className="form-control form-control-sm border-danger"
+                                              style={{ width: '60px' }}
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Bonus editable */}
+                                      <div className="mt-2 d-flex align-items-center gap-2">
+                                        <span className="small text-muted">Bonus:</span>
+                                        {editandoBonus === partido.id ? (
+                                          <>
+                                            <select
+                                              value={partido.bonus}
+                                              onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
+                                              className="form-select form-select-sm"
+                                              style={{ width: '80px' }}
+                                              autoFocus
+                                            >
+                                              <option value={1}>x1</option>
+                                              <option value={2}>x2</option>
+                                              <option value={3}>x3</option>
+                                            </select>
+                                            <button
+                                              onClick={() => setEditandoBonus(null)}
+                                              className="btn btn-sm btn-success"
+                                            >
+                                              ✓
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <span className="badge bg-info">x{partido.bonus}</span>
+                                            <button
+                                              onClick={() => setEditandoBonus(partido.id)}
+                                              className="btn btn-sm btn-outline-secondary"
+                                              style={{ padding: '2px 8px', fontSize: '12px' }}
+                                            >
+                                              ✏️
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Botones acciones semifinal */}
+                          <div className="d-flex gap-3 mb-4">
+                            <button
+                              onClick={generarResultadosAleatorios}
+                              className="btn btn-outline-primary px-4"
+                            >
+                              🎲 Azar (0-4)
+                            </button>
+                            <button
+                              onClick={resetearResultados}
+                              className="btn btn-outline-secondary px-4"
+                            >
+                              🔄 Resetear
+                            </button>
+                            <button
+                              onClick={guardarResultados}
+                              disabled={loading}
+                              className="btn btn-success px-4"
+                            >
+                              💾 Guardar Todos
+                            </button>
+                          </div>
+
+                          {/* Clasificados a la Final */}
+                          {(() => {
+                            const ganadores = calcularGanadoresSemifinal();
+                            return ganadores.length === 2 && (
+                              <div className="card bg-success bg-opacity-10 border-success mb-4">
+                                <div className="card-body">
+                                  <h5 className="fw-bold text-success mb-3">🎯 Clasificados a la Final</h5>
+                                  <div className="d-flex justify-content-center gap-4">
+                                    {ganadores.map((equipo, index) => (
+                                      <div key={index} className="text-center">
+                                        <div className="badge bg-success fs-6 mb-2">Finalista {index + 1}</div>
+                                        <p className="fw-bold fs-5 mb-0">
+                                          {equipo.nombre} {paisEmoji(equipo.pais)}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="text-center mt-3">
+                                    <button
+                                      onClick={crearFinal}
+                                      className="btn btn-success btn-lg px-5"
+                                      disabled={loading || partidos.length > 4}
+                                    >
+                                      {loading ? '⏳ Creando...' : '⚡ Crear Final Automáticamente'}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Partido Final */}
+                      {partidos.length === 5 && (() => {
+                        const partidoFinal = partidos.find(p => esPartidoFinal(p));
+                        if (!partidoFinal) return null;
+
+                        const golesLocal = partidoFinal.goles_local || 0;
+                        const golesVisita = partidoFinal.goles_visita || 0;
+                        const hayEmpate = golesLocal === golesVisita && (golesLocal > 0 || golesVisita > 0);
+
+                        return (
+                          <div className="mb-4">
+                            <h4 className="fw-bold mb-3">🏆 FINAL - Partido Único</h4>
+                            <div className="row justify-content-center">
+                              <div className="col-md-8">
+                                <div className="card border-warning border-3">
+                                  <div className="card-body">
+                                    <div className="d-flex justify-content-between align-items-start mb-3">
+                                      <div className="flex-grow-1">
+                                        <div className="badge bg-warning text-dark mb-2">FINAL</div>
+                                        <p className="fw-bold fs-5 mb-2">
+                                          {partidoFinal.nombre_local} {paisEmoji(partidoFinal.pais_local)} vs {partidoFinal.nombre_visita} {paisEmoji(partidoFinal.pais_visita)}
+                                        </p>
+                                        
+                                        {partidoFinal.goles_local !== null && (
+                                          <div className="alert alert-success py-2 mb-2">
+                                            <strong>✅ {partidoFinal.goles_local} - {partidoFinal.goles_visita}</strong>
+                                            {partidoFinal.penales_local !== null && ` (Pen: ${partidoFinal.penales_local}-${partidoFinal.penales_visita})`}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <button
+                                        onClick={() => eliminarPartido(partidoFinal.id)}
+                                        className="btn btn-sm btn-outline-danger"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
+
+                                    {/* Inputs goles */}
+                                    <div className="d-flex align-items-center gap-2 mb-2 justify-content-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="Goles L"
+                                        value={resultados[partidoFinal.id]?.goles_local ?? ''}
+                                        onChange={(e) => handleResultadoChange(partidoFinal.id, 'goles_local', e.target.value)}
+                                        className="form-control form-control-sm text-center"
+                                        style={{ width: '100px' }}
+                                      />
+                                      <span className="fw-bold fs-4">-</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="Goles V"
+                                        value={resultados[partidoFinal.id]?.goles_visita ?? ''}
+                                        onChange={(e) => handleResultadoChange(partidoFinal.id, 'goles_visita', e.target.value)}
+                                        className="form-control form-control-sm text-center"
+                                        style={{ width: '100px' }}
+                                      />
+                                      <button
+                                        onClick={() => guardarResultado(partidoFinal.id)}
+                                        disabled={loading}
+                                        className="btn btn-primary"
+                                      >
+                                        💾 Guardar
+                                      </button>
+                                    </div>
+                                    
+                                    {/* Inputs penales si hay empate */}
+                                    {hayEmpate && (
+                                      <div className="mt-3 p-3 bg-danger bg-opacity-10 rounded border border-danger">
+                                        <label className="form-label fw-bold text-danger text-center d-block mb-2">
+                                          ⚠️ EMPATE - Definir por Penales:
+                                        </label>
+                                        <div className="d-flex gap-2 align-items-center justify-content-center">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            placeholder="Pen L"
+                                            value={resultados[partidoFinal.id]?.penales_local ?? ''}
+                                            onChange={(e) => handleResultadoChange(partidoFinal.id, 'penales_local', e.target.value)}
+                                            className="form-control form-control-sm border-danger text-center"
+                                            style={{ width: '80px' }}
+                                          />
+                                          <span className="text-danger fw-bold fs-5">PEN</span>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            placeholder="Pen V"
+                                            value={resultados[partidoFinal.id]?.penales_visita ?? ''}
+                                            onChange={(e) => handleResultadoChange(partidoFinal.id, 'penales_visita', e.target.value)}
+                                            className="form-control form-control-sm border-danger text-center"
+                                            style={{ width: '80px' }}
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Bonus editable */}
+                                    <div className="mt-3 d-flex align-items-center gap-2 justify-content-center">
+                                      <span className="text-muted">Bonus:</span>
+                                      {editandoBonus === partidoFinal.id ? (
+                                        <>
+                                          <select
+                                            value={partidoFinal.bonus}
+                                            onChange={(e) => actualizarBonus(partidoFinal.id, Number(e.target.value))}
+                                            className="form-select form-select-sm"
+                                            style={{ width: '80px' }}
+                                            autoFocus
+                                          >
+                                            <option value={1}>x1</option>
+                                            <option value={2}>x2</option>
+                                            <option value={3}>x3</option>
+                                          </select>
+                                          <button
+                                            onClick={() => setEditandoBonus(null)}
+                                            className="btn btn-sm btn-success"
+                                          >
+                                            ✓
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="badge bg-info">x{partidoFinal.bonus}</span>
+                                          <button
+                                            onClick={() => setEditandoBonus(partidoFinal.id)}
+                                            className="btn btn-sm btn-outline-secondary"
+                                            style={{ padding: '2px 8px', fontSize: '12px' }}
+                                          >
+                                            ✏️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Cuadro Final - Campeón y Subcampeón */}
+                            {(() => {
+                              const resultado = calcularCampeon();
+                              return resultado && (
+                                <div className="card bg-warning bg-opacity-25 border-warning border-3 mt-4">
+                                  <div className="card-body text-center">
+                                    <h4 className="fw-bold mb-4">🏆 CUADRO FINAL 🏆</h4>
+                                    <div className="row">
+                                      <div className="col-md-6">
+                                        <div className="p-4 bg-warning rounded">
+                                          <div className="fs-1 mb-2">👑</div>
+                                          <h5 className="fw-bold">CAMPEÓN</h5>
+                                          <p className="fs-4 fw-bold mb-0">
+                                            {resultado.campeon.nombre}
+                                          </p>
+                                          <p className="text-muted">{resultado.campeon.pais}</p>
+                                        </div>
+                                      </div>
+                                      <div className="col-md-6">
+                                        <div className="p-4 bg-light rounded">
+                                          <div className="fs-1 mb-2">🥈</div>
+                                          <h5 className="fw-bold">SUBCAMPEÓN</h5>
+                                          <p className="fs-4 fw-bold mb-0">
+                                            {resultado.subcampeon.nombre}
+                                          </p>
+                                          <p className="text-muted">{resultado.subcampeon.pais}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Botón cerrar/abrir jornada */}
                       <div className="mt-4 d-flex gap-3">
                         <button
                           onClick={toggleJornada}

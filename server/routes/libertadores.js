@@ -607,4 +607,110 @@ router.post('/cuartos', verifyToken, authorizeRoles('admin'), async (req, res) =
   }
 });
 
+// Guardar cruces de semifinales (jornada 10 - parte 1)
+router.post('/semifinales', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { partidos } = req.body;
+    
+    if (!partidos || !Array.isArray(partidos) || partidos.length !== 4) {
+      return res.status(400).json({ error: 'Se requieren 4 partidos (2 IDA + 2 VUELTA)' });
+    }
+
+    // Obtener o crear jornada 10
+    let jornadaResult = await pool.query(
+      'SELECT id FROM libertadores_jornadas WHERE numero = 10'
+    );
+    
+    if (jornadaResult.rows.length === 0) {
+      jornadaResult = await pool.query(
+        'INSERT INTO libertadores_jornadas (numero, nombre, activa) VALUES (10, $1, false) RETURNING id',
+        ['Jornada 10 - Semifinales y Final']
+      );
+    }
+    
+    const jornadaId = jornadaResult.rows[0].id;
+
+    // Eliminar partidos de semifinales existentes (no la final)
+    await pool.query(
+      `DELETE FROM libertadores_partidos 
+       WHERE jornada_id = $1 
+       AND nombre_local IN (SELECT nombre_local FROM unnest($2::text[]))`,
+      [jornadaId, partidos.map(p => p.nombre_local)]
+    );
+
+    // Guardar partidos de semifinales
+    for (const partido of partidos) {
+      await pool.query(
+        `INSERT INTO libertadores_partidos 
+         (nombre_local, nombre_visita, jornada_id, fecha, bonus) 
+         VALUES ($1, $2, $3, NOW(), 1)`,
+        [partido.nombre_local, partido.nombre_visita, jornadaId]
+      );
+    }
+
+    res.json({ 
+      mensaje: 'Cruces de semifinales guardados exitosamente',
+      cantidad: partidos.length
+    });
+  } catch (error) {
+    console.error('Error guardando semifinales:', error);
+    res.status(500).json({ error: 'Error guardando semifinales' });
+  }
+});
+
+// Guardar partido final (jornada 10 - parte 2)
+router.post('/final', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { nombre_local, nombre_visita } = req.body;
+    
+    if (!nombre_local || !nombre_visita) {
+      return res.status(400).json({ error: 'Se requieren los dos equipos finalistas' });
+    }
+
+    // Obtener jornada 10
+    const jornadaResult = await pool.query(
+      'SELECT id FROM libertadores_jornadas WHERE numero = 10'
+    );
+    
+    if (jornadaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada 10 no encontrada' });
+    }
+    
+    const jornadaId = jornadaResult.rows[0].id;
+
+    // Verificar si ya existe una final
+    const finalExistente = await pool.query(
+      `SELECT id FROM libertadores_partidos 
+       WHERE jornada_id = $1 
+       AND nombre_local = $2 
+       AND nombre_visita = $3`,
+      [jornadaId, nombre_local, nombre_visita]
+    );
+
+    if (finalExistente.rows.length > 0) {
+      return res.json({ 
+        mensaje: 'Final ya existe',
+        partido_id: finalExistente.rows[0].id
+      });
+    }
+
+    // Crear partido final
+    const resultado = await pool.query(
+      `INSERT INTO libertadores_partidos 
+       (nombre_local, nombre_visita, jornada_id, fecha, bonus) 
+       VALUES ($1, $2, $3, NOW(), 1)
+       RETURNING id`,
+      [nombre_local, nombre_visita, jornadaId]
+    );
+
+    res.json({ 
+      mensaje: 'Final creada exitosamente',
+      partido_id: resultado.rows[0].id
+    });
+  } catch (error) {
+    console.error('Error guardando final:', error);
+    res.status(500).json({ error: 'Error guardando final' });
+  }
+});
+
 export default router;
