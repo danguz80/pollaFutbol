@@ -927,24 +927,43 @@ export default function AdminLibertadores() {
           {/* SECCIÓN: PARTIDOS */}
           {step === 'fixtures' && (
             <div>
-              {/* Selector de jornada */}
-              <div className="mb-6 flex items-center gap-4">
-                <label className="font-semibold">Jornada:</label>
-                <select
-                  value={jornadaActual}
-                  onChange={(e) => setJornadaActual(Number(e.target.value))}
-                  className="p-2 border rounded"
+              {/* Selector de jornada con navegación */}
+              <div className="mb-6 d-flex align-items-center gap-3">
+                <button
+                  onClick={() => setJornadaActual(prev => Math.max(1, prev - 1))}
+                  disabled={jornadaActual === 1}
+                  className="btn btn-outline-secondary"
                 >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                    <option key={n} value={n}>
-                      {n <= 6 ? `Jornada ${n} - Fase de Grupos` : 
-                       n === 7 ? 'Jornada 7 - Octavos de Final IDA' :
-                       n === 8 ? 'Jornada 8 - Octavos de Final VUELTA' :
-                       n === 9 ? 'Jornada 9 - Cuartos de Final IDA/VUELTA' : 
-                       'Jornada 10 - Semifinales IDA/VUELTA + Final + Cuadro Final'}
-                    </option>
-                  ))}
-                </select>
+                  ← Anterior
+                </button>
+                
+                <div className="d-flex align-items-center gap-2">
+                  <label className="fw-semibold mb-0">Jornada:</label>
+                  <select
+                    value={jornadaActual}
+                    onChange={(e) => setJornadaActual(Number(e.target.value))}
+                    className="form-select"
+                    style={{ width: 'auto' }}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                      <option key={n} value={n}>
+                        {n <= 6 ? `Jornada ${n} - Fase de Grupos` : 
+                         n === 7 ? 'Jornada 7 - Octavos de Final IDA' :
+                         n === 8 ? 'Jornada 8 - Octavos de Final VUELTA' :
+                         n === 9 ? 'Jornada 9 - Cuartos de Final IDA/VUELTA' : 
+                         'Jornada 10 - Semifinales IDA/VUELTA + Final + Cuadro Final'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <button
+                  onClick={() => setJornadaActual(prev => Math.min(10, prev + 1))}
+                  disabled={jornadaActual === 10}
+                  className="btn btn-outline-secondary"
+                >
+                  Siguiente →
+                </button>
                 
                 <button
                   onClick={borrarTodosPartidos}
@@ -1344,6 +1363,40 @@ export default function AdminLibertadores() {
                           })}
                         </div>
                       </div>
+                      
+                      {/* Botones de acciones masivas */}
+                      <div className="mt-4 d-flex gap-2 flex-wrap">
+                        <button
+                          onClick={generarResultadosAleatorios}
+                          className="btn btn-outline-info px-4"
+                        >
+                          🎲 Azar (0-4)
+                        </button>
+                        <button
+                          onClick={resetearResultados}
+                          className="btn btn-outline-secondary px-4"
+                        >
+                          🔄 Resetear
+                        </button>
+                        <button
+                          onClick={guardarResultados}
+                          disabled={loading}
+                          className="btn btn-success px-4"
+                        >
+                          💾 Guardar Todos los Resultados
+                        </button>
+                      </div>
+                      
+                      {/* Botón de cerrar/abrir jornada */}
+                      <div className="mt-4 d-flex gap-3">
+                        <button
+                          onClick={toggleJornada}
+                          disabled={loading || (!jornadaCerrada && partidos.length === 0)}
+                          className={`btn ${jornadaCerrada ? 'btn-success' : 'btn-warning'}`}
+                        >
+                          {jornadaCerrada ? '🔓 Abrir' : '🔒 Cerrar'} Jornada {jornadaActual}
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
@@ -1449,6 +1502,40 @@ export default function AdminLibertadores() {
                             );
                           })}
                         </div>
+                      </div>
+                      
+                      {/* Botones de acciones masivas */}
+                      <div className="mt-4 d-flex gap-2 flex-wrap">
+                        <button
+                          onClick={generarResultadosAleatorios}
+                          className="btn btn-outline-info px-4"
+                        >
+                          🎲 Azar (0-4)
+                        </button>
+                        <button
+                          onClick={resetearResultados}
+                          className="btn btn-outline-secondary px-4"
+                        >
+                          🔄 Resetear
+                        </button>
+                        <button
+                          onClick={guardarResultados}
+                          disabled={loading}
+                          className="btn btn-success px-4"
+                        >
+                          💾 Guardar Todos los Resultados
+                        </button>
+                      </div>
+                      
+                      {/* Botón de cerrar/abrir jornada */}
+                      <div className="mt-4 d-flex gap-3">
+                        <button
+                          onClick={toggleJornada}
+                          disabled={loading || (!jornadaCerrada && partidos.length === 0)}
+                          className={`btn ${jornadaCerrada ? 'btn-success' : 'btn-warning'}`}
+                        >
+                          {jornadaCerrada ? '🔓 Abrir' : '🔒 Cerrar'} Jornada {jornadaActual}
+                        </button>
                       </div>
                     </>
                   )}
