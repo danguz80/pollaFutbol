@@ -347,6 +347,32 @@ export default function AdminLibertadores() {
     }
   };
 
+  // Calcular si hay empate global en octavos (para mostrar inputs de penales)
+  const calcularEmpateGlobal = (partidoVuelta) => {
+    // Solo aplica para jornada 8
+    if (jornadaActual !== 8) return false;
+    
+    // Buscar partido de ida correspondiente (equipos invertidos)
+    const partidoIda = partidos.find(p => 
+      p.nombre_local === partidoVuelta.nombre_visita && 
+      p.nombre_visita === partidoVuelta.nombre_local
+    );
+    
+    if (!partidoIda) return false;
+    
+    // Obtener goles (de la BD o de resultados temporales)
+    const golesIdaLocal = partidoIda.goles_local ?? resultados[partidoIda.id]?.goles_local ?? 0;
+    const golesIdaVisita = partidoIda.goles_visita ?? resultados[partidoIda.id]?.goles_visita ?? 0;
+    const golesVueltaLocal = partidoVuelta.goles_local ?? resultados[partidoVuelta.id]?.goles_local ?? 0;
+    const golesVueltaVisita = partidoVuelta.goles_visita ?? resultados[partidoVuelta.id]?.goles_visita ?? 0;
+    
+    // Calcular marcador global
+    const golesGlobalLocal = Number(golesIdaLocal) + Number(golesVueltaVisita);
+    const golesGlobalVisita = Number(golesIdaVisita) + Number(golesVueltaLocal);
+    
+    return golesGlobalLocal === golesGlobalVisita;
+  };
+
   const cargarEquipos = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -525,6 +551,8 @@ export default function AdminLibertadores() {
           id: p.id,
           goles_local: resultados[p.id].goles_local,
           goles_visita: resultados[p.id].goles_visita,
+          penales_local: resultados[p.id].penales_local || null,
+          penales_visita: resultados[p.id].penales_visita || null,
           bonus: p.bonus
         }));
       
@@ -1557,6 +1585,7 @@ export default function AdminLibertadores() {
                         <div className="row g-3">
                           {partidos.map(partido => {
                             const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
+                            const hayEmpate = calcularEmpateGlobal(partido);
                             return (
                               <div key={partido.id} className="col-12 col-md-6">
                                 <div className="card">
@@ -1570,6 +1599,7 @@ export default function AdminLibertadores() {
                                         {partido.goles_local !== null && (
                                           <p className="text-success fw-bold small mb-2">
                                             ✅ Resultado guardado: {partido.goles_local} - {partido.goles_visita}
+                                            {partido.penales_local !== null && ` (Pen: ${partido.penales_local}-${partido.penales_visita})`}
                                           </p>
                                         )}
                                         
@@ -1602,14 +1632,46 @@ export default function AdminLibertadores() {
                                               className="form-control form-control-sm"
                                               style={{ width: '70px' }}
                                             />
-                                            <button
-                                              onClick={() => guardarResultado(partido.id)}
-                                              className="btn btn-success btn-sm"
-                                            >
-                                              💾
-                                            </button>
                                           </div>
                                         </div>
+                                        
+                                        {/* Inputs de penales - Solo si hay empate global */}
+                                        {hayEmpate && (
+                                          <div className="mt-2 p-2 bg-warning bg-opacity-10 rounded border border-warning">
+                                            <label className="form-label small mb-1 fw-bold text-danger">
+                                              ⚠️ Empate Global - Definir por Penales:
+                                            </label>
+                                            <div className="d-flex gap-2 align-items-center">
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="10"
+                                                placeholder="Pen L"
+                                                value={resultados[partido.id]?.penales_local ?? ''}
+                                                onChange={(e) => setResultados(prev => ({
+                                                  ...prev,
+                                                  [partido.id]: { ...prev[partido.id], penales_local: e.target.value }
+                                                }))}
+                                                className="form-control form-control-sm border-danger"
+                                                style={{ width: '60px' }}
+                                              />
+                                              <span className="text-danger fw-bold">PEN</span>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="10"
+                                                placeholder="Pen V"
+                                                value={resultados[partido.id]?.penales_visita ?? ''}
+                                                onChange={(e) => setResultados(prev => ({
+                                                  ...prev,
+                                                  [partido.id]: { ...prev[partido.id], penales_visita: e.target.value }
+                                                }))}
+                                                className="form-control form-control-sm border-danger"
+                                                style={{ width: '60px' }}
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                       
                                       <button

@@ -353,9 +353,16 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
     for (const partido of partidos) {
       await pool.query(`
         UPDATE libertadores_partidos
-        SET goles_local = $1, goles_visita = $2, bonus = $3
-        WHERE id = $4
-      `, [partido.goles_local, partido.goles_visita, partido.bonus || 1, partido.id]);
+        SET goles_local = $1, goles_visita = $2, bonus = $3, penales_local = $4, penales_visita = $5
+        WHERE id = $6
+      `, [
+        partido.goles_local, 
+        partido.goles_visita, 
+        partido.bonus || 1, 
+        partido.penales_local, 
+        partido.penales_visita, 
+        partido.id
+      ]);
     }
 
     res.json({ mensaje: 'Resultados guardados exitosamente' });
