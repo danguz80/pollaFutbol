@@ -557,4 +557,46 @@ router.patch('/jornadas/:id/estado', verifyToken, authorizeRoles('admin'), async
   }
 });
 
-export default router;
+// POST /cuartos - Guardar cruces de cuartos de final (jornada 9: IDA y VUELTA)
+router.post('/cuartos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { partidos } = req.body;
+    
+    if (!partidos || !Array.isArray(partidos) || partidos.length !== 8) {
+      return res.status(400).json({ error: 'Se requieren 8 partidos (4 IDA + 4 VUELTA)' });
+    }
+
+    // Obtener o crear jornada 9
+    let jornadaResult = await pool.query(
+      'SELECT id FROM libertadores_jornadas WHERE numero = 9'
+    );
+    
+    if (jornadaResult.rows.length === 0) {
+      jornadaResult = await pool.query(
+        'INSERT INTO libertadores_jornadas (numero, nombre, activa) VALUES (9, $1, false) RETURNING id',
+        ['Jornada 9 - Cuartos de Final IDA/VUELTA']
+      );
+    }
+    
+    const jornadaId = jornadaResult.rows[0].id;
+
+    // Guardar partidos
+    for (const partido of partidos) {
+      await pool.query(
+        `INSERT INTO libertadores_partidos 
+         (nombre_local, nombre_visita, jornada_id, fecha, bonus) 
+         VALUES ($1, $2, $3, NOW(), 2)`,
+        [partido.nombre_local, partido.nombre_visita, jornadaId]
+      );
+    }
+
+    res.json({ 
+      mensaje: 'Cruces de cuartos guardados exitosamente',
+      cantidad: partidos.length
+    });
+  } catch (error) {
+    console.error('Error guardando cruces de cuartos:', error);
+    res.status(500).json({ error: 'Error guardando cruces de cuartos' });
+  }
+});
+

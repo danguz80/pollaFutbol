@@ -26,6 +26,16 @@ export default function AdminLibertadores() {
   ]);
   const [equiposSeleccionados, setEquiposSeleccionados] = useState([]);
   
+  // Estado para cuartos de final (jornada 9)
+  const [crucesCuartos, setCrucesCuartos] = useState([
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null },
+    { local: null, visita: null }
+  ]);
+  const [equiposCuartosSeleccionados, setEquiposCuartosSeleccionados] = useState([]);
+  const [equiposClasificadosCuartos, setEquiposClasificadosCuartos] = useState([]);
+  
   // Estado para equipos (cada equipo es un objeto {nombre, pais})
   const [equipos, setEquipos] = useState({
     A: [{ nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }, { nombre: '', pais: '' }],
@@ -219,6 +229,119 @@ export default function AdminLibertadores() {
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
       setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calcular ganadores de octavos (jornadas 7 y 8)
+  const calcularGanadoresOctavos = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Obtener partidos de jornada 7 (ida)
+      const j7Response = await axios.get(`${API_URL}/api/libertadores/jornadas/7`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const partidosIda = j7Response.data.partidos || [];
+      
+      // Obtener partidos de jornada 8 (vuelta)
+      const j8Response = await axios.get(`${API_URL}/api/libertadores/jornadas/8`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const partidosVuelta = j8Response.data.partidos || [];
+      
+      const ganadores = [];
+      
+      // Emparejar partidos de ida y vuelta
+      partidosIda.forEach((ida) => {
+        // Buscar partido de vuelta (equipos invertidos)
+        const vuelta = partidosVuelta.find(v => 
+          v.nombre_local === ida.nombre_visita && v.nombre_visita === ida.nombre_local
+        );
+        
+        if (!vuelta) return;
+        
+        // Calcular marcador global
+        const golesLocalGlobal = (ida.goles_local || 0) + (vuelta.goles_visita || 0);
+        const golesVisitaGlobal = (ida.goles_visita || 0) + (vuelta.goles_local || 0);
+        
+        let ganador = null;
+        
+        if (golesLocalGlobal > golesVisitaGlobal) {
+          ganador = { nombre: ida.nombre_local, pais: ida.pais_local };
+        } else if (golesVisitaGlobal > golesLocalGlobal) {
+          ganador = { nombre: ida.nombre_visita, pais: ida.pais_visita };
+        } else {
+          // Empate en el global - revisar penales
+          if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
+            if (vuelta.penales_local > vuelta.penales_visita) {
+              ganador = { nombre: vuelta.nombre_local, pais: vuelta.pais_local };
+            } else {
+              ganador = { nombre: vuelta.nombre_visita, pais: vuelta.pais_visita };
+            }
+          }
+        }
+        
+        if (ganador) {
+          ganadores.push(ganador);
+        }
+      });
+      
+      return ganadores;
+    } catch (error) {
+      console.error('Error calculando ganadores de octavos:', error);
+      return [];
+    }
+  };
+
+  // Guardar cruces de cuartos (jornada 9) - IDA y VUELTA
+  const guardarCrucesCuartos = async () => {
+    const crucesCompletos = crucesCuartos.filter(c => c.local && c.visita);
+    if (crucesCompletos.length !== 4) {
+      setMessage({ type: 'error', text: 'Debes completar los 4 cruces antes de guardar' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Crear 8 partidos: 4 de IDA y 4 de VUELTA
+      const partidos = [];
+      
+      crucesCompletos.forEach((cruce, index) => {
+        // Partido de IDA
+        partidos.push({
+          nombre_local: cruce.local.nombre,
+          nombre_visita: cruce.visita.nombre,
+          jornada_numero: 9,
+          orden: (index * 2) + 1,
+          tipo: 'IDA'
+        });
+        
+        // Partido de VUELTA (invertido)
+        partidos.push({
+          nombre_local: cruce.visita.nombre,
+          nombre_visita: cruce.local.nombre,
+          jornada_numero: 9,
+          orden: (index * 2) + 2,
+          tipo: 'VUELTA'
+        });
+      });
+
+      await axios.post(
+        `${API_URL}/api/libertadores/cuartos`,
+        { partidos },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setMessage({ type: 'success', text: '✅ Cruces de cuartos guardados (8 partidos: 4 IDA + 4 VUELTA)' });
+      cargarJornada();
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      const mensajeError = error.response?.data?.error || error.message;
+      setMessage({ type: 'error', text: `Error: ${mensajeError}` });
     } finally {
       setLoading(false);
     }
