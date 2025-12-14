@@ -81,22 +81,46 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
     const result = await pool.query(query, params);
 
     // Formatear datos
-    const pronosticos = result.rows.map(row => {
+    const pronosticos = await Promise.all(result.rows.map(async row => {
       // Calcular equipo que el usuario pronosticó que avanza (para jornadas 8+)
       let equipoPronosticadoAvanza = null;
       if (row.jornada_numero >= 8) {
-        const pronosticoLocal = row.pronostico_local;
-        const pronosticoVisita = row.pronostico_visita;
+        // Para jornada 8: Buscar partido IDA (jornada 7)
+        // Para jornadas 9-10: El marcador es directo del partido de VUELTA
+        let pronosticoGlobalLocal = row.pronostico_local;
+        let pronosticoGlobalVisita = row.pronostico_visita;
+        
+        if (row.jornada_numero === 8) {
+          // Buscar partido IDA en jornada 7 con equipos invertidos
+          const partidoIdaResult = await pool.query(`
+            SELECT lp.goles_local, lp.goles_visita
+            FROM libertadores_pronosticos lp
+            INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+            INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+            WHERE lj.numero = 7
+              AND p.nombre_local = $1
+              AND p.nombre_visita = $2
+              AND lp.usuario_id = $3
+          `, [row.nombre_visita, row.nombre_local, row.usuario_id]);
+          
+          if (partidoIdaResult.rows.length > 0) {
+            const partidoIda = partidoIdaResult.rows[0];
+            // Global: Local actual + Visita IDA vs Visita actual + Local IDA
+            pronosticoGlobalLocal = row.pronostico_local + partidoIda.goles_visita;
+            pronosticoGlobalVisita = row.pronostico_visita + partidoIda.goles_local;
+          }
+        }
+        
         const penalesLocal = row.penales_pronostico_local;
         const penalesVisita = row.penales_pronostico_visita;
         
-        // Determinar ganador según pronóstico
-        if (pronosticoLocal > pronosticoVisita) {
+        // Determinar ganador según pronóstico GLOBAL
+        if (pronosticoGlobalLocal > pronosticoGlobalVisita) {
           equipoPronosticadoAvanza = row.nombre_local;
-        } else if (pronosticoLocal < pronosticoVisita) {
+        } else if (pronosticoGlobalLocal < pronosticoGlobalVisita) {
           equipoPronosticadoAvanza = row.nombre_visita;
         } else {
-          // Si hay empate, revisar penales
+          // Si hay empate global, revisar penales
           if (penalesLocal !== null && penalesVisita !== null) {
             if (penalesLocal > penalesVisita) {
               equipoPronosticadoAvanza = row.nombre_local;
@@ -150,7 +174,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         puntos_clasificacion: row.puntos_clasificacion || 0,
         fecha_pronostico: row.fecha_pronostico
       };
-    });
+    }));
 
     res.json(pronosticos);
   } catch (error) {

@@ -25,6 +25,10 @@ export default function JornadaLibertadores() {
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Estados para eliminatorias jornadas 8-10
+  const [partidosIda, setPartidosIda] = useState([]); // Para jornada 8: partidos de jornada 7
+  const [pronosticosIda, setPronosticosIda] = useState({}); // Para jornada 8: pronósticos de jornada 7
+
   // Estados para jornada 10 (semifinales y final)
   const [equiposFinalistasPronosticados, setEquiposFinalistasPronosticados] = useState([]);
   const [partidoFinal, setPartidoFinal] = useState(null);
@@ -198,6 +202,27 @@ export default function JornadaLibertadores() {
         }
       });
       setPronosticos(map);
+
+      // Si es jornada 8, cargar también jornada 7 (IDA) para cálculo de penales
+      if (Number(numero) === 8) {
+        const jornadaIdaRes = await axios.get(`${API_URL}/api/libertadores/jornadas/7`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setPartidosIda(jornadaIdaRes.data.partidos || []);
+
+        const pronosticosIdaRes = await axios.get(`${API_URL}/api/libertadores-pronosticos/jornada/7`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const mapIda = {};
+        pronosticosIdaRes.data.forEach((pr) => {
+          mapIda[pr.partido_id] = {
+            goles_local: pr.goles_local,
+            goles_visita: pr.goles_visita
+          };
+        });
+        setPronosticosIda(mapIda);
+      }
 
       // Cargar estadísticas (solo para fase de grupos)
       if (Number(numero) <= 6) {
@@ -474,25 +499,47 @@ export default function JornadaLibertadores() {
                       </div>
                     </div>
 
-                    {/* Mostrar inputs de penales en VUELTA de semifinales (J10) si hay empate */}
-                    {Number(numero) === 10 && (() => {
-                      // Detectar si es partido de VUELTA (índices 1 y 3)
+                    {/* Mostrar inputs de penales en VUELTA de eliminatorias (J8, J9, J10) si hay empate */}
+                    {(Number(numero) === 8 || Number(numero) === 9 || Number(numero) === 10) && (() => {
+                      // Detectar si es partido de VUELTA
                       const partidoIndex = partidos.findIndex(p => p.id === partido.id);
-                      const esVuelta = partidoIndex === 1 || partidoIndex === 3;
+                      // J8: Todos son VUELTA (índices 0-7)
+                      // J9: Índices 1 y 3 son VUELTA
+                      // J10: Índices 1 y 3 son VUELTA
+                      const esVuelta = Number(numero) === 8 || partidoIndex === 1 || partidoIndex === 3;
                       
                       if (!esVuelta) return null;
                       
                       // Buscar partido de IDA
-                      const partidoIda = partidos.find(p => 
-                        p.nombre_local === partido.nombre_visita && 
-                        p.nombre_visita === partido.nombre_local
-                      );
+                      let partidoIda = null;
+                      let golesIdaLocal = 0;
+                      let golesIdaVisita = 0;
+                      
+                      if (Number(numero) === 8) {
+                        // En J8, buscar en partidosIda (jornada 7) con equipos invertidos
+                        partidoIda = partidosIda.find(p => 
+                          p.nombre_local === partido.nombre_visita && 
+                          p.nombre_visita === partido.nombre_local
+                        );
+                        if (partidoIda && pronosticosIda[partidoIda.id]) {
+                          golesIdaLocal = Number(pronosticosIda[partidoIda.id]?.goles_local ?? 0);
+                          golesIdaVisita = Number(pronosticosIda[partidoIda.id]?.goles_visita ?? 0);
+                        }
+                      } else {
+                        // En J9 y J10, buscar en los mismos partidos de la jornada
+                        partidoIda = partidos.find(p => 
+                          p.nombre_local === partido.nombre_visita && 
+                          p.nombre_visita === partido.nombre_local
+                        );
+                        if (partidoIda && pronosticos[partidoIda.id]) {
+                          golesIdaLocal = Number(pronosticos[partidoIda.id]?.goles_local ?? 0);
+                          golesIdaVisita = Number(pronosticos[partidoIda.id]?.goles_visita ?? 0);
+                        }
+                      }
                       
                       if (!partidoIda) return null;
                       
                       // Calcular marcador global
-                      const golesIdaLocal = Number(pronosticos[partidoIda.id]?.goles_local ?? 0);
-                      const golesIdaVisita = Number(pronosticos[partidoIda.id]?.goles_visita ?? 0);
                       const golesVueltaLocal = Number(pronosticos[partido.id]?.goles_local ?? 0);
                       const golesVueltaVisita = Number(pronosticos[partido.id]?.goles_visita ?? 0);
                       
