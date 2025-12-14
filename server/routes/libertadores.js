@@ -116,19 +116,39 @@ router.get('/jornadas/:numero', async (req, res) => {
     }
     
     // Obtener partidos de esta jornada con grupos y países de equipos
+    const jornadaNumero = parseInt(numero);
     const partidosResult = await pool.query(`
       SELECT 
         p.*,
         el.grupo as grupo_local,
         ev.grupo as grupo_visita,
         el.pais as pais_local,
-        ev.pais as pais_visita
+        ev.pais as pais_visita,
+        CASE 
+          WHEN $2 >= 7 AND $2 <= 10 THEN 
+            CASE 
+              WHEN $2 = 7 THEN 'IDA'
+              WHEN $2 = 8 THEN 'VUELTA'
+              WHEN $2 = 9 THEN 
+                CASE 
+                  WHEN ROW_NUMBER() OVER (ORDER BY p.fecha, p.id) % 2 = 1 THEN 'IDA'
+                  ELSE 'VUELTA'
+                END
+              WHEN $2 = 10 THEN 
+                CASE 
+                  WHEN ROW_NUMBER() OVER (ORDER BY p.fecha, p.id) IN (1, 3) THEN 'IDA'
+                  WHEN ROW_NUMBER() OVER (ORDER BY p.fecha, p.id) IN (2, 4) THEN 'VUELTA'
+                  ELSE 'FINAL'
+                END
+            END
+          ELSE el.grupo
+        END as tipo_partido
       FROM libertadores_partidos p
       LEFT JOIN libertadores_equipos el ON el.nombre = p.nombre_local
       LEFT JOIN libertadores_equipos ev ON ev.nombre = p.nombre_visita
       WHERE p.jornada_id = $1
       ORDER BY p.fecha, p.id
-    `, [jornadaResult.rows[0].id]);
+    `, [jornadaResult.rows[0].id, jornadaNumero]);
     
     res.json({
       ...jornadaResult.rows[0],

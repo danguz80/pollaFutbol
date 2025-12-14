@@ -508,7 +508,24 @@ export default function ClasificacionLibertadores() {
                             </span>
                           </td>
                           <td className="text-center">
-                            {pronostico.partido.grupo ? (
+                            {pronostico.jornada.numero >= 7 && pronostico.jornada.numero <= 10 ? (
+                              (() => {
+                                const jornada = pronostico.jornada.numero;
+                                let tipo = '';
+                                if (jornada === 7) tipo = 'IDA';
+                                else if (jornada === 8) tipo = 'VUELTA';
+                                else if (jornada === 9) {
+                                  const index = grupo.pronosticos.indexOf(pronostico);
+                                  tipo = index % 2 === 0 ? 'IDA' : 'VUELTA';
+                                } else if (jornada === 10) {
+                                  const index = grupo.pronosticos.indexOf(pronostico);
+                                  if (index === 4) tipo = 'FINAL';
+                                  else tipo = (index === 0 || index === 2) ? 'IDA' : 'VUELTA';
+                                }
+                                const badgeClass = tipo === 'IDA' ? 'bg-info' : tipo === 'FINAL' ? 'bg-warning text-dark' : 'bg-success';
+                                return <span className={`badge ${badgeClass}`}>{tipo}</span>;
+                              })()
+                            ) : pronostico.partido.grupo ? (
                               <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
                             ) : (
                               <span className="text-muted">-</span>

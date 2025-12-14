@@ -460,15 +460,22 @@ export default function JornadaLibertadores() {
                     <div className="card shadow-sm">
                   <div className="card-body">
                     <div className="d-flex justify-content-between align-items-center mb-3">
-                      <h6 className="mb-0 text-muted">
-                        {new Date(partido.fecha).toLocaleDateString('es-CL')} - {new Date(partido.fecha).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
-                      </h6>
+                      <div className="d-flex flex-column">
+                        <h6 className="mb-0 text-muted">
+                          {new Date(partido.fecha).toLocaleDateString('es-CL')} - {new Date(partido.fecha).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                        </h6>
+                        {Number(numero) >= 7 && Number(numero) <= 10 && partido.tipo_partido && (
+                          <span className={`badge mt-1 ${partido.tipo_partido === 'IDA' ? 'bg-info' : partido.tipo_partido === 'FINAL' ? 'bg-warning text-dark' : 'bg-success'}`}>
+                            {partido.tipo_partido}
+                          </span>
+                        )}
+                      </div>
                       {partido.bonus > 1 && (
                         <span className="badge bg-warning text-dark">⭐ Bonus x{partido.bonus}</span>
                       )}
                     </div>
 
-                    {(partido.grupo_local || partido.grupo_visita) && (
+                    {(partido.grupo_local || partido.grupo_visita) && Number(numero) < 7 && (
                       <div className="text-center mb-2">
                         <span className="badge bg-primary" style={{ fontSize: '0.7rem' }}>
                           GRUPO {partido.grupo_local || partido.grupo_visita}
