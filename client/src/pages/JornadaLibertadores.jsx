@@ -179,11 +179,23 @@ export default function JornadaLibertadores() {
       });
 
       const map = {};
-      pronosticosRes.data.forEach(pr => {
+      pronosticosRes.data.forEach((pr, index) => {
         map[pr.partido_id] = {
           goles_local: pr.goles_local,
-          goles_visita: pr.goles_visita
+          goles_visita: pr.goles_visita,
+          penales_local: pr.penales_local,
+          penales_visita: pr.penales_visita
         };
+        
+        // Para jornada 10, si es el quinto pronóstico (la final), cargar en pronosticoFinal
+        if (Number(numero) === 10 && index === 4) {
+          setPronosticoFinal({
+            goles_local: pr.goles_local ?? '',
+            goles_visita: pr.goles_visita ?? '',
+            penales_local: pr.penales_local ?? '',
+            penales_visita: pr.penales_visita ?? ''
+          });
+        }
       });
       setPronosticos(map);
 
@@ -215,6 +227,36 @@ export default function JornadaLibertadores() {
       ...prev,
       [campo]: valor
     }));
+  };
+
+  const borrarPronosticosJornada10 = async () => {
+    if (!window.confirm('¿Estás seguro de que quieres borrar TODOS los pronósticos de esta jornada?')) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      
+      // Borrar todos los pronósticos de esta jornada
+      await axios.delete(
+        `${API_URL}/api/libertadores-pronosticos/jornada/${numero}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Resetear estados
+      setPronosticos({});
+      setPronosticoFinal({ goles_local: '', goles_visita: '', penales_local: '', penales_visita: '' });
+      setEquiposFinalistasPronosticados([]);
+      setMostrarCalcularFinalistas(false);
+      setMensaje('✅ Pronósticos borrados correctamente');
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (error) {
+      console.error('Error borrando pronósticos:', error);
+      setMensaje('❌ Error al borrar pronósticos');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const generarAleatorioTodos = () => {
@@ -618,6 +660,11 @@ export default function JornadaLibertadores() {
               <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
                 🔄 Resetear
               </button>
+              {Number(numero) === 10 && (
+                <button className="btn btn-outline-danger btn-lg px-4" onClick={borrarPronosticosJornada10}>
+                  🗑️ Borrar Todo
+                </button>
+              )}
               <button className="btn btn-danger btn-lg px-5" onClick={handleEnviar}>
                 💾 Guardar Pronósticos
               </button>

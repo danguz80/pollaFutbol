@@ -9,7 +9,7 @@ const router = express.Router();
 router.post('/', verifyToken, async (req, res) => {
   try {
     const usuario_id = req.usuario.id;
-    const { partido_id, jornada_id, goles_local, goles_visita } = req.body;
+    const { partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita } = req.body;
 
     // Verificar si la jornada está cerrada
     const jornadaCheck = await pool.query(
@@ -25,14 +25,18 @@ router.post('/', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'Esta jornada está cerrada' });
     }
 
-    // Insertar o actualizar pronóstico
+    // Insertar o actualizar pronóstico (incluyendo penales)
     await pool.query(`
       INSERT INTO libertadores_pronosticos 
-      (usuario_id, partido_id, jornada_id, goles_local, goles_visita)
-      VALUES ($1, $2, $3, $4, $5)
+      (usuario_id, partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (usuario_id, partido_id, jornada_id)
-      DO UPDATE SET goles_local = EXCLUDED.goles_local, goles_visita = EXCLUDED.goles_visita
-    `, [usuario_id, partido_id, jornada_id, goles_local, goles_visita]);
+      DO UPDATE SET 
+        goles_local = EXCLUDED.goles_local, 
+        goles_visita = EXCLUDED.goles_visita,
+        penales_local = EXCLUDED.penales_local,
+        penales_visita = EXCLUDED.penales_visita
+    `, [usuario_id, partido_id, jornada_id, goles_local, goles_visita, penales_local || null, penales_visita || null]);
 
     res.json({ mensaje: 'Pronóstico guardado exitosamente' });
   } catch (error) {
@@ -157,6 +161,44 @@ router.get('/ranking/jornada/:numero', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo ranking de jornada:', error);
     res.status(500).json({ error: 'Error obteniendo ranking de jornada' });
+  }
+});
+
+// Borrar todos los pronósticos de un usuario para una jornada específica
+router.delete('/jornada/:numero', verifyToken, async (req, res) => {
+  try {
+    const usuario_id = req.usuario.id;
+    const { numero } = req.params;
+
+    // Verificar si la jornada está cerrada
+    const jornadaCheck = await pool.query(
+      'SELECT id, cerrada FROM libertadores_jornadas WHERE numero = $1',
+      [numero]
+    );
+
+    if (jornadaCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    if (jornadaCheck.rows[0].cerrada) {
+      return res.status(403).json({ error: 'No puedes borrar pronósticos de una jornada cerrada' });
+    }
+
+    const jornadaId = jornadaCheck.rows[0].id;
+
+    // Borrar todos los pronósticos del usuario para esta jornada
+    const result = await pool.query(
+      'DELETE FROM libertadores_pronosticos WHERE usuario_id = $1 AND jornada_id = $2',
+      [usuario_id, jornadaId]
+    );
+
+    res.json({ 
+      mensaje: 'Pronósticos borrados exitosamente',
+      cantidad: result.rowCount
+    });
+  } catch (error) {
+    console.error('Error borrando pronósticos:', error);
+    res.status(500).json({ error: 'Error borrando pronósticos' });
   }
 });
 
