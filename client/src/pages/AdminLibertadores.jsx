@@ -1119,6 +1119,7 @@ export default function AdminLibertadores() {
               {/* SISTEMA DE OCTAVOS - JORNADA 7 */}
               {jornadaActual === 7 ? (
                 <div>
+                  {partidos.length === 0 ? (
                   <div className="card shadow-sm mb-4">
                     <div className="card-header bg-danger text-white">
                       <h3 className="mb-0">⚽ Formar Fixture de Octavos de Final</h3>
@@ -1246,26 +1247,105 @@ export default function AdminLibertadores() {
                       {/* Botón Guardar */}
                       <div className="text-center mt-4">
                         <button
-                          className="btn btn-success btn-lg px-5 me-3"
+                          className="btn btn-success btn-lg px-5"
                           onClick={guardarCrucesOctavos}
                           disabled={loading || crucesOctavos.filter(c => c.local && c.visita).length !== 8}
                         >
                           {loading ? '⏳ Guardando...' : '💾 Guardar Cruces de Octavos (IDA)'}
                         </button>
-                        
-                        {/* Botón para crear jornada 8 invirtiendo */}
-                        {partidos.length > 0 && (
-                          <button
-                            className="btn btn-info btn-lg px-5"
-                            onClick={invertirJornada7ParaJornada8}
-                            disabled={loading}
-                          >
-                            {loading ? '⏳ Creando...' : '🔄 Invertir para Jornada 8 (VUELTA)'}
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>
+                  ) : (
+                    <>
+                      <div className="alert alert-success mb-4">
+                        <h6 className="mb-2">✅ Jornada 7 configurada con {partidos.length} partidos (octavos ida)</h6>
+                        <button
+                          className="btn btn-info btn-sm mt-2"
+                          onClick={invertirJornada7ParaJornada8}
+                          disabled={loading}
+                        >
+                          {loading ? '⏳ Creando...' : '🔄 Crear Jornada 8 (VUELTA) invirtiendo localías'}
+                        </button>
+                      </div>
+                      
+                      {/* Mostrar partidos de jornada 7 */}
+                      <div className="mt-4">
+                        <h3 className="fw-bold fs-5 mb-3">Partidos de la Jornada 7</h3>
+                        <div className="row g-3">
+                          {partidos.map(partido => {
+                            const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
+                            return (
+                              <div key={partido.id} className="col-12 col-md-6">
+                                <div className="card">
+                                  <div className="card-body">
+                                    <div className="d-flex justify-content-between align-items-start gap-3">
+                                      <div className="flex-grow-1">
+                                        <p className="fw-bold mb-2">
+                                          {getNombreConPais(partido.nombre_local)} vs {getNombreConPais(partido.nombre_visita)}
+                                          {grupoLocal && <span className="ms-2 badge bg-primary">Grupo {grupoLocal}</span>}
+                                        </p>
+                                        {partido.goles_local !== null && (
+                                          <p className="text-success fw-bold small mb-2">
+                                            ✅ Resultado guardado: {partido.goles_local} - {partido.goles_visita}
+                                          </p>
+                                        )}
+                                        
+                                        {/* Inputs para ingresar resultados */}
+                                        <div className="mt-2">
+                                          <label className="form-label small mb-1">Ingresar Resultado:</label>
+                                          <div className="d-flex gap-2 align-items-center">
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              placeholder="Local"
+                                              value={resultados[partido.id]?.goles_local ?? ''}
+                                              onChange={(e) => setResultados(prev => ({
+                                                ...prev,
+                                                [partido.id]: { ...prev[partido.id], goles_local: e.target.value }
+                                              }))}
+                                              className="form-control form-control-sm"
+                                              style={{ width: '70px' }}
+                                            />
+                                            <span>-</span>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              placeholder="Visita"
+                                              value={resultados[partido.id]?.goles_visita ?? ''}
+                                              onChange={(e) => setResultados(prev => ({
+                                                ...prev,
+                                                [partido.id]: { ...prev[partido.id], goles_visita: e.target.value }
+                                              }))}
+                                              className="form-control form-control-sm"
+                                              style={{ width: '70px' }}
+                                            />
+                                            <button
+                                              onClick={() => guardarResultado(partido.id)}
+                                              className="btn btn-success btn-sm"
+                                            >
+                                              💾
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      <button
+                                        onClick={() => borrarPartido(partido.id)}
+                                        className="btn btn-danger btn-sm"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : jornadaActual === 8 ? (
                 /* JORNADA 8 - OCTAVOS VUELTA */
