@@ -30,16 +30,25 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         p.fecha as partido_fecha,
         lp.goles_local as pronostico_local,
         lp.goles_visita as pronostico_visita,
+        lp.penales_local as penales_pronostico_local,
+        lp.penales_visita as penales_pronostico_visita,
         p.goles_local as resultado_local,
         p.goles_visita as resultado_visita,
+        p.penales_local as penales_real_local,
+        p.penales_visita as penales_real_visita,
         lp.puntos,
-        lp.created_at as fecha_pronostico
+        lp.created_at as fecha_pronostico,
+        lpc.equipo_clasificado as equipo_pronosticado_avanza,
+        lpc.puntos as puntos_clasificacion
       FROM libertadores_pronosticos lp
       INNER JOIN usuarios u ON lp.usuario_id = u.id
       INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
       INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
       LEFT JOIN libertadores_equipos el ON p.nombre_local = el.nombre
       LEFT JOIN libertadores_equipos ev ON p.nombre_visita = ev.nombre
+      LEFT JOIN libertadores_puntos_clasificacion lpc ON lp.usuario_id = lpc.usuario_id 
+        AND lp.partido_id = lpc.partido_id 
+        AND lj.numero = lpc.jornada_numero
       WHERE 1=1
     `;
 
@@ -99,14 +108,20 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         },
         resultado: {
           local: row.resultado_local,
-          visita: row.resultado_visita
+          visita: row.resultado_visita,
+          penales_local: row.penales_real_local,
+          penales_visita: row.penales_real_visita
         }
       },
       pronostico: {
         local: row.pronostico_local,
-        visita: row.pronostico_visita
+        visita: row.pronostico_visita,
+        penales_local: row.penales_pronostico_local,
+        penales_visita: row.penales_pronostico_visita
       },
       puntos: row.puntos,
+      equipo_pronosticado_avanza: row.equipo_pronosticado_avanza,
+      puntos_clasificacion: row.puntos_clasificacion,
       fecha_pronostico: row.fecha_pronostico
     }));
 

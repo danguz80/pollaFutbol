@@ -499,56 +499,105 @@ export default function ClasificacionLibertadores() {
                 {agruparPronosticos().map((grupo, grupoIndex) => (
                   <>
                     {grupo.pronosticos.map((pronostico, index) => (
-                      <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
-                        <td className="fw-bold">{pronostico.usuario.nombre}</td>
-                        <td className="text-center">
-                          <span className="badge bg-primary">
-                            Jornada {pronostico.jornada.numero}
-                          </span>
-                        </td>
-                        <td className="text-center">
-                          {pronostico.partido.grupo ? (
-                            <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="d-flex flex-column">
-                            <small className="fw-bold">
-                              {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
-                            </small>
-                            <small className="fw-bold">
-                              {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
-                            </small>
-                          </div>
-                        </td>
-                        <td className="text-center fw-bold fs-5">
-                          {pronostico.pronostico.local} - {pronostico.pronostico.visita}
-                        </td>
-                        <td className="text-center fw-bold fs-5">
-                          {pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null
-                            ? `${pronostico.partido.resultado.local} - ${pronostico.partido.resultado.visita}`
-                            : <span className="text-muted">Pendiente</span>
-                          }
-                        </td>
-                        <td className="text-center fw-bold">
-                          {pronostico.puntos !== null ? (
-                            <span className="badge bg-warning text-dark fs-6">
-                              {pronostico.puntos} pts
+                      <>
+                        <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
+                          <td className="fw-bold">{pronostico.usuario.nombre}</td>
+                          <td className="text-center">
+                            <span className="badge bg-primary">
+                              Jornada {pronostico.jornada.numero}
                             </span>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="text-center">
+                            {pronostico.partido.grupo ? (
+                              <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="d-flex flex-column">
+                              <small className="fw-bold">
+                                {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                              </small>
+                              <small className="fw-bold">
+                                {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                              </small>
+                            </div>
+                          </td>
+                          <td className="text-center fw-bold fs-5">
+                            {pronostico.pronostico.local} - {pronostico.pronostico.visita}
+                            {pronostico.pronostico.penales_local !== null && pronostico.pronostico.penales_visita !== null && (
+                              <div className="text-muted small">
+                                Pen: {pronostico.pronostico.penales_local} - {pronostico.pronostico.penales_visita}
+                              </div>
+                            )}
+                          </td>
+                          <td className="text-center fw-bold fs-5">
+                            {pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
+                              <>
+                                {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
+                                {pronostico.partido.resultado.penales_local !== null && pronostico.partido.resultado.penales_visita !== null && (
+                                  <div className="text-muted small">
+                                    Pen: {pronostico.partido.resultado.penales_local} - {pronostico.partido.resultado.penales_visita}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted">Pendiente</span>
+                            )}
+                          </td>
+                          <td className="text-center fw-bold">
+                            {pronostico.puntos !== null ? (
+                              <span className="badge bg-warning text-dark fs-6">
+                                {pronostico.puntos} pts
+                              </span>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                        </tr>
+                        
+                        {/* Fila de "Equipo que avanza" para jornadas 7+ */}
+                        {pronostico.jornada.numero >= 7 && pronostico.equipo_pronosticado_avanza && (
+                          <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
+                            <td></td>
+                            <td colSpan="3" className="text-center fw-bold">
+                              ⚡ Equipo que avanza
+                            </td>
+                            <td className="text-center fw-bold">
+                              {pronostico.equipo_pronosticado_avanza}
+                            </td>
+                            <td className="text-center">
+                              {pronostico.partido.resultado.local !== null ? (
+                                <span className="text-muted">
+                                  {/* El equipo real que avanza se determina del resultado */}
+                                  -
+                                </span>
+                              ) : (
+                                <span className="text-muted">Pendiente</span>
+                              )}
+                            </td>
+                            <td className="text-center fw-bold">
+                              {pronostico.puntos_clasificacion > 0 ? (
+                                <span className="badge bg-success fs-6">
+                                  +{pronostico.puntos_clasificacion} pts
+                                </span>
+                              ) : pronostico.partido.resultado.local !== null ? (
+                                <span className="text-muted">0 pts</span>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     ))}
                     {/* Fila de total */}
                     <tr className="table-info fw-bold">
                       <td colSpan="6" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
                       <td className="text-center">
                         <span className="badge bg-dark fs-5">
-                          {grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0)} pts
+                          {grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0) + (p.puntos_clasificacion || 0), 0)} pts
                         </span>
                       </td>
                     </tr>
