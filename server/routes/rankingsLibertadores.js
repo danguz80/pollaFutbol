@@ -17,15 +17,22 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           u.id,
           u.nombre,
           u.foto_perfil,
-          COALESCE(SUM(lp.puntos), 0) + 
-          COALESCE(MAX(lpcamp.puntos_campeon), 0) + 
-          COALESCE(MAX(lpcamp.puntos_subcampeon), 0) as puntos_jornada
+          COALESCE(puntos_jornada.total, 0) + 
+          COALESCE(puntos_campeon.campeon, 0) + 
+          COALESCE(puntos_campeon.subcampeon, 0) as puntos_jornada
         FROM usuarios u
-        LEFT JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
-        LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id AND lj.numero = $1
-        LEFT JOIN libertadores_predicciones_campeon lpcamp ON u.id = lpcamp.usuario_id
-        GROUP BY u.id, u.nombre, u.foto_perfil
-        HAVING COUNT(lp.id) > 0
+        LEFT JOIN (
+          SELECT lp.usuario_id, SUM(lp.puntos) as total
+          FROM libertadores_pronosticos lp
+          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+          WHERE lj.numero = $1
+          GROUP BY lp.usuario_id
+        ) puntos_jornada ON u.id = puntos_jornada.usuario_id
+        LEFT JOIN (
+          SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
+          FROM libertadores_predicciones_campeon
+        ) puntos_campeon ON u.id = puntos_campeon.usuario_id
+        WHERE puntos_jornada.total IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `
       : `
@@ -43,6 +50,11 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
       `;
 
     const result = await pool.query(query, [jornadaNum]);
+    
+    // Debug para jornada 10
+    if (jornadaNum === 10 && result.rows.length > 0) {
+      console.log(`🔍 DEBUG Jornada 10 - Primeros 3 usuarios:`, result.rows.slice(0, 3));
+    }
 
     res.json(result.rows);
   } catch (error) {
