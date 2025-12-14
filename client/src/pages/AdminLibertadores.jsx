@@ -487,7 +487,9 @@ export default function AdminLibertadores() {
       partidosCargados.forEach(p => {
         resultadosIniciales[p.id] = {
           goles_local: p.goles_local ?? '',
-          goles_visita: p.goles_visita ?? ''
+          goles_visita: p.goles_visita ?? '',
+          penales_local: p.penales_local ?? '',
+          penales_visita: p.penales_visita ?? ''
         };
       });
       setResultados(resultadosIniciales);
