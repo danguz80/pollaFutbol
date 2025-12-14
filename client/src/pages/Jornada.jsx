@@ -146,14 +146,15 @@ export default function Jornada() {
       return;
     }
 
-    // Verificar que haya al menos un pronóstico ingresado
-    const hayPronosticos = partidosSemifinal.some(p => 
+    // Verificar que todos los pronósticos de semifinal estén completos
+    const todosPronosticosCompletos = partidosSemifinal.every(p => 
       pronosticos[p.id] && 
-      (pronosticos[p.id].goles_local !== undefined || pronosticos[p.id].goles_visita !== undefined)
+      pronosticos[p.id].goles_local !== undefined && 
+      pronosticos[p.id].goles_visita !== undefined
     );
 
-    if (!hayPronosticos) {
-      console.log('⚠️ No hay pronósticos ingresados todavía');
+    if (!todosPronosticosCompletos) {
+      console.log('⚠️ No todos los pronósticos de semifinal están completos');
       setEquiposFinalistasPronosticados([]);
       setPartidoFinal(null);
       return;
@@ -276,9 +277,18 @@ export default function Jornada() {
       }
 
       const respuestas = await Promise.all(
-        partidos.map((partido, index) => {
-          // Para jornada 10, si es la final (index 4), usar pronosticoFinal
-          const esLaFinal = jornadaSeleccionada === 10 && index === 4;
+        partidos
+          .filter((partido, index) => {
+            // En jornada 10, solo guardar semifinales si no hay finalistas calculados
+            // O guardar todo si ya hay finalistas
+            if (jornadaSeleccionada === 10) {
+              return index < 4 || equiposFinalistasPronosticados.length === 2;
+            }
+            return true;
+          })
+          .map((partido, index) => {
+          // Para jornada 10, si es la final (último partido), usar pronosticoFinal
+          const esLaFinal = jornadaSeleccionada === 10 && equiposFinalistasPronosticados.length === 2 && partidos.indexOf(partido) === partidos.length - 1;
           
           return fetch(`${API_BASE_URL}/api/pronosticos`, {
             method: "POST",
@@ -298,7 +308,16 @@ export default function Jornada() {
         })
       );
       const todosOk = respuestas.every((r) => r.ok);
-      setMensaje(todosOk ? "✅ Pronósticos guardados correctamente" : "❌ Error al guardar algunos pronósticos");
+      
+      if (todosOk) {
+        if (jornadaSeleccionada === 10 && equiposFinalistasPronosticados.length === 0) {
+          setMensaje("✅ Semifinales guardadas. Ahora calcula tus finalistas.");
+        } else {
+          setMensaje("✅ Pronósticos guardados correctamente");
+        }
+      } else {
+        setMensaje("❌ Error al guardar algunos pronósticos");
+      }
     } catch (err) {
       setMensaje("❌ Error al enviar pronósticos");
     }
@@ -360,7 +379,23 @@ export default function Jornada() {
                   </div>
                 ))}
 
-              {/* Sección especial para Jornada 10 - Finalistas y Final */}
+              {/* Sección especial para Jornada 10 - Botón Calcular y Finalistas */}
+              {jornadaSeleccionada === 10 && partidos.length === 5 && equiposFinalistasPronosticados.length === 0 && (
+                <div className="alert alert-info mt-4">
+                  <h6 className="fw-bold">📊 Paso siguiente:</h6>
+                  <p className="mb-2">Ya guardaste tus pronósticos de semifinales. Ahora haz clic en el botón de abajo para ver quiénes serán tus finalistas según tus pronósticos.</p>
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      // Forzar recálculo cambiando momentáneamente el estado
+                      setPronosticos(prev => ({...prev}));
+                    }}
+                  >
+                    🔄 Calcular Finalistas
+                  </button>
+                </div>
+              )}
+
               {jornadaSeleccionada === 10 && equiposFinalistasPronosticados.length === 2 && (
                 <>
                   <div className="card bg-success bg-opacity-10 border-success mt-4 mb-3">

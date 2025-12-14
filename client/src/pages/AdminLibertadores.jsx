@@ -2726,11 +2726,11 @@ export default function AdminLibertadores() {
                       </div>
 
                       {/* Partidos de Semifinal */}
-                      {partidos.length > 0 && partidos.length <= 4 && (
+                      {partidos.length >= 4 && (
                         <div className="mb-5">
                           <h4 className="fw-bold mb-3">🔥 Semifinales</h4>
                           <div className="row g-3 mb-4">
-                            {partidos.map((partido, index) => {
+                            {partidos.slice(0, 4).map((partido, index) => {
                               const esPartidoIda = index % 2 === 0;
                               const marcadorGlobal = !esPartidoIda ? calcularMarcadorGlobalSemifinal(partido) : null;
                               const hayEmpate = marcadorGlobal?.hayEmpate || false;
@@ -2941,6 +2941,13 @@ export default function AdminLibertadores() {
                       {partidos.length === 5 && (() => {
                         const partidoFinal = partidos.find(p => esPartidoFinal(p));
                         if (!partidoFinal) return null;
+                        
+                        // No mostrar si los equipos son TBD (Finalista 1, Finalista 2)
+                        const esFinalConEquiposReales = partidoFinal.nombre_local !== 'Finalista 1' && 
+                                                         partidoFinal.nombre_local !== 'TBD' &&
+                                                         !partidoFinal.nombre_local.includes('Finalista');
+                        
+                        if (!esFinalConEquiposReales) return null;
 
                         const golesLocal = partidoFinal.goles_local || 0;
                         const golesVisita = partidoFinal.goles_visita || 0;
