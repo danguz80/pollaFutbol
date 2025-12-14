@@ -491,7 +491,7 @@ export default function AdminLibertadores() {
         `${API_URL}/api/libertadores/jornadas/${jornadaActual}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const jornadaId = jornadaResponse.data.jornada.id;
+      const jornadaId = jornadaResponse.data.id;
       
       // Cambiar estado con el endpoint correcto
       await axios.patch(
