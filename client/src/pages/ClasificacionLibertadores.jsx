@@ -557,39 +557,57 @@ export default function ClasificacionLibertadores() {
                           </td>
                         </tr>
                         
-                        {/* Fila de "Equipo que avanza" para jornadas 7+ */}
-                        {pronostico.jornada.numero >= 7 && pronostico.equipo_pronosticado_avanza && (
-                          <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
-                            <td></td>
-                            <td colSpan="3" className="text-center fw-bold">
-                              ⚡ Equipo que avanza
-                            </td>
-                            <td className="text-center fw-bold">
-                              {pronostico.equipo_pronosticado_avanza}
-                            </td>
-                            <td className="text-center">
-                              {pronostico.partido.resultado.local !== null ? (
-                                <span className="text-muted">
-                                  {/* El equipo real que avanza se determina del resultado */}
-                                  -
-                                </span>
-                              ) : (
-                                <span className="text-muted">Pendiente</span>
-                              )}
-                            </td>
-                            <td className="text-center fw-bold">
-                              {pronostico.puntos_clasificacion > 0 ? (
-                                <span className="badge bg-success fs-6">
-                                  +{pronostico.puntos_clasificacion} pts
-                                </span>
-                              ) : pronostico.partido.resultado.local !== null ? (
-                                <span className="text-muted">0 pts</span>
-                              ) : (
-                                <span className="text-muted">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        )}
+                        {/* Fila de "Equipo que avanza" - Solo en jornadas 8+ y solo en partidos de VUELTA */}
+                        {(() => {
+                          const jornada = pronostico.jornada.numero;
+                          let esPartidoVuelta = false;
+                          
+                          // Jornada 8: Todos son de vuelta (octavos vuelta)
+                          if (jornada === 8) {
+                            esPartidoVuelta = true;
+                          }
+                          // Jornadas 9-10: Los partidos pares en el orden son VUELTA
+                          else if (jornada >= 9) {
+                            // Necesitamos identificar si es vuelta comparando con el índice en el grupo
+                            // Los partidos de vuelta tienen los equipos invertidos respecto a ida
+                            // Por simplicidad, asumimos que los índices pares (0, 2, 4...) son IDA y impares (1, 3, 5...) son VUELTA
+                            esPartidoVuelta = (index % 2) === 1;
+                          }
+                          
+                          return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
+                            <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
+                              <td></td>
+                              <td colSpan="3" className="text-center fw-bold">
+                                ⚡ Equipo que avanza
+                              </td>
+                              <td className="text-center fw-bold">
+                                {pronostico.equipo_pronosticado_avanza}
+                              </td>
+                              <td className="text-center">
+                                {pronostico.partido.resultado.local !== null ? (
+                                  <span className="text-muted small">
+                                    (Ver resultado global)
+                                  </span>
+                                ) : (
+                                  <span className="text-muted">Pendiente</span>
+                                )}
+                              </td>
+                              <td className="text-center fw-bold">
+                                {pronostico.puntos_clasificacion !== null && pronostico.puntos_clasificacion !== undefined ? (
+                                  pronostico.puntos_clasificacion > 0 ? (
+                                    <span className="badge bg-success fs-6">
+                                      +{pronostico.puntos_clasificacion} pts
+                                    </span>
+                                  ) : (
+                                    <span className="badge bg-secondary">0 pts</span>
+                                  )
+                                ) : (
+                                  <span className="text-muted">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })()}
                       </>
                     ))}
                     {/* Fila de total */}

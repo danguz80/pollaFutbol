@@ -110,17 +110,13 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         console.log(`✅ Pronóstico ${id} - Jornada ${jornada_numero}: ${puntosGanados} puntos`);
       }
 
-      // CALCULAR PUNTOS POR EQUIPOS QUE AVANZAN (solo fases eliminatorias)
-      if (jornada_numero >= 7 && jornada_numero <= 10) {
-        const equipoQueAvanzaReal = determinarEquipoQueAvanza(
-          resultado_local, 
-          resultado_visita, 
-          penales_real_local, 
-          penales_real_visita,
-          nombre_local,
-          nombre_visita
-        );
-        
+      // CALCULAR PUNTOS POR EQUIPOS QUE AVANZAN
+      // Jornada 7: NO calcular (solo IDA de octavos)
+      // Jornada 8: Calcular con marcador global (VUELTA de octavos)
+      // Jornadas 9-10: Calcular en partidos de VUELTA considerando global
+      
+      if (jornada_numero >= 8 && jornada_numero <= 10) {
+        // Determinar equipo que el usuario pronosticó que avanza
         const equipoQueAvanzaPronostico = determinarEquipoQueAvanza(
           pronostico_local,
           pronostico_visita,
@@ -130,28 +126,72 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           nombre_visita
         );
 
-        if (equipoQueAvanzaReal && equipoQueAvanzaPronostico === equipoQueAvanzaReal) {
-          // Determinar a qué fase avanza (la siguiente)
-          const faseAvance = getFaseAvance(jornada_numero);
-          const puntosPorAvance = reglas.find(
-            r => r.fase === 'CLASIFICACIÓN' && r.concepto.includes(faseAvance)
-          )?.puntos || 0;
+        // Para jornada 8, necesitamos el marcador global (IDA + VUELTA)
+        let equipoQueAvanzaReal = null;
+        
+        if (jornada_numero === 8) {
+          // Buscar partido de IDA (jornada 7) con equipos invertidos
+          const partidoIdaResult = await pool.query(`
+            SELECT goles_local, goles_visita, penales_local, penales_visita
+            FROM libertadores_partidos p
+            INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+            WHERE lj.numero = 7
+              AND p.nombre_local = $1
+              AND p.nombre_visita = $2
+          `, [nombre_visita, nombre_local]);
 
-          if (puntosPorAvance > 0) {
-            // Guardar puntos de clasificación en una tabla separada o acumular
-            await pool.query(`
-              INSERT INTO libertadores_puntos_clasificacion 
-              (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
-              VALUES ($1, $2, $3, $4, $5, $6)
-              ON CONFLICT (usuario_id, partido_id, jornada_numero)
-              DO UPDATE SET 
-                equipo_clasificado = EXCLUDED.equipo_clasificado,
-                fase_clasificado = EXCLUDED.fase_clasificado,
-                puntos = EXCLUDED.puntos
-            `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaReal, faseAvance, puntosPorAvance]);
+          if (partidoIdaResult.rows.length > 0) {
+            const partidoIda = partidoIdaResult.rows[0];
+            // Calcular marcador global
+            const golesGlobalLocal = resultado_local + (partidoIda.goles_visita || 0);
+            const golesGlobalVisita = resultado_visita + (partidoIda.goles_local || 0);
+            
+            equipoQueAvanzaReal = determinarEquipoQueAvanza(
+              golesGlobalLocal,
+              golesGlobalVisita,
+              penales_real_local,
+              penales_real_visita,
+              nombre_local,
+              nombre_visita
+            );
+          }
+        } else {
+          // Para jornadas 9 y 10, el marcador ya es el correcto del partido de vuelta
+          equipoQueAvanzaReal = determinarEquipoQueAvanza(
+            resultado_local, 
+            resultado_visita, 
+            penales_real_local, 
+            penales_real_visita,
+            nombre_local,
+            nombre_visita
+          );
+        }
 
+        // SIEMPRE guardar el pronóstico, con puntos o sin puntos
+        if (equipoQueAvanzaPronostico) {
+          let puntosPorAvance = 0;
+          
+          if (equipoQueAvanzaReal && equipoQueAvanzaPronostico === equipoQueAvanzaReal) {
+            // Determinar a qué fase avanza
+            const faseAvance = getFaseAvance(jornada_numero);
+            puntosPorAvance = reglas.find(
+              r => r.fase === 'CLASIFICACIÓN' && r.concepto.includes(faseAvance)
+            )?.puntos || 0;
+            
             puntosClasificacion += puntosPorAvance;
           }
+
+          // Guardar siempre (con puntos o sin puntos)
+          await pool.query(`
+            INSERT INTO libertadores_puntos_clasificacion 
+            (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (usuario_id, partido_id, jornada_numero)
+            DO UPDATE SET 
+              equipo_clasificado = EXCLUDED.equipo_clasificado,
+              fase_clasificado = EXCLUDED.fase_clasificado,
+              puntos = EXCLUDED.puntos
+          `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
       }
     }
