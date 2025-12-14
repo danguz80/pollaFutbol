@@ -532,11 +532,12 @@ export default function ClasificacionLibertadores() {
                             )}
                           </td>
                           <td>
-                            <div className="d-flex flex-column">
-                              <small className="fw-bold">
+                            <div className="d-flex justify-content-center align-items-center gap-2">
+                              <small className="fw-bold text-end" style={{flex: 1}}>
                                 {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
                               </small>
-                              <small className="fw-bold">
+                              <span className="text-muted">vs</span>
+                              <small className="fw-bold text-start" style={{flex: 1}}>
                                 {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
                               </small>
                             </div>
@@ -594,17 +595,37 @@ export default function ClasificacionLibertadores() {
                           return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
                             <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
                               <td></td>
-                              <td colSpan="3" className="text-center fw-bold">
-                                ⚡ Equipo que avanza
+                              <td colSpan="3" className="text-center">
+                                <div className="fw-bold mb-2">⚡ Equipo que avanza</div>
+                                {jornada === 8 && pronostico.partido_ida && (
+                                  <div className="small text-muted mt-2">
+                                    <div className="mb-1">
+                                      <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local || '?'} - {pronostico.partido_ida.resultado_ida_visita || '?'} {pronostico.partido_ida.nombre_visita}
+                                    </div>
+                                    {pronostico.partido.resultado.local !== null && (
+                                      <div>
+                                        <strong>Marcador Global:</strong> {pronostico.equipo_real_avanza} {
+                                          pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_visita || 0)
+                                        } {
+                                          pronostico.partido.resultado.penales_local !== null ? `(${pronostico.partido.resultado.penales_local} pen)` : ''
+                                        } vs {
+                                          pronostico.partido.resultado.visita + (pronostico.partido_ida.resultado_ida_local || 0)
+                                        } {
+                                          pronostico.partido.resultado.penales_visita !== null ? `(${pronostico.partido.resultado.penales_visita} pen)` : ''
+                                        } {pronostico.equipo_real_avanza === pronostico.partido.local.nombre ? pronostico.partido.visita.nombre : pronostico.partido.local.nombre}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                               <td className="text-center fw-bold">
                                 {pronostico.equipo_pronosticado_avanza}
                               </td>
                               <td className="text-center">
                                 {pronostico.partido.resultado.local !== null ? (
-                                  <span className="text-muted small">
-                                    (Ver resultado global)
-                                  </span>
+                                  <div className="fw-bold text-success">
+                                    {pronostico.equipo_real_avanza || '?'}
+                                  </div>
                                 ) : (
                                   <span className="text-muted">Pendiente</span>
                                 )}

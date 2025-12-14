@@ -84,16 +84,29 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
     const pronosticos = await Promise.all(result.rows.map(async row => {
       // Calcular equipo que el usuario pronosticó que avanza (para jornadas 8+)
       let equipoPronosticadoAvanza = null;
+      let partidoIda = null;
+      let equipoRealQueAvanza = null;
+      
       if (row.jornada_numero >= 8) {
         // Para jornada 8: Buscar partido IDA (jornada 7)
         // Para jornadas 9-10: El marcador es directo del partido de VUELTA
         let pronosticoGlobalLocal = row.pronostico_local;
         let pronosticoGlobalVisita = row.pronostico_visita;
+        let resultadoGlobalLocal = row.resultado_local;
+        let resultadoGlobalVisita = row.resultado_visita;
         
         if (row.jornada_numero === 8) {
           // Buscar partido IDA en jornada 7 con equipos invertidos
           const partidoIdaResult = await pool.query(`
-            SELECT lp.goles_local, lp.goles_visita
+            SELECT 
+              lp.goles_local, 
+              lp.goles_visita,
+              p.goles_local as resultado_ida_local,
+              p.goles_visita as resultado_ida_visita,
+              p.penales_local as penales_real_ida_local,
+              p.penales_visita as penales_real_ida_visita,
+              p.nombre_local,
+              p.nombre_visita
             FROM libertadores_pronosticos lp
             INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
             INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
@@ -104,10 +117,15 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
           `, [row.nombre_visita, row.nombre_local, row.usuario_id]);
           
           if (partidoIdaResult.rows.length > 0) {
-            const partidoIda = partidoIdaResult.rows[0];
+            partidoIda = partidoIdaResult.rows[0];
             // Global: Local actual + Visita IDA vs Visita actual + Local IDA
             pronosticoGlobalLocal = row.pronostico_local + partidoIda.goles_visita;
             pronosticoGlobalVisita = row.pronostico_visita + partidoIda.goles_local;
+            
+            if (partidoIda.resultado_ida_local !== null && partidoIda.resultado_ida_visita !== null) {
+              resultadoGlobalLocal = row.resultado_local + partidoIda.resultado_ida_visita;
+              resultadoGlobalVisita = row.resultado_visita + partidoIda.resultado_ida_local;
+            }
           }
         }
         
@@ -126,6 +144,24 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
               equipoPronosticadoAvanza = row.nombre_local;
             } else if (penalesLocal < penalesVisita) {
               equipoPronosticadoAvanza = row.nombre_visita;
+            }
+          }
+        }
+        
+        // Calcular equipo REAL que avanzó
+        if (row.resultado_local !== null && row.resultado_visita !== null) {
+          if (resultadoGlobalLocal > resultadoGlobalVisita) {
+            equipoRealQueAvanza = row.nombre_local;
+          } else if (resultadoGlobalLocal < resultadoGlobalVisita) {
+            equipoRealQueAvanza = row.nombre_visita;
+          } else {
+            // Empate global, revisar penales reales
+            if (row.penales_real_local !== null && row.penales_real_visita !== null) {
+              if (row.penales_real_local > row.penales_real_visita) {
+                equipoRealQueAvanza = row.nombre_local;
+              } else if (row.penales_real_local < row.penales_real_visita) {
+                equipoRealQueAvanza = row.nombre_visita;
+              }
             }
           }
         }
@@ -172,7 +208,9 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         puntos: row.puntos,
         equipo_pronosticado_avanza: equipoPronosticadoAvanza,
         puntos_clasificacion: row.puntos_clasificacion || 0,
-        fecha_pronostico: row.fecha_pronostico
+        fecha_pronostico: row.fecha_pronostico,
+        partido_ida: partidoIda,
+        equipo_real_avanza: equipoRealQueAvanza
       };
     }));
 
