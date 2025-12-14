@@ -814,10 +814,21 @@ export default function AdminLibertadores() {
         {/* Mensajes - Fixed en la parte inferior de la pantalla */}
         {message.text && (
           <div 
-            className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[9999] p-6 rounded-lg shadow-2xl min-w-[400px] max-w-[700px] text-center font-bold text-xl ${
-              message.type === 'success' ? 'bg-green-100 text-green-800 border-4 border-green-500' : 'bg-red-100 text-red-800 border-4 border-red-500'
-            }`}
-            style={{ animation: 'slideUp 0.3s ease-out' }}
+            className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-danger'}`}
+            style={{ 
+              position: 'fixed',
+              bottom: '20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 9999,
+              minWidth: '400px',
+              maxWidth: '700px',
+              fontSize: '1.2rem',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+              animation: 'slideUp 0.3s ease-out'
+            }}
           >
             {message.text}
           </div>
