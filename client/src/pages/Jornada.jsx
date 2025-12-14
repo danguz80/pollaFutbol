@@ -127,11 +127,30 @@ export default function Jornada() {
       return;
     }
 
+    console.log('🔍 Calculando finalistas - Partidos:', partidos.length);
+    console.log('🔍 Pronósticos actuales:', pronosticos);
+
     // Identificar partidos de semifinal vs final
     const partidosSemifinal = partidos.filter((p, index) => index < 4); // Primeros 4 son semifinales
     const partidoFinalReal = partidos.find((p, index) => index === 4); // Quinto es la final
     
-    if (partidosSemifinal.length < 4) return;
+    if (partidosSemifinal.length < 4) {
+      console.log('⚠️ No hay suficientes partidos de semifinal');
+      return;
+    }
+
+    // Verificar que haya al menos un pronóstico ingresado
+    const hayPronosticos = partidosSemifinal.some(p => 
+      pronosticos[p.id] && 
+      (pronosticos[p.id].goles_local !== undefined || pronosticos[p.id].goles_visita !== undefined)
+    );
+
+    if (!hayPronosticos) {
+      console.log('⚠️ No hay pronósticos ingresados todavía');
+      setEquiposFinalistasPronosticados([]);
+      setPartidoFinal(null);
+      return;
+    }
 
     // Calcular ganadores basados en PRONÓSTICOS del usuario
     const ganadores = [];
@@ -143,19 +162,28 @@ export default function Jornada() {
     partidosIda.forEach((ida, index) => {
       const vuelta = partidosVuelta[index];
       
+      console.log(`\n🏟️ Semifinal ${index + 1}:`);
+      console.log(`  IDA: ${ida.local} vs ${ida.visita}`);
+      console.log(`  VUELTA: ${vuelta.local} vs ${vuelta.visita}`);
+      
       // Obtener pronósticos o valores por defecto
-      const golesIdaLocal = Number(pronosticos[ida.id]?.goles_local) || 0;
-      const golesIdaVisita = Number(pronosticos[ida.id]?.goles_visita) || 0;
-      const golesVueltaLocal = Number(pronosticos[vuelta.id]?.goles_local) || 0;
-      const golesVueltaVisita = Number(pronosticos[vuelta.id]?.goles_visita) || 0;
+      const golesIdaLocal = Number(pronosticos[ida.id]?.goles_local ?? 0);
+      const golesIdaVisita = Number(pronosticos[ida.id]?.goles_visita ?? 0);
+      const golesVueltaLocal = Number(pronosticos[vuelta.id]?.goles_local ?? 0);
+      const golesVueltaVisita = Number(pronosticos[vuelta.id]?.goles_visita ?? 0);
+      
+      console.log(`  Pronóstico IDA: ${golesIdaLocal}-${golesIdaVisita}`);
+      console.log(`  Pronóstico VUELTA: ${golesVueltaLocal}-${golesVueltaVisita}`);
       
       // Penales si existen
-      const penalesVueltaLocal = Number(pronosticos[vuelta.id]?.penales_local) || 0;
-      const penalesVueltaVisita = Number(pronosticos[vuelta.id]?.penales_visita) || 0;
+      const penalesVueltaLocal = Number(pronosticos[vuelta.id]?.penales_local ?? 0);
+      const penalesVueltaVisita = Number(pronosticos[vuelta.id]?.penales_visita ?? 0);
       
       // Calcular marcador global
       const golesEquipoLocal = golesIdaLocal + golesVueltaVisita;
       const golesEquipoVisita = golesIdaVisita + golesVueltaLocal;
+      
+      console.log(`  Marcador global: ${ida.local} ${golesEquipoLocal} - ${golesEquipoVisita} ${ida.visita}`);
       
       let ganador = null;
       
@@ -167,16 +195,22 @@ export default function Jornada() {
         // Empate - revisar penales
         if (penalesVueltaLocal > 0 || penalesVueltaVisita > 0) {
           ganador = penalesVueltaLocal > penalesVueltaVisita ? vuelta.local : vuelta.visita;
+          console.log(`  Definido por penales: ${penalesVueltaLocal}-${penalesVueltaVisita}`);
         } else {
           // Si no hay penales, poner al equipo local por defecto
           ganador = ida.local;
+          console.log(`  ⚠️ Empate sin penales - ganador por defecto: ${ganador}`);
         }
       }
+      
+      console.log(`  ✅ Ganador: ${ganador}`);
       
       if (ganador) {
         ganadores.push(ganador);
       }
     });
+    
+    console.log('\n🎯 Finalistas calculados:', ganadores);
     
     setEquiposFinalistasPronosticados(ganadores);
     setPartidoFinal(partidoFinalReal);
