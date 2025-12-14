@@ -592,7 +592,7 @@ router.post('/cuartos', verifyToken, authorizeRoles('admin'), async (req, res) =
       await pool.query(
         `INSERT INTO libertadores_partidos 
          (nombre_local, nombre_visita, jornada_id, fecha, bonus) 
-         VALUES ($1, $2, $3, NOW(), 2)`,
+         VALUES ($1, $2, $3, NOW(), 1)`,
         [partido.nombre_local, partido.nombre_visita, jornadaId]
       );
     }
