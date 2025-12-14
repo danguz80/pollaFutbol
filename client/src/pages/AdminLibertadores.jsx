@@ -264,7 +264,8 @@ export default function AdminLibertadores() {
       });
       const partidosCargados = response.data.partidos || [];
       setPartidos(partidosCargados);
-      setJornadaCerrada(response.data.jornada?.cerrada || false);
+      // Corregido: el estado cerrada viene directo en response.data
+      setJornadaCerrada(response.data.cerrada || false);
       
       // Inicializar resultados con valores existentes
       const resultadosIniciales = {};
@@ -500,9 +501,9 @@ export default function AdminLibertadores() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      setMessage({ type: 'success', text: `✅ Jornada ${nuevoCerrada ? 'cerrada' : 'abierta'}` });
-      cargarJornada();
-      setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+      setMessage({ type: 'success', text: `✅ Jornada ${nuevoCerrada ? 'cerrada' : 'abierta'} exitosamente` });
+      await cargarJornada();
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
       console.error(`Error al ${accion} jornada:`, error);
       setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
@@ -795,21 +796,37 @@ export default function AdminLibertadores() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-4">
+    <>
+      <style>{`
+        @keyframes slideDown {
+          from {
+            transform: translate(-50%, -100%);
+            opacity: 0;
+          }
+          to {
+            transform: translate(-50%, 0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-4">
       <div className="max-w-7xl mx-auto">
+        {/* Mensajes - Fixed en la parte superior */}
+        {message.text && (
+          <div 
+            className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 p-4 rounded-lg shadow-lg min-w-[300px] max-w-[600px] text-center ${
+              message.type === 'success' ? 'bg-green-100 text-green-800 border-2 border-green-500' : 'bg-red-100 text-red-800 border-2 border-red-500'
+            }`}
+            style={{ animation: 'slideDown 0.3s ease-out' }}
+          >
+            {message.text}
+          </div>
+        )}
+        
         <div className="bg-white rounded-lg shadow-2xl p-6">
           <h1 className="text-3xl font-bold text-blue-900 mb-6">
             ⚽ Admin Copa Libertadores 2026
           </h1>
-
-          {/* Mensajes */}
-          {message.text && (
-            <div className={`p-4 mb-4 rounded-lg ${
-              message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}>
-              {message.text}
-            </div>
-          )}
 
           {/* Tabs de navegación */}
           <div className="flex gap-4 mb-6 border-b">
@@ -1509,5 +1526,6 @@ export default function AdminLibertadores() {
         </div>
       </div>
     </div>
+    </>
   );
 }
