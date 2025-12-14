@@ -364,11 +364,9 @@ export default function ClasificacionLibertadores() {
                 onChange={(e) => setFiltroJornada(e.target.value)}
               >
                 <option value="">Todas las jornadas</option>
-                {jornadas
-                  .filter(jornada => esAdmin || jornada.cerrada)
-                  .map(jornada => (
+                {jornadas.map(jornada => (
                   <option key={jornada.id} value={jornada.numero}>
-                    {jornada.nombre} {!esAdmin && jornada.cerrada && '(Cerrada)'}
+                    {jornada.nombre} {jornada.cerrada ? '🔒 Cerrada' : '🔓 Abierta'}
                   </option>
                 ))}
               </select>
