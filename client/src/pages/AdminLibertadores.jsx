@@ -50,6 +50,7 @@ export default function AdminLibertadores() {
 
   // Estado para partidos de la jornada actual
   const [partidos, setPartidos] = useState([]);
+  const [partidosIda, setPartidosIda] = useState([]); // Para jornada 7 (usados en jornada 8)
   const [nuevoPartido, setNuevoPartido] = useState({
     equipo_local: '',
     equipo_visitante: '',
@@ -68,6 +69,9 @@ export default function AdminLibertadores() {
     cargarJornada();
     if (jornadaActual === 7) {
       cargarEquiposClasificados();
+    }
+    if (jornadaActual === 8) {
+      cargarPartidosIda();
     }
     if (jornadaActual === 9) {
       cargarGanadoresOctavos();
@@ -94,6 +98,19 @@ export default function AdminLibertadores() {
       setEquiposClasificados({ primeros, segundos });
     } catch (error) {
       console.error('Error cargando equipos clasificados:', error);
+    }
+  };
+
+  const cargarPartidosIda = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `${API_URL}/api/libertadores/jornadas/7`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPartidosIda(response.data.partidos || []);
+    } catch (error) {
+      console.error('Error cargando partidos de ida:', error);
     }
   };
 
@@ -389,18 +406,17 @@ export default function AdminLibertadores() {
     }
   };
 
-  // Calcular si hay empate global en octavos (para mostrar inputs de penales)
-  const calcularEmpateGlobal = (partidoVuelta) => {
-    // Solo aplica para jornada 8
-    if (jornadaActual !== 8) return false;
+  // Calcular marcador global y si hay empate (para jornada 8)
+  const calcularMarcadorGlobal = (partidoVuelta) => {
+    if (jornadaActual !== 8) return null;
     
     // Buscar partido de ida correspondiente (equipos invertidos)
-    const partidoIda = partidos.find(p => 
+    const partidoIda = partidosIda.find(p => 
       p.nombre_local === partidoVuelta.nombre_visita && 
       p.nombre_visita === partidoVuelta.nombre_local
     );
     
-    if (!partidoIda) return false;
+    if (!partidoIda) return null;
     
     // Obtener goles (de la BD o de resultados temporales)
     const golesIdaLocal = partidoIda.goles_local ?? resultados[partidoIda.id]?.goles_local ?? 0;
@@ -408,11 +424,19 @@ export default function AdminLibertadores() {
     const golesVueltaLocal = partidoVuelta.goles_local ?? resultados[partidoVuelta.id]?.goles_local ?? 0;
     const golesVueltaVisita = partidoVuelta.goles_visita ?? resultados[partidoVuelta.id]?.goles_visita ?? 0;
     
-    // Calcular marcador global
-    const golesGlobalLocal = Number(golesIdaLocal) + Number(golesVueltaVisita);
-    const golesGlobalVisita = Number(golesIdaVisita) + Number(golesVueltaLocal);
+    // Calcular marcador global (desde perspectiva del partido de IDA)
+    // En IDA: equipoA (local) vs equipoB (visita)
+    // En VUELTA: equipoB (local) vs equipoA (visita)
+    const golesEquipoA = Number(golesIdaLocal) + Number(golesVueltaVisita);
+    const golesEquipoB = Number(golesIdaVisita) + Number(golesVueltaLocal);
     
-    return golesGlobalLocal === golesGlobalVisita;
+    return {
+      equipoA: partidoIda.nombre_local,
+      equipoB: partidoIda.nombre_visita,
+      golesA: golesEquipoA,
+      golesB: golesEquipoB,
+      hayEmpate: golesEquipoA === golesEquipoB && (golesIdaLocal > 0 || golesIdaVisita > 0 || golesVueltaLocal > 0 || golesVueltaVisita > 0)
+    };
   };
 
   const cargarEquipos = async () => {
@@ -1627,7 +1651,8 @@ export default function AdminLibertadores() {
                         <div className="row g-3">
                           {partidos.map(partido => {
                             const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
-                            const hayEmpate = calcularEmpateGlobal(partido);
+                            const marcadorGlobal = calcularMarcadorGlobal(partido);
+                            const hayEmpate = marcadorGlobal?.hayEmpate || false;
                             return (
                               <div key={partido.id} className="col-12 col-md-6">
                                 <div className="card">
@@ -1638,6 +1663,17 @@ export default function AdminLibertadores() {
                                           {getNombreConPais(partido.nombre_local)} vs {getNombreConPais(partido.nombre_visita)}
                                           {grupoLocal && <span className="ms-2 badge bg-primary">Grupo {grupoLocal}</span>}
                                         </p>
+                                        
+                                        {/* Marcador global */}
+                                        {marcadorGlobal && (marcadorGlobal.golesA > 0 || marcadorGlobal.golesB > 0) && (
+                                          <div className={`alert ${marcadorGlobal.hayEmpate ? 'alert-warning' : 'alert-info'} py-2 mb-2`}>
+                                            <small className="fw-bold">
+                                              📊 Marcador Global: {marcadorGlobal.equipoA} {marcadorGlobal.golesA} - {marcadorGlobal.golesB} {marcadorGlobal.equipoB}
+                                              {marcadorGlobal.hayEmpate && ' ⚠️ EMPATE'}
+                                            </small>
+                                          </div>
+                                        )}
+                                        
                                         {partido.goles_local !== null && (
                                           <p className="text-success fw-bold small mb-2">
                                             ✅ Resultado guardado: {partido.goles_local} - {partido.goles_visita}
