@@ -970,6 +970,12 @@ export default function AdminLibertadores() {
     return null;
   };
 
+  // Función para mostrar el país (emoji o texto)
+  const paisEmoji = (pais) => {
+    if (!pais) return '';
+    return `(${pais})`;
+  };
+
   // Función para obtener el nombre completo con sufijo de país
   const getNombreConPais = (nombreEquipo) => {
     for (const teams of Object.values(equipos)) {
