@@ -504,8 +504,8 @@ export default function JornadaLibertadores() {
                       // Detectar si es partido de VUELTA
                       const partidoIndex = partidos.findIndex(p => p.id === partido.id);
                       // J8: Todos son VUELTA (índices 0-7)
-                      // J9: Índices 1 y 3 son VUELTA
-                      // J10: Índices 1 y 3 son VUELTA
+                      // J9: Índices 1 y 3 son VUELTA (Cuartos)
+                      // J10: Índices 1 y 3 son VUELTA (Semifinales)
                       const esVuelta = Number(numero) === 8 || partidoIndex === 1 || partidoIndex === 3;
                       
                       if (!esVuelta) return null;
@@ -537,7 +537,11 @@ export default function JornadaLibertadores() {
                         }
                       }
                       
-                      if (!partidoIda) return null;
+                      // Si no encuentra partido IDA, no mostrar penales
+                      if (!partidoIda) {
+                        console.log(`❌ J${numero} - No se encontró partido IDA para`, partido.nombre_local, 'vs', partido.nombre_visita);
+                        return null;
+                      }
                       
                       // Calcular marcador global
                       const golesVueltaLocal = Number(pronosticos[partido.id]?.goles_local ?? 0);
@@ -546,8 +550,14 @@ export default function JornadaLibertadores() {
                       const golesEquipoA = golesIdaLocal + golesVueltaVisita;
                       const golesEquipoB = golesIdaVisita + golesVueltaLocal;
                       
+                      // Hay empate si el marcador global es igual Y se han ingresado pronósticos
                       const hayEmpate = golesEquipoA === golesEquipoB && 
-                                       (golesIdaLocal > 0 || golesIdaVisita > 0 || golesVueltaLocal > 0 || golesVueltaVisita > 0);
+                                       (pronosticos[partido.id]?.goles_local !== undefined || 
+                                        pronosticos[partido.id]?.goles_visita !== undefined);
+                      
+                      console.log(`⚽ J${numero} - Partido VUELTA:`, partido.nombre_local, 'vs', partido.nombre_visita);
+                      console.log(`  IDA: ${golesIdaLocal}-${golesIdaVisita}, VUELTA: ${golesVueltaLocal}-${golesVueltaVisita}`);
+                      console.log(`  Global: ${golesEquipoA}-${golesEquipoB}, Empate: ${hayEmpate}`);
                       
                       if (!hayEmpate) return null;
                       
