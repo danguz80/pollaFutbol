@@ -69,7 +69,6 @@ app.use(express.json());
       ALTER TABLE libertadores_jornadas 
       ADD COLUMN IF NOT EXISTS activa BOOLEAN DEFAULT false
     `);
-    console.log('✅ Columna "activa" verificada en libertadores_jornadas');
   } catch (error) {
     console.error('❌ Error en migración de columna "activa":', error.message);
   }
@@ -82,7 +81,6 @@ app.use(express.json());
       ALTER TABLE libertadores_equipos 
       ADD COLUMN IF NOT EXISTS pais VARCHAR(10)
     `);
-    console.log('✅ Columna "pais" verificada en libertadores_equipos');
   } catch (error) {
     console.error('❌ Error en migración de columna "pais":', error.message);
   }
@@ -100,9 +98,49 @@ app.use(express.json());
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✅ Tabla "libertadores_puntuacion" verificada');
   } catch (error) {
     console.error('❌ Error creando tabla libertadores_puntuacion:', error.message);
+  }
+})();
+
+// Migración automática: crear tabla libertadores_puntos_clasificacion
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS libertadores_puntos_clasificacion (
+        id SERIAL PRIMARY KEY,
+        usuario_id INTEGER NOT NULL,
+        partido_id INTEGER NOT NULL,
+        jornada_numero INTEGER NOT NULL,
+        equipo_clasificado VARCHAR(100) NOT NULL,
+        fase_clasificado VARCHAR(50) NOT NULL,
+        puntos INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(usuario_id, partido_id, jornada_numero)
+      )
+    `);
+  } catch (error) {
+    console.error('❌ Error creando tabla libertadores_puntos_clasificacion:', error.message);
+  }
+})();
+
+// Migración automática: crear tabla libertadores_predicciones_campeon
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS libertadores_predicciones_campeon (
+        id SERIAL PRIMARY KEY,
+        usuario_id INTEGER NOT NULL UNIQUE,
+        campeon VARCHAR(100),
+        subcampeon VARCHAR(100),
+        puntos_campeon INTEGER DEFAULT 0,
+        puntos_subcampeon INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (error) {
+    console.error('❌ Error creando tabla libertadores_predicciones_campeon:', error.message);
   }
 })();
 
@@ -128,7 +166,6 @@ app.use(express.json());
         [jornada.nombre, jornada.numero]
       );
     }
-    console.log('✅ Nombres de jornadas actualizados');
   } catch (error) {
     console.error('❌ Error actualizando nombres de jornadas:', error.message);
   }
@@ -167,5 +204,4 @@ setInterval(cierreAutomaticoJornadas, 60000);
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  console.log('📧 Servicio de notificaciones por email configurado');
 });

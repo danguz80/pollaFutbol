@@ -8,21 +8,41 @@ const router = express.Router();
 router.get('/jornada/:numero', verifyToken, async (req, res) => {
   try {
     const { numero } = req.params;
+    const jornadaNum = parseInt(numero);
 
-    const result = await pool.query(`
-      SELECT 
-        u.id,
-        u.nombre,
-        u.foto_perfil,
-        COALESCE(SUM(lp.puntos), 0) as puntos_jornada
-      FROM usuarios u
-      LEFT JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
-      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-      WHERE lj.numero = $1 OR lj.numero IS NULL
-      GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING SUM(lp.puntos) IS NOT NULL
-      ORDER BY puntos_jornada DESC, u.nombre ASC
-    `, [parseInt(numero)]);
+    // Si es jornada 10, incluir puntos de campeón/subcampeón
+    const query = jornadaNum === 10 
+      ? `
+        SELECT 
+          u.id,
+          u.nombre,
+          u.foto_perfil,
+          COALESCE(SUM(lp.puntos), 0) + 
+          COALESCE(MAX(lpcamp.puntos_campeon), 0) + 
+          COALESCE(MAX(lpcamp.puntos_subcampeon), 0) as puntos_jornada
+        FROM usuarios u
+        LEFT JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
+        LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id AND lj.numero = $1
+        LEFT JOIN libertadores_predicciones_campeon lpcamp ON u.id = lpcamp.usuario_id
+        GROUP BY u.id, u.nombre, u.foto_perfil
+        HAVING COUNT(lp.id) > 0 OR MAX(lpcamp.puntos_campeon) > 0 OR MAX(lpcamp.puntos_subcampeon) > 0
+        ORDER BY puntos_jornada DESC, u.nombre ASC
+      `
+      : `
+        SELECT 
+          u.id,
+          u.nombre,
+          u.foto_perfil,
+          COALESCE(SUM(lp.puntos), 0) as puntos_jornada
+        FROM usuarios u
+        INNER JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
+        INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+        WHERE lj.numero = $1
+        GROUP BY u.id, u.nombre, u.foto_perfil
+        ORDER BY puntos_jornada DESC, u.nombre ASC
+      `;
+
+    const result = await pool.query(query, [jornadaNum]);
 
     res.json(result.rows);
   } catch (error) {
@@ -41,13 +61,17 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(lp.puntos), 0) as puntos_acumulados
+        COALESCE(SUM(lp.puntos), 0) + 
+        COALESCE(SUM(lpc.puntos), 0) + 
+        COALESCE(MAX(lpcamp.puntos_campeon), 0) + 
+        COALESCE(MAX(lpcamp.puntos_subcampeon), 0) as puntos_acumulados
       FROM usuarios u
       LEFT JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
-      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-      WHERE lj.numero <= $1 OR lj.numero IS NULL
+      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id AND lj.numero <= $1
+      LEFT JOIN libertadores_puntos_clasificacion lpc ON u.id = lpc.usuario_id AND lpc.jornada_numero <= $1
+      LEFT JOIN libertadores_predicciones_campeon lpcamp ON u.id = lpcamp.usuario_id
       GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING SUM(lp.puntos) IS NOT NULL
+      HAVING SUM(lp.puntos) IS NOT NULL OR SUM(lpc.puntos) IS NOT NULL OR MAX(lpcamp.puntos_campeon) IS NOT NULL
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `, [parseInt(numero)]);
 
@@ -76,13 +100,17 @@ router.get('/actual', verifyToken, async (req, res) => {
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(lp.puntos), 0) as puntos_acumulados
+        COALESCE(SUM(lp.puntos), 0) + 
+        COALESCE(SUM(lpc.puntos), 0) + 
+        COALESCE(MAX(lpcamp.puntos_campeon), 0) + 
+        COALESCE(MAX(lpcamp.puntos_subcampeon), 0) as puntos_acumulados
       FROM usuarios u
       LEFT JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
-      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-      WHERE lj.numero <= $1 OR lj.numero IS NULL
+      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id AND lj.numero <= $1
+      LEFT JOIN libertadores_puntos_clasificacion lpc ON u.id = lpc.usuario_id AND lpc.jornada_numero <= $1
+      LEFT JOIN libertadores_predicciones_campeon lpcamp ON u.id = lpcamp.usuario_id
       GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING SUM(lp.puntos) IS NOT NULL
+      HAVING SUM(lp.puntos) IS NOT NULL OR SUM(lpc.puntos) IS NOT NULL OR MAX(lpcamp.puntos_campeon) IS NOT NULL
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `, [ultimaJornada]);
 
