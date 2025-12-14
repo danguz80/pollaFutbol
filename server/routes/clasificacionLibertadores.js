@@ -81,49 +81,76 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
     const result = await pool.query(query, params);
 
     // Formatear datos
-    const pronosticos = result.rows.map(row => ({
-      id: row.id,
-      usuario: {
-        id: row.usuario_id,
-        nombre: row.usuario_nombre,
-        foto_perfil: row.usuario_foto_perfil
-      },
-      jornada: {
-        id: row.jornada_id,
-        numero: row.jornada_numero,
-        nombre: row.jornada_nombre,
-        cerrada: row.jornada_cerrada
-      },
-      partido: {
-        id: row.partido_id,
-        fecha: row.partido_fecha,
-        grupo: row.grupo_local,
-        local: {
-          nombre: row.nombre_local,
-          pais: row.pais_local
-        },
-        visita: {
-          nombre: row.nombre_visita,
-          pais: row.pais_visita
-        },
-        resultado: {
-          local: row.resultado_local,
-          visita: row.resultado_visita,
-          penales_local: row.penales_real_local,
-          penales_visita: row.penales_real_visita
+    const pronosticos = result.rows.map(row => {
+      // Calcular equipo que el usuario pronosticó que avanza (para jornadas 8+)
+      let equipoPronosticadoAvanza = null;
+      if (row.jornada_numero >= 8) {
+        const pronosticoLocal = row.pronostico_local;
+        const pronosticoVisita = row.pronostico_visita;
+        const penalesLocal = row.penales_pronostico_local;
+        const penalesVisita = row.penales_pronostico_visita;
+        
+        // Determinar ganador según pronóstico
+        if (pronosticoLocal > pronosticoVisita) {
+          equipoPronosticadoAvanza = row.nombre_local;
+        } else if (pronosticoLocal < pronosticoVisita) {
+          equipoPronosticadoAvanza = row.nombre_visita;
+        } else {
+          // Si hay empate, revisar penales
+          if (penalesLocal !== null && penalesVisita !== null) {
+            if (penalesLocal > penalesVisita) {
+              equipoPronosticadoAvanza = row.nombre_local;
+            } else if (penalesLocal < penalesVisita) {
+              equipoPronosticadoAvanza = row.nombre_visita;
+            }
+          }
         }
-      },
-      pronostico: {
-        local: row.pronostico_local,
-        visita: row.pronostico_visita,
-        penales_local: row.penales_pronostico_local,
-        penales_visita: row.penales_pronostico_visita
-      },
-      puntos: row.puntos,
-      equipo_pronosticado_avanza: row.equipo_pronosticado_avanza,
-      puntos_clasificacion: row.puntos_clasificacion,
-      fecha_pronostico: row.fecha_pronostico
-    }));
+      }
+      
+      return {
+        id: row.id,
+        usuario: {
+          id: row.usuario_id,
+          nombre: row.usuario_nombre,
+          foto_perfil: row.usuario_foto_perfil
+        },
+        jornada: {
+          id: row.jornada_id,
+          numero: row.jornada_numero,
+          nombre: row.jornada_nombre,
+          cerrada: row.jornada_cerrada
+        },
+        partido: {
+          id: row.partido_id,
+          fecha: row.partido_fecha,
+          grupo: row.grupo_local,
+          local: {
+            nombre: row.nombre_local,
+            pais: row.pais_local
+          },
+          visita: {
+            nombre: row.nombre_visita,
+            pais: row.pais_visita
+          },
+          resultado: {
+            local: row.resultado_local,
+            visita: row.resultado_visita,
+            penales_local: row.penales_real_local,
+            penales_visita: row.penales_real_visita
+          }
+        },
+        pronostico: {
+          local: row.pronostico_local,
+          visita: row.pronostico_visita,
+          penales_local: row.penales_pronostico_local,
+          penales_visita: row.penales_pronostico_visita
+        },
+        puntos: row.puntos,
+        equipo_pronosticado_avanza: equipoPronosticadoAvanza,
+        puntos_clasificacion: row.puntos_clasificacion || 0,
+        fecha_pronostico: row.fecha_pronostico
+      };
+    });
 
     res.json(pronosticos);
   } catch (error) {

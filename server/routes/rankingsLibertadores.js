@@ -18,6 +18,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           u.nombre,
           u.foto_perfil,
           COALESCE(puntos_jornada.total, 0) + 
+          COALESCE(puntos_clasificacion.total, 0) +
           COALESCE(puntos_campeon.campeon, 0) + 
           COALESCE(puntos_campeon.subcampeon, 0) as puntos_jornada
         FROM usuarios u
@@ -29,10 +30,16 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           GROUP BY lp.usuario_id
         ) puntos_jornada ON u.id = puntos_jornada.usuario_id
         LEFT JOIN (
+          SELECT usuario_id, SUM(puntos) as total
+          FROM libertadores_puntos_clasificacion
+          WHERE jornada_numero = $1
+          GROUP BY usuario_id
+        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+        LEFT JOIN (
           SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
           FROM libertadores_predicciones_campeon
         ) puntos_campeon ON u.id = puntos_campeon.usuario_id
-        WHERE puntos_jornada.total IS NOT NULL
+        WHERE puntos_jornada.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `
       : `
@@ -40,12 +47,22 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           u.id,
           u.nombre,
           u.foto_perfil,
-          COALESCE(SUM(lp.puntos), 0) as puntos_jornada
+          COALESCE(puntos_jornada.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada
         FROM usuarios u
-        INNER JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
-        INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-        WHERE lj.numero = $1
-        GROUP BY u.id, u.nombre, u.foto_perfil
+        LEFT JOIN (
+          SELECT lp.usuario_id, SUM(lp.puntos) as total
+          FROM libertadores_pronosticos lp
+          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+          WHERE lj.numero = $1
+          GROUP BY lp.usuario_id
+        ) puntos_jornada ON u.id = puntos_jornada.usuario_id
+        LEFT JOIN (
+          SELECT usuario_id, SUM(puntos) as total
+          FROM libertadores_puntos_clasificacion
+          WHERE jornada_numero = $1
+          GROUP BY usuario_id
+        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+        WHERE puntos_jornada.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
