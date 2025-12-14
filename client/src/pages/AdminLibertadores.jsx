@@ -69,6 +69,9 @@ export default function AdminLibertadores() {
     if (jornadaActual === 7) {
       cargarEquiposClasificados();
     }
+    if (jornadaActual === 9) {
+      cargarGanadoresOctavos();
+    }
   }, [jornadaActual]);
 
   useEffect(() => {
@@ -91,6 +94,15 @@ export default function AdminLibertadores() {
       setEquiposClasificados({ primeros, segundos });
     } catch (error) {
       console.error('Error cargando equipos clasificados:', error);
+    }
+  };
+
+  const cargarGanadoresOctavos = async () => {
+    try {
+      const ganadores = await calcularGanadoresOctavos();
+      setEquiposClasificadosCuartos(ganadores);
+    } catch (error) {
+      console.error('Error cargando ganadores de octavos:', error);
     }
   };
 
@@ -293,6 +305,36 @@ export default function AdminLibertadores() {
       console.error('Error calculando ganadores de octavos:', error);
       return [];
     }
+  };
+
+  const seleccionarEquipoCuartos = (equipo) => {
+    // Calcular en qué posición va el equipo
+    const indice = equiposCuartosSeleccionados.length;
+    const cruceIndex = Math.floor(indice / 2);
+    const esLocal = indice % 2 === 0;
+
+    // Agregar equipo a la lista de seleccionados
+    const nuevosSeleccionados = [...equiposCuartosSeleccionados, equipo];
+    setEquiposCuartosSeleccionados(nuevosSeleccionados);
+
+    // Actualizar el cruce correspondiente
+    const nuevosCruces = [...crucesCuartos];
+    if (esLocal) {
+      nuevosCruces[cruceIndex].local = equipo;
+    } else {
+      nuevosCruces[cruceIndex].visita = equipo;
+    }
+    setCrucesCuartos(nuevosCruces);
+  };
+
+  const reiniciarSeleccionCuartos = () => {
+    setEquiposCuartosSeleccionados([]);
+    setCrucesCuartos([
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null },
+      { local: null, visita: null }
+    ]);
   };
 
   // Guardar cruces de cuartos (jornada 9) - IDA y VUELTA
@@ -1694,6 +1736,255 @@ export default function AdminLibertadores() {
                         <button
                           onClick={generarResultadosAleatorios}
                           className="btn btn-outline-info px-4"
+                        >
+                          🎲 Azar (0-4)
+                        </button>
+                        <button
+                          onClick={resetearResultados}
+                          className="btn btn-outline-secondary px-4"
+                        >
+                          🔄 Resetear
+                        </button>
+                        <button
+                          onClick={guardarResultados}
+                          disabled={loading}
+                          className="btn btn-success px-4"
+                        >
+                          💾 Guardar Todos los Resultados
+                        </button>
+                      </div>
+                      
+                      {/* Botón de cerrar/abrir jornada */}
+                      <div className="mt-4 d-flex gap-3">
+                        <button
+                          onClick={toggleJornada}
+                          disabled={loading || (!jornadaCerrada && partidos.length === 0)}
+                          className={`btn ${jornadaCerrada ? 'btn-success' : 'btn-warning'}`}
+                        >
+                          {jornadaCerrada ? '🔓 Abrir' : '🔒 Cerrar'} Jornada {jornadaActual}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : jornadaActual === 9 ? (
+                /* JORNADA 9 - CUARTOS DE FINAL IDA Y VUELTA */
+                <div>
+                  {partidos.length === 0 ? (
+                    <>
+                      <div className="card mb-4">
+                        <div className="card-header bg-primary text-white">
+                          <h5 className="mb-0">🏆 Formar Fixture de Cuartos de Final (IDA + VUELTA)</h5>
+                        </div>
+                        <div className="card-body">
+                          <div className="alert alert-info mb-4">
+                            <strong>📋 Instrucciones:</strong>
+                            <ul className="mb-0 mt-2">
+                              <li>Selecciona 8 equipos (ganadores de octavos)</li>
+                              <li>Primeros 2 clicks = Cruce 1, siguientes 2 = Cruce 2, etc.</li>
+                              <li>Se crearán automáticamente 8 partidos (4 IDA + 4 VUELTA)</li>
+                            </ul>
+                          </div>
+
+                          {/* Mostrar ganadores de octavos */}
+                          <div className="mb-4">
+                            <h6 className="fw-bold mb-3">Ganadores de Octavos:</h6>
+                            <div className="d-flex flex-wrap gap-2">
+                              {equiposClasificadosCuartos.length === 0 ? (
+                                <p className="text-muted">Cargando ganadores...</p>
+                              ) : (
+                                equiposClasificadosCuartos.map((equipo, index) => {
+                                  const yaSeleccionado = equiposCuartosSeleccionados.some(e => e.nombre === equipo.nombre);
+                                  return (
+                                    <button
+                                      key={index}
+                                      onClick={() => !yaSeleccionado && seleccionarEquipoCuartos(equipo)}
+                                      disabled={yaSeleccionado}
+                                      className={`btn ${yaSeleccionado ? 'btn-secondary' : 'btn-outline-primary'}`}
+                                    >
+                                      {equipo.nombre} {paisEmoji(equipo.pais)}
+                                      {yaSeleccionado && ' ✓'}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Mostrar cruces formados */}
+                          <div className="row g-3 mb-4">
+                            {crucesCuartos.map((cruce, index) => (
+                              <div key={index} className="col-md-6">
+                                <div className="card">
+                                  <div className="card-body">
+                                    <h6 className="text-center fw-bold mb-3">Cruce {index + 1}</h6>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                      <div className="text-center flex-grow-1">
+                                        <div className="badge bg-primary mb-2">IDA: Local</div>
+                                        <div className="fw-bold">
+                                          {cruce.local ? `${cruce.local.nombre} ${paisEmoji(cruce.local.pais)}` : '❓'}
+                                        </div>
+                                      </div>
+                                      <div className="mx-3 fs-4">VS</div>
+                                      <div className="text-center flex-grow-1">
+                                        <div className="badge bg-success mb-2">IDA: Visita</div>
+                                        <div className="fw-bold">
+                                          {cruce.visita ? `${cruce.visita.nombre} ${paisEmoji(cruce.visita.pais)}` : '❓'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="text-center mt-2 small text-muted">
+                                      VUELTA: Se invierte automáticamente
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Botones de acción */}
+                          <div className="d-flex gap-3 justify-content-center">
+                            <button
+                              onClick={reiniciarSeleccionCuartos}
+                              className="btn btn-outline-secondary"
+                              disabled={equiposCuartosSeleccionados.length === 0}
+                            >
+                              🔄 Reiniciar Selección
+                            </button>
+                            <button
+                              onClick={guardarCrucesCuartos}
+                              disabled={loading || crucesCuartos.filter(c => c.local && c.visita).length !== 4}
+                              className="btn btn-success btn-lg px-5"
+                            >
+                              {loading ? '⏳ Guardando...' : '💾 Guardar Cruces de Cuartos (IDA + VUELTA)'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Navegación entre jornadas */}
+                      <div className="d-flex justify-content-between align-items-center mb-4">
+                        <button
+                          onClick={() => setJornadaActual(8)}
+                          className="btn btn-outline-primary"
+                        >
+                          ← Jornada Anterior
+                        </button>
+                        <div>
+                          <select
+                            value={jornadaActual}
+                            onChange={(e) => setJornadaActual(Number(e.target.value))}
+                            className="form-select d-inline-block w-auto"
+                          >
+                            {[...Array(10)].map((_, i) => (
+                              <option key={i + 1} value={i + 1}>
+                                Jornada {i + 1}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          onClick={() => setJornadaActual(10)}
+                          className="btn btn-outline-primary"
+                        >
+                          Jornada Siguiente →
+                        </button>
+                      </div>
+
+                      <div className="alert alert-success mb-4">
+                        <h5 className="mb-3">✅ 8 partidos creados</h5>
+                        <p className="mb-0">4 partidos de IDA + 4 partidos de VUELTA</p>
+                      </div>
+
+                      {/* Tabla de partidos */}
+                      <div className="row g-3 mb-4">
+                        {partidos.map((partido, index) => {
+                          const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
+                          const grupoVisita = obtenerGrupoEquipo(partido.nombre_visita);
+                          const esPartidoIda = index % 2 === 0;
+
+                          return (
+                            <div key={partido.id} className="col-md-6">
+                              <div className="card h-100">
+                                <div className="card-body">
+                                  <div className="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                      <span className={`badge ${esPartidoIda ? 'bg-primary' : 'bg-success'} mb-2`}>
+                                        {esPartidoIda ? 'IDA' : 'VUELTA'}
+                                      </span>
+                                      <p className="fw-bold mb-0">
+                                        {partido.nombre_local} {paisEmoji(partido.pais_local)}
+                                        {grupoLocal && <span className="badge bg-secondary ms-2">{grupoLocal}</span>}
+                                      </p>
+                                      <p className="text-center my-1">VS</p>
+                                      <p className="fw-bold mb-0">
+                                        {partido.nombre_visita} {paisEmoji(partido.pais_visita)}
+                                        {grupoVisita && <span className="badge bg-secondary ms-2">{grupoVisita}</span>}
+                                      </p>
+                                    </div>
+                                    <button
+                                      onClick={() => eliminarPartido(partido.id)}
+                                      className="btn btn-sm btn-outline-danger"
+                                      title="Eliminar partido"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+
+                                  {/* Mostrar resultado guardado */}
+                                  {partido.goles_local !== null && partido.goles_visita !== null && (
+                                    <div className="alert alert-success py-2 mb-2">
+                                      <strong>✅ Resultado: {partido.goles_local} - {partido.goles_visita}</strong>
+                                    </div>
+                                  )}
+
+                                  {/* Inputs para ingresar resultado */}
+                                  <div className="d-flex align-items-center gap-2 mb-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="Goles L"
+                                      value={resultados[partido.id]?.goles_local || ''}
+                                      onChange={(e) => handleResultadoChange(partido.id, 'goles_local', e.target.value)}
+                                      className="form-control form-control-sm text-center"
+                                      style={{ width: '80px' }}
+                                    />
+                                    <span className="fw-bold">-</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="Goles V"
+                                      value={resultados[partido.id]?.goles_visita || ''}
+                                      onChange={(e) => handleResultadoChange(partido.id, 'goles_visita', e.target.value)}
+                                      className="form-control form-control-sm text-center"
+                                      style={{ width: '80px' }}
+                                    />
+                                    <button
+                                      onClick={() => guardarResultado(partido.id)}
+                                      disabled={loading}
+                                      className="btn btn-sm btn-primary"
+                                    >
+                                      💾
+                                    </button>
+                                  </div>
+
+                                  <div className="small text-muted">
+                                    Bonus: x{partido.bonus}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Botones de acciones globales */}
+                      <div className="d-flex gap-3 mb-3">
+                        <button
+                          onClick={generarResultadosAleatorios}
+                          className="btn btn-outline-primary px-4"
                         >
                           🎲 Azar (0-4)
                         </button>
