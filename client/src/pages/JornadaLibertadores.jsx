@@ -480,6 +480,71 @@ export default function JornadaLibertadores() {
                       </div>
                     </div>
 
+                    {/* Mostrar inputs de penales en VUELTA de semifinales (J10) si hay empate */}
+                    {Number(numero) === 10 && (() => {
+                      // Detectar si es partido de VUELTA (índices 1 y 3)
+                      const partidoIndex = partidos.findIndex(p => p.id === partido.id);
+                      const esVuelta = partidoIndex === 1 || partidoIndex === 3;
+                      
+                      if (!esVuelta) return null;
+                      
+                      // Buscar partido de IDA
+                      const partidoIda = partidos.find(p => 
+                        p.nombre_local === partido.nombre_visita && 
+                        p.nombre_visita === partido.nombre_local
+                      );
+                      
+                      if (!partidoIda) return null;
+                      
+                      // Calcular marcador global
+                      const golesIdaLocal = Number(pronosticos[partidoIda.id]?.goles_local ?? 0);
+                      const golesIdaVisita = Number(pronosticos[partidoIda.id]?.goles_visita ?? 0);
+                      const golesVueltaLocal = Number(pronosticos[partido.id]?.goles_local ?? 0);
+                      const golesVueltaVisita = Number(pronosticos[partido.id]?.goles_visita ?? 0);
+                      
+                      const golesEquipoA = golesIdaLocal + golesVueltaVisita;
+                      const golesEquipoB = golesIdaVisita + golesVueltaLocal;
+                      
+                      const hayEmpate = golesEquipoA === golesEquipoB && 
+                                       (golesIdaLocal > 0 || golesIdaVisita > 0 || golesVueltaLocal > 0 || golesVueltaVisita > 0);
+                      
+                      if (!hayEmpate) return null;
+                      
+                      return (
+                        <div className="mt-3">
+                          <div className="alert alert-warning py-2 mb-2">
+                            <small className="fw-bold">⚠️ Empate en marcador global: {partidoIda.nombre_local} {golesEquipoA} - {golesEquipoB} {partidoIda.nombre_visita}</small>
+                          </div>
+                          <div className="row g-2">
+                            <div className="col-6">
+                              <label className="form-label small fw-bold">Penales {partido.nombre_local}</label>
+                              <input
+                                type="number"
+                                min="0"
+                                className="form-control form-control-sm text-center border-danger"
+                                value={pronosticos[partido.id]?.penales_local ?? ""}
+                                onChange={(e) => handleChange(partido.id, "penales_local", e.target.value)}
+                                disabled={jornada.cerrada}
+                                placeholder="0"
+                              />
+                            </div>
+                            <div className="col-6">
+                              <label className="form-label small fw-bold">Penales {partido.nombre_visita}</label>
+                              <input
+                                type="number"
+                                min="0"
+                                className="form-control form-control-sm text-center border-danger"
+                                value={pronosticos[partido.id]?.penales_visita ?? ""}
+                                onChange={(e) => handleChange(partido.id, "penales_visita", e.target.value)}
+                                disabled={jornada.cerrada}
+                                placeholder="0"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {partido.goles_local !== null && partido.goles_visita !== null && (
                       <div className="text-center mt-3">
                         <span className="badge bg-success">
