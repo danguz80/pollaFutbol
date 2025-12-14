@@ -1603,6 +1603,43 @@ export default function AdminLibertadores() {
                                             </button>
                                           </div>
                                         </div>
+                                        
+                                        {/* Bonus editable */}
+                                        <div className="mt-2 d-flex align-items-center gap-2">
+                                          <span className="small text-muted">Bonus:</span>
+                                          {editandoBonus === partido.id ? (
+                                            <>
+                                              <select
+                                                value={partido.bonus}
+                                                onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
+                                                className="form-select form-select-sm"
+                                                style={{ width: '80px' }}
+                                                autoFocus
+                                              >
+                                                <option value={1}>x1</option>
+                                                <option value={2}>x2</option>
+                                                <option value={3}>x3</option>
+                                              </select>
+                                              <button
+                                                onClick={() => setEditandoBonus(null)}
+                                                className="btn btn-sm btn-success"
+                                              >
+                                                ✓
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span className="badge bg-info">x{partido.bonus}</span>
+                                              <button
+                                                onClick={() => setEditandoBonus(partido.id)}
+                                                className="btn btn-sm btn-outline-secondary"
+                                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                              >
+                                                ✏️
+                                              </button>
+                                            </>
+                                          )}
+                                        </div>
                                       </div>
                                       
                                       <button
@@ -1789,6 +1826,43 @@ export default function AdminLibertadores() {
                                             </div>
                                           </div>
                                         )}
+                                        
+                                        {/* Bonus editable */}
+                                        <div className="mt-2 d-flex align-items-center gap-2">
+                                          <span className="small text-muted">Bonus:</span>
+                                          {editandoBonus === partido.id ? (
+                                            <>
+                                              <select
+                                                value={partido.bonus}
+                                                onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
+                                                className="form-select form-select-sm"
+                                                style={{ width: '80px' }}
+                                                autoFocus
+                                              >
+                                                <option value={1}>x1</option>
+                                                <option value={2}>x2</option>
+                                                <option value={3}>x3</option>
+                                              </select>
+                                              <button
+                                                onClick={() => setEditandoBonus(null)}
+                                                className="btn btn-sm btn-success"
+                                              >
+                                                ✓
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span className="badge bg-info">x{partido.bonus}</span>
+                                              <button
+                                                onClick={() => setEditandoBonus(partido.id)}
+                                                className="btn btn-sm btn-outline-secondary"
+                                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                              >
+                                                ✏️
+                                              </button>
+                                            </>
+                                          )}
+                                        </div>
                                       </div>
                                       
                                       <button
@@ -1988,7 +2062,7 @@ export default function AdminLibertadores() {
                               <div className="card h-100">
                                 <div className="card-body">
                                   <div className="d-flex justify-content-between align-items-start mb-3">
-                                    <div className="flex-grow-1">
+                                    <div className="flex-grow-1 text-center">
                                       <span className={`badge ${esPartidoIda ? 'bg-primary' : 'bg-success'} mb-2`}>
                                         {esPartidoIda ? 'IDA' : 'VUELTA'}
                                       </span>
