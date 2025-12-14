@@ -346,13 +346,30 @@ export default function JornadaLibertadores() {
             // Para jornada 10, si es la final (último partido), usar pronosticoFinal
             const esLaFinal = Number(numero) === 10 && equiposFinalistasPronosticados.length === 2 && partidos.indexOf(partido) === partidos.length - 1;
             
+            // Para jornadas 8, 9, 10: enviar penales si están definidos
+            let penalesLocal = null;
+            let penalesVisita = null;
+            
+            if (esLaFinal) {
+              penalesLocal = pronosticoFinal.penales_local ? Number(pronosticoFinal.penales_local) : null;
+              penalesVisita = pronosticoFinal.penales_visita ? Number(pronosticoFinal.penales_visita) : null;
+            } else if (Number(numero) >= 8) {
+              // Para jornadas 8 y 9, enviar penales del pronóstico regular
+              penalesLocal = pronosticos[partido.id]?.penales_local !== undefined && pronosticos[partido.id]?.penales_local !== '' 
+                ? Number(pronosticos[partido.id].penales_local) 
+                : null;
+              penalesVisita = pronosticos[partido.id]?.penales_visita !== undefined && pronosticos[partido.id]?.penales_visita !== '' 
+                ? Number(pronosticos[partido.id].penales_visita) 
+                : null;
+            }
+            
             return axios.post(`${API_URL}/api/libertadores-pronosticos`, {
               partido_id: partido.id,
               jornada_id: jornada.id,
               goles_local: esLaFinal ? Number(pronosticoFinal.goles_local ?? 0) : Number(pronosticos[partido.id]?.goles_local ?? 0),
               goles_visita: esLaFinal ? Number(pronosticoFinal.goles_visita ?? 0) : Number(pronosticos[partido.id]?.goles_visita ?? 0),
-              penales_local: esLaFinal && pronosticoFinal.penales_local ? Number(pronosticoFinal.penales_local) : null,
-              penales_visita: esLaFinal && pronosticoFinal.penales_visita ? Number(pronosticoFinal.penales_visita) : null
+              penales_local: penalesLocal,
+              penales_visita: penalesVisita
             }, {
               headers: {
                 "Content-Type": "application/json",
