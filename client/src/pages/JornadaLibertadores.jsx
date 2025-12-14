@@ -503,10 +503,17 @@ export default function JornadaLibertadores() {
                     {(Number(numero) === 8 || Number(numero) === 9 || Number(numero) === 10) && (() => {
                       // Detectar si es partido de VUELTA
                       const partidoIndex = partidos.findIndex(p => p.id === partido.id);
-                      // J8: Todos son VUELTA (índices 0-7)
-                      // J9: Índices 1 y 3 son VUELTA (Cuartos)
-                      // J10: Índices 1 y 3 son VUELTA (Semifinales)
-                      const esVuelta = Number(numero) === 8 || partidoIndex === 1 || partidoIndex === 3;
+                      // J8: Todos son VUELTA (índices 0-7) - Octavos
+                      // J9: Índices impares son VUELTA (1,3,5,7) - Cuartos
+                      // J10: Índices impares son VUELTA (1,3) - Semifinales
+                      let esVuelta = false;
+                      if (Number(numero) === 8) {
+                        esVuelta = true; // Todos son VUELTA en octavos
+                      } else if (Number(numero) === 9) {
+                        esVuelta = partidoIndex % 2 === 1; // Índices impares (1,3,5,7)
+                      } else if (Number(numero) === 10) {
+                        esVuelta = partidoIndex === 1 || partidoIndex === 3; // Solo 1 y 3
+                      }
                       
                       if (!esVuelta) return null;
                       
