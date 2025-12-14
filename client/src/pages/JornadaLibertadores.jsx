@@ -25,6 +25,17 @@ export default function JornadaLibertadores() {
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Estados para jornada 10 (semifinales y final)
+  const [equiposFinalistasPronosticados, setEquiposFinalistasPronosticados] = useState([]);
+  const [partidoFinal, setPartidoFinal] = useState(null);
+  const [pronosticoFinal, setPronosticoFinal] = useState({ 
+    goles_local: '', 
+    goles_visita: '', 
+    penales_local: '', 
+    penales_visita: '' 
+  });
+  const [mostrarCalcularFinalistas, setMostrarCalcularFinalistas] = useState(false);
+
   useEffect(() => {
     if (!usuario) {
       navigate("/login");
@@ -32,6 +43,122 @@ export default function JornadaLibertadores() {
     }
     cargarDatos();
   }, [numero]);
+
+  // Calcular finalistas basados en pronósticos del usuario (solo jornada 10)
+  useEffect(() => {
+    console.log('🔍 useEffect ejecutándose - Jornada:', numero, 'Partidos:', partidos.length);
+    
+    if (Number(numero) !== 10) {
+      setEquiposFinalistasPronosticados([]);
+      setPartidoFinal(null);
+      setMostrarCalcularFinalistas(false);
+      return;
+    }
+    
+    if (partidos.length === 0) {
+      console.log('⚠️ Esperando que carguen los partidos...');
+      return;
+    }
+
+    console.log('🔍 Calculando finalistas - Partidos:', partidos.length);
+    console.log('🔍 Pronósticos actuales:', pronosticos);
+
+    const partidosSemifinal = partidos.slice(0, 4);
+    
+    if (partidosSemifinal.length < 4) {
+      console.log('⚠️ No hay suficientes partidos de semifinal');
+      return;
+    }
+
+    if (partidos.length < 5) {
+      console.log('⚠️ No hay partido de final creado todavía');
+      setEquiposFinalistasPronosticados([]);
+      setPartidoFinal(null);
+      return;
+    }
+
+    // Verificar si hay pronósticos guardados
+    const hayPronosticos = partidosSemifinal.some(p => 
+      pronosticos[p.id] && 
+      (pronosticos[p.id].goles_local !== undefined || pronosticos[p.id].goles_visita !== undefined)
+    );
+
+    if (hayPronosticos) {
+      console.log('✅ Hay pronósticos guardados, verificando si están completos...');
+      setMostrarCalcularFinalistas(true);
+    }
+
+    // Verificar que todos los pronósticos de semifinal estén completos para calcular
+    const todosPronosticosCompletos = partidosSemifinal.every(p => 
+      pronosticos[p.id] && 
+      pronosticos[p.id].goles_local !== undefined && 
+      pronosticos[p.id].goles_visita !== undefined
+    );
+
+    if (!todosPronosticosCompletos) {
+      console.log('⚠️ No todos los pronósticos están completos, esperando...');
+      return;
+    }
+
+    // Calcular ganadores basados en PRONÓSTICOS del usuario
+    const ganadores = [];
+    const partidosIda = [partidosSemifinal[0], partidosSemifinal[2]];
+    const partidosVuelta = [partidosSemifinal[1], partidosSemifinal[3]];
+    
+    partidosIda.forEach((ida, index) => {
+      const vuelta = partidosVuelta[index];
+      
+      console.log(`\n🏟️ Semifinal ${index + 1}:`);
+      console.log(`  IDA: ${ida.nombre_local} vs ${ida.nombre_visita}`);
+      console.log(`  VUELTA: ${vuelta.nombre_local} vs ${vuelta.nombre_visita}`);
+      
+      const golesIdaLocal = Number(pronosticos[ida.id]?.goles_local ?? 0);
+      const golesIdaVisita = Number(pronosticos[ida.id]?.goles_visita ?? 0);
+      const golesVueltaLocal = Number(pronosticos[vuelta.id]?.goles_local ?? 0);
+      const golesVueltaVisita = Number(pronosticos[vuelta.id]?.goles_visita ?? 0);
+      
+      console.log(`  Pronóstico IDA: ${golesIdaLocal}-${golesIdaVisita}`);
+      console.log(`  Pronóstico VUELTA: ${golesVueltaLocal}-${golesVueltaVisita}`);
+      
+      const penalesVueltaLocal = Number(pronosticos[vuelta.id]?.penales_local ?? 0);
+      const penalesVueltaVisita = Number(pronosticos[vuelta.id]?.penales_visita ?? 0);
+      
+      const golesEquipoLocal = golesIdaLocal + golesVueltaVisita;
+      const golesEquipoVisita = golesIdaVisita + golesVueltaLocal;
+      
+      console.log(`  Marcador global: ${ida.nombre_local} ${golesEquipoLocal} - ${golesEquipoVisita} ${ida.nombre_visita}`);
+      
+      let ganador = null;
+      
+      if (golesEquipoLocal > golesEquipoVisita) {
+        ganador = ida.nombre_local;
+      } else if (golesEquipoVisita > golesEquipoLocal) {
+        ganador = ida.nombre_visita;
+      } else {
+        if (penalesVueltaLocal > 0 || penalesVueltaVisita > 0) {
+          ganador = penalesVueltaLocal > penalesVueltaVisita ? vuelta.nombre_local : vuelta.nombre_visita;
+          console.log(`  Definido por penales: ${penalesVueltaLocal}-${penalesVueltaVisita}`);
+        } else {
+          ganador = ida.nombre_local;
+          console.log(`  ⚠️ Empate sin penales - ganador por defecto: ${ganador}`);
+        }
+      }
+      
+      console.log(`  ✅ Ganador: ${ganador}`);
+      
+      if (ganador) {
+        ganadores.push(ganador);
+      }
+    });
+    
+    console.log('\n🎯 Finalistas calculados:', ganadores);
+    
+    const partidoFinalEncontrado = partidos[partidos.length - 1];
+    console.log('🏆 Partido final encontrado:', partidoFinalEncontrado);
+    
+    setEquiposFinalistasPronosticados(ganadores);
+    setPartidoFinal(partidoFinalEncontrado);
+  }, [numero, partidos, pronosticos]);
 
   const cargarDatos = async () => {
     try {
@@ -83,6 +210,13 @@ export default function JornadaLibertadores() {
     }));
   };
 
+  const handleChangeFinal = (campo, valor) => {
+    setPronosticoFinal(prev => ({
+      ...prev,
+      [campo]: valor
+    }));
+  };
+
   const generarAleatorioTodos = () => {
     const nuevosPronosticos = {};
     partidos.forEach(partido => {
@@ -112,27 +246,66 @@ export default function JornadaLibertadores() {
       setMensaje("");
       const token = localStorage.getItem("token");
 
+      // Para jornada 10, validar pronósticos de semifinales
+      if (Number(numero) === 10) {
+        const partidosSemifinal = partidos.filter((p, index) => index < 4);
+        const todosSemifinalesCompletos = partidosSemifinal.every(p => 
+          pronosticos[p.id]?.goles_local !== undefined && 
+          pronosticos[p.id]?.goles_visita !== undefined
+        );
+        
+        if (!todosSemifinalesCompletos) {
+          setMensaje("❌ Debes completar todos los pronósticos de semifinales");
+          return;
+        }
+        
+        // Si ya hay finalistas calculados, validar que también se complete la final
+        if (equiposFinalistasPronosticados.length === 2 && !pronosticoFinal.goles_local && pronosticoFinal.goles_local !== 0) {
+          setMensaje("❌ Debes completar el pronóstico de la final");
+          return;
+        }
+      }
+
       const respuestas = await Promise.all(
-        partidos.map((partido) =>
-          axios.post(`${API_URL}/api/libertadores-pronosticos`, {
-            partido_id: partido.id,
-            jornada_id: jornada.id,
-            goles_local: Number(pronosticos[partido.id]?.goles_local ?? 0),
-            goles_visita: Number(pronosticos[partido.id]?.goles_visita ?? 0),
-          }, {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
+        partidos
+          .filter((partido, index) => {
+            // En jornada 10, solo guardar semifinales si no hay finalistas calculados
+            if (Number(numero) === 10) {
+              return index < 4 || equiposFinalistasPronosticados.length === 2;
+            }
+            return true;
           })
-        )
+          .map((partido, index) => {
+            // Para jornada 10, si es la final (último partido), usar pronosticoFinal
+            const esLaFinal = Number(numero) === 10 && equiposFinalistasPronosticados.length === 2 && partidos.indexOf(partido) === partidos.length - 1;
+            
+            return axios.post(`${API_URL}/api/libertadores-pronosticos`, {
+              partido_id: partido.id,
+              jornada_id: jornada.id,
+              goles_local: esLaFinal ? Number(pronosticoFinal.goles_local ?? 0) : Number(pronosticos[partido.id]?.goles_local ?? 0),
+              goles_visita: esLaFinal ? Number(pronosticoFinal.goles_visita ?? 0) : Number(pronosticos[partido.id]?.goles_visita ?? 0),
+              penales_local: esLaFinal && pronosticoFinal.penales_local ? Number(pronosticoFinal.penales_local) : null,
+              penales_visita: esLaFinal && pronosticoFinal.penales_visita ? Number(pronosticoFinal.penales_visita) : null
+            }, {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            });
+          })
       );
 
       const todosOk = respuestas.every((r) => r.status === 200);
-      setMensaje(todosOk ? "✅ Pronósticos guardados correctamente" : "❌ Error al guardar algunos pronósticos");
       
       if (todosOk) {
+        if (Number(numero) === 10 && equiposFinalistasPronosticados.length === 0) {
+          setMensaje("✅ Semifinales guardadas. Ahora calcula tus finalistas.");
+        } else {
+          setMensaje("✅ Pronósticos guardados correctamente");
+        }
         setTimeout(() => setMensaje(""), 3000);
+      } else {
+        setMensaje("❌ Error al guardar algunos pronósticos");
       }
     } catch (err) {
       console.error('Error enviando pronósticos:', err);
@@ -202,7 +375,9 @@ export default function JornadaLibertadores() {
             <div className="col-12 col-lg-8">
               <h5 className="fw-bold mb-3">🎯 Tus Pronósticos</h5>
               <div className="row g-3 mb-4">
-                {partidos.map((partido) => (
+                {partidos
+                  .filter((p, index) => Number(numero) !== 10 || index < 4) // En J10 solo mostrar semifinales
+                  .map((partido) => (
                   <div key={partido.id} className="col-12 col-md-6">
                     <div className="card shadow-sm">
                   <div className="card-body">
@@ -275,6 +450,114 @@ export default function JornadaLibertadores() {
                   </div>
                 ))}
               </div>
+
+              {/* Sección especial para Jornada 10 - Botón Calcular y Finalistas */}
+              {Number(numero) === 10 && partidos.length === 5 && mostrarCalcularFinalistas && equiposFinalistasPronosticados.length === 0 && (
+                <div className="alert alert-info mt-4">
+                  <h6 className="fw-bold">📊 Paso siguiente:</h6>
+                  <p className="mb-2">Ya guardaste tus pronósticos de semifinales. Completa todos los pronósticos y luego haz clic en el botón de abajo para ver quiénes serán tus finalistas.</p>
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      console.log('🔄 Forzando recálculo de finalistas...');
+                      setPronosticos(prev => ({...prev}));
+                    }}
+                  >
+                    🔄 Calcular Finalistas
+                  </button>
+                </div>
+              )}
+
+              {Number(numero) === 10 && equiposFinalistasPronosticados.length === 2 && (
+                <>
+                  <div className="card bg-success bg-opacity-10 border-success mt-4 mb-3">
+                    <div className="card-body">
+                      <h5 className="fw-bold text-success mb-3">🎯 Tus Finalistas Pronosticados</h5>
+                      <p className="small text-muted">Basado en tus pronósticos de semifinales</p>
+                      <div className="d-flex justify-content-center gap-4 flex-wrap">
+                        {equiposFinalistasPronosticados.map((equipo, index) => (
+                          <div key={index} className="text-center">
+                            <div className="badge bg-success mb-2">Finalista {index + 1}</div>
+                            <p className="fw-bold fs-5 mb-0">{equipo}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card border-warning border-3 mt-3 mb-3">
+                    <div className="card-body">
+                      <h5 className="fw-bold text-warning mb-3 text-center">🏆 Tu Partido Final</h5>
+                      <p className="fw-bold fs-5 text-center mb-4">
+                        {equiposFinalistasPronosticados[0]} <span className="text-muted">vs</span> {equiposFinalistasPronosticados[1]}
+                      </p>
+
+                      <div className="row g-3">
+                        <div className="col-md-6">
+                          <label className="form-label fw-bold">{equiposFinalistasPronosticados[0]} - Goles</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="Goles"
+                            value={pronosticoFinal.goles_local ?? ""}
+                            onChange={(e) => handleChangeFinal("goles_local", e.target.value)}
+                            disabled={jornada && jornada.cerrada}
+                            min="0"
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label fw-bold">{equiposFinalistasPronosticados[1]} - Goles</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="Goles"
+                            value={pronosticoFinal.goles_visita ?? ""}
+                            onChange={(e) => handleChangeFinal("goles_visita", e.target.value)}
+                            disabled={jornada && jornada.cerrada}
+                            min="0"
+                          />
+                        </div>
+                      </div>
+
+                      {pronosticoFinal.goles_local !== "" && 
+                       pronosticoFinal.goles_visita !== "" && 
+                       Number(pronosticoFinal.goles_local) === Number(pronosticoFinal.goles_visita) && (
+                        <div className="mt-3">
+                          <div className="alert alert-warning mb-3">
+                            <strong>⚠️ Empate detectado</strong> - Debes ingresar el resultado de los penales
+                          </div>
+                          <div className="row g-3">
+                            <div className="col-md-6">
+                              <label className="form-label fw-bold">Penales {equiposFinalistasPronosticados[0]}</label>
+                              <input
+                                type="number"
+                                className="form-control border-danger"
+                                placeholder="Penales"
+                                value={pronosticoFinal.penales_local ?? ""}
+                                onChange={(e) => handleChangeFinal("penales_local", e.target.value)}
+                                disabled={jornada && jornada.cerrada}
+                                min="0"
+                              />
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label fw-bold">Penales {equiposFinalistasPronosticados[1]}</label>
+                              <input
+                                type="number"
+                                className="form-control border-danger"
+                                placeholder="Penales"
+                                value={pronosticoFinal.penales_visita ?? ""}
+                                onChange={(e) => handleChangeFinal("penales_visita", e.target.value)}
+                                disabled={jornada && jornada.cerrada}
+                                min="0"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Columna de estadísticas - 1/3 del ancho - Solo en fase de grupos */}
