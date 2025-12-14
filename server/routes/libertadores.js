@@ -648,8 +648,27 @@ router.post('/semifinales', verifyToken, authorizeRoles('admin'), async (req, re
       );
     }
 
+    // Crear partido de final automáticamente con equipos "TBD" si no existe
+    const finalExistente = await pool.query(
+      `SELECT id FROM libertadores_partidos 
+       WHERE jornada_id = $1 
+       AND (nombre_local = 'TBD' OR nombre_visita = 'TBD' 
+       OR nombre_local LIKE '%Finalista%' OR nombre_visita LIKE '%Finalista%')`,
+      [jornadaId]
+    );
+
+    if (finalExistente.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO libertadores_partidos 
+         (nombre_local, nombre_visita, jornada_id, fecha, bonus) 
+         VALUES ('Finalista 1', 'Finalista 2', $1, NOW(), 1)`,
+        [jornadaId]
+      );
+      console.log('✅ Partido de final creado automáticamente con equipos TBD');
+    }
+
     res.json({ 
-      mensaje: 'Cruces de semifinales guardados exitosamente',
+      mensaje: 'Cruces de semifinales guardados exitosamente y final creada',
       cantidad: partidos.length
     });
   } catch (error) {

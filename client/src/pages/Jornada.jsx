@@ -131,11 +131,18 @@ export default function Jornada() {
     console.log('🔍 Pronósticos actuales:', pronosticos);
 
     // Identificar partidos de semifinal vs final
-    const partidosSemifinal = partidos.filter((p, index) => index < 4); // Primeros 4 son semifinales
-    const partidoFinalReal = partidos.find((p, index) => index === 4); // Quinto es la final
+    // Ahora el partido final siempre existe (creado automáticamente por el backend)
+    const partidosSemifinal = partidos.slice(0, 4); // Primeros 4 son semifinales
     
     if (partidosSemifinal.length < 4) {
       console.log('⚠️ No hay suficientes partidos de semifinal');
+      return;
+    }
+
+    if (partidos.length < 5) {
+      console.log('⚠️ No hay partido de final creado todavía');
+      setEquiposFinalistasPronosticados([]);
+      setPartidoFinal(null);
       return;
     }
 
@@ -212,8 +219,12 @@ export default function Jornada() {
     
     console.log('\n🎯 Finalistas calculados:', ganadores);
     
+    // Buscar el partido de la final (siempre el último partido)
+    const partidoFinalEncontrado = partidos[partidos.length - 1];
+    console.log('🏆 Partido final encontrado:', partidoFinalEncontrado);
+    
     setEquiposFinalistasPronosticados(ganadores);
-    setPartidoFinal(partidoFinalReal);
+    setPartidoFinal(partidoFinalEncontrado);
   }, [jornadaSeleccionada, partidos, pronosticos]);
 
   const handleChange = (partidoId, campo, valor) => {
