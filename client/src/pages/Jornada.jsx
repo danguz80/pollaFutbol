@@ -35,6 +35,7 @@ export default function Jornada() {
   const [equiposFinalistasPronosticados, setEquiposFinalistasPronosticados] = useState([]);
   const [partidoFinal, setPartidoFinal] = useState(null);
   const [pronosticoFinal, setPronosticoFinal] = useState({ goles_local: '', goles_visita: '', penales_local: '', penales_visita: '' });
+  const [mostrarCalcularFinalistas, setMostrarCalcularFinalistas] = useState(false);
 
   // Si no es jugador, fuera
   useEffect(() => {
@@ -146,7 +147,18 @@ export default function Jornada() {
       return;
     }
 
-    // Verificar que todos los pronósticos de semifinal estén completos
+    // Verificar si hay pronósticos guardados
+    const hayPronosticos = partidosSemifinal.some(p => 
+      pronosticos[p.id] && 
+      (pronosticos[p.id].goles_local !== undefined || pronosticos[p.id].goles_visita !== undefined)
+    );
+
+    if (hayPronosticos) {
+      console.log('✅ Hay pronósticos guardados, verificando si están completos...');
+      setMostrarCalcularFinalistas(true);
+    }
+
+    // Verificar que todos los pronósticos de semifinal estén completos para calcular
     const todosPronosticosCompletos = partidosSemifinal.every(p => 
       pronosticos[p.id] && 
       pronosticos[p.id].goles_local !== undefined && 
@@ -154,9 +166,7 @@ export default function Jornada() {
     );
 
     if (!todosPronosticosCompletos) {
-      console.log('⚠️ No todos los pronósticos de semifinal están completos');
-      setEquiposFinalistasPronosticados([]);
-      setPartidoFinal(null);
+      console.log('⚠️ No todos los pronósticos están completos, esperando...');
       return;
     }
 
@@ -380,14 +390,15 @@ export default function Jornada() {
                 ))}
 
               {/* Sección especial para Jornada 10 - Botón Calcular y Finalistas */}
-              {jornadaSeleccionada === 10 && partidos.length === 5 && equiposFinalistasPronosticados.length === 0 && (
+              {jornadaSeleccionada === 10 && partidos.length === 5 && mostrarCalcularFinalistas && equiposFinalistasPronosticados.length === 0 && (
                 <div className="alert alert-info mt-4">
                   <h6 className="fw-bold">📊 Paso siguiente:</h6>
-                  <p className="mb-2">Ya guardaste tus pronósticos de semifinales. Ahora haz clic en el botón de abajo para ver quiénes serán tus finalistas según tus pronósticos.</p>
+                  <p className="mb-2">Ya guardaste tus pronósticos de semifinales. Completa todos los pronósticos y luego haz clic en el botón de abajo para ver quiénes serán tus finalistas.</p>
                   <button 
                     className="btn btn-primary btn-sm"
                     onClick={() => {
-                      // Forzar recálculo cambiando momentáneamente el estado
+                      console.log('🔄 Forzando recálculo de finalistas...');
+                      // Forzar recálculo actualizando el estado
                       setPronosticos(prev => ({...prev}));
                     }}
                   >
