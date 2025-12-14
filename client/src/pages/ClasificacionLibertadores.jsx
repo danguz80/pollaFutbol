@@ -59,6 +59,13 @@ export default function ClasificacionLibertadores() {
   const cargarDatosIniciales = async () => {
     try {
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.error('No hay token, redirigiendo a login');
+        navigate('/login');
+        return;
+      }
+      
       const headers = { Authorization: `Bearer ${token}` };
 
       // Cargar partidos, jornadas y jugadores en paralelo
@@ -71,8 +78,16 @@ export default function ClasificacionLibertadores() {
       setPartidos(partidosRes.data);
       setJornadas(jornadasRes.data);
       setJugadores(jugadoresRes.data);
+      
+      console.log('Jornadas cargadas:', jornadasRes.data.length);
     } catch (error) {
       console.error('Error cargando datos iniciales:', error);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        console.error('Token inválido o expirado, redirigiendo a login');
+        localStorage.removeItem('token');
+        localStorage.removeItem('usuario');
+        navigate('/login');
+      }
     }
   };
 
