@@ -2062,18 +2062,15 @@ export default function AdminLibertadores() {
                               <div className="card h-100">
                                 <div className="card-body">
                                   <div className="d-flex justify-content-between align-items-start mb-3">
-                                    <div className="flex-grow-1 text-center">
-                                      <span className={`badge ${esPartidoIda ? 'bg-primary' : 'bg-success'} mb-2`}>
-                                        {esPartidoIda ? 'IDA' : 'VUELTA'}
-                                      </span>
-                                      <p className="fw-bold mb-0">
-                                        {partido.nombre_local} {paisEmoji(partido.pais_local)}
-                                        {grupoLocal && <span className="badge bg-secondary ms-2">{grupoLocal}</span>}
-                                      </p>
-                                      <p className="text-center my-1">VS</p>
-                                      <p className="fw-bold mb-0">
-                                        {partido.nombre_visita} {paisEmoji(partido.pais_visita)}
-                                        {grupoVisita && <span className="badge bg-secondary ms-2">{grupoVisita}</span>}
+                                    <div className="flex-grow-1">
+                                      <div className="d-flex align-items-center gap-2 mb-2">
+                                        <span className={`badge ${esPartidoIda ? 'bg-primary' : 'bg-success'}`}>
+                                          {esPartidoIda ? 'IDA' : 'VUELTA'}
+                                        </span>
+                                      </div>
+                                      <p className="fw-bold mb-2">
+                                        {partido.nombre_local} {paisEmoji(partido.pais_local)} vs {partido.nombre_visita} {paisEmoji(partido.pais_visita)}
+                                        {grupoLocal && <span className="ms-2 badge bg-secondary">Grupo {grupoLocal}</span>}
                                       </p>
                                       
                                       {/* Marcador global para partidos de vuelta */}
