@@ -952,6 +952,44 @@ export default function AdminLibertadores() {
     }));
   };
 
+  const guardarResultado = async (partidoId) => {
+    const resultado = resultados[partidoId];
+    if (!resultado || resultado.goles_local === '' || resultado.goles_visita === '') {
+      setMessage({ type: 'error', text: 'Debes ingresar ambos goles' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const partido = partidos.find(p => p.id === partidoId);
+      
+      await axios.patch(
+        `${API_URL}/api/libertadores/jornadas/${jornadaActual}/resultados`,
+        { 
+          partidos: [{
+            id: partidoId,
+            goles_local: resultado.goles_local,
+            goles_visita: resultado.goles_visita,
+            penales_local: resultado.penales_local || null,
+            penales_visita: resultado.penales_visita || null,
+            bonus: partido.bonus
+          }]
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setMessage({ type: 'success', text: '✅ Resultado guardado' });
+      cargarJornada();
+      setTimeout(() => setMessage({ type: '', text: '' }), 2000);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Error: ${error.response?.data?.error || error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const guardarResultados = async () => {
     setLoading(true);
     try {
