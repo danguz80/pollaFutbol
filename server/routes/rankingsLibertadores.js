@@ -10,7 +10,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
     const { numero } = req.params;
     const jornadaNum = parseInt(numero);
 
-    // Si es jornada 10, incluir puntos de campeón/subcampeón
+    // Si es jornada 10, incluir puntos de campeón/subcampeón (solo si tienen valores > 0)
     const query = jornadaNum === 10 
       ? `
         SELECT 
@@ -25,7 +25,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
         LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id AND lj.numero = $1
         LEFT JOIN libertadores_predicciones_campeon lpcamp ON u.id = lpcamp.usuario_id
         GROUP BY u.id, u.nombre, u.foto_perfil
-        HAVING COUNT(lp.id) > 0 OR MAX(lpcamp.puntos_campeon) > 0 OR MAX(lpcamp.puntos_subcampeon) > 0
+        HAVING COUNT(lp.id) > 0
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `
       : `
@@ -61,17 +61,31 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(lp.puntos), 0) + 
-        COALESCE(SUM(lpc.puntos), 0) + 
-        COALESCE(MAX(lpcamp.puntos_campeon), 0) + 
-        COALESCE(MAX(lpcamp.puntos_subcampeon), 0) as puntos_acumulados
+        COALESCE(puntos_partidos.total, 0) + 
+        COALESCE(puntos_clasificacion.total, 0) + 
+        COALESCE(puntos_campeon.campeon, 0) + 
+        COALESCE(puntos_campeon.subcampeon, 0) as puntos_acumulados
       FROM usuarios u
-      LEFT JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
-      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id AND lj.numero <= $1
-      LEFT JOIN libertadores_puntos_clasificacion lpc ON u.id = lpc.usuario_id AND lpc.jornada_numero <= $1
-      LEFT JOIN libertadores_predicciones_campeon lpcamp ON u.id = lpcamp.usuario_id
-      GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING SUM(lp.puntos) IS NOT NULL OR SUM(lpc.puntos) IS NOT NULL OR MAX(lpcamp.puntos_campeon) IS NOT NULL
+      LEFT JOIN (
+        SELECT lp.usuario_id, SUM(lp.puntos) as total
+        FROM libertadores_pronosticos lp
+        INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+        WHERE lj.numero <= $1
+        GROUP BY lp.usuario_id
+      ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT lpc.usuario_id, SUM(lpc.puntos) as total
+        FROM libertadores_puntos_clasificacion lpc
+        WHERE lpc.jornada_numero <= $1
+        GROUP BY lpc.usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
+        FROM libertadores_predicciones_campeon
+      ) puntos_campeon ON u.id = puntos_campeon.usuario_id
+      WHERE puntos_partidos.total IS NOT NULL 
+         OR puntos_clasificacion.total IS NOT NULL 
+         OR puntos_campeon.campeon IS NOT NULL
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `, [parseInt(numero)]);
 
@@ -100,17 +114,31 @@ router.get('/actual', verifyToken, async (req, res) => {
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(lp.puntos), 0) + 
-        COALESCE(SUM(lpc.puntos), 0) + 
-        COALESCE(MAX(lpcamp.puntos_campeon), 0) + 
-        COALESCE(MAX(lpcamp.puntos_subcampeon), 0) as puntos_acumulados
+        COALESCE(puntos_partidos.total, 0) + 
+        COALESCE(puntos_clasificacion.total, 0) + 
+        COALESCE(puntos_campeon.campeon, 0) + 
+        COALESCE(puntos_campeon.subcampeon, 0) as puntos_acumulados
       FROM usuarios u
-      LEFT JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
-      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id AND lj.numero <= $1
-      LEFT JOIN libertadores_puntos_clasificacion lpc ON u.id = lpc.usuario_id AND lpc.jornada_numero <= $1
-      LEFT JOIN libertadores_predicciones_campeon lpcamp ON u.id = lpcamp.usuario_id
-      GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING SUM(lp.puntos) IS NOT NULL OR SUM(lpc.puntos) IS NOT NULL OR MAX(lpcamp.puntos_campeon) IS NOT NULL
+      LEFT JOIN (
+        SELECT lp.usuario_id, SUM(lp.puntos) as total
+        FROM libertadores_pronosticos lp
+        INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+        WHERE lj.numero <= $1
+        GROUP BY lp.usuario_id
+      ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT lpc.usuario_id, SUM(lpc.puntos) as total
+        FROM libertadores_puntos_clasificacion lpc
+        WHERE lpc.jornada_numero <= $1
+        GROUP BY lpc.usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
+        FROM libertadores_predicciones_campeon
+      ) puntos_campeon ON u.id = puntos_campeon.usuario_id
+      WHERE puntos_partidos.total IS NOT NULL 
+         OR puntos_clasificacion.total IS NOT NULL 
+         OR puntos_campeon.campeon IS NOT NULL
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `, [ultimaJornada]);
 
