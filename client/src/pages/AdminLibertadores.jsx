@@ -439,6 +439,37 @@ export default function AdminLibertadores() {
     };
   };
 
+  // Calcular marcador global para cuartos de final (jornada 9)
+  const calcularMarcadorGlobalCuartos = (partidoVuelta) => {
+    if (jornadaActual !== 9) return null;
+    
+    // Buscar partido de ida correspondiente (equipos invertidos) en la misma jornada
+    const partidoIda = partidos.find(p => 
+      p.nombre_local === partidoVuelta.nombre_visita && 
+      p.nombre_visita === partidoVuelta.nombre_local
+    );
+    
+    if (!partidoIda) return null;
+    
+    // Obtener goles (de la BD o de resultados temporales)
+    const golesIdaLocal = partidoIda.goles_local ?? resultados[partidoIda.id]?.goles_local ?? 0;
+    const golesIdaVisita = partidoIda.goles_visita ?? resultados[partidoIda.id]?.goles_visita ?? 0;
+    const golesVueltaLocal = partidoVuelta.goles_local ?? resultados[partidoVuelta.id]?.goles_local ?? 0;
+    const golesVueltaVisita = partidoVuelta.goles_visita ?? resultados[partidoVuelta.id]?.goles_visita ?? 0;
+    
+    // Calcular marcador global (desde perspectiva del partido de IDA)
+    const golesEquipoA = Number(golesIdaLocal) + Number(golesVueltaVisita);
+    const golesEquipoB = Number(golesIdaVisita) + Number(golesVueltaLocal);
+    
+    return {
+      equipoA: partidoIda.nombre_local,
+      equipoB: partidoIda.nombre_visita,
+      golesA: golesEquipoA,
+      golesB: golesEquipoB,
+      hayEmpate: golesEquipoA === golesEquipoB && (golesIdaLocal > 0 || golesIdaVisita > 0 || golesVueltaLocal > 0 || golesVueltaVisita > 0)
+    };
+  };
+
   const cargarEquipos = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -1948,13 +1979,16 @@ export default function AdminLibertadores() {
                           const grupoLocal = obtenerGrupoEquipo(partido.nombre_local);
                           const grupoVisita = obtenerGrupoEquipo(partido.nombre_visita);
                           const esPartidoIda = index % 2 === 0;
+                          // Calcular marcador global para partidos de vuelta
+                          const marcadorGlobal = !esPartidoIda ? calcularMarcadorGlobalCuartos(partido) : null;
+                          const hayEmpate = marcadorGlobal?.hayEmpate || false;
 
                           return (
                             <div key={partido.id} className="col-md-6">
                               <div className="card h-100">
                                 <div className="card-body">
                                   <div className="d-flex justify-content-between align-items-start mb-3">
-                                    <div>
+                                    <div className="flex-grow-1">
                                       <span className={`badge ${esPartidoIda ? 'bg-primary' : 'bg-success'} mb-2`}>
                                         {esPartidoIda ? 'IDA' : 'VUELTA'}
                                       </span>
@@ -1967,6 +2001,24 @@ export default function AdminLibertadores() {
                                         {partido.nombre_visita} {paisEmoji(partido.pais_visita)}
                                         {grupoVisita && <span className="badge bg-secondary ms-2">{grupoVisita}</span>}
                                       </p>
+                                      
+                                      {/* Marcador global para partidos de vuelta */}
+                                      {marcadorGlobal && (marcadorGlobal.golesA > 0 || marcadorGlobal.golesB > 0) && (
+                                        <div className={`alert ${marcadorGlobal.hayEmpate ? 'alert-warning' : 'alert-info'} py-2 mb-2 mt-2`}>
+                                          <small className="fw-bold">
+                                            📊 Marcador Global: {marcadorGlobal.equipoA} {marcadorGlobal.golesA} - {marcadorGlobal.golesB} {marcadorGlobal.equipoB}
+                                            {marcadorGlobal.hayEmpate && ' ⚠️ EMPATE'}
+                                          </small>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Mostrar resultado guardado */}
+                                      {partido.goles_local !== null && partido.goles_visita !== null && (
+                                        <div className="alert alert-success py-2 mb-2 mt-2">
+                                          <strong>✅ Resultado: {partido.goles_local} - {partido.goles_visita}</strong>
+                                          {partido.penales_local !== null && ` (Pen: ${partido.penales_local}-${partido.penales_visita})`}
+                                        </div>
+                                      )}
                                     </div>
                                     <button
                                       onClick={() => eliminarPartido(partido.id)}
@@ -1977,20 +2029,13 @@ export default function AdminLibertadores() {
                                     </button>
                                   </div>
 
-                                  {/* Mostrar resultado guardado */}
-                                  {partido.goles_local !== null && partido.goles_visita !== null && (
-                                    <div className="alert alert-success py-2 mb-2">
-                                      <strong>✅ Resultado: {partido.goles_local} - {partido.goles_visita}</strong>
-                                    </div>
-                                  )}
-
                                   {/* Inputs para ingresar resultado */}
                                   <div className="d-flex align-items-center gap-2 mb-2">
                                     <input
                                       type="number"
                                       min="0"
                                       placeholder="Goles L"
-                                      value={resultados[partido.id]?.goles_local || ''}
+                                      value={resultados[partido.id]?.goles_local ?? ''}
                                       onChange={(e) => handleResultadoChange(partido.id, 'goles_local', e.target.value)}
                                       className="form-control form-control-sm text-center"
                                       style={{ width: '80px' }}
@@ -2000,7 +2045,7 @@ export default function AdminLibertadores() {
                                       type="number"
                                       min="0"
                                       placeholder="Goles V"
-                                      value={resultados[partido.id]?.goles_visita || ''}
+                                      value={resultados[partido.id]?.goles_visita ?? ''}
                                       onChange={(e) => handleResultadoChange(partido.id, 'goles_visita', e.target.value)}
                                       className="form-control form-control-sm text-center"
                                       style={{ width: '80px' }}
@@ -2013,9 +2058,74 @@ export default function AdminLibertadores() {
                                       💾
                                     </button>
                                   </div>
+                                  
+                                  {/* Inputs de penales - Solo en partidos de VUELTA si hay empate global */}
+                                  {!esPartidoIda && hayEmpate && (
+                                    <div className="mt-2 p-2 bg-warning bg-opacity-10 rounded border border-warning">
+                                      <label className="form-label small mb-1 fw-bold text-danger">
+                                        ⚠️ Empate Global - Definir por Penales:
+                                      </label>
+                                      <div className="d-flex gap-2 align-items-center">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="10"
+                                          placeholder="Pen L"
+                                          value={resultados[partido.id]?.penales_local ?? ''}
+                                          onChange={(e) => handleResultadoChange(partido.id, 'penales_local', e.target.value)}
+                                          className="form-control form-control-sm border-danger"
+                                          style={{ width: '60px' }}
+                                        />
+                                        <span className="text-danger fw-bold">PEN</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="10"
+                                          placeholder="Pen V"
+                                          value={resultados[partido.id]?.penales_visita ?? ''}
+                                          onChange={(e) => handleResultadoChange(partido.id, 'penales_visita', e.target.value)}
+                                          className="form-control form-control-sm border-danger"
+                                          style={{ width: '60px' }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
 
-                                  <div className="small text-muted">
-                                    Bonus: x{partido.bonus}
+                                  {/* Bonus editable */}
+                                  <div className="mt-2 d-flex align-items-center gap-2">
+                                    <span className="small text-muted">Bonus:</span>
+                                    {editandoBonus === partido.id ? (
+                                      <>
+                                        <select
+                                          value={partido.bonus}
+                                          onChange={(e) => actualizarBonus(partido.id, Number(e.target.value))}
+                                          className="form-select form-select-sm"
+                                          style={{ width: '80px' }}
+                                          autoFocus
+                                        >
+                                          <option value={1}>x1</option>
+                                          <option value={2}>x2</option>
+                                          <option value={3}>x3</option>
+                                        </select>
+                                        <button
+                                          onClick={() => setEditandoBonus(null)}
+                                          className="btn btn-sm btn-success"
+                                        >
+                                          ✓
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="badge bg-info">x{partido.bonus}</span>
+                                        <button
+                                          onClick={() => setEditandoBonus(partido.id)}
+                                          className="btn btn-sm btn-outline-secondary"
+                                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                                        >
+                                          ✏️
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </div>
