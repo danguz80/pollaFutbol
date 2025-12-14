@@ -122,9 +122,17 @@ export default function Jornada() {
 
   // Calcular finalistas basados en pronósticos del usuario (solo jornada 10)
   useEffect(() => {
-    if (jornadaSeleccionada !== 10 || partidos.length === 0) {
+    console.log('🔍 useEffect ejecutándose - Jornada:', jornadaSeleccionada, 'Partidos:', partidos.length);
+    
+    if (jornadaSeleccionada !== 10) {
       setEquiposFinalistasPronosticados([]);
       setPartidoFinal(null);
+      setMostrarCalcularFinalistas(false);
+      return;
+    }
+    
+    if (partidos.length === 0) {
+      console.log('⚠️ Esperando que carguen los partidos...');
       return;
     }
 
