@@ -131,14 +131,33 @@ router.get('/jornadas/:numero', async (req, res) => {
               WHEN $2 = 8 THEN 'VUELTA'
               WHEN $2 = 9 THEN 
                 CASE 
-                  WHEN ROW_NUMBER() OVER (ORDER BY p.fecha, p.id) % 2 = 1 THEN 'IDA'
+                  -- Para J9: IDA si este partido se jugó antes que su partido de vuelta (equipos invertidos)
+                  WHEN EXISTS (
+                    SELECT 1 FROM libertadores_partidos p2
+                    WHERE p2.jornada_id = p.jornada_id
+                    AND p2.nombre_local = p.nombre_visita
+                    AND p2.nombre_visita = p.nombre_local
+                    AND p2.id > p.id
+                  ) THEN 'IDA'
                   ELSE 'VUELTA'
                 END
               WHEN $2 = 10 THEN 
                 CASE 
-                  WHEN ROW_NUMBER() OVER (ORDER BY p.fecha, p.id) IN (1, 3) THEN 'IDA'
-                  WHEN ROW_NUMBER() OVER (ORDER BY p.fecha, p.id) IN (2, 4) THEN 'VUELTA'
-                  ELSE 'FINAL'
+                  -- Para J10: Similar pero distinguiendo FINAL
+                  WHEN NOT EXISTS (
+                    SELECT 1 FROM libertadores_partidos p2
+                    WHERE p2.jornada_id = p.jornada_id
+                    AND p2.nombre_local = p.nombre_visita
+                    AND p2.nombre_visita = p.nombre_local
+                  ) THEN 'FINAL'
+                  WHEN EXISTS (
+                    SELECT 1 FROM libertadores_partidos p2
+                    WHERE p2.jornada_id = p.jornada_id
+                    AND p2.nombre_local = p.nombre_visita
+                    AND p2.nombre_visita = p.nombre_local
+                    AND p2.id > p.id
+                  ) THEN 'IDA'
+                  ELSE 'VUELTA'
                 END
             END
           ELSE el.grupo
