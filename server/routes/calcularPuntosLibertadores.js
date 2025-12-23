@@ -143,8 +143,11 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           if (partidoIdaResult.rows.length > 0) {
             const partidoIda = partidoIdaResult.rows[0];
             // Calcular marcador global
-            const golesGlobalLocal = resultado_local + (partidoIda.goles_visita || 0);
-            const golesGlobalVisita = resultado_visita + (partidoIda.goles_local || 0);
+            // IMPORTANTE: partidoIda tiene equipos invertidos (local/visita), entonces:
+            // - goles_local del IDA corresponde al equipo que ahora es VISITA en VUELTA
+            // - goles_visita del IDA corresponde al equipo que ahora es LOCAL en VUELTA
+            const golesGlobalLocal = resultado_local + (partidoIda.goles_local || 0);
+            const golesGlobalVisita = resultado_visita + (partidoIda.goles_visita || 0);
             
             equipoQueAvanzaReal = determinarEquipoQueAvanza(
               golesGlobalLocal,

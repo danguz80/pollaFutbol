@@ -594,25 +594,41 @@ export default function ClasificacionLibertadores() {
                           
                           return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
                             <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
-                              <td></td>
-                              <td colSpan="3" className="text-center">
-                                <div className="fw-bold mb-2">⚡ Equipo que avanza</div>
+                              <td colSpan="4">
+                                <div className="fw-bold mb-2 text-center">⚡ Equipo que avanza</div>
                                 {jornada === 8 && pronostico.partido_ida && (
-                                  <div className="small text-muted mt-2">
-                                    <div className="mb-1">
-                                      <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local || '?'} - {pronostico.partido_ida.resultado_ida_visita || '?'} {pronostico.partido_ida.nombre_visita}
-                                    </div>
-                                    {pronostico.partido.resultado.local !== null && (
+                                  <div className="d-flex justify-content-between small">
+                                    {/* PRONÓSTICO (Izquierda) */}
+                                    <div className="text-start" style={{flex: 1}}>
+                                      <div className="mb-1">
+                                        <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local || '?'} - {pronostico.partido_ida.pronostico_ida_visita || '?'} {pronostico.partido_ida.nombre_visita}
+                                      </div>
                                       <div>
-                                        <strong>Marcador Global:</strong> {pronostico.equipo_real_avanza} {
-                                          pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_visita || 0)
-                                        } {
-                                          pronostico.partido.resultado.penales_local !== null ? `(${pronostico.partido.resultado.penales_local} pen)` : ''
-                                        } vs {
-                                          pronostico.partido.resultado.visita + (pronostico.partido_ida.resultado_ida_local || 0)
-                                        } {
-                                          pronostico.partido.resultado.penales_visita !== null ? `(${pronostico.partido.resultado.penales_visita} pen)` : ''
-                                        } {pronostico.equipo_real_avanza === pronostico.partido.local.nombre ? pronostico.partido.visita.nombre : pronostico.partido.local.nombre}
+                                        <strong>Marcador Global:</strong> {pronostico.partido.local.nombre} {
+                                          (pronostico.pronostico.local || 0) + (pronostico.partido_ida.pronostico_ida_local || 0)
+                                        } - {
+                                          (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.pronostico_ida_visita || 0)
+                                        } {pronostico.partido.visita.nombre}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* REAL (Derecha) */}
+                                    {pronostico.partido.resultado.local !== null && (
+                                      <div className="text-end text-muted" style={{flex: 1}}>
+                                        <div className="mb-1">
+                                          <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local || '?'} - {pronostico.partido_ida.resultado_ida_visita || '?'} {pronostico.partido_ida.nombre_visita}
+                                        </div>
+                                        <div>
+                                          <strong>Marcador Global:</strong> {pronostico.partido.local.nombre} {
+                                            pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_local || 0)
+                                          } {
+                                            pronostico.partido.resultado.penales_local !== null ? `(${pronostico.partido.resultado.penales_local} pen)` : ''
+                                          } - {
+                                            pronostico.partido.resultado.visita + (pronostico.partido_ida.resultado_ida_visita || 0)
+                                          } {
+                                            pronostico.partido.resultado.penales_visita !== null ? `(${pronostico.partido.resultado.penales_visita} pen)` : ''
+                                          } {pronostico.partido.visita.nombre}
+                                        </div>
                                       </div>
                                     )}
                                   </div>

@@ -99,8 +99,8 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
           // Buscar partido IDA en jornada 7 con equipos invertidos
           const partidoIdaResult = await pool.query(`
             SELECT 
-              lp.goles_local, 
-              lp.goles_visita,
+              lp.goles_local as pronostico_ida_local, 
+              lp.goles_visita as pronostico_ida_visita,
               p.goles_local as resultado_ida_local,
               p.goles_visita as resultado_ida_visita,
               p.penales_local as penales_real_ida_local,
@@ -118,13 +118,16 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
           
           if (partidoIdaResult.rows.length > 0) {
             partidoIda = partidoIdaResult.rows[0];
-            // Global: Local actual + Visita IDA vs Visita actual + Local IDA
-            pronosticoGlobalLocal = row.pronostico_local + partidoIda.goles_visita;
-            pronosticoGlobalVisita = row.pronostico_visita + partidoIda.goles_local;
+            // CORRECCIÓN: partidoIda tiene equipos invertidos respecto a VUELTA
+            // nombre_local del IDA = nombre_visita de VUELTA
+            // nombre_visita del IDA = nombre_local de VUELTA
+            // Por lo tanto, los goles se suman así:
+            pronosticoGlobalLocal = row.pronostico_local + partidoIda.pronostico_ida_local;
+            pronosticoGlobalVisita = row.pronostico_visita + partidoIda.pronostico_ida_visita;
             
             if (partidoIda.resultado_ida_local !== null && partidoIda.resultado_ida_visita !== null) {
-              resultadoGlobalLocal = row.resultado_local + partidoIda.resultado_ida_visita;
-              resultadoGlobalVisita = row.resultado_visita + partidoIda.resultado_ida_local;
+              resultadoGlobalLocal = row.resultado_local + partidoIda.resultado_ida_local;
+              resultadoGlobalVisita = row.resultado_visita + partidoIda.resultado_ida_visita;
             }
           }
         }
