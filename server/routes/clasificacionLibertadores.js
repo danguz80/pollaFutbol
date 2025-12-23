@@ -126,8 +126,8 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       let equipoRealQueAvanza = null;
       
       if (row.jornada_numero >= 8) {
-        // Para jornada 8: Buscar partido IDA (jornada 7)
-        // Para jornadas 9-10: El marcador es directo del partido de VUELTA
+        // Para jornada 8: Buscar partido IDA en jornada 7
+        // Para jornadas 9-10: Buscar partido IDA en la misma jornada (con equipos invertidos)
         let pronosticoGlobalLocal = row.pronostico_local;
         let pronosticoGlobalVisita = row.pronostico_visita;
         let resultadoGlobalLocal = row.resultado_local;
@@ -161,6 +161,45 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
             // En IDA: partidoIda tiene los equipos invertidos
             // partidoIda.nombre_local = row.nombre_visita (el visitante de VUELTA era local en IDA)
             // partidoIda.nombre_visita = row.nombre_local (el local de VUELTA era visita en IDA)
+            
+            // Goles totales del equipo LOCAL de VUELTA (row.nombre_local):
+            // - En VUELTA: row.pronostico_local
+            // - En IDA: era VISITA, entonces partidoIda.pronostico_ida_visita
+            pronosticoGlobalLocal = row.pronostico_local + (partidoIda.pronostico_ida_visita || 0);
+            
+            // Goles totales del equipo VISITA de VUELTA (row.nombre_visita):
+            // - En VUELTA: row.pronostico_visita
+            // - En IDA: era LOCAL, entonces partidoIda.pronostico_ida_local
+            pronosticoGlobalVisita = row.pronostico_visita + (partidoIda.pronostico_ida_local || 0);
+            
+            if (partidoIda.resultado_ida_local !== null && partidoIda.resultado_ida_visita !== null) {
+              resultadoGlobalLocal = row.resultado_local + (partidoIda.resultado_ida_visita || 0);
+              resultadoGlobalVisita = row.resultado_visita + (partidoIda.resultado_ida_local || 0);
+            }
+          }
+        } else if (row.jornada_numero === 9 || row.jornada_numero === 10) {
+          // Para J9 y J10: Buscar partido IDA en la misma jornada con equipos invertidos
+          const partidoIdaResult = await pool.query(`
+            SELECT 
+              lp.goles_local as pronostico_ida_local, 
+              lp.goles_visita as pronostico_ida_visita,
+              p.goles_local as resultado_ida_local,
+              p.goles_visita as resultado_ida_visita,
+              p.penales_local as penales_real_ida_local,
+              p.penales_visita as penales_real_ida_visita,
+              p.nombre_local,
+              p.nombre_visita
+            FROM libertadores_pronosticos lp
+            INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+            INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+            WHERE lj.numero = $1
+              AND p.nombre_local = $2
+              AND p.nombre_visita = $3
+              AND lp.usuario_id = $4
+          `, [row.jornada_numero, row.nombre_visita, row.nombre_local, row.usuario_id]);
+          
+          if (partidoIdaResult.rows.length > 0) {
+            partidoIda = partidoIdaResult.rows[0];
             
             // Goles totales del equipo LOCAL de VUELTA (row.nombre_local):
             // - En VUELTA: row.pronostico_local

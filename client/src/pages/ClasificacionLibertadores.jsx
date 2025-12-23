@@ -607,7 +607,7 @@ export default function ClasificacionLibertadores() {
                             <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
                               <td colSpan="4">
                                 <div className="fw-bold mb-2 text-center">⚡ Equipo que avanza</div>
-                                {jornada === 8 && pronostico.partido_ida && (
+                                {(jornada === 8 || jornada === 9 || jornada === 10) && pronostico.partido_ida && (
                                   <div className="d-flex justify-content-between small">
                                     {/* PRONÓSTICO (Izquierda) */}
                                     <div className="text-start" style={{flex: 1}}>
