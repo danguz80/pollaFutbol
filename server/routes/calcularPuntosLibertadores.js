@@ -190,25 +190,66 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
               nombre_visita
             );
           }
-        } else {
-          // Para jornadas 9 y 10, usar directamente los pronósticos y resultados
-          equipoQueAvanzaPronostico = determinarEquipoQueAvanza(
-            pronostico_local,
-            pronostico_visita,
-            penales_pron_local,
-            penales_pron_visita,
-            nombre_local,
-            nombre_visita
-          );
-          // Para jornadas 9 y 10, el marcador ya es el correcto del partido de vuelta
-          equipoQueAvanzaReal = determinarEquipoQueAvanza(
-            resultado_local, 
-            resultado_visita, 
-            penales_real_local, 
-            penales_real_visita,
-            nombre_local,
-            nombre_visita
-          );
+        } else if (jornada_numero === 9 || jornada_numero === 10) {
+          // Para J9 y J10: Buscar partido IDA en la misma jornada con equipos invertidos
+          const partidoIdaResult = await pool.query(`
+            SELECT goles_local, goles_visita, penales_local, penales_visita
+            FROM libertadores_partidos p
+            INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+            WHERE lj.numero = $1
+              AND p.nombre_local = $2
+              AND p.nombre_visita = $3
+          `, [jornada_numero, nombre_visita, nombre_local]);
+
+          if (partidoIdaResult.rows.length > 0) {
+            const partidoIda = partidoIdaResult.rows[0];
+            
+            // Buscar también el PRONÓSTICO de IDA en la misma jornada
+            const pronosticoIdaResult = await pool.query(`
+              SELECT lp.goles_local as pronostico_ida_local, lp.goles_visita as pronostico_ida_visita,
+                     lp.penales_local as penales_pron_ida_local, lp.penales_visita as penales_pron_ida_visita
+              FROM libertadores_pronosticos lp
+              INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+              INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+              WHERE lj.numero = $1
+                AND p.nombre_local = $2
+                AND p.nombre_visita = $3
+                AND lp.usuario_id = $4
+            `, [jornada_numero, nombre_visita, nombre_local, usuario_id]);
+            
+            // Calcular marcador global PRONOSTICADO
+            let pronosticoGlobalLocal = pronostico_local;
+            let pronosticoGlobalVisita = pronostico_visita;
+            
+            if (pronosticoIdaResult.rows.length > 0) {
+              const pronosticoIda = pronosticoIdaResult.rows[0];
+              pronosticoGlobalLocal = pronostico_local + (pronosticoIda.pronostico_ida_visita || 0);
+              pronosticoGlobalVisita = pronostico_visita + (pronosticoIda.pronostico_ida_local || 0);
+            }
+            
+            // Determinar equipo que el usuario pronosticó que avanza
+            equipoQueAvanzaPronostico = determinarEquipoQueAvanza(
+              pronosticoGlobalLocal,
+              pronosticoGlobalVisita,
+              penales_pron_local,
+              penales_pron_visita,
+              nombre_local,
+              nombre_visita
+            );
+            
+            // Calcular marcador global REAL
+            const golesGlobalLocal = resultado_local + (partidoIda.goles_visita || 0);
+            const golesGlobalVisita = resultado_visita + (partidoIda.goles_local || 0);
+            
+            equipoQueAvanzaReal = determinarEquipoQueAvanza(
+              golesGlobalLocal,
+              golesGlobalVisita,
+              penales_real_local,
+              penales_real_visita,
+              nombre_local,
+              nombre_visita
+            );
+          }
         }
 
         // SIEMPRE guardar el pronóstico, con puntos o sin puntos
