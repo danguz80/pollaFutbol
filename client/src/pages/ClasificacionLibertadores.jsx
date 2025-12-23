@@ -682,7 +682,17 @@ export default function ClasificacionLibertadores() {
                       <td colSpan="6" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
                       <td className="text-center">
                         <span className="badge bg-dark fs-5">
-                          {grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0) + (p.puntos_clasificacion || 0), 0)} pts
+                          {(() => {
+                            // Sumar puntos de partidos
+                            const puntosPartidos = grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+                            
+                            // Para puntos de clasificación, solo contar una vez por cruce (en partidos de VUELTA)
+                            const puntosClasificacion = grupo.pronosticos
+                              .filter(p => p.partido.tipo_partido === 'VUELTA' || p.partido.tipo_partido === 'FINAL')
+                              .reduce((sum, p) => sum + (p.puntos_clasificacion || 0), 0);
+                            
+                            return puntosPartidos + puntosClasificacion;
+                          })()} pts
                         </span>
                       </td>
                     </tr>

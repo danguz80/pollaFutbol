@@ -960,6 +960,49 @@ export default function AdminLibertadores() {
       return;
     }
 
+    // VALIDACIÓN: Para jornadas 8, 9, 10 en partidos de VUELTA, verificar si hay empate global sin penales
+    if (jornadaActual >= 8 && jornadaActual <= 10) {
+      const partido = partidos.find(p => p.id === partidoId);
+      
+      // Verificar si es partido de VUELTA
+      if (partido && partido.tipo_partido === 'VUELTA') {
+        // Buscar el partido de IDA
+        let partidoIda;
+        if (jornadaActual === 8) {
+          // Para J8, buscar en partidosIda (jornada 7)
+          partidoIda = partidosIda.find(p => 
+            p.nombre_local === partido.nombre_visita && 
+            p.nombre_visita === partido.nombre_local
+          );
+        } else {
+          // Para J9 y J10, buscar en los mismos partidos
+          partidoIda = partidos.find(p => 
+            p.nombre_local === partido.nombre_visita && 
+            p.nombre_visita === partido.nombre_local
+          );
+        }
+        
+        if (partidoIda && partidoIda.goles_local !== null && partidoIda.goles_visita !== null) {
+          // Calcular marcador global
+          const golesGlobalLocal = parseInt(resultado.goles_local) + parseInt(partidoIda.goles_visita);
+          const golesGlobalVisita = parseInt(resultado.goles_visita) + parseInt(partidoIda.goles_local);
+          
+          // Si hay empate global, DEBEN existir penales
+          if (golesGlobalLocal === golesGlobalVisita) {
+            if (!resultado.penales_local || !resultado.penales_visita || 
+                resultado.penales_local === '' || resultado.penales_visita === '') {
+              setMessage({ 
+                type: 'error', 
+                text: `⚠️ Empate en marcador global (${golesGlobalLocal}-${golesGlobalVisita}). Debes ingresar los penales para definir al ganador.` 
+              });
+              setTimeout(() => setMessage({ type: '', text: '' }), 4000);
+              return;
+            }
+          }
+        }
+      }
+    }
+
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -994,6 +1037,51 @@ export default function AdminLibertadores() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      
+      // Validar penales en jornadas 8-10 antes de preparar los resultados
+      if (jornadaActual >= 8 && jornadaActual <= 10) {
+        for (const partido of partidos) {
+          const resultado = resultados[partido.id];
+          if (!resultado || resultado.goles_local === '' || resultado.goles_visita === '') {
+            continue; // Saltear partidos sin resultado
+          }
+          
+          // Verificar si es partido de VUELTA
+          if (partido.tipo_partido === 'VUELTA') {
+            // Buscar el partido de IDA
+            let partidoIda;
+            if (jornadaActual === 8) {
+              partidoIda = partidosIda.find(p => 
+                p.nombre_local === partido.nombre_visita && 
+                p.nombre_visita === partido.nombre_local
+              );
+            } else {
+              partidoIda = partidos.find(p => 
+                p.nombre_local === partido.nombre_visita && 
+                p.nombre_visita === partido.nombre_local
+              );
+            }
+            
+            if (partidoIda && partidoIda.goles_local !== null && partidoIda.goles_visita !== null) {
+              const golesGlobalLocal = parseInt(resultado.goles_local) + parseInt(partidoIda.goles_visita);
+              const golesGlobalVisita = parseInt(resultado.goles_visita) + parseInt(partidoIda.goles_local);
+              
+              if (golesGlobalLocal === golesGlobalVisita) {
+                if (!resultado.penales_local || !resultado.penales_visita || 
+                    resultado.penales_local === '' || resultado.penales_visita === '') {
+                  setMessage({ 
+                    type: 'error', 
+                    text: `⚠️ Partido ${partido.nombre_local} vs ${partido.nombre_visita}: Empate global (${golesGlobalLocal}-${golesGlobalVisita}). Debes ingresar penales.` 
+                  });
+                  setLoading(false);
+                  setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
       
       // Preparar array de partidos con resultados
       const partidosConResultados = partidos
