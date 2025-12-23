@@ -116,17 +116,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       // Jornadas 9-10: Calcular en partidos de VUELTA considerando global
       
       if (jornada_numero >= 8 && jornada_numero <= 10) {
-        // Determinar equipo que el usuario pronosticó que avanza
-        const equipoQueAvanzaPronostico = determinarEquipoQueAvanza(
-          pronostico_local,
-          pronostico_visita,
-          penales_pron_local,
-          penales_pron_visita,
-          nombre_local,
-          nombre_visita
-        );
-
-        // Para jornada 8, necesitamos el marcador global (IDA + VUELTA)
+        let equipoQueAvanzaPronostico = null;
         let equipoQueAvanzaReal = null;
         
         if (jornada_numero === 8) {
@@ -142,7 +132,42 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
           if (partidoIdaResult.rows.length > 0) {
             const partidoIda = partidoIdaResult.rows[0];
-            // Calcular marcador global SIGUIENDO A LOS EQUIPOS POR NOMBRE
+            
+            // Buscar también el PRONÓSTICO de IDA
+            const pronosticoIdaResult = await pool.query(`
+              SELECT lp.goles_local as pronostico_ida_local, lp.goles_visita as pronostico_ida_visita,
+                     lp.penales_local as penales_pron_ida_local, lp.penales_visita as penales_pron_ida_visita
+              FROM libertadores_pronosticos lp
+              INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+              INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+              WHERE lj.numero = 7
+                AND p.nombre_local = $1
+                AND p.nombre_visita = $2
+                AND lp.usuario_id = $3
+            `, [nombre_visita, nombre_local, usuario_id]);
+            
+            // Calcular marcador global PRONOSTICADO SIGUIENDO A LOS EQUIPOS POR NOMBRE
+            // Equipo LOCAL de VUELTA: goles en VUELTA + sus goles en IDA (cuando era VISITA)
+            let pronosticoGlobalLocal = pronostico_local;
+            let pronosticoGlobalVisita = pronostico_visita;
+            
+            if (pronosticoIdaResult.rows.length > 0) {
+              const pronosticoIda = pronosticoIdaResult.rows[0];
+              pronosticoGlobalLocal = pronostico_local + (pronosticoIda.pronostico_ida_visita || 0);
+              pronosticoGlobalVisita = pronostico_visita + (pronosticoIda.pronostico_ida_local || 0);
+            }
+            
+            // Determinar equipo que el usuario pronosticó que avanza CON MARCADOR GLOBAL
+            equipoQueAvanzaPronostico = determinarEquipoQueAvanza(
+              pronosticoGlobalLocal,
+              pronosticoGlobalVisita,
+              penales_pron_local,
+              penales_pron_visita,
+              nombre_local,
+              nombre_visita
+            );
+            
+            // Calcular marcador global REAL SIGUIENDO A LOS EQUIPOS POR NOMBRE
             // En VUELTA: nombre_local vs nombre_visita
             // En IDA (invertido): nombre_visita (era local) vs nombre_local (era visita)
             // 
@@ -166,6 +191,15 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             );
           }
         } else {
+          // Para jornadas 9 y 10, usar directamente los pronósticos y resultados
+          equipoQueAvanzaPronostico = determinarEquipoQueAvanza(
+            pronostico_local,
+            pronostico_visita,
+            penales_pron_local,
+            penales_pron_visita,
+            nombre_local,
+            nombre_visita
+          );
           // Para jornadas 9 y 10, el marcador ya es el correcto del partido de vuelta
           equipoQueAvanzaReal = determinarEquipoQueAvanza(
             resultado_local, 
