@@ -600,11 +600,12 @@ export default function ClasificacionLibertadores() {
                                   <div className="d-flex justify-content-between small">
                                     {/* PRONÓSTICO (Izquierda) */}
                                     <div className="text-start" style={{flex: 1}}>
+                                      <div className="text-primary fw-bold mb-2">Pronosticado</div>
                                       <div className="mb-1">
-                                        <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local !== null && pronostico.partido_ida.pronostico_ida_local !== undefined ? pronostico.partido_ida.pronostico_ida_local : '?'} - {pronostico.partido_ida.pronostico_ida_visita !== null && pronostico.partido_ida.pronostico_ida_visita !== undefined ? pronostico.partido_ida.pronostico_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
+                                        <strong>IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local !== null && pronostico.partido_ida.pronostico_ida_local !== undefined ? pronostico.partido_ida.pronostico_ida_local : '?'} - {pronostico.partido_ida.pronostico_ida_visita !== null && pronostico.partido_ida.pronostico_ida_visita !== undefined ? pronostico.partido_ida.pronostico_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
                                       </div>
                                       <div>
-                                        <strong>Marcador Global:</strong> {pronostico.partido.local.nombre} {
+                                        <strong>Global:</strong> {pronostico.partido.local.nombre} {
                                           (pronostico.pronostico.local || 0) + (pronostico.partido_ida.pronostico_ida_visita || 0)
                                         } - {
                                           (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.pronostico_ida_local || 0)
@@ -615,11 +616,12 @@ export default function ClasificacionLibertadores() {
                                     {/* REAL (Derecha) */}
                                     {pronostico.partido.resultado.local !== null && (
                                       <div className="text-end text-muted" style={{flex: 1}}>
+                                        <div className="text-success fw-bold mb-2">Real</div>
                                         <div className="mb-1">
-                                          <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local !== null ? pronostico.partido_ida.resultado_ida_local : '?'} - {pronostico.partido_ida.resultado_ida_visita !== null ? pronostico.partido_ida.resultado_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
+                                          <strong>IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local !== null ? pronostico.partido_ida.resultado_ida_local : '?'} - {pronostico.partido_ida.resultado_ida_visita !== null ? pronostico.partido_ida.resultado_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
                                         </div>
                                         <div>
-                                          <strong>Marcador Global:</strong> {pronostico.partido.local.nombre} {
+                                          <strong>Global:</strong> {pronostico.partido.local.nombre} {
                                             pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_visita || 0)
                                           } {
                                             pronostico.partido.resultado.penales_local !== null ? `(${pronostico.partido.resultado.penales_local} pen)` : ''
