@@ -688,7 +688,16 @@ export default function ClasificacionLibertadores() {
                             
                             // Para puntos de clasificación, solo contar una vez por cruce (en partidos de VUELTA)
                             const puntosClasificacion = grupo.pronosticos
-                              .filter(p => p.partido.tipo_partido === 'VUELTA' || p.partido.tipo_partido === 'FINAL')
+                              .filter((p, index) => {
+                                const jornada = p.jornada.numero;
+                                // Jornada 8: todos son VUELTA
+                                if (jornada === 8) return true;
+                                // Jornada 9: solo los de índice impar son VUELTA
+                                if (jornada === 9) return index % 2 === 1;
+                                // Jornada 10: índices 1, 3 son VUELTA, 4 es FINAL
+                                if (jornada === 10) return index === 1 || index === 3 || index === 4;
+                                return false;
+                              })
                               .reduce((sum, p) => sum + (p.puntos_clasificacion || 0), 0);
                             
                             return puntosPartidos + puntosClasificacion;

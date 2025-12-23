@@ -10,70 +10,64 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
     const { numero } = req.params;
     const jornadaNum = parseInt(numero);
 
-    // Si es jornada 10, incluir puntos de campeón/subcampeón (solo si tienen valores > 0)
-    const query = jornadaNum === 10 
-      ? `
-        SELECT 
-          u.id,
-          u.nombre,
-          u.foto_perfil,
-          COALESCE(puntos_jornada.total, 0) + 
-          COALESCE(puntos_clasificacion.total, 0) +
-          COALESCE(puntos_campeon.campeon, 0) + 
-          COALESCE(puntos_campeon.subcampeon, 0) as puntos_jornada
-        FROM usuarios u
-        LEFT JOIN (
-          SELECT lp.usuario_id, SUM(lp.puntos) as total
-          FROM libertadores_pronosticos lp
-          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-          WHERE lj.numero = $1
-          GROUP BY lp.usuario_id
-        ) puntos_jornada ON u.id = puntos_jornada.usuario_id
-        LEFT JOIN (
-          SELECT usuario_id, SUM(puntos) as total
-          FROM libertadores_puntos_clasificacion
-          WHERE jornada_numero = $1
-          GROUP BY usuario_id
-        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        LEFT JOIN (
-          SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
-          FROM libertadores_predicciones_campeon
-        ) puntos_campeon ON u.id = puntos_campeon.usuario_id
-        WHERE puntos_jornada.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
-        ORDER BY puntos_jornada DESC, u.nombre ASC
-      `
-      : `
-        SELECT 
-          u.id,
-          u.nombre,
-          u.foto_perfil,
-          COALESCE(puntos_jornada.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada
-        FROM usuarios u
-        LEFT JOIN (
-          SELECT lp.usuario_id, SUM(lp.puntos) as total
-          FROM libertadores_pronosticos lp
-          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-          WHERE lj.numero = $1
-          GROUP BY lp.usuario_id
-        ) puntos_jornada ON u.id = puntos_jornada.usuario_id
-        LEFT JOIN (
-          SELECT usuario_id, SUM(puntos) as total
-          FROM libertadores_puntos_clasificacion
-          WHERE jornada_numero = $1
-          GROUP BY usuario_id
-        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        WHERE puntos_jornada.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
-        ORDER BY puntos_jornada DESC, u.nombre ASC
-      `;
+    // Obtener todos los pronósticos de la jornada agrupados por usuario
+    const pronosticosResult = await pool.query(`
+      SELECT 
+        u.id as usuario_id,
+        u.nombre,
+        u.foto_perfil,
+        lp.puntos,
+        lpc.puntos as puntos_clasificacion,
+        p.id as partido_id,
+        p.nombre_local,
+        p.nombre_visita
+      FROM usuarios u
+      INNER JOIN libertadores_pronosticos lp ON u.id = lp.usuario_id
+      INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+      INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+      LEFT JOIN libertadores_puntos_clasificacion lpc ON lp.usuario_id = lpc.usuario_id 
+        AND lp.partido_id = lpc.partido_id
+        AND lj.numero = lpc.jornada_numero
+      WHERE lj.numero = $1
+      ORDER BY u.id, p.id
+    `, [jornadaNum]);
 
-    const result = await pool.query(query, [jornadaNum]);
-    
-    // Debug para jornada 10
-    if (jornadaNum === 10 && result.rows.length > 0) {
-      console.log(`🔍 DEBUG Jornada 10 - Primeros 3 usuarios:`, result.rows.slice(0, 3));
-    }
+    // Agrupar por usuario y SUMAR TODO (partidos + clasificación)
+    const ranking = {};
+    pronosticosResult.rows.forEach((row) => {
+      if (!ranking[row.usuario_id]) {
+        ranking[row.usuario_id] = {
+          id: row.usuario_id,
+          nombre: row.nombre,
+          foto_perfil: row.foto_perfil,
+          puntosPartidos: 0,
+          puntosClasificacion: 0
+        };
+      }
+      
+      // Sumar TODO: puntos de partido
+      ranking[row.usuario_id].puntosPartidos += row.puntos || 0;
+      
+      // Sumar TODO: puntos de clasificación
+      ranking[row.usuario_id].puntosClasificacion += row.puntos_clasificacion || 0;
+    });
 
-    res.json(result.rows);
+    // Formatear resultado y ordenar
+    const rankingArray = Object.values(ranking)
+      .map(j => ({
+        id: j.id,
+        nombre: j.nombre,
+        foto_perfil: j.foto_perfil,
+        puntos_jornada: j.puntosPartidos + j.puntosClasificacion
+      }))
+      .sort((a, b) => {
+        if (b.puntos_jornada !== a.puntos_jornada) {
+          return b.puntos_jornada - a.puntos_jornada;
+        }
+        return a.nombre.localeCompare(b.nombre);
+      });
+
+    res.json(rankingArray);
   } catch (error) {
     console.error('Error obteniendo ranking de jornada:', error);
     res.status(500).json({ error: 'Error obteniendo ranking de jornada' });
