@@ -258,6 +258,33 @@ export default function ClasificacionLibertadores() {
         }
         grupos[key].pronosticos.push(p);
       });
+      
+      // Ordenar pronósticos dentro de cada grupo
+      Object.values(grupos).forEach(grupo => {
+        grupo.pronosticos.sort((a, b) => {
+          // Para jornadas 7-10, ordenar por cruce (equipos) y luego IDA antes de VUELTA
+          if (a.jornada.numero >= 7 && a.jornada.numero <= 10) {
+            // Crear una clave de cruce usando los equipos ordenados alfabéticamente
+            const getClaveEquipos = (p) => {
+              return [p.partido.local.nombre, p.partido.visita.nombre].sort().join('-');
+            };
+            const claveA = getClaveEquipos(a);
+            const claveB = getClaveEquipos(b);
+            
+            if (claveA !== claveB) {
+              return claveA.localeCompare(claveB);
+            }
+            
+            // Mismo cruce: IDA antes de VUELTA
+            const ordenTipo = { 'IDA': 1, 'VUELTA': 2, 'FINAL': 3 };
+            return (ordenTipo[a.partido.tipo_partido] || 999) - (ordenTipo[b.partido.tipo_partido] || 999);
+          }
+          
+          // Para otras jornadas, ordenar por fecha de partido
+          return new Date(a.partido.fecha) - new Date(b.partido.fecha);
+        });
+      });
+      
       return Object.values(grupos);
     } else {
       // Si no hay jornada, agrupar por jornada y jugador
@@ -573,19 +600,8 @@ export default function ClasificacionLibertadores() {
                         {/* Fila de "Equipo que avanza" - Solo en jornadas 8+ y solo en partidos de VUELTA */}
                         {(() => {
                           const jornada = pronostico.jornada.numero;
-                          let esPartidoVuelta = false;
-                          
-                          // Jornada 8: Todos son de vuelta (octavos vuelta)
-                          if (jornada === 8) {
-                            esPartidoVuelta = true;
-                          }
-                          // Jornadas 9-10: Los partidos pares en el orden son VUELTA
-                          else if (jornada >= 9) {
-                            // Necesitamos identificar si es vuelta comparando con el índice en el grupo
-                            // Los partidos de vuelta tienen los equipos invertidos respecto a ida
-                            // Por simplicidad, asumimos que los índices pares (0, 2, 4...) son IDA y impares (1, 3, 5...) son VUELTA
-                            esPartidoVuelta = (index % 2) === 1;
-                          }
+                          // Usar el campo tipo_partido del backend para detectar si es VUELTA
+                          const esPartidoVuelta = pronostico.partido.tipo_partido === 'VUELTA';
                           
                           return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
                             <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
