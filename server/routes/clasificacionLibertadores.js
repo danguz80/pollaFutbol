@@ -28,6 +28,25 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         el.grupo as grupo_local,
         ev.grupo as grupo_visita,
         p.fecha as partido_fecha,
+        CASE 
+          WHEN lj.numero >= 7 AND lj.numero <= 10 THEN 
+            CASE 
+              WHEN lj.numero = 7 THEN 'IDA'
+              WHEN lj.numero = 8 THEN 'VUELTA'
+              WHEN lj.numero = 9 THEN 
+                CASE 
+                  WHEN ROW_NUMBER() OVER (PARTITION BY lj.numero ORDER BY p.fecha, p.id) % 2 = 1 THEN 'IDA'
+                  ELSE 'VUELTA'
+                END
+              WHEN lj.numero = 10 THEN 
+                CASE 
+                  WHEN ROW_NUMBER() OVER (PARTITION BY lj.numero ORDER BY p.fecha, p.id) IN (1, 3) THEN 'IDA'
+                  WHEN ROW_NUMBER() OVER (PARTITION BY lj.numero ORDER BY p.fecha, p.id) IN (2, 4) THEN 'VUELTA'
+                  ELSE 'FINAL'
+                END
+            END
+          ELSE el.grupo
+        END as tipo_partido,
         lp.goles_local as pronostico_local,
         lp.goles_visita as pronostico_visita,
         lp.penales_local as penales_pronostico_local,
@@ -196,6 +215,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
           id: row.partido_id,
           fecha: row.partido_fecha,
           grupo: row.grupo_local,
+          tipo_partido: row.tipo_partido,
           local: {
             nombre: row.nombre_local,
             pais: row.pais_local

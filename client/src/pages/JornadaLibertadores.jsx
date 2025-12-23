@@ -525,19 +525,8 @@ export default function JornadaLibertadores() {
 
                     {/* Mostrar inputs de penales en VUELTA de eliminatorias (J8, J9, J10) si hay empate */}
                     {(Number(numero) === 8 || Number(numero) === 9 || Number(numero) === 10) && (() => {
-                      // Detectar si es partido de VUELTA
-                      const partidoIndex = partidos.findIndex(p => p.id === partido.id);
-                      // J8: Todos son VUELTA (índices 0-7) - Octavos
-                      // J9: Índices impares son VUELTA (1,3,5,7) - Cuartos
-                      // J10: Índices impares son VUELTA (1,3) - Semifinales
-                      let esVuelta = false;
-                      if (Number(numero) === 8) {
-                        esVuelta = true; // Todos son VUELTA en octavos
-                      } else if (Number(numero) === 9) {
-                        esVuelta = partidoIndex % 2 === 1; // Índices impares (1,3,5,7)
-                      } else if (Number(numero) === 10) {
-                        esVuelta = partidoIndex === 1 || partidoIndex === 3; // Solo 1 y 3
-                      }
+                      // Detectar si es partido de VUELTA usando el campo tipo_partido del backend
+                      const esVuelta = partido.tipo_partido === 'VUELTA';
                       
                       if (!esVuelta) return null;
                       

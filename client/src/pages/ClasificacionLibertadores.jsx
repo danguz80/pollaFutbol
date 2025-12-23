@@ -508,23 +508,14 @@ export default function ClasificacionLibertadores() {
                             </span>
                           </td>
                           <td className="text-center">
-                            {pronostico.jornada.numero >= 7 && pronostico.jornada.numero <= 10 ? (
-                              (() => {
-                                const jornada = pronostico.jornada.numero;
-                                let tipo = '';
-                                if (jornada === 7) tipo = 'IDA';
-                                else if (jornada === 8) tipo = 'VUELTA';
-                                else if (jornada === 9) {
-                                  const index = grupo.pronosticos.indexOf(pronostico);
-                                  tipo = index % 2 === 0 ? 'IDA' : 'VUELTA';
-                                } else if (jornada === 10) {
-                                  const index = grupo.pronosticos.indexOf(pronostico);
-                                  if (index === 4) tipo = 'FINAL';
-                                  else tipo = (index === 0 || index === 2) ? 'IDA' : 'VUELTA';
-                                }
-                                const badgeClass = tipo === 'IDA' ? 'bg-info' : tipo === 'FINAL' ? 'bg-warning text-dark' : 'bg-success';
-                                return <span className={`badge ${badgeClass}`}>{tipo}</span>;
-                              })()
+                            {pronostico.jornada.numero >= 7 && pronostico.jornada.numero <= 10 && pronostico.partido.tipo_partido ? (
+                              <span className={`badge ${
+                                pronostico.partido.tipo_partido === 'IDA' ? 'bg-info' : 
+                                pronostico.partido.tipo_partido === 'FINAL' ? 'bg-warning text-dark' : 
+                                'bg-success'
+                              }`}>
+                                {pronostico.partido.tipo_partido}
+                              </span>
                             ) : pronostico.partido.grupo ? (
                               <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
                             ) : (
@@ -544,31 +535,25 @@ export default function ClasificacionLibertadores() {
                           </td>
                           <td className="text-center fw-bold fs-5">
                             {pronostico.pronostico.local} - {pronostico.pronostico.visita}
-                            {(() => {
-                              // Para jornada 9, solo mostrar penales en VUELTA (índice impar)
-                              const jornada = pronostico.jornada.numero;
-                              const esVuelta = jornada === 8 || (jornada === 9 && grupo.pronosticos.indexOf(pronostico) % 2 === 1);
-                              return esVuelta && pronostico.pronostico.penales_local !== null && pronostico.pronostico.penales_visita !== null && (
-                                <div className="text-muted small">
-                                  Pen: {pronostico.pronostico.penales_local} - {pronostico.pronostico.penales_visita}
-                                </div>
-                              );
-                            })()}
+                            {pronostico.partido.tipo_partido === 'VUELTA' && 
+                             pronostico.pronostico.penales_local !== null && 
+                             pronostico.pronostico.penales_visita !== null && (
+                              <div className="text-muted small">
+                                Pen: {pronostico.pronostico.penales_local} - {pronostico.pronostico.penales_visita}
+                              </div>
+                            )}
                           </td>
                           <td className="text-center fw-bold fs-5">
                             {pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
                               <>
                                 {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
-                                {(() => {
-                                  // Para jornada 9, solo mostrar penales en VUELTA (índice impar)
-                                  const jornada = pronostico.jornada.numero;
-                                  const esVuelta = jornada === 8 || (jornada === 9 && grupo.pronosticos.indexOf(pronostico) % 2 === 1);
-                                  return esVuelta && pronostico.partido.resultado.penales_local !== null && pronostico.partido.resultado.penales_visita !== null && (
-                                    <div className="text-muted small">
-                                      Pen: {pronostico.partido.resultado.penales_local} - {pronostico.partido.resultado.penales_visita}
-                                    </div>
-                                  );
-                                })()}
+                                {pronostico.partido.tipo_partido === 'VUELTA' && 
+                                 pronostico.partido.resultado.penales_local !== null && 
+                                 pronostico.partido.resultado.penales_visita !== null && (
+                                  <div className="text-muted small">
+                                    Pen: {pronostico.partido.resultado.penales_local} - {pronostico.partido.resultado.penales_visita}
+                                  </div>
+                                )}
                               </>
                             ) : (
                               <span className="text-muted">Pendiente</span>
