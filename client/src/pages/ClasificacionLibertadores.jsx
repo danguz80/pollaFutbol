@@ -601,13 +601,13 @@ export default function ClasificacionLibertadores() {
                                     {/* PRONÓSTICO (Izquierda) */}
                                     <div className="text-start" style={{flex: 1}}>
                                       <div className="mb-1">
-                                        <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local || '?'} - {pronostico.partido_ida.pronostico_ida_visita || '?'} {pronostico.partido_ida.nombre_visita}
+                                        <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local !== null && pronostico.partido_ida.pronostico_ida_local !== undefined ? pronostico.partido_ida.pronostico_ida_local : '?'} - {pronostico.partido_ida.pronostico_ida_visita !== null && pronostico.partido_ida.pronostico_ida_visita !== undefined ? pronostico.partido_ida.pronostico_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
                                       </div>
                                       <div>
                                         <strong>Marcador Global:</strong> {pronostico.partido.local.nombre} {
-                                          (pronostico.pronostico.local || 0) + (pronostico.partido_ida.pronostico_ida_local || 0)
+                                          (pronostico.pronostico.local || 0) + (pronostico.partido_ida.pronostico_ida_visita || 0)
                                         } - {
-                                          (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.pronostico_ida_visita || 0)
+                                          (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.pronostico_ida_local || 0)
                                         } {pronostico.partido.visita.nombre}
                                       </div>
                                     </div>
@@ -616,15 +616,15 @@ export default function ClasificacionLibertadores() {
                                     {pronostico.partido.resultado.local !== null && (
                                       <div className="text-end text-muted" style={{flex: 1}}>
                                         <div className="mb-1">
-                                          <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local || '?'} - {pronostico.partido_ida.resultado_ida_visita || '?'} {pronostico.partido_ida.nombre_visita}
+                                          <strong>Partido IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local !== null ? pronostico.partido_ida.resultado_ida_local : '?'} - {pronostico.partido_ida.resultado_ida_visita !== null ? pronostico.partido_ida.resultado_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
                                         </div>
                                         <div>
                                           <strong>Marcador Global:</strong> {pronostico.partido.local.nombre} {
-                                            pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_local || 0)
+                                            pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_visita || 0)
                                           } {
                                             pronostico.partido.resultado.penales_local !== null ? `(${pronostico.partido.resultado.penales_local} pen)` : ''
                                           } - {
-                                            pronostico.partido.resultado.visita + (pronostico.partido_ida.resultado_ida_visita || 0)
+                                            pronostico.partido.resultado.visita + (pronostico.partido_ida.resultado_ida_local || 0)
                                           } {
                                             pronostico.partido.resultado.penales_visita !== null ? `(${pronostico.partido.resultado.penales_visita} pen)` : ''
                                           } {pronostico.partido.visita.nombre}

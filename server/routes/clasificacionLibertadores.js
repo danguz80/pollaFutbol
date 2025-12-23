@@ -118,16 +118,25 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
           
           if (partidoIdaResult.rows.length > 0) {
             partidoIda = partidoIdaResult.rows[0];
-            // CORRECCIÓN: partidoIda tiene equipos invertidos respecto a VUELTA
-            // nombre_local del IDA = nombre_visita de VUELTA
-            // nombre_visita del IDA = nombre_local de VUELTA
-            // Por lo tanto, los goles se suman así:
-            pronosticoGlobalLocal = row.pronostico_local + partidoIda.pronostico_ida_local;
-            pronosticoGlobalVisita = row.pronostico_visita + partidoIda.pronostico_ida_visita;
+            // CORRECCIÓN: Seguir a los equipos por NOMBRE, no por posición
+            // En VUELTA: row.nombre_local vs row.nombre_visita
+            // En IDA: partidoIda tiene los equipos invertidos
+            // partidoIda.nombre_local = row.nombre_visita (el visitante de VUELTA era local en IDA)
+            // partidoIda.nombre_visita = row.nombre_local (el local de VUELTA era visita en IDA)
+            
+            // Goles totales del equipo LOCAL de VUELTA (row.nombre_local):
+            // - En VUELTA: row.pronostico_local
+            // - En IDA: era VISITA, entonces partidoIda.pronostico_ida_visita
+            pronosticoGlobalLocal = row.pronostico_local + (partidoIda.pronostico_ida_visita || 0);
+            
+            // Goles totales del equipo VISITA de VUELTA (row.nombre_visita):
+            // - En VUELTA: row.pronostico_visita
+            // - En IDA: era LOCAL, entonces partidoIda.pronostico_ida_local
+            pronosticoGlobalVisita = row.pronostico_visita + (partidoIda.pronostico_ida_local || 0);
             
             if (partidoIda.resultado_ida_local !== null && partidoIda.resultado_ida_visita !== null) {
-              resultadoGlobalLocal = row.resultado_local + partidoIda.resultado_ida_local;
-              resultadoGlobalVisita = row.resultado_visita + partidoIda.resultado_ida_visita;
+              resultadoGlobalLocal = row.resultado_local + (partidoIda.resultado_ida_visita || 0);
+              resultadoGlobalVisita = row.resultado_visita + (partidoIda.resultado_ida_local || 0);
             }
           }
         }
