@@ -3013,7 +3013,11 @@ export default function AdminLibertadores() {
                                     <button
                                       onClick={crearFinal}
                                       className="btn btn-success btn-lg px-5"
-                                      disabled={loading || partidos.some(p => esPartidoFinal(p))}
+                                      disabled={loading || partidos.some(p => 
+                                        esPartidoFinal(p) && 
+                                        !p.nombre_local.includes('Finalista') && 
+                                        p.nombre_local !== 'TBD'
+                                      )}
                                     >
                                       {loading ? '⏳ Creando...' : '⚡ Crear Final Automáticamente'}
                                     </button>

@@ -736,23 +736,35 @@ router.post('/final', verifyToken, authorizeRoles('admin'), async (req, res) => 
     
     const jornadaId = jornadaResult.rows[0].id;
 
-    // Verificar si ya existe una final
+    // Verificar si ya existe una final (con estos equipos o con placeholders)
     const finalExistente = await pool.query(
       `SELECT id FROM libertadores_partidos 
        WHERE jornada_id = $1 
-       AND nombre_local = $2 
-       AND nombre_visita = $3`,
+       AND (
+         (nombre_local = $2 AND nombre_visita = $3) OR
+         (nombre_local LIKE 'Finalista%' OR nombre_local = 'TBD')
+       )
+       ORDER BY id DESC
+       LIMIT 1`,
       [jornadaId, nombre_local, nombre_visita]
     );
 
     if (finalExistente.rows.length > 0) {
+      // Actualizar el partido existente con los equipos correctos
+      await pool.query(
+        `UPDATE libertadores_partidos 
+         SET nombre_local = $1, nombre_visita = $2
+         WHERE id = $3`,
+        [nombre_local, nombre_visita, finalExistente.rows[0].id]
+      );
+      
       return res.json({ 
-        mensaje: 'Final ya existe',
+        mensaje: 'Final actualizada con los equipos clasificados',
         partido_id: finalExistente.rows[0].id
       });
     }
 
-    // Crear partido final
+    // Si no existe, crear partido final
     const resultado = await pool.query(
       `INSERT INTO libertadores_partidos 
        (nombre_local, nombre_visita, jornada_id, fecha, bonus) 
