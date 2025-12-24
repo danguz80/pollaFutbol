@@ -70,10 +70,49 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       const puntosExacto = reglas.find(r => r.fase === fase && r.concepto.includes('Resultado exacto'))?.puntos || 5;
 
       let puntosGanados = 0;
+      
+      // Para FINAL en J10: Solo dar puntos si los equipos coinciden con lo pronosticado
+      let debeCalcularPuntosFinal = true;
+      if (jornada_numero === 10) {
+        // Verificar si es el partido FINAL (no tiene complementario)
+        const partidoComplementarioResult = await pool.query(`
+          SELECT p.id
+          FROM libertadores_partidos p
+          INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+          WHERE lj.numero = $1
+            AND p.nombre_local = $2
+            AND p.nombre_visita = $3
+        `, [jornada_numero, nombre_visita, nombre_local]);
+        
+        const esFinal = partidoComplementarioResult.rows.length === 0;
+        
+        if (esFinal) {
+          // Es el partido FINAL: verificar que los equipos coincidan con lo pronosticado
+          const prediccionFinalResult = await pool.query(`
+            SELECT campeon, subcampeon
+            FROM libertadores_predicciones_campeon
+            WHERE usuario_id = $1
+          `, [usuario_id]);
+          
+          if (prediccionFinalResult.rows.length > 0) {
+            const { campeon, subcampeon } = prediccionFinalResult.rows[0];
+            
+            // Verificar si los equipos del partido coinciden con campeón/subcampeón pronosticados
+            const equiposCoinciden = 
+              (campeon === nombre_local && subcampeon === nombre_visita) ||
+              (campeon === nombre_visita && subcampeon === nombre_local);
+            
+            if (!equiposCoinciden) {
+              debeCalcularPuntosFinal = false; // NO dar puntos por resultado si los equipos no coinciden
+            }
+          }
+        }
+      }
 
       // IMPORTANTE: Los penales NO afectan el cálculo de puntos
       // Solo los goles regulares determinan victoria/empate/derrota
       
+      if (debeCalcularPuntosFinal) {
       // 1. Verificar resultado exacto (mayor puntuación)
       if (pronostico_local === resultado_local && pronostico_visita === resultado_visita) {
         puntosGanados = puntosExacto;
@@ -96,6 +135,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         if (signoPronostico === signoResultado) {
           puntosGanados = puntosSigno;
         }
+      }
       }
 
       // Actualizar puntos en la base de datos
@@ -302,6 +342,81 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
         } // Fin debeGuardarClasificacion
+      }
+    }
+
+    // CALCULAR PUNTOS DE CUADRO FINAL (CAMPEÓN Y SUBCAMPEÓN) para J10
+    // Buscar si existe un partido FINAL con resultado en jornada 10
+    const partidoFinalResult = await pool.query(`
+      SELECT p.id, p.nombre_local, p.nombre_visita, p.goles_local, p.goles_visita, 
+             p.penales_local, p.penales_visita
+      FROM libertadores_partidos p
+      INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+      WHERE lj.numero = 10
+        AND p.goles_local IS NOT NULL 
+        AND p.goles_visita IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM libertadores_partidos p2
+          WHERE p2.jornada_id = p.jornada_id
+          AND p2.nombre_local = p.nombre_visita
+          AND p2.nombre_visita = p.nombre_local
+        )
+    `);
+    
+    if (partidoFinalResult.rows.length > 0) {
+      const partidoFinal = partidoFinalResult.rows[0];
+      
+      // Determinar campeón y subcampeón reales
+      let campeonReal = null;
+      let subcampeonReal = null;
+      
+      if (partidoFinal.goles_local > partidoFinal.goles_visita) {
+        campeonReal = partidoFinal.nombre_local;
+        subcampeonReal = partidoFinal.nombre_visita;
+      } else if (partidoFinal.goles_local < partidoFinal.goles_visita) {
+        campeonReal = partidoFinal.nombre_visita;
+        subcampeonReal = partidoFinal.nombre_local;
+      } else {
+        // Empate, revisar penales
+        if (partidoFinal.penales_local !== null && partidoFinal.penales_visita !== null) {
+          if (partidoFinal.penales_local > partidoFinal.penales_visita) {
+            campeonReal = partidoFinal.nombre_local;
+            subcampeonReal = partidoFinal.nombre_visita;
+          } else {
+            campeonReal = partidoFinal.nombre_visita;
+            subcampeonReal = partidoFinal.nombre_local;
+          }
+        }
+      }
+      
+      if (campeonReal && subcampeonReal) {
+        // Obtener reglas de puntuación para Cuadro Final
+        const puntosCampeon = reglas.find(r => r.fase === 'CAMPEÓN' && r.concepto.includes('Campeón'))?.puntos || 15;
+        const puntosSubcampeon = reglas.find(r => r.fase === 'CAMPEÓN' && r.concepto.includes('Subcampeón'))?.puntos || 8;
+        
+        // Obtener todas las predicciones
+        const predicciones = await pool.query('SELECT * FROM libertadores_predicciones_campeon');
+        
+        for (const prediccion of predicciones.rows) {
+          let puntos_campeon_usuario = 0;
+          let puntos_subcampeon_usuario = 0;
+          
+          if (prediccion.campeon === campeonReal) {
+            puntos_campeon_usuario = puntosCampeon;
+          }
+          
+          if (prediccion.subcampeon === subcampeonReal) {
+            puntos_subcampeon_usuario = puntosSubcampeon;
+          }
+          
+          await pool.query(`
+            UPDATE libertadores_predicciones_campeon 
+            SET puntos_campeon = $1, puntos_subcampeon = $2
+            WHERE usuario_id = $3
+          `, [puntos_campeon_usuario, puntos_subcampeon_usuario, prediccion.usuario_id]);
+        }
+        
+        console.log(`✅ Puntos de Cuadro Final calculados: Campeón: ${campeonReal}, Subcampeón: ${subcampeonReal}`);
       }
     }
 

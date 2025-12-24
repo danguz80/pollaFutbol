@@ -553,10 +553,32 @@ export default function ClasificacionLibertadores() {
                             <div className="d-flex justify-content-center align-items-center gap-2">
                               <small className="fw-bold text-end" style={{flex: 1}}>
                                 {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                                {/* Si es FINAL en J10, mostrar el equipo pronosticado debajo */}
+                                {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
+                                  <div className="text-primary small mt-1" style={{fontSize: '0.75rem'}}>
+                                    Pronosticado: {pronostico.equipos_pronosticados_final.campeon === pronostico.partido.local.nombre || 
+                                                   pronostico.equipos_pronosticados_final.subcampeon === pronostico.partido.local.nombre 
+                                                   ? (pronostico.equipos_pronosticados_final.campeon === pronostico.partido.local.nombre 
+                                                      ? pronostico.equipos_pronosticados_final.campeon 
+                                                      : pronostico.equipos_pronosticados_final.subcampeon)
+                                                   : '❌ No coincide'}
+                                  </div>
+                                )}
                               </small>
                               <span className="text-muted">vs</span>
                               <small className="fw-bold text-start" style={{flex: 1}}>
                                 {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                                {/* Si es FINAL en J10, mostrar el equipo pronosticado debajo */}
+                                {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
+                                  <div className="text-primary small mt-1" style={{fontSize: '0.75rem'}}>
+                                    Pronosticado: {pronostico.equipos_pronosticados_final.campeon === pronostico.partido.visita.nombre || 
+                                                   pronostico.equipos_pronosticados_final.subcampeon === pronostico.partido.visita.nombre 
+                                                   ? (pronostico.equipos_pronosticados_final.campeon === pronostico.partido.visita.nombre 
+                                                      ? pronostico.equipos_pronosticados_final.campeon 
+                                                      : pronostico.equipos_pronosticados_final.subcampeon)
+                                                   : '❌ No coincide'}
+                                  </div>
+                                )}
                               </small>
                             </div>
                           </td>
@@ -677,6 +699,84 @@ export default function ClasificacionLibertadores() {
                         })()}
                       </>
                     ))}
+                    
+                    {/* Fila de "Cuadro Final" - Solo para Jornada 10 */}
+                    {grupo.jornada === 10 && (() => {
+                      // Buscar el partido FINAL y obtener equipos pronosticados
+                      const partidoFinal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
+                      if (!partidoFinal || !partidoFinal.equipos_pronosticados_final) return null;
+                      
+                      const { campeon: pronosticadoCampeon, subcampeon: pronosticadoSubcampeon } = partidoFinal.equipos_pronosticados_final;
+                      
+                      // Determinar campeón y subcampeón REALES
+                      let realCampeon = null;
+                      let realSubcampeon = null;
+                      if (partidoFinal.partido.resultado.local !== null && partidoFinal.partido.resultado.visita !== null) {
+                        // Determinar ganador por marcador
+                        let golesLocal = partidoFinal.partido.resultado.local;
+                        let golesVisita = partidoFinal.partido.resultado.visita;
+                        
+                        if (golesLocal > golesVisita) {
+                          realCampeon = partidoFinal.partido.local.nombre;
+                          realSubcampeon = partidoFinal.partido.visita.nombre;
+                        } else if (golesLocal < golesVisita) {
+                          realCampeon = partidoFinal.partido.visita.nombre;
+                          realSubcampeon = partidoFinal.partido.local.nombre;
+                        } else {
+                          // Empate, revisar penales
+                          if (partidoFinal.partido.resultado.penales_local !== null && partidoFinal.partido.resultado.penales_visita !== null) {
+                            if (partidoFinal.partido.resultado.penales_local > partidoFinal.partido.resultado.penales_visita) {
+                              realCampeon = partidoFinal.partido.local.nombre;
+                              realSubcampeon = partidoFinal.partido.visita.nombre;
+                            } else {
+                              realCampeon = partidoFinal.partido.visita.nombre;
+                              realSubcampeon = partidoFinal.partido.local.nombre;
+                            }
+                          }
+                        }
+                      }
+                      
+                      // Verificar si coinciden
+                      const coincideCampeon = pronosticadoCampeon === realCampeon;
+                      const coincideSubcampeon = pronosticadoSubcampeon === realSubcampeon;
+                      const ambosCoinciden = coincideCampeon && coincideSubcampeon;
+                      
+                      return (
+                        <tr className="table-warning fw-bold">
+                          <td colSpan="2" className="text-center">
+                            <strong>🏆 Cuadro Final</strong>
+                          </td>
+                          <td colSpan="2" className="text-center text-primary">
+                            <div><strong>Campeón:</strong> {pronosticadoCampeon}</div>
+                            <div><strong>Subcampeón:</strong> {pronosticadoSubcampeon}</div>
+                          </td>
+                          <td colSpan="2" className="text-center">
+                            {realCampeon ? (
+                              <>
+                                <div className={coincideCampeon ? 'text-success' : 'text-danger'}>
+                                  <strong>Campeón:</strong> {realCampeon} {coincideCampeon ? '✓' : '✗'}
+                                </div>
+                                <div className={coincideSubcampeon ? 'text-success' : 'text-danger'}>
+                                  <strong>Subcampeón:</strong> {realSubcampeon} {coincideSubcampeon ? '✓' : '✗'}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-muted">Pendiente</span>
+                            )}
+                          </td>
+                          <td className="text-center">
+                            {realCampeon && ambosCoinciden ? (
+                              <span className="badge bg-success fs-6">Coincide ✓</span>
+                            ) : realCampeon ? (
+                              <span className="badge bg-danger fs-6">No coincide ✗</span>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                    
                     {/* Fila de total */}
                     <tr className="table-info fw-bold">
                       <td colSpan="6" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>

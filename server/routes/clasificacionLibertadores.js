@@ -114,7 +114,27 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       paramIndex++;
     }
 
-    query += ` ORDER BY lj.numero DESC, p.fecha DESC, u.nombre ASC`;
+    // Ordenamiento especial para J10: semifinales primero, final al último
+    query += ` 
+      ORDER BY 
+        lj.numero DESC,
+        CASE 
+          WHEN lj.numero = 10 THEN 
+            -- En J10: partidos sin complementario (FINAL) al final, el resto al inicio
+            CASE 
+              WHEN NOT EXISTS (
+                SELECT 1 FROM libertadores_partidos p2
+                WHERE p2.jornada_id = p.jornada_id
+                AND p2.nombre_local = p.nombre_visita
+                AND p2.nombre_visita = p.nombre_local
+              ) THEN 2  -- FINAL al final
+              ELSE 1    -- Semifinales primero
+            END
+          ELSE 1
+        END,
+        p.id ASC,
+        u.nombre ASC
+    `;
 
     const result = await pool.query(query, params);
 
@@ -124,6 +144,23 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       let equipoPronosticadoAvanza = null;
       let partidoIda = null;
       let equipoRealQueAvanza = null;
+      let equiposPronosticadosFinal = null;  // Para jornada 10 - FINAL
+      
+      // Si es jornada 10 y es el partido FINAL, obtener equipos pronosticados
+      if (row.jornada_numero === 10 && row.tipo_partido === 'FINAL') {
+        const prediccionFinalResult = await pool.query(`
+          SELECT campeon, subcampeon
+          FROM libertadores_predicciones_campeon
+          WHERE usuario_id = $1
+        `, [row.usuario_id]);
+        
+        if (prediccionFinalResult.rows.length > 0) {
+          equiposPronosticadosFinal = {
+            campeon: prediccionFinalResult.rows[0].campeon,
+            subcampeon: prediccionFinalResult.rows[0].subcampeon
+          };
+        }
+      }
       
       if (row.jornada_numero >= 8) {
         // Para jornada 8: Buscar partido IDA en jornada 7
@@ -300,7 +337,8 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         puntos_clasificacion: row.puntos_clasificacion || 0,
         fecha_pronostico: row.fecha_pronostico,
         partido_ida: partidoIda,
-        equipo_real_avanza: equipoRealQueAvanza
+        equipo_real_avanza: equipoRealQueAvanza,
+        equipos_pronosticados_final: equiposPronosticadosFinal  // Nuevo campo para FINAL
       };
     }));
 
