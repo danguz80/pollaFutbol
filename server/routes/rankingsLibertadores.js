@@ -26,7 +26,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           SELECT lp.usuario_id, SUM(lp.puntos) as total
           FROM libertadores_pronosticos lp
           INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-          WHERE lj.numero = $1 AND lp.puntos IS NOT NULL
+          WHERE lj.numero = $1
           GROUP BY lp.usuario_id
         ) puntos_partidos ON u.id = puntos_partidos.usuario_id
         LEFT JOIN (
@@ -39,8 +39,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
           FROM libertadores_predicciones_campeon
         ) puntos_campeon ON u.id = puntos_campeon.usuario_id
-        WHERE u.role != 'Dios'
-          AND (puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL OR puntos_campeon.campeon IS NOT NULL)
+        WHERE puntos_partidos.total IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `
       : `
@@ -54,7 +53,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           SELECT lp.usuario_id, SUM(lp.puntos) as total
           FROM libertadores_pronosticos lp
           INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-          WHERE lj.numero = $1 AND lp.puntos IS NOT NULL
+          WHERE lj.numero = $1
           GROUP BY lp.usuario_id
         ) puntos_partidos ON u.id = puntos_partidos.usuario_id
         LEFT JOIN (
@@ -63,8 +62,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           WHERE jornada_numero = $1
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        WHERE u.role != 'Dios'
-          AND (puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL)
+        WHERE puntos_partidos.total IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
