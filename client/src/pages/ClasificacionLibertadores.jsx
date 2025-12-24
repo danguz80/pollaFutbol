@@ -578,25 +578,27 @@ export default function ClasificacionLibertadores() {
                             )}
                           </td>
                           <td>
-                            <div className="d-flex justify-content-center align-items-center gap-2">
-                              <small className="fw-bold text-end" style={{flex: 1}}>
-                                {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
-                                {/* Si es FINAL en J10, mostrar equipos pronosticados debajo */}
-                                {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
-                                  <div className="text-primary small mt-1" style={{fontSize: '0.75rem'}}>
-                                    Pronosticado: {pronostico.equipos_pronosticados_final.equipo_local} vs {pronostico.equipos_pronosticados_final.equipo_visita}
-                                    {' '}
-                                    {pronostico.equipos_pronosticados_final.equipo_local === pronostico.partido.local.nombre && 
-                                     pronostico.equipos_pronosticados_final.equipo_visita === pronostico.partido.visita.nombre 
-                                     ? <span className="text-success">✓ Coincide</span>
-                                     : <span className="text-danger">✗ No coincide</span>}
-                                  </div>
-                                )}
-                              </small>
-                              <span className="text-muted">vs</span>
-                              <small className="fw-bold text-start" style={{flex: 1}}>
-                                {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
-                              </small>
+                            <div className="d-flex flex-column align-items-center">
+                              <div className="d-flex justify-content-center align-items-center gap-2 w-100">
+                                <small className="fw-bold text-end" style={{flex: 1}}>
+                                  {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                                </small>
+                                <span className="text-muted">vs</span>
+                                <small className="fw-bold text-start" style={{flex: 1}}>
+                                  {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                                </small>
+                              </div>
+                              {/* Si es FINAL en J10, mostrar equipos pronosticados debajo */}
+                              {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
+                                <div className="text-primary small mt-1 text-center" style={{fontSize: '0.75rem'}}>
+                                  Pronosticado: {pronostico.equipos_pronosticados_final.equipo_local} vs {pronostico.equipos_pronosticados_final.equipo_visita}
+                                  {' '}
+                                  {pronostico.equipos_pronosticados_final.equipo_local === pronostico.partido.local.nombre && 
+                                   pronostico.equipos_pronosticados_final.equipo_visita === pronostico.partido.visita.nombre 
+                                   ? <span className="text-success">✓ Coincide</span>
+                                   : <span className="text-danger">✗ No coincide</span>}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="text-center fw-bold fs-5">
