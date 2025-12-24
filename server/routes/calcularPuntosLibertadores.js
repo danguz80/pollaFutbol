@@ -125,16 +125,18 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           debeCalcularClasificacion = true; // Todos son VUELTA en J8
         } else if (jornada_numero === 9 || jornada_numero === 10) {
           // Verificar si existe un partido IDA con equipos invertidos en la misma jornada
+          // Y además verificar que el partido actual tenga ID MAYOR (para que sea VUELTA, no IDA)
           const partidoIdaCheck = await pool.query(`
-            SELECT COUNT(*) as count
+            SELECT p.id as ida_id
             FROM libertadores_partidos p
             INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
             WHERE lj.numero = $1
               AND p.nombre_local = $2
               AND p.nombre_visita = $3
-          `, [jornada_numero, nombre_visita, nombre_local]);
+              AND p.id < $4
+          `, [jornada_numero, nombre_visita, nombre_local, partido_id]);
           
-          debeCalcularClasificacion = partidoIdaCheck.rows[0].count > 0; // Es VUELTA si existe IDA
+          debeCalcularClasificacion = partidoIdaCheck.rows.length > 0; // Es VUELTA si existe IDA con ID menor
         }
         
         // Solo calcular y guardar si debe calcular clasificación
