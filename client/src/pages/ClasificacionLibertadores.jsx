@@ -264,7 +264,35 @@ export default function ClasificacionLibertadores() {
         grupo.pronosticos.sort((a, b) => {
           // Para jornadas 7-10, ordenar por cruce (equipos) y luego IDA antes de VUELTA
           if (a.jornada.numero >= 7 && a.jornada.numero <= 10) {
-            // Crear una clave de cruce usando los equipos ordenados alfabéticamente
+            // Para J10: FINAL siempre al final
+            if (grupo.jornada === 10) {
+              const esFinalA = a.partido.tipo_partido === 'FINAL';
+              const esFinalB = b.partido.tipo_partido === 'FINAL';
+              
+              if (esFinalA && !esFinalB) return 1;  // A es FINAL, va al final
+              if (!esFinalA && esFinalB) return -1; // B es FINAL, va al final
+              
+              // Si ninguno es FINAL, ordenar por cruce
+              if (!esFinalA && !esFinalB) {
+                const getClaveEquipos = (p) => {
+                  return [p.partido.local.nombre, p.partido.visita.nombre].sort().join('-');
+                };
+                const claveA = getClaveEquipos(a);
+                const claveB = getClaveEquipos(b);
+                
+                if (claveA !== claveB) {
+                  return claveA.localeCompare(claveB);
+                }
+                
+                // Mismo cruce: IDA antes de VUELTA
+                const ordenTipo = { 'IDA': 1, 'VUELTA': 2 };
+                return (ordenTipo[a.partido.tipo_partido] || 999) - (ordenTipo[b.partido.tipo_partido] || 999);
+              }
+              
+              return 0; // Ambos son FINAL (no debería pasar)
+            }
+            
+            // Para otras jornadas (7, 8, 9): ordenar por cruce normal
             const getClaveEquipos = (p) => {
               return [p.partido.local.nombre, p.partido.visita.nombre].sort().join('-');
             };
