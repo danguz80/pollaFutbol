@@ -112,16 +112,17 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
       // CALCULAR PUNTOS POR EQUIPOS QUE AVANZAN
       // Jornada 7: NO calcular (solo IDA de octavos)
-      // Jornada 8: Calcular con marcador global (VUELTA de octavos) - TODOS los partidos son VUELTA
-      // Jornada 9: Calcular SOLO en partidos de VUELTA (detectar por existencia de IDA con equipos invertidos)
-      // Jornada 10: Calcular SOLO en partidos de VUELTA (detectar por existencia de IDA con equipos invertidos)
+      // Jornada 8: TODOS los partidos son VUELTA - calcular para todos
+      // Jornada 9: 8 partidos (4 IDA + 4 VUELTA) - calcular SOLO para VUELTA
+      // Jornada 10: 4 partidos (2 IDA + 2 VUELTA) + 1 final - calcular SOLO para VUELTA y final
       
       if (jornada_numero >= 8 && jornada_numero <= 10) {
-        // Para jornada 9 y 10, verificar si es partido de VUELTA
-        let esPartidoVuelta = false;
+        let equipoQueAvanzaPronostico = null;
+        let equipoQueAvanzaReal = null;
+        let debeCalcularClasificacion = false;
         
         if (jornada_numero === 8) {
-          esPartidoVuelta = true; // Todos son VUELTA en J8
+          debeCalcularClasificacion = true; // Todos son VUELTA en J8
         } else if (jornada_numero === 9 || jornada_numero === 10) {
           // Verificar si existe un partido IDA con equipos invertidos en la misma jornada
           const partidoIdaCheck = await pool.query(`
@@ -133,16 +134,11 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
               AND p.nombre_visita = $3
           `, [jornada_numero, nombre_visita, nombre_local]);
           
-          esPartidoVuelta = partidoIdaCheck.rows[0].count > 0;
+          debeCalcularClasificacion = partidoIdaCheck.rows[0].count > 0; // Es VUELTA si existe IDA
         }
         
-        // Solo procesar si es partido de VUELTA
-        if (!esPartidoVuelta) {
-          continue; // Saltar al siguiente pronóstico
-        }
-        
-        let equipoQueAvanzaPronostico = null;
-        let equipoQueAvanzaReal = null;
+        // Solo calcular y guardar si debe calcular clasificación
+        if (debeCalcularClasificacion) {
         
         if (jornada_numero === 8) {
           // Buscar partido de IDA (jornada 7) con equipos invertidos
@@ -303,6 +299,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
               puntos = EXCLUDED.puntos
           `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
+        } // Fin de debeCalcularClasificacion
       }
     }
 
