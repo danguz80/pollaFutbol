@@ -111,36 +111,36 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       }
 
       // CALCULAR PUNTOS POR EQUIPOS QUE AVANZAN
-      // Jornada 7: NO calcular (solo IDA de octavos)
-      // Jornada 8: TODOS los partidos son VUELTA - calcular para todos
-      // Jornada 9: 8 partidos (4 IDA + 4 VUELTA) - calcular SOLO para VUELTA
-      // Jornada 10: 4 partidos (2 IDA + 2 VUELTA) + 1 final - calcular SOLO para VUELTA y final
+      // Guardar solo UNA VEZ por cruce para evitar duplicados
+      // J8: Guardar todos (todos son VUELTA)
+      // J9 y J10: Guardar solo en el partido con ID mayor del cruce
       
       if (jornada_numero >= 8 && jornada_numero <= 10) {
         let equipoQueAvanzaPronostico = null;
         let equipoQueAvanzaReal = null;
-        let debeCalcularClasificacion = false;
+        let debeGuardarClasificacion = false;
         
         if (jornada_numero === 8) {
-          debeCalcularClasificacion = true; // Todos son VUELTA en J8
+          debeGuardarClasificacion = true;
         } else if (jornada_numero === 9 || jornada_numero === 10) {
-          // Verificar si existe un partido IDA con equipos invertidos en la misma jornada
-          // Y además verificar que el partido actual tenga ID MAYOR (para que sea VUELTA, no IDA)
-          const partidoIdaCheck = await pool.query(`
-            SELECT p.id as ida_id
+          // Buscar el partido complementario (equipos invertidos)
+          const partidoComplementarioResult = await pool.query(`
+            SELECT p.id
             FROM libertadores_partidos p
             INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
             WHERE lj.numero = $1
               AND p.nombre_local = $2
               AND p.nombre_visita = $3
-              AND p.id < $4
-          `, [jornada_numero, nombre_visita, nombre_local, partido_id]);
+          `, [jornada_numero, nombre_visita, nombre_local]);
           
-          debeCalcularClasificacion = partidoIdaCheck.rows.length > 0; // Es VUELTA si existe IDA con ID menor
+          // Solo guardar si tenemos ID mayor (para evitar guardar 2 veces el mismo cruce)
+          if (partidoComplementarioResult.rows.length > 0) {
+            const idComplementario = partidoComplementarioResult.rows[0].id;
+            debeGuardarClasificacion = partido_id > idComplementario;
+          }
         }
         
-        // Solo calcular y guardar si debe calcular clasificación
-        if (debeCalcularClasificacion) {
+        if (debeGuardarClasificacion) {
         
         if (jornada_numero === 8) {
           // Buscar partido de IDA (jornada 7) con equipos invertidos
@@ -301,7 +301,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
               puntos = EXCLUDED.puntos
           `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
-        } // Fin de debeCalcularClasificacion
+        } // Fin debeGuardarClasificacion
       }
     }
 
