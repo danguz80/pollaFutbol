@@ -105,6 +105,9 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             if (!equiposCoinciden) {
               debeCalcularPuntosFinal = false; // NO dar puntos por resultado si los equipos no coinciden
             }
+          } else {
+            // Si NO hay predicción de campeón, NO dar puntos en la FINAL
+            debeCalcularPuntosFinal = false;
           }
         }
       }
