@@ -581,43 +581,47 @@ export default function ClasificacionLibertadores() {
                             <div className="d-flex justify-content-center align-items-center gap-2">
                               <small className="fw-bold text-end" style={{flex: 1}}>
                                 {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
-                                {/* Si es FINAL en J10, mostrar el equipo pronosticado debajo */}
+                                {/* Si es FINAL en J10, mostrar equipos pronosticados debajo */}
                                 {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
                                   <div className="text-primary small mt-1" style={{fontSize: '0.75rem'}}>
-                                    Pronosticado: {pronostico.equipos_pronosticados_final.campeon === pronostico.partido.local.nombre || 
-                                                   pronostico.equipos_pronosticados_final.subcampeon === pronostico.partido.local.nombre 
-                                                   ? (pronostico.equipos_pronosticados_final.campeon === pronostico.partido.local.nombre 
-                                                      ? pronostico.equipos_pronosticados_final.campeon 
-                                                      : pronostico.equipos_pronosticados_final.subcampeon)
-                                                   : '❌ No coincide'}
+                                    Pronosticado: {pronostico.equipos_pronosticados_final.equipo_local} vs {pronostico.equipos_pronosticados_final.equipo_visita}
+                                    {' '}
+                                    {pronostico.equipos_pronosticados_final.equipo_local === pronostico.partido.local.nombre && 
+                                     pronostico.equipos_pronosticados_final.equipo_visita === pronostico.partido.visita.nombre 
+                                     ? <span className="text-success">✓ Coincide</span>
+                                     : <span className="text-danger">✗ No coincide</span>}
                                   </div>
                                 )}
                               </small>
                               <span className="text-muted">vs</span>
                               <small className="fw-bold text-start" style={{flex: 1}}>
                                 {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
-                                {/* Si es FINAL en J10, mostrar el equipo pronosticado debajo */}
-                                {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
-                                  <div className="text-primary small mt-1" style={{fontSize: '0.75rem'}}>
-                                    Pronosticado: {pronostico.equipos_pronosticados_final.campeon === pronostico.partido.visita.nombre || 
-                                                   pronostico.equipos_pronosticados_final.subcampeon === pronostico.partido.visita.nombre 
-                                                   ? (pronostico.equipos_pronosticados_final.campeon === pronostico.partido.visita.nombre 
-                                                      ? pronostico.equipos_pronosticados_final.campeon 
-                                                      : pronostico.equipos_pronosticados_final.subcampeon)
-                                                   : '❌ No coincide'}
-                                  </div>
-                                )}
                               </small>
                             </div>
                           </td>
                           <td className="text-center fw-bold fs-5">
-                            {pronostico.pronostico.local} - {pronostico.pronostico.visita}
-                            {pronostico.partido.tipo_partido === 'VUELTA' && 
-                             pronostico.pronostico.penales_local !== null && 
-                             pronostico.pronostico.penales_visita !== null && (
-                              <div className="text-muted small">
-                                Pen: {pronostico.pronostico.penales_local} - {pronostico.pronostico.penales_visita}
-                              </div>
+                            {/* Para FINAL en J10, mostrar pronóstico virtual */}
+                            {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final ? (
+                              <>
+                                {pronostico.equipos_pronosticados_final.goles_local} - {pronostico.equipos_pronosticados_final.goles_visita}
+                                {pronostico.equipos_pronosticados_final.penales_local !== null && 
+                                 pronostico.equipos_pronosticados_final.penales_visita !== null && (
+                                  <div className="text-muted small">
+                                    Pen: {pronostico.equipos_pronosticados_final.penales_local} - {pronostico.equipos_pronosticados_final.penales_visita}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {pronostico.pronostico.local} - {pronostico.pronostico.visita}
+                                {pronostico.partido.tipo_partido === 'VUELTA' && 
+                                 pronostico.pronostico.penales_local !== null && 
+                                 pronostico.pronostico.penales_visita !== null && (
+                                  <div className="text-muted small">
+                                    Pen: {pronostico.pronostico.penales_local} - {pronostico.pronostico.penales_visita}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </td>
                           <td className="text-center fw-bold fs-5">
