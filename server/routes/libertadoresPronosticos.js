@@ -5,6 +5,86 @@ import { authorizeRoles } from '../middleware/authorizeRoles.js';
 
 const router = express.Router();
 
+// Guardar pronóstico de final VIRTUAL (J10)
+router.post('/final-virtual', verifyToken, async (req, res) => {
+  try {
+    const usuario_id = req.usuario.id;
+    const { jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita } = req.body;
+
+    // Verificar si la jornada está cerrada
+    const jornadaCheck = await pool.query(
+      'SELECT cerrada, numero FROM libertadores_jornadas WHERE id = $1',
+      [jornada_id]
+    );
+
+    if (jornadaCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    if (jornadaCheck.rows[0].cerrada) {
+      return res.status(403).json({ error: 'Esta jornada está cerrada' });
+    }
+
+    if (jornadaCheck.rows[0].numero !== 10) {
+      return res.status(400).json({ error: 'Este endpoint es solo para la jornada 10' });
+    }
+
+    // Guardar pronóstico de final virtual
+    await pool.query(`
+      INSERT INTO libertadores_pronosticos_final_virtual 
+      (usuario_id, jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (usuario_id, jornada_id)
+      DO UPDATE SET 
+        equipo_local = EXCLUDED.equipo_local,
+        equipo_visita = EXCLUDED.equipo_visita,
+        goles_local = EXCLUDED.goles_local, 
+        goles_visita = EXCLUDED.goles_visita,
+        penales_local = EXCLUDED.penales_local,
+        penales_visita = EXCLUDED.penales_visita
+    `, [usuario_id, jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local || null, penales_visita || null]);
+
+    // Determinar ganador para predicción de campeón/subcampeón
+    let campeon = null;
+    let subcampeon = null;
+    
+    if (goles_local > goles_visita) {
+      campeon = equipo_local;
+      subcampeon = equipo_visita;
+    } else if (goles_local < goles_visita) {
+      campeon = equipo_visita;
+      subcampeon = equipo_local;
+    } else if (penales_local !== null && penales_visita !== null) {
+      if (penales_local > penales_visita) {
+        campeon = equipo_local;
+        subcampeon = equipo_visita;
+      } else if (penales_local < penales_visita) {
+        campeon = equipo_visita;
+        subcampeon = equipo_local;
+      }
+    }
+    
+    // Guardar predicción de campeón/subcampeón
+    if (campeon && subcampeon) {
+      await pool.query(
+        `INSERT INTO libertadores_predicciones_campeon (usuario_id, campeon, subcampeon)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (usuario_id)
+         DO UPDATE SET campeon = EXCLUDED.campeon, subcampeon = EXCLUDED.subcampeon, updated_at = CURRENT_TIMESTAMP`,
+        [usuario_id, campeon, subcampeon]
+      );
+    }
+
+    res.json({ 
+      mensaje: 'Pronóstico de final virtual guardado exitosamente',
+      prediccion_campeon: campeon && subcampeon ? { campeon, subcampeon } : null
+    });
+  } catch (error) {
+    console.error('Error guardando pronóstico de final virtual:', error);
+    res.status(500).json({ error: 'Error guardando pronóstico' });
+  }
+});
+
 // Guardar/Actualizar pronóstico
 router.post('/', verifyToken, async (req, res) => {
   try {
@@ -38,77 +118,6 @@ router.post('/', verifyToken, async (req, res) => {
         penales_visita = EXCLUDED.penales_visita
     `, [usuario_id, partido_id, jornada_id, goles_local, goles_visita, penales_local || null, penales_visita || null]);
 
-    // Si es jornada 10 y es el partido FINAL, actualizar automáticamente campeón/subcampeón
-    try {
-      const jornadaInfo = await pool.query(
-        'SELECT numero FROM libertadores_jornadas WHERE id = $1',
-        [jornada_id]
-      );
-      
-      if (jornadaInfo.rows.length > 0 && jornadaInfo.rows[0].numero === 10) {
-        // Obtener info del partido
-        const partidoInfo = await pool.query(
-          'SELECT nombre_local, nombre_visita FROM libertadores_partidos WHERE id = $1',
-          [partido_id]
-        );
-        
-        if (partidoInfo.rows.length > 0) {
-          const { nombre_local, nombre_visita } = partidoInfo.rows[0];
-          
-          // Verificar si es FINAL (no tiene partido con equipos invertidos)
-          const complementario = await pool.query(
-            `SELECT id FROM libertadores_partidos 
-             WHERE jornada_id = $1 AND nombre_local = $2 AND nombre_visita = $3`,
-            [jornada_id, nombre_visita, nombre_local]
-          );
-          
-          const esFinal = complementario.rows.length === 0;
-          
-          if (esFinal) {
-            // Determinar ganador según el pronóstico
-            let campeon = null;
-            let subcampeon = null;
-            
-            if (goles_local > goles_visita) {
-              campeon = nombre_local;
-              subcampeon = nombre_visita;
-            } else if (goles_local < goles_visita) {
-              campeon = nombre_visita;
-              subcampeon = nombre_local;
-            } else if (penales_local !== null && penales_visita !== null) {
-              // Empate - definir por penales
-              if (penales_local > penales_visita) {
-                campeon = nombre_local;
-                subcampeon = nombre_visita;
-              } else if (penales_local < penales_visita) {
-                campeon = nombre_visita;
-                subcampeon = nombre_local;
-              }
-            }
-            
-            // Guardar predicción de campeón/subcampeón
-            if (campeon && subcampeon) {
-              await pool.query(
-                `INSERT INTO libertadores_predicciones_campeon (usuario_id, campeon, subcampeon)
-                 VALUES ($1, $2, $3)
-                 ON CONFLICT (usuario_id)
-                 DO UPDATE SET campeon = EXCLUDED.campeon, subcampeon = EXCLUDED.subcampeon, updated_at = CURRENT_TIMESTAMP`,
-                [usuario_id, campeon, subcampeon]
-              );
-              
-              return res.json({ 
-                mensaje: 'Pronóstico guardado exitosamente',
-                prediccion_campeon: { campeon, subcampeon }
-              });
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error procesando predicción de campeón:', err);
-      // No fallar si hay error, solo continuar
-    }
-
     res.json({ mensaje: 'Pronóstico guardado exitosamente' });
   } catch (error) {
     console.error('Error guardando pronóstico:', error);
@@ -133,6 +142,29 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo pronósticos:', error);
     res.status(500).json({ error: 'Error obteniendo pronósticos' });
+  }
+});
+
+// Obtener pronóstico de final virtual (J10)
+router.get('/final-virtual/:jornada_id', verifyToken, async (req, res) => {
+  try {
+    const usuario_id = req.usuario.id;
+    const { jornada_id } = req.params;
+
+    const result = await pool.query(`
+      SELECT *
+      FROM libertadores_pronosticos_final_virtual
+      WHERE usuario_id = $1 AND jornada_id = $2
+    `, [usuario_id, jornada_id]);
+
+    if (result.rows.length === 0) {
+      return res.json(null);
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo pronóstico de final virtual:', error);
+    res.status(500).json({ error: 'Error obteniendo pronóstico' });
   }
 });
 

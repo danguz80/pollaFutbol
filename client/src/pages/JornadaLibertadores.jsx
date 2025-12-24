@@ -183,24 +183,36 @@ export default function JornadaLibertadores() {
       });
 
       const map = {};
-      pronosticosRes.data.forEach((pr, index) => {
+      
+      pronosticosRes.data.forEach((pr) => {
         map[pr.partido_id] = {
           goles_local: pr.goles_local,
           goles_visita: pr.goles_visita,
           penales_local: pr.penales_local,
           penales_visita: pr.penales_visita
         };
-        
-        // Para jornada 10, si es el quinto pronóstico (la final), cargar en pronosticoFinal
-        if (Number(numero) === 10 && index === 4) {
-          setPronosticoFinal({
-            goles_local: pr.goles_local ?? '',
-            goles_visita: pr.goles_visita ?? '',
-            penales_local: pr.penales_local ?? '',
-            penales_visita: pr.penales_visita ?? ''
-          });
-        }
       });
+      
+      // Para J10, cargar pronóstico de final virtual si existe
+      if (Number(numero) === 10 && jornadaRes.data.id) {
+        try {
+          const finalVirtualRes = await axios.get(
+            `${API_URL}/api/libertadores-pronosticos/final-virtual/${jornadaRes.data.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          
+          if (finalVirtualRes.data) {
+            setPronosticoFinal({
+              goles_local: finalVirtualRes.data.goles_local ?? '',
+              goles_visita: finalVirtualRes.data.goles_visita ?? '',
+              penales_local: finalVirtualRes.data.penales_local ?? '',
+              penales_visita: finalVirtualRes.data.penales_visita ?? ''
+            });
+          }
+        } catch (err) {
+          console.log('No hay pronóstico de final virtual aún');
+        }
+      }
       setPronosticos(map);
 
       // Si es jornada 8, cargar también jornada 7 (IDA) para cálculo de penales
@@ -333,28 +345,73 @@ export default function JornadaLibertadores() {
         }
       }
 
-      const respuestas = await Promise.all(
-        partidos
-          .filter((partido, index) => {
-            // En jornada 10, solo guardar semifinales si no hay finalistas calculados
-            if (Number(numero) === 10) {
-              return index < 4 || equiposFinalistasPronosticados.length === 2;
-            }
-            return true;
-          })
-          .map((partido, index) => {
-            // Para jornada 10, si es la final (último partido), usar pronosticoFinal
-            const esLaFinal = Number(numero) === 10 && equiposFinalistasPronosticados.length === 2 && partidos.indexOf(partido) === partidos.length - 1;
+      // Para jornada 10, guardar semifinales y final virtual por separado
+      if (Number(numero) === 10) {
+        // Guardar semifinales (primeros 4 partidos)
+        const partidosSemifinal = partidos.slice(0, 4);
+        const respuestasSemis = await Promise.all(
+          partidosSemifinal.map((partido) => {
+            let penalesLocal = pronosticos[partido.id]?.penales_local !== undefined && pronosticos[partido.id]?.penales_local !== '' 
+              ? Number(pronosticos[partido.id].penales_local) 
+              : null;
+            let penalesVisita = pronosticos[partido.id]?.penales_visita !== undefined && pronosticos[partido.id]?.penales_visita !== '' 
+              ? Number(pronosticos[partido.id].penales_visita) 
+              : null;
             
-            // Para jornadas 8, 9, 10: enviar penales si están definidos
+            return axios.post(`${API_URL}/api/libertadores-pronosticos`, {
+              partido_id: partido.id,
+              jornada_id: jornada.id,
+              goles_local: Number(pronosticos[partido.id]?.goles_local ?? 0),
+              goles_visita: Number(pronosticos[partido.id]?.goles_visita ?? 0),
+              penales_local: penalesLocal,
+              penales_visita: penalesVisita
+            }, {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            });
+          })
+        );
+
+        // Si hay finalistas, guardar pronóstico de final virtual
+        if (equiposFinalistasPronosticados.length === 2) {
+          await axios.post(`${API_URL}/api/libertadores-pronosticos/final-virtual`, {
+            jornada_id: jornada.id,
+            equipo_local: equiposFinalistasPronosticados[0],
+            equipo_visita: equiposFinalistasPronosticados[1],
+            goles_local: Number(pronosticoFinal.goles_local ?? 0),
+            goles_visita: Number(pronosticoFinal.goles_visita ?? 0),
+            penales_local: pronosticoFinal.penales_local ? Number(pronosticoFinal.penales_local) : null,
+            penales_visita: pronosticoFinal.penales_visita ? Number(pronosticoFinal.penales_visita) : null
+          }, {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        }
+
+        const todosOk = respuestasSemis.every((r) => r.status === 200);
+        
+        if (todosOk) {
+          if (equiposFinalistasPronosticados.length === 0) {
+            setMensaje("✅ Semifinales guardadas. Ahora calcula tus finalistas.");
+          } else {
+            setMensaje("✅ Pronósticos guardados correctamente");
+          }
+          setTimeout(() => setMensaje(""), 3000);
+        } else {
+          setMensaje("❌ Error al guardar algunos pronósticos");
+        }
+      } else {
+        // Para otras jornadas, guardar normal
+        const respuestas = await Promise.all(
+          partidos.map((partido) => {
             let penalesLocal = null;
             let penalesVisita = null;
             
-            if (esLaFinal) {
-              penalesLocal = pronosticoFinal.penales_local ? Number(pronosticoFinal.penales_local) : null;
-              penalesVisita = pronosticoFinal.penales_visita ? Number(pronosticoFinal.penales_visita) : null;
-            } else if (Number(numero) >= 8) {
-              // Para jornadas 8 y 9, enviar penales del pronóstico regular
+            if (Number(numero) >= 8) {
               penalesLocal = pronosticos[partido.id]?.penales_local !== undefined && pronosticos[partido.id]?.penales_local !== '' 
                 ? Number(pronosticos[partido.id].penales_local) 
                 : null;
@@ -366,8 +423,8 @@ export default function JornadaLibertadores() {
             return axios.post(`${API_URL}/api/libertadores-pronosticos`, {
               partido_id: partido.id,
               jornada_id: jornada.id,
-              goles_local: esLaFinal ? Number(pronosticoFinal.goles_local ?? 0) : Number(pronosticos[partido.id]?.goles_local ?? 0),
-              goles_visita: esLaFinal ? Number(pronosticoFinal.goles_visita ?? 0) : Number(pronosticos[partido.id]?.goles_visita ?? 0),
+              goles_local: Number(pronosticos[partido.id]?.goles_local ?? 0),
+              goles_visita: Number(pronosticos[partido.id]?.goles_visita ?? 0),
               penales_local: penalesLocal,
               penales_visita: penalesVisita
             }, {
@@ -377,19 +434,16 @@ export default function JornadaLibertadores() {
               },
             });
           })
-      );
+        );
 
-      const todosOk = respuestas.every((r) => r.status === 200);
-      
-      if (todosOk) {
-        if (Number(numero) === 10 && equiposFinalistasPronosticados.length === 0) {
-          setMensaje("✅ Semifinales guardadas. Ahora calcula tus finalistas.");
-        } else {
+        const todosOk = respuestas.every((r) => r.status === 200);
+        
+        if (todosOk) {
           setMensaje("✅ Pronósticos guardados correctamente");
+          setTimeout(() => setMensaje(""), 3000);
+        } else {
+          setMensaje("❌ Error al guardar algunos pronósticos");
         }
-        setTimeout(() => setMensaje(""), 3000);
-      } else {
-        setMensaje("❌ Error al guardar algunos pronósticos");
       }
     } catch (err) {
       console.error('Error enviando pronósticos:', err);
