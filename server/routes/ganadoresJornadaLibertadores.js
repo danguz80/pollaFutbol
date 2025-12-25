@@ -1,12 +1,12 @@
 import express from 'express';
 import { pool } from '../db/pool.js';
 import verifyToken from '../middleware/verifyToken.js';
-import checkRole from '../middleware/checkRole.js';
+import { checkRole } from '../middleware/checkRole.js';
 
 const router = express.Router();
 
 // POST: Calcular y guardar ganadores de una jornada
-router.post('/:jornadaNumero', verifyToken, checkRole(['admin']), async (req, res) => {
+router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res) => {
   const jornadaNumero = parseInt(req.params.jornadaNumero);
   
   try {
