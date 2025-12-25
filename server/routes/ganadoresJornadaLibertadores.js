@@ -27,16 +27,15 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       const puntosPartidosResult = await pool.query(`
         SELECT COALESCE(SUM(lp.puntos), 0) as puntos_partidos
         FROM libertadores_pronosticos lp
-        INNER JOIN libertadores_partidos lpart ON lp.partido_id = lpart.id
-        WHERE lp.usuario_id = $1 AND lpart.jornada_numero = $2
+        INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+        WHERE lp.usuario_id = $1 AND lj.numero = $2
       `, [usuario.id, jornadaNumero]);
       
       // Puntos de clasificación (equipos que avanzan)
       const puntosClasificacionResult = await pool.query(`
-        SELECT COALESCE(SUM(lp.puntos_clasificacion), 0) as puntos_clasificacion
-        FROM libertadores_pronosticos lp
-        INNER JOIN libertadores_partidos lpart ON lp.partido_id = lpart.id
-        WHERE lp.usuario_id = $1 AND lpart.jornada_numero = $2
+        SELECT COALESCE(SUM(puntos), 0) as puntos_clasificacion
+        FROM libertadores_puntos_clasificacion
+        WHERE usuario_id = $1 AND jornada_numero = $2
       `, [usuario.id, jornadaNumero]);
       
       // Para jornada 10 (FINAL), también incluir puntos de campeón y subcampeón
