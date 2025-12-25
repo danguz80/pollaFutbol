@@ -74,11 +74,22 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       });
     }
     
+    // Verificar que haya datos
+    if (puntosUsuarios.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron usuarios con pronósticos para esta jornada' });
+    }
+    
+    console.log('Puntos usuarios calculados:', puntosUsuarios);
+    
     // 3. Encontrar el puntaje máximo
     const puntajeMaximo = Math.max(...puntosUsuarios.map(u => u.puntaje));
     
+    console.log('Puntaje máximo:', puntajeMaximo);
+    
     // 4. Obtener todos los usuarios con el puntaje máximo (manejo de empates)
     const ganadores = puntosUsuarios.filter(u => u.puntaje === puntajeMaximo);
+    
+    console.log('Ganadores encontrados:', ganadores);
     
     if (ganadores.length === 0) {
       return res.status(404).json({ error: 'No se pudieron determinar ganadores' });
@@ -113,7 +124,12 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
     
   } catch (error) {
     console.error('Error calculando ganadores:', error);
-    res.status(500).json({ error: 'Error calculando ganadores de la jornada' });
+    console.error('Stack trace:', error.stack);
+    console.error('Error message:', error.message);
+    res.status(500).json({ 
+      error: 'Error calculando ganadores de la jornada',
+      details: error.message 
+    });
   }
 });
 
