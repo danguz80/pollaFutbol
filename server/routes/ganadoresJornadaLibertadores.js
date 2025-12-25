@@ -22,6 +22,21 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       )
     `);
     
+    // Verificar/crear tabla libertadores_puntos_clasificacion
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS libertadores_puntos_clasificacion (
+        id SERIAL PRIMARY KEY,
+        usuario_id INTEGER NOT NULL,
+        partido_id INTEGER NOT NULL,
+        jornada_numero INTEGER NOT NULL,
+        equipo_clasificado VARCHAR(100) NOT NULL,
+        fase_clasificado VARCHAR(50) NOT NULL,
+        puntos INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(usuario_id, partido_id, jornada_numero)
+      )
+    `);
+    
     // 1. Obtener todos los usuarios activos
     const usuariosResult = await pool.query(
       'SELECT id, nombre FROM usuarios WHERE activo = true ORDER BY nombre'
