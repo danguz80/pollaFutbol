@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import FireworksEffect from '../components/FireworksEffect';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -28,6 +29,11 @@ export default function ClasificacionLibertadores() {
   const [partidos, setPartidos] = useState([]);
   const [jornadas, setJornadas] = useState([]);
   const [jugadores, setJugadores] = useState([]);
+  
+  // Ganadores de jornada
+  const [ganadores, setGanadores] = useState(null);
+  const [mostrarGanadores, setMostrarGanadores] = useState(false);
+  const [calculandoGanadores, setCalculandoGanadores] = useState(false);
 
   useEffect(() => {
     // Verificar si es admin
@@ -41,6 +47,7 @@ export default function ClasificacionLibertadores() {
     cargarPronosticos();
     if (filtroJornada) {
       cargarRankings();
+      cargarGanadoresJornada(filtroJornada);
     }
   }, [filtroNombre, filtroPartido, filtroJornada]);
 
@@ -217,6 +224,57 @@ export default function ClasificacionLibertadores() {
       }
     } catch (error) {
       console.error('Error cargando rankings:', error);
+    }
+  };
+
+  const calcularGanadoresJornada = async () => {
+    if (!filtroJornada) {
+      alert('Por favor selecciona una jornada primero');
+      return;
+    }
+
+    if (!confirm(`¿Calcular los ganadores de la jornada ${filtroJornada}?`)) {
+      return;
+    }
+
+    try {
+      setCalculandoGanadores(true);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_URL}/api/libertadores-ganadores-jornada/${filtroJornada}`,
+        {},
+        { headers }
+      );
+
+      setGanadores(response.data);
+      setMostrarGanadores(true);
+      
+      // Recargar rankings
+      cargarRankings();
+    } catch (error) {
+      console.error('Error calculando ganadores:', error);
+      alert('❌ Error al calcular los ganadores');
+    } finally {
+      setCalculandoGanadores(false);
+    }
+  };
+
+  const cargarGanadoresJornada = async (jornadaNumero) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/api/libertadores-ganadores-jornada/${jornadaNumero}`
+      );
+
+      if (response.data.ganadores && response.data.ganadores.length > 0) {
+        setGanadores(response.data);
+      } else {
+        setGanadores(null);
+      }
+    } catch (error) {
+      console.error('Error cargando ganadores:', error);
+      setGanadores(null);
     }
   };
 
@@ -451,14 +509,32 @@ export default function ClasificacionLibertadores() {
             </div>
           </div>
 
-          {/* Botón Limpiar */}
-          <div className="text-center mt-3">
+          {/* Botones de acciones */}
+          <div className="text-center mt-3 d-flex justify-content-center gap-2 flex-wrap">
             <button 
               className="btn btn-outline-secondary"
               onClick={limpiarFiltros}
             >
               🔄 Limpiar Filtros
             </button>
+            
+            {/* Botón Calcular Ganadores - Solo admin con jornada seleccionada */}
+            {esAdmin && filtroJornada && (
+              <button
+                className="btn btn-success"
+                onClick={calcularGanadoresJornada}
+                disabled={calculandoGanadores}
+              >
+                {calculandoGanadores ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2"></span>
+                    Calculando...
+                  </>
+                ) : (
+                  <>🏆 Calcular Ganadores</>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Botones de acceso directo a Rankings */}
@@ -1040,6 +1116,72 @@ export default function ClasificacionLibertadores() {
           ← Volver a Libertadores
         </button>
       </div>
+
+      {/* Modal de Ganadores con Confeti */}
+      {mostrarGanadores && ganadores && (
+        <>
+          <FireworksEffect />
+          <div 
+            className="modal show d-block" 
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setMostrarGanadores(false)}
+          >
+            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header bg-warning text-dark">
+                  <h5 className="modal-title">
+                    🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
+                  </h5>
+                  <button 
+                    type="button" 
+                    className="btn-close" 
+                    onClick={() => setMostrarGanadores(false)}
+                  ></button>
+                </div>
+                <div className="modal-body text-center py-4">
+                  <div className="mb-4">
+                    <h2 className="text-warning">🎉 ¡Felicitaciones! 🎉</h2>
+                  </div>
+                  {ganadores.ganadores.map((ganador, index) => (
+                    <div key={index} className="alert alert-success mb-3">
+                      <h4 className="mb-0">
+                        🏆 {ganador.nombre}
+                      </h4>
+                      <p className="mb-0 fs-5 fw-bold text-success">
+                        {ganador.puntaje} puntos
+                      </p>
+                    </div>
+                  ))}
+                  <p className="text-muted mt-3">
+                    {ganadores.mensaje}
+                  </p>
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-primary" 
+                    onClick={() => setMostrarGanadores(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Mostrar ganadores guardados si existen */}
+      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
+        <div className="alert alert-info text-center">
+          <h5 className="mb-2">
+            🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
+          </h5>
+          <p className="mb-0">
+            {ganadores.ganadores.map(g => g.nombre).join(', ')} - {ganadores.ganadores[0].puntaje} puntos
+          </p>
+        </div>
+      )}
     </div>
   );
 }
