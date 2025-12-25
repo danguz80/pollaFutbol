@@ -10,6 +10,18 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
   const jornadaNumero = parseInt(req.params.jornadaNumero);
   
   try {
+    // Verificar/crear tabla libertadores_ganadores_jornada
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS libertadores_ganadores_jornada (
+        id SERIAL PRIMARY KEY,
+        jornada_numero INTEGER NOT NULL,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        puntaje INTEGER NOT NULL,
+        fecha_calculo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(jornada_numero, usuario_id)
+      )
+    `);
+    
     // 1. Obtener todos los usuarios activos
     const usuariosResult = await pool.query(
       'SELECT id, nombre FROM usuarios WHERE activo = true ORDER BY nombre'
