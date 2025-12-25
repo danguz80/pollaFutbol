@@ -442,7 +442,9 @@ export default function ClasificacionLibertadores() {
                   <option key={partido.id} value={partido.id}>
                     {formatearNombreEquipo(partido.nombre_local, partido.pais_local)} vs{' '}
                     {formatearNombreEquipo(partido.nombre_visita, partido.pais_visita)}
-                    {partido.grupo && ` - Grupo ${partido.grupo}`}
+                    {partido.tipo === 'IDA' && ' - IDA'}
+                    {partido.tipo === 'VUELTA' && ' - VUELTA'}
+                    {partido.tipo === 'FINAL' && ' - FINAL'}
                   </option>
                 ))}
               </select>
