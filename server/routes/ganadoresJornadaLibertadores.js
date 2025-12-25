@@ -81,9 +81,10 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
         puntosCampeonSubcampeon = puntosFinalesResult.rows[0].puntos_finales || 0;
       }
       
-      const puntosPartidos = parseInt(puntosPartidosResult.rows[0].puntos_partidos || 0);
-      const puntosClasificacion = parseInt(puntosClasificacionResult.rows[0].puntos_clasificacion || 0);
-      const puntosTotal = puntosPartidos + puntosClasificacion + puntosCampeonSubcampeon;
+      const puntosPartidos = parseInt(puntosPartidosResult.rows[0].puntos_partidos || 0, 10);
+      const puntosClasificacion = parseInt(puntosClasificacionResult.rows[0].puntos_clasificacion || 0, 10);
+      const puntosCampeonSubcampeonNum = parseInt(puntosCampeonSubcampeon || 0, 10);
+      const puntosTotal = puntosPartidos + puntosClasificacion + puntosCampeonSubcampeonNum;
       
       puntosUsuarios.push({
         usuario_id: usuario.id,
