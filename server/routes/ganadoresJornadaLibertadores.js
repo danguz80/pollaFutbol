@@ -196,4 +196,155 @@ router.get('/:jornadaNumero', async (req, res) => {
   }
 });
 
+// POST: Calcular y guardar ganador del ranking acumulado
+router.post('/acumulado/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res) => {
+  const jornadaNumero = parseInt(req.params.jornadaNumero);
+  
+  try {
+    // Verificar/crear tabla libertadores_ganadores_acumulado
+    await pool.query('DROP TABLE IF EXISTS libertadores_ganadores_acumulado CASCADE');
+    await pool.query(`
+      CREATE TABLE libertadores_ganadores_acumulado (
+        id SERIAL PRIMARY KEY,
+        jornada_numero INTEGER NOT NULL,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        puntaje INTEGER NOT NULL,
+        fecha_calculo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(jornada_numero, usuario_id)
+      )
+    `);
+    
+    console.log('✅ Tabla libertadores_ganadores_acumulado recreada');
+    
+    // Obtener el ranking acumulado hasta esta jornada (mismo query que rankingsLibertadores)
+    const rankingResult = await pool.query(`
+      SELECT 
+        u.id,
+        u.nombre,
+        u.foto_perfil,
+        COALESCE(puntos_partidos.total, 0) + 
+        COALESCE(puntos_clasificacion.total, 0) + 
+        COALESCE(puntos_campeon.campeon, 0) + 
+        COALESCE(puntos_campeon.subcampeon, 0) as puntos_acumulados
+      FROM usuarios u
+      LEFT JOIN (
+        SELECT lp.usuario_id, SUM(lp.puntos) as total
+        FROM libertadores_pronosticos lp
+        INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+        WHERE lj.numero <= $1
+        GROUP BY lp.usuario_id
+      ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT lpc.usuario_id, SUM(lpc.puntos) as total
+        FROM libertadores_puntos_clasificacion lpc
+        WHERE lpc.jornada_numero <= $1
+        GROUP BY lpc.usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
+        FROM libertadores_predicciones_campeon
+      ) puntos_campeon ON u.id = puntos_campeon.usuario_id
+      WHERE u.activo = true
+      ORDER BY puntos_acumulados DESC, u.nombre ASC
+    `, [jornadaNumero]);
+    
+    if (rankingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron usuarios con pronósticos' });
+    }
+    
+    // Encontrar el puntaje máximo
+    const puntajeMaximo = Math.max(...rankingResult.rows.map(u => parseInt(u.puntos_acumulados, 10)));
+    
+    // Obtener todos los usuarios con el puntaje máximo (manejo de empates)
+    const ganadores = rankingResult.rows.filter(u => parseInt(u.puntos_acumulados, 10) === puntajeMaximo);
+    
+    console.log('Ganadores acumulado encontrados:', ganadores);
+    
+    if (ganadores.length === 0) {
+      return res.status(404).json({ error: 'No se pudieron determinar ganadores' });
+    }
+    
+    // Borrar ganadores anteriores de esta jornada (si existen)
+    await pool.query(
+      'DELETE FROM libertadores_ganadores_acumulado WHERE jornada_numero = $1',
+      [jornadaNumero]
+    );
+    
+    // Guardar los nuevos ganadores
+    for (const ganador of ganadores) {
+      await pool.query(
+        `INSERT INTO libertadores_ganadores_acumulado (jornada_numero, usuario_id, puntaje)
+         VALUES ($1, $2, $3)`,
+        [jornadaNumero, ganador.id, puntajeMaximo]
+      );
+    }
+    
+    // Retornar los ganadores
+    res.json({
+      jornadaNumero,
+      tipo: 'acumulado',
+      ganadores: ganadores.map(g => ({
+        nombre: g.nombre,
+        puntaje: puntajeMaximo
+      })),
+      mensaje: ganadores.length === 1 
+        ? `🏆 EL CAMPEÓN DEL RANKING ACUMULADO (hasta jornada ${jornadaNumero}) ES: ${ganadores[0].nombre.toUpperCase()}`
+        : `🏆 LOS CAMPEONES DEL RANKING ACUMULADO (hasta jornada ${jornadaNumero}) SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`
+    });
+    
+  } catch (error) {
+    console.error('Error calculando ganadores acumulado:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Error calculando ganadores del ranking acumulado',
+      details: error.message 
+    });
+  }
+});
+
+// GET: Obtener ganadores del ranking acumulado
+router.get('/acumulado/:jornadaNumero', async (req, res) => {
+  const jornadaNumero = parseInt(req.params.jornadaNumero);
+  
+  try {
+    const result = await pool.query(`
+      SELECT 
+        lga.jornada_numero,
+        lga.puntaje,
+        lga.fecha_calculo,
+        u.id as usuario_id,
+        u.nombre
+      FROM libertadores_ganadores_acumulado lga
+      INNER JOIN usuarios u ON lga.usuario_id = u.id
+      WHERE lga.jornada_numero = $1
+      ORDER BY u.nombre
+    `, [jornadaNumero]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ ganadores: [], mensaje: null });
+    }
+    
+    const ganadores = result.rows.map(row => ({
+      nombre: row.nombre,
+      puntaje: row.puntaje
+    }));
+    
+    const mensaje = ganadores.length === 1 
+      ? `🏆 EL CAMPEÓN DEL RANKING ACUMULADO (hasta jornada ${jornadaNumero}) ES: ${ganadores[0].nombre.toUpperCase()}`
+      : `🏆 LOS CAMPEONES DEL RANKING ACUMULADO (hasta jornada ${jornadaNumero}) SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`;
+    
+    res.json({
+      jornadaNumero,
+      tipo: 'acumulado',
+      ganadores,
+      mensaje,
+      fechaCalculo: result.rows[0].fecha_calculo
+    });
+    
+  } catch (error) {
+    console.error('Error obteniendo ganadores acumulado:', error);
+    res.status(500).json({ error: 'Error obteniendo ganadores del ranking acumulado' });
+  }
+});
+
 export default router;

@@ -34,6 +34,11 @@ export default function ClasificacionLibertadores() {
   const [ganadores, setGanadores] = useState(null);
   const [mostrarGanadores, setMostrarGanadores] = useState(false);
   const [calculandoGanadores, setCalculandoGanadores] = useState(false);
+  
+  // Ganadores acumulado
+  const [ganadoresAcumulado, setGanadoresAcumulado] = useState(null);
+  const [mostrarGanadoresAcumulado, setMostrarGanadoresAcumulado] = useState(false);
+  const [calculandoGanadoresAcumulado, setCalculandoGanadoresAcumulado] = useState(false);
 
   useEffect(() => {
     // Verificar si es admin
@@ -48,6 +53,7 @@ export default function ClasificacionLibertadores() {
     if (filtroJornada) {
       cargarRankings();
       cargarGanadoresJornada(filtroJornada);
+      cargarGanadoresAcumulado(filtroJornada);
     }
   }, [filtroNombre, filtroPartido, filtroJornada]);
 
@@ -275,6 +281,57 @@ export default function ClasificacionLibertadores() {
     } catch (error) {
       console.error('Error cargando ganadores:', error);
       setGanadores(null);
+    }
+  };
+
+  const calcularGanadoresAcumulado = async () => {
+    if (!filtroJornada) {
+      alert('Por favor selecciona una jornada primero');
+      return;
+    }
+
+    if (!confirm(`¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado hasta la jornada ${filtroJornada}?`)) {
+      return;
+    }
+
+    try {
+      setCalculandoGanadoresAcumulado(true);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_URL}/api/libertadores-ganadores-jornada/acumulado/${filtroJornada}`,
+        {},
+        { headers }
+      );
+
+      setGanadoresAcumulado(response.data);
+      setMostrarGanadoresAcumulado(true);
+      
+      // Recargar rankings
+      cargarRankings();
+    } catch (error) {
+      console.error('Error calculando ganadores acumulado:', error);
+      alert('❌ Error al calcular el campeón del ranking acumulado');
+    } finally {
+      setCalculandoGanadoresAcumulado(false);
+    }
+  };
+
+  const cargarGanadoresAcumulado = async (jornadaNumero) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/api/libertadores-ganadores-jornada/acumulado/${jornadaNumero}`
+      );
+
+      if (response.data.ganadores && response.data.ganadores.length > 0) {
+        setGanadoresAcumulado(response.data);
+      } else {
+        setGanadoresAcumulado(null);
+      }
+    } catch (error) {
+      console.error('Error cargando ganadores acumulado:', error);
+      setGanadoresAcumulado(null);
     }
   };
 
@@ -520,20 +577,37 @@ export default function ClasificacionLibertadores() {
             
             {/* Botón Calcular Ganadores - Solo admin con jornada seleccionada */}
             {esAdmin && filtroJornada && (
-              <button
-                className="btn btn-success"
-                onClick={calcularGanadoresJornada}
-                disabled={calculandoGanadores}
-              >
-                {calculandoGanadores ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2"></span>
-                    Calculando...
-                  </>
-                ) : (
-                  <>🏆 Calcular Ganadores</>
-                )}
-              </button>
+              <>
+                <button
+                  className="btn btn-success"
+                  onClick={calcularGanadoresJornada}
+                  disabled={calculandoGanadores}
+                >
+                  {calculandoGanadores ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Calculando...
+                    </>
+                  ) : (
+                    <>🏆 Calcular Ganadores Jornada</>
+                  )}
+                </button>
+                
+                <button
+                  className="btn btn-warning text-dark fw-bold"
+                  onClick={calcularGanadoresAcumulado}
+                  disabled={calculandoGanadoresAcumulado}
+                >
+                  {calculandoGanadoresAcumulado ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Calculando...
+                    </>
+                  ) : (
+                    <>👑 Ganador Ranking Acumulado</>
+                  )}
+                </button>
+              </>
             )}
           </div>
 
@@ -1179,6 +1253,83 @@ export default function ClasificacionLibertadores() {
           </h5>
           <p className="mb-0">
             {ganadores.ganadores.map(g => g.nombre).join(', ')} - {ganadores.ganadores[0].puntaje} puntos
+          </p>
+        </div>
+      )}
+
+      {/* Modal de Ganadores Acumulado con Confeti Intenso */}
+      {mostrarGanadoresAcumulado && ganadoresAcumulado && (
+        <>
+          <FireworksEffect />
+          <FireworksEffect />
+          <FireworksEffect />
+          <div 
+            className="modal show d-block" 
+            style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 2000 }}
+            onClick={() => setMostrarGanadoresAcumulado(false)}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content border-5 border-warning">
+                <div className="modal-header bg-gradient" style={{ background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }}>
+                  <h3 className="modal-title text-dark fw-bold w-100 text-center">
+                    👑 {ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} DEL RANKING ACUMULADO 👑
+                  </h3>
+                  <button 
+                    type="button" 
+                    className="btn-close" 
+                    onClick={() => setMostrarGanadoresAcumulado(false)}
+                  ></button>
+                </div>
+                <div className="modal-body text-center py-5" style={{ background: 'linear-gradient(to bottom, #fff 0%, #fffaf0 100%)' }}>
+                  <div className="mb-5">
+                    <h1 className="display-3 mb-3">🎊 🎉 🎊</h1>
+                    <h2 className="text-warning fw-bold" style={{ fontSize: '2.5rem', textShadow: '2px 2px 4px rgba(0,0,0,0.2)' }}>
+                      ¡FELICITACIONES!
+                    </h2>
+                  </div>
+                  {ganadoresAcumulado.ganadores.map((ganador, index) => (
+                    <div key={index} className="alert alert-warning mb-4 border-3 border-warning shadow-lg" style={{ backgroundColor: '#FFF8DC' }}>
+                      <h1 className="mb-3" style={{ fontSize: '3rem' }}>👑</h1>
+                      <h2 className="mb-2 fw-bold text-dark" style={{ fontSize: '2rem' }}>
+                        {ganador.nombre.toUpperCase()}
+                      </h2>
+                      <p className="mb-0 fw-bold text-warning" style={{ fontSize: '1.8rem' }}>
+                        {ganador.puntaje} PUNTOS
+                      </p>
+                    </div>
+                  ))}
+                  <div className="mt-4">
+                    <p className="fs-5 fw-bold text-dark">
+                      {ganadoresAcumulado.mensaje}
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <h1>🏆 🥇 🏆</h1>
+                  </div>
+                </div>
+                <div className="modal-footer bg-light">
+                  <button 
+                    type="button" 
+                    className="btn btn-warning btn-lg fw-bold" 
+                    onClick={() => setMostrarGanadoresAcumulado(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Mostrar ganadores acumulado guardados si existen */}
+      {ganadoresAcumulado && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
+        <div className="alert alert-warning text-center border-3 border-warning shadow">
+          <h4 className="mb-2">
+            👑 {ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} DEL RANKING ACUMULADO 👑
+          </h4>
+          <p className="mb-0 fw-bold fs-5">
+            {ganadoresAcumulado.ganadores.map(g => g.nombre.toUpperCase()).join(', ')} - {ganadoresAcumulado.ganadores[0].puntaje} PUNTOS
           </p>
         </div>
       )}
