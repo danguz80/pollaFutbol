@@ -77,7 +77,9 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         lp.puntos,
         lp.created_at as fecha_pronostico,
         lpc.equipo_clasificado as equipo_pronosticado_avanza,
-        lpc.puntos as puntos_clasificacion
+        lpc.puntos as puntos_clasificacion,
+        lpcc.puntos_campeon,
+        lpcc.puntos_subcampeon
       FROM libertadores_pronosticos lp
       INNER JOIN usuarios u ON lp.usuario_id = u.id
       INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
@@ -87,6 +89,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       LEFT JOIN libertadores_puntos_clasificacion lpc ON lp.usuario_id = lpc.usuario_id 
         AND lp.partido_id = lpc.partido_id 
         AND lj.numero = lpc.jornada_numero
+      LEFT JOIN libertadores_predicciones_campeon lpcc ON lp.usuario_id = lpcc.usuario_id
       WHERE 1=1
     `;
 
@@ -350,6 +353,8 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         puntos: row.puntos,
         equipo_pronosticado_avanza: equipoPronosticadoAvanza,
         puntos_clasificacion: row.puntos_clasificacion || 0,
+        puntos_campeon: row.puntos_campeon || 0,
+        puntos_subcampeon: row.puntos_subcampeon || 0,
         fecha_pronostico: row.fecha_pronostico,
         partido_ida: partidoIda,
         equipo_real_avanza: equipoRealQueAvanza,

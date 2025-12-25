@@ -811,6 +811,31 @@ export default function ClasificacionLibertadores() {
                       );
                     })()}
                     
+                    {/* Fila de puntos del cuadro final - Solo para Jornada 10 */}
+                    {grupo.jornada === 10 && grupo.pronosticos.length > 0 && (() => {
+                      const primerPronostico = grupo.pronosticos[0];
+                      const puntosCampeon = primerPronostico.puntos_campeon || 0;
+                      const puntosSubcampeon = primerPronostico.puntos_subcampeon || 0;
+                      const totalCuadroFinal = puntosCampeon + puntosSubcampeon;
+                      
+                      if (totalCuadroFinal > 0) {
+                        return (
+                          <tr className="table-success">
+                            <td colSpan="6" className="text-end fw-bold">Puntos Cuadro Final (Campeón + Subcampeón):</td>
+                            <td className="text-center fw-bold">
+                              <span className="badge bg-success fs-6">
+                                {puntosCampeon > 0 && `${puntosCampeon} pts Campeón`}
+                                {puntosCampeon > 0 && puntosSubcampeon > 0 && ' + '}
+                                {puntosSubcampeon > 0 && `${puntosSubcampeon} pts Subcampeón`}
+                                {totalCuadroFinal > 0 && ` = ${totalCuadroFinal} pts`}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return null;
+                    })()}
+                    
                     {/* Fila de total */}
                     <tr className="table-info fw-bold">
                       <td colSpan="6" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
@@ -834,7 +859,15 @@ export default function ClasificacionLibertadores() {
                               })
                               .reduce((sum, p) => sum + (p.puntos_clasificacion || 0), 0);
                             
-                            return puntosPartidos + puntosClasificacion;
+                            // Para jornada 10, sumar puntos de campeón y subcampeón (solo una vez)
+                            let puntosCuadroFinal = 0;
+                            if (grupo.jornada === 10 && grupo.pronosticos.length > 0) {
+                              // Tomar los puntos del primer pronóstico ya que son los mismos para todos los partidos del usuario
+                              const primerPronostico = grupo.pronosticos[0];
+                              puntosCuadroFinal = (primerPronostico.puntos_campeon || 0) + (primerPronostico.puntos_subcampeon || 0);
+                            }
+                            
+                            return puntosPartidos + puntosClasificacion + puntosCuadroFinal;
                           })()} pts
                         </span>
                       </td>
