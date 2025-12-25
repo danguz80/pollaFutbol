@@ -53,8 +53,9 @@ export default function ClasificacionLibertadores() {
     if (filtroJornada) {
       cargarRankings();
       cargarGanadoresJornada(filtroJornada);
-      cargarGanadoresAcumulado(filtroJornada);
     }
+    // Cargar ganadores acumulado siempre (no depende de filtro)
+    cargarGanadoresAcumulado();
   }, [filtroNombre, filtroPartido, filtroJornada]);
 
   // Resetear filtro de partido cuando cambia la jornada
@@ -285,12 +286,7 @@ export default function ClasificacionLibertadores() {
   };
 
   const calcularGanadoresAcumulado = async () => {
-    if (!filtroJornada) {
-      alert('Por favor selecciona una jornada primero');
-      return;
-    }
-
-    if (!confirm(`¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado hasta la jornada ${filtroJornada}?`)) {
+    if (!confirm('¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado (TODAS LAS JORNADAS)?')) {
       return;
     }
 
@@ -300,7 +296,7 @@ export default function ClasificacionLibertadores() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const response = await axios.post(
-        `${API_URL}/api/libertadores-ganadores-jornada/acumulado/${filtroJornada}`,
+        `${API_URL}/api/libertadores-ganadores-jornada/acumulado`,
         {},
         { headers }
       );
@@ -318,10 +314,10 @@ export default function ClasificacionLibertadores() {
     }
   };
 
-  const cargarGanadoresAcumulado = async (jornadaNumero) => {
+  const cargarGanadoresAcumulado = async () => {
     try {
       const response = await axios.get(
-        `${API_URL}/api/libertadores-ganadores-jornada/acumulado/${jornadaNumero}`
+        `${API_URL}/api/libertadores-ganadores-jornada/acumulado`
       );
 
       if (response.data.ganadores && response.data.ganadores.length > 0) {
@@ -576,23 +572,27 @@ export default function ClasificacionLibertadores() {
             </button>
             
             {/* Botón Calcular Ganadores - Solo admin con jornada seleccionada */}
-            {esAdmin && filtroJornada && (
+            {esAdmin && (
               <>
-                <button
-                  className="btn btn-success"
-                  onClick={calcularGanadoresJornada}
-                  disabled={calculandoGanadores}
-                >
-                  {calculandoGanadores ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2"></span>
-                      Calculando...
-                    </>
-                  ) : (
-                    <>🏆 Calcular Ganadores Jornada</>
-                  )}
-                </button>
+                {/* Botón Calcular Ganadores Jornada - Solo si hay jornada seleccionada */}
+                {filtroJornada && (
+                  <button
+                    className="btn btn-success"
+                    onClick={calcularGanadoresJornada}
+                    disabled={calculandoGanadores}
+                  >
+                    {calculandoGanadores ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Calculando...
+                      </>
+                    ) : (
+                      <>🏆 Calcular Ganadores Jornada</>
+                    )}
+                  </button>
+                )}
                 
+                {/* Botón Ganador Ranking Acumulado - Siempre disponible */}
                 <button
                   className="btn btn-warning text-dark fw-bold"
                   onClick={calcularGanadoresAcumulado}
