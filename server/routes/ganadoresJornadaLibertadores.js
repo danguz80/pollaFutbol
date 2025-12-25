@@ -9,6 +9,11 @@ const router = express.Router();
 router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res) => {
   const jornadaNumero = parseInt(req.params.jornadaNumero);
   
+  // Validar que jornadaNumero sea un número válido
+  if (isNaN(jornadaNumero)) {
+    return res.status(400).json({ error: 'Número de jornada inválido' });
+  }
+  
   try {
     // Eliminar y recrear tabla libertadores_ganadores_jornada para asegurar estructura correcta
     await pool.query('DROP TABLE IF EXISTS libertadores_ganadores_jornada CASCADE');
@@ -155,6 +160,11 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
 // GET: Obtener ganadores de una jornada
 router.get('/:jornadaNumero', async (req, res) => {
   const jornadaNumero = parseInt(req.params.jornadaNumero);
+  
+  // Validar que jornadaNumero sea un número válido
+  if (isNaN(jornadaNumero)) {
+    return res.status(400).json({ error: 'Número de jornada inválido' });
+  }
   
   try {
     const result = await pool.query(`

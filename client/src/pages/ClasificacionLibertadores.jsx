@@ -50,9 +50,9 @@ export default function ClasificacionLibertadores() {
 
   useEffect(() => {
     cargarPronosticos();
-    if (filtroJornada) {
+    if (filtroJornada && filtroJornada !== '') {
       cargarRankings();
-      cargarGanadoresJornada(filtroJornada);
+      cargarGanadoresJornada(parseInt(filtroJornada));
     }
     // Cargar ganadores acumulado siempre (no depende de filtro)
     cargarGanadoresAcumulado();
