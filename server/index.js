@@ -145,6 +145,25 @@ app.use(express.json());
   }
 })();
 
+// Migración automática: crear tabla libertadores_ganadores_jornada
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS libertadores_ganadores_jornada (
+        id SERIAL PRIMARY KEY,
+        jornada_numero INTEGER NOT NULL,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        puntaje INTEGER NOT NULL,
+        fecha_calculo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(jornada_numero, usuario_id)
+      )
+    `);
+    console.log('✅ Tabla libertadores_ganadores_jornada verificada');
+  } catch (error) {
+    console.error('❌ Error creando tabla libertadores_ganadores_jornada:', error.message);
+  }
+})();
+
 // Actualizar nombres de jornadas existentes
 (async () => {
   try {
