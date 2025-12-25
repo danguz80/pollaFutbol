@@ -10,9 +10,10 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
   const jornadaNumero = parseInt(req.params.jornadaNumero);
   
   try {
-    // Verificar/crear tabla libertadores_ganadores_jornada
+    // Eliminar y recrear tabla libertadores_ganadores_jornada para asegurar estructura correcta
+    await pool.query('DROP TABLE IF EXISTS libertadores_ganadores_jornada CASCADE');
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS libertadores_ganadores_jornada (
+      CREATE TABLE libertadores_ganadores_jornada (
         id SERIAL PRIMARY KEY,
         jornada_numero INTEGER NOT NULL,
         usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -21,6 +22,8 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
         UNIQUE(jornada_numero, usuario_id)
       )
     `);
+    
+    console.log('✅ Tabla libertadores_ganadores_jornada recreada');
     
     // Verificar/crear tabla libertadores_puntos_clasificacion
     await pool.query(`
