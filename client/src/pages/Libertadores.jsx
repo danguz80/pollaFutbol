@@ -40,7 +40,9 @@ export default function Libertadores() {
       const response = await axios.get(`${API_URL}/api/libertadores-rankings/actual`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const top3 = response.data.slice(0, 3);
+      // El endpoint devuelve { jornada, ranking }
+      const rankingData = response.data.ranking || [];
+      const top3 = rankingData.slice(0, 3);
       setRanking(top3);
 
       // Mapear fotos de perfil
