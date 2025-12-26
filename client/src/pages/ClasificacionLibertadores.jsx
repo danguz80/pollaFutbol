@@ -65,9 +65,7 @@ export default function ClasificacionLibertadores() {
 
   // Recargar rankings cuando cambia el modo de visualización
   useEffect(() => {
-    if (filtroJornada) {
-      cargarRankings();
-    }
+    cargarRankings();
   }, [mostrarActual]);
 
   const cargarDatosIniciales = async () => {
