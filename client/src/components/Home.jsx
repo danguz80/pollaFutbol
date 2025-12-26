@@ -26,6 +26,8 @@ export default function Home() {
 
     useEffect(() => {
         if (usuario) {
+            const token = localStorage.getItem('token');
+            
             // Ranking Campeonato (Torneo Nacional)
             fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
                 .then(res => res.json())
@@ -40,7 +42,11 @@ export default function Home() {
                 });
 
             // Ranking Libertadores
-            fetch(`${API_BASE_URL}/api/libertadores-rankings/actual`)
+            fetch(`${API_BASE_URL}/api/libertadores-rankings/actual`, {
+                headers: { 
+                    'Authorization': `Bearer ${token}` 
+                }
+            })
                 .then(res => res.json())
                 .then(data => {
                     if (data.ranking) {
