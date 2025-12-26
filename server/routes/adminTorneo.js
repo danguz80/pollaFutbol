@@ -58,18 +58,82 @@ router.delete('/eliminar-datos-torneo', verifyToken, authorizeRoles('admin'), as
   try {
     await client.query('BEGIN');
 
-    // Verificar que existe respaldo
     const anioActual = new Date().getFullYear();
-    const respaldo = await client.query(`
-      SELECT COUNT(*) as count
-      FROM rankings_historicos
-      WHERE anio = $1 AND competencia = 'Torneo Nacional'
+
+    console.log('💾 Creando respaldo automático de ganadores...');
+
+    // PASO 1: CREAR RESPALDO AUTOMÁTICO DE GANADORES ANTES DE ELIMINAR
+    // Respaldar ganadores de jornadas del Torneo Nacional
+    const ganadoresJornadasNacional = await client.query(`
+      SELECT
+        $1 as anio,
+        'Torneo Nacional' as competencia,
+        'estandar' as tipo,
+        j.numero::text as categoria,
+        u.id as usuario_id,
+        NULL as nombre_manual,
+        ROW_NUMBER() OVER (PARTITION BY j.numero ORDER BY u.nombre) as posicion,
+        0 as puntos
+      FROM ganadores_jornada gj
+      JOIN jornadas j ON gj.jornada_id = j.id
+      JOIN usuarios u ON gj.jugador_id = u.id
     `, [anioActual]);
 
-    if (parseInt(respaldo.rows[0].count) === 0) {
-      throw new Error('No existe respaldo. Primero crea un respaldo de los ganadores.');
+    // Insertar ganadores de jornada en rankings históricos
+    for (const ganador of ganadoresJornadasNacional.rows) {
+      await client.query(`
+        INSERT INTO rankings_historicos 
+          (anio, competencia, tipo, categoria, usuario_id, nombre_manual, posicion, puntos)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (anio, competencia, categoria, usuario_id, nombre_manual, posicion)
+        DO UPDATE SET 
+          puntos = EXCLUDED.puntos,
+          actualizado_en = CURRENT_TIMESTAMP
+      `, [ganador.anio, ganador.competencia, ganador.tipo, ganador.categoria, 
+          ganador.usuario_id, ganador.nombre_manual, ganador.posicion, ganador.puntos]);
     }
 
+    console.log(`✅ Respaldados ${ganadoresJornadasNacional.rows.length} ganadores de jornada`);
+
+    // Respaldar ranking acumulado (Top 3)
+    const rankingAcumulado = await client.query(`
+      SELECT * FROM (
+        SELECT 
+          $1 as anio,
+          'Torneo Nacional' as competencia,
+          'mayor' as tipo,
+          NULL as categoria,
+          u.id as usuario_id,
+          NULL as nombre_manual,
+          ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre) as posicion,
+          COALESCE(SUM(p.puntos), 0) as puntos
+        FROM usuarios u
+        LEFT JOIN pronosticos p ON u.id = p.usuario_id
+        LEFT JOIN jornadas j ON p.jornada_id = j.id
+        WHERE j.cerrada = true
+        GROUP BY u.id
+        HAVING COALESCE(SUM(p.puntos), 0) > 0
+        ORDER BY puntos DESC, u.nombre
+        LIMIT 3
+      ) ranking
+    `, [anioActual]);
+
+    for (const ganador of rankingAcumulado.rows) {
+      await client.query(`
+        INSERT INTO rankings_historicos 
+          (anio, competencia, tipo, categoria, usuario_id, nombre_manual, posicion, puntos)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (anio, competencia, tipo, categoria, usuario_id, nombre_manual, posicion)
+        DO UPDATE SET 
+          puntos = EXCLUDED.puntos,
+          actualizado_en = CURRENT_TIMESTAMP
+      `, [ganador.anio, ganador.competencia, ganador.tipo, ganador.categoria, 
+          ganador.usuario_id, ganador.nombre_manual, ganador.posicion, ganador.puntos]);
+    }
+
+    console.log(`✅ Respaldados ${rankingAcumulado.rows.length} ganadores del ranking acumulado`);
+
+    // PASO 2: AHORA SÍ ELIMINAR LOS DATOS
     console.log('🗑️ Iniciando eliminación de datos del Torneo Nacional...');
 
     // Verificar qué tablas existen
