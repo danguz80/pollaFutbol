@@ -76,8 +76,18 @@ export default function Home() {
             const res = await fetch(`${API_BASE_URL}/api/usuarios/admin`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            
+            if (!res.ok) {
+                console.warn('No se pudo cargar usuarios admin');
+                return;
+            }
+            
             const data = await res.json();
             setUsuarios(data);
+        } catch (error) {
+            console.warn('Error cargando usuarios:', error);
+        }
+    };
         } catch (error) {
             console.error('Error al cargar usuarios:', error);
         }
