@@ -615,35 +615,6 @@ export default function AdminPanel() {
         </button>
       </div>
 
-      {/* Selector de jornada */}
-      <div className="mb-3">
-        <label className="form-label">Selecciona Jornada:</label>
-        <select
-          className="form-select"
-          value={jornadaSeleccionada}
-          onChange={(e) => setJornadaSeleccionada(e.target.value)}
-        >
-          <option value="">-- Selecciona --</option>
-          {jornadas.map((j) => {
-            if (j.numero === 25) {
-              return [
-                <option key={j.id} value={j.numero}>
-                  Jornada {j.numero}
-                </option>,
-                <option key="999" value="999">
-                  Cuadro Final
-                </option>
-              ];
-            }
-            return (
-              <option key={j.id} value={j.numero}>
-                Jornada {j.numero}
-              </option>
-            );
-          })}
-        </select>
-      </div>
-
       {/* Fecha de cierre automático */}
       {jornadaSeleccionada && jornadaSeleccionada !== "999" && (
         <div className="mb-3 p-3 border rounded bg-light">
