@@ -81,39 +81,69 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
 router.get('/acumulado/:numero', verifyToken, async (req, res) => {
   try {
     const { numero } = req.params;
+    const jornadaNum = parseInt(numero);
 
-    const result = await pool.query(`
-      SELECT 
-        u.id,
-        u.nombre,
-        u.foto_perfil,
-        COALESCE(puntos_partidos.total, 0) + 
-        COALESCE(puntos_clasificacion.total, 0) + 
-        COALESCE(puntos_campeon.campeon, 0) + 
-        COALESCE(puntos_campeon.subcampeon, 0) as puntos_acumulados
-      FROM usuarios u
-      LEFT JOIN (
-        SELECT lp.usuario_id, SUM(lp.puntos) as total
-        FROM libertadores_pronosticos lp
-        INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-        WHERE lj.numero <= $1
-        GROUP BY lp.usuario_id
-      ) puntos_partidos ON u.id = puntos_partidos.usuario_id
-      LEFT JOIN (
-        SELECT lpc.usuario_id, SUM(lpc.puntos) as total
-        FROM libertadores_puntos_clasificacion lpc
-        WHERE lpc.jornada_numero <= $1
-        GROUP BY lpc.usuario_id
-      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-      LEFT JOIN (
-        SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
-        FROM libertadores_predicciones_campeon
-      ) puntos_campeon ON u.id = puntos_campeon.usuario_id
-      WHERE puntos_partidos.total IS NOT NULL 
-         OR puntos_clasificacion.total IS NOT NULL 
-         OR puntos_campeon.campeon IS NOT NULL
-      ORDER BY puntos_acumulados DESC, u.nombre ASC
-    `, [parseInt(numero)]);
+    // Solo incluir puntos de campeón/subcampeón si la jornada es 10 o posterior
+    const query = jornadaNum >= 10
+      ? `
+        SELECT 
+          u.id,
+          u.nombre,
+          u.foto_perfil,
+          COALESCE(puntos_partidos.total, 0) + 
+          COALESCE(puntos_clasificacion.total, 0) + 
+          COALESCE(puntos_campeon.campeon, 0) + 
+          COALESCE(puntos_campeon.subcampeon, 0) as puntos_acumulados
+        FROM usuarios u
+        LEFT JOIN (
+          SELECT lp.usuario_id, SUM(lp.puntos) as total
+          FROM libertadores_pronosticos lp
+          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+          WHERE lj.numero <= $1
+          GROUP BY lp.usuario_id
+        ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+        LEFT JOIN (
+          SELECT lpc.usuario_id, SUM(lpc.puntos) as total
+          FROM libertadores_puntos_clasificacion lpc
+          WHERE lpc.jornada_numero <= $1
+          GROUP BY lpc.usuario_id
+        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+        LEFT JOIN (
+          SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
+          FROM libertadores_predicciones_campeon
+        ) puntos_campeon ON u.id = puntos_campeon.usuario_id
+        WHERE puntos_partidos.total IS NOT NULL 
+           OR puntos_clasificacion.total IS NOT NULL 
+           OR puntos_campeon.campeon IS NOT NULL
+        ORDER BY puntos_acumulados DESC, u.nombre ASC
+      `
+      : `
+        SELECT 
+          u.id,
+          u.nombre,
+          u.foto_perfil,
+          COALESCE(puntos_partidos.total, 0) + 
+          COALESCE(puntos_clasificacion.total, 0) as puntos_acumulados
+        FROM usuarios u
+        LEFT JOIN (
+          SELECT lp.usuario_id, SUM(lp.puntos) as total
+          FROM libertadores_pronosticos lp
+          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+          WHERE lj.numero <= $1
+          GROUP BY lp.usuario_id
+        ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+        LEFT JOIN (
+          SELECT lpc.usuario_id, SUM(lpc.puntos) as total
+          FROM libertadores_puntos_clasificacion lpc
+          WHERE lpc.jornada_numero <= $1
+          GROUP BY lpc.usuario_id
+        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+        WHERE puntos_partidos.total IS NOT NULL 
+           OR puntos_clasificacion.total IS NOT NULL
+        ORDER BY puntos_acumulados DESC, u.nombre ASC
+      `;
+
+    const result = await pool.query(query, [jornadaNum]);
 
     res.json(result.rows);
   } catch (error) {
