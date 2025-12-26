@@ -37,7 +37,7 @@ export default function Libertadores() {
   const cargarRanking = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/libertadores-pronosticos/ranking`, {
+      const response = await axios.get(`${API_URL}/api/libertadores-rankings/actual`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const top3 = response.data.slice(0, 3);
@@ -168,7 +168,7 @@ export default function Libertadores() {
                       )}
                     </div>
                     <h5 className="mb-1">{index + 1}° {jugador.nombre}</h5>
-                    <p className="mb-0 fw-bold text-primary">{jugador.puntaje_total || 0} puntos</p>
+                    <p className="mb-0 fw-bold text-primary">{jugador.puntos_acumulados || 0} puntos</p>
                   </div>
                 </div>
               ))}
