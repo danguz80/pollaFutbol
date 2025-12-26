@@ -178,6 +178,33 @@ function RankingsHistoricos() {
     }
   };
 
+  const limpiarCampeonatoNacional2025 = async () => {
+    if (!confirm('¿Estás seguro de eliminar todos los registros de "Campeonato Nacional" 2025?\n\nEsto no se puede deshacer.')) return;
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(buildApiUrl('/api/rankings-historicos/limpiar/campeonato-nacional-2025'), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(`✅ ${data.message}`);
+        cargarDatos();
+      } else {
+        const error = await res.json();
+        alert(`❌ Error: ${error.error}`);
+      }
+    } catch (err) {
+      console.error('Error al limpiar:', err);
+      alert('Error al limpiar registros');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const agruparPorCompetencia = (rankings) => {
     const agrupado = {};
     rankings.forEach(r => {
@@ -217,6 +244,13 @@ function RankingsHistoricos() {
               disabled={loading}
             >
               🔄 Actualizar Rankings
+            </button>
+            <button 
+              className="btn-limpiar"
+              onClick={limpiarCampeonatoNacional2025}
+              disabled={loading}
+            >
+              🗑️ Limpiar "Campeonato Nacional" 2025
             </button>
             <button 
               className="btn-toggle-edit"

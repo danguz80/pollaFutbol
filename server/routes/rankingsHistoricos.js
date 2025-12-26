@@ -114,7 +114,26 @@ router.delete("/:id", verifyToken, authorizeRoles("admin"), async (req, res) => 
   }
 });
 
-// 📊 GET - Obtener estadísticas por usuario (cuántos títulos ha ganado cada uno)
+// �️ DELETE - Eliminar registros específicos de "Campeonato Nacional" 2025 (ADMIN)
+router.delete("/limpiar/campeonato-nacional-2025", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      DELETE FROM rankings_historicos 
+      WHERE anio = 2025 AND competencia = 'Campeonato Nacional'
+      RETURNING *
+    `);
+
+    res.json({ 
+      message: `Se eliminaron ${result.rows.length} registros de "Campeonato Nacional" 2025`,
+      registros_eliminados: result.rows.length
+    });
+  } catch (err) {
+    console.error("Error al limpiar registros:", err);
+    res.status(500).json({ error: "Error al limpiar registros" });
+  }
+});
+
+// �📊 GET - Obtener estadísticas por usuario (cuántos títulos ha ganado cada uno)
 router.get("/estadisticas/usuarios", async (req, res) => {
   try {
     const result = await pool.query(`
