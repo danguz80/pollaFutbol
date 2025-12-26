@@ -18,11 +18,12 @@
     "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "html-pdf-node": "^1.0.8",
     "jsonwebtoken": "^9.0.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.10",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.11.3",
-    "puppeteer": "^24.34.0",
     "resend": "^6.6.0"
   },
   "devDependencies": {

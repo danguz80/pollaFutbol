@@ -2,7 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
-import puppeteer from 'puppeteer';
+import htmlPdf from 'html-pdf-node';
 import { getWhatsAppService } from '../services/whatsappService.js';
 
 const router = express.Router();
@@ -500,17 +500,10 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
       </html>
     `;
 
-    // Generar PDF con Puppeteer
-    console.log('🚀 Iniciando Puppeteer...');
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // Generar PDF con html-pdf-node
+    console.log('📄 Generando PDF...');
     
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    
-    const pdfBuffer = await page.pdf({
+    const options = { 
       format: 'A4',
       printBackground: true,
       margin: {
@@ -519,9 +512,11 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
         bottom: '20px',
         left: '20px'
       }
-    });
+    };
     
-    await browser.close();
+    const file = { content: htmlContent };
+    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    
     console.log('✅ PDF generado exitosamente');
 
     // Enviar PDF por email
