@@ -446,6 +446,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
         <div class="header">
           <h1>🏆 Pronósticos Copa Libertadores</h1>
           <p>Jornada ${numero}</p>
+          <p><strong>Documento Testigo - Pronósticos Registrados</strong></p>
           <p>Fecha de generación: ${new Date().toLocaleDateString('es-ES', { 
             year: 'numeric', 
             month: 'long', 
@@ -463,8 +464,6 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
                 <tr>
                   <th>Partido</th>
                   <th>Pronóstico</th>
-                  <th>Resultado</th>
-                  <th style="text-align: center;">Puntos</th>
                 </tr>
               </thead>
               <tbody>
@@ -473,17 +472,11 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
                   const penales = (p.penales_local !== null && p.penales_visita !== null) 
                     ? ` (${p.penales_local}-${p.penales_visita} pen.)` 
                     : '';
-                  const resultado = (p.real_local !== null && p.real_visita !== null) 
-                    ? `${p.real_local}-${p.real_visita}` 
-                    : 'Pendiente';
-                  const puntos = p.puntos !== null ? p.puntos : '-';
                   
                   return `
                     <tr>
                       <td>${p.nombre_local} vs ${p.nombre_visita}</td>
                       <td class="pronostico">${pronostico}${penales}</td>
-                      <td class="resultado">${resultado}</td>
-                      <td class="puntos">${puntos}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -494,7 +487,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
 
         <div class="footer">
           <p>Campeonato Polla Fútbol - Copa Libertadores</p>
-          <p>Este documento contiene los pronósticos oficiales registrados</p>
+          <p>Este documento certifica los pronósticos registrados antes del inicio de la jornada</p>
         </div>
       </body>
       </html>
