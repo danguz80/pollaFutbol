@@ -7,6 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL;
 export default function Home() {
     const navigate = useNavigate();
     const [rankingCampeonato, setRankingCampeonato] = useState([]);
+    const [rankingLibertadores, setRankingLibertadores] = useState([]);
     const [fotoPerfilMap, setFotoPerfilMap] = useState({});
     const [usuarios, setUsuarios] = useState([]);
     const [mostrarAdmin, setMostrarAdmin] = useState(false);
@@ -25,7 +26,7 @@ export default function Home() {
 
     useEffect(() => {
         if (usuario) {
-            // Ranking Campeonato
+            // Ranking Campeonato (Torneo Nacional)
             fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
                 .then(res => res.json())
                 .then(data => {
@@ -37,6 +38,24 @@ export default function Home() {
                         return map;
                     });
                 });
+
+            // Ranking Libertadores
+            fetch(`${API_BASE_URL}/api/libertadores-rankings/actual`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ranking) {
+                        setRankingLibertadores(data.ranking);
+                        // Mapear fotos de ranking libertadores
+                        setFotoPerfilMap(prev => {
+                            const map = { ...prev };
+                            data.ranking.forEach(u => { 
+                                map[u.nombre_usuario] = u.foto_perfil; 
+                            });
+                            return map;
+                        });
+                    }
+                })
+                .catch(err => console.error('Error al cargar ranking Libertadores:', err));
 
             // Si es admin, cargar todos los usuarios
             if (esAdmin) {
@@ -233,11 +252,18 @@ export default function Home() {
                     {/* Cuenta Regresiva Campeonato */}
                     <CuentaRegresivaGlobal />
 
-                    {/* Top 3 Ranking Campeonato */}
+                    {/* Top 3 Ranking Torneo Nacional */}
                     <Top3Component 
-                        title="Top 3 Ranking Campeonato" 
+                        title="Top 3 Torneo Nacional" 
                         ranking={rankingCampeonato} 
                         emoji="🏆"
+                    />
+
+                    {/* Top 3 Ranking Libertadores */}
+                    <Top3Component 
+                        title="Top 3 Copa Libertadores" 
+                        ranking={rankingLibertadores} 
+                        emoji="🔴"
                     />
 
                     {/* SECCIÓN DE ADMINISTRACIÓN DE USUARIOS - SOLO ADMIN */}
