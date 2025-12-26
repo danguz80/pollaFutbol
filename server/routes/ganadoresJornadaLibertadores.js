@@ -11,10 +11,9 @@ const router = express.Router();
 // POST: Calcular y guardar ganador del ranking acumulado TOTAL (todas las jornadas)
 router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
   try {
-    // Verificar/crear tabla libertadores_ganadores_acumulado
-    await pool.query('DROP TABLE IF EXISTS libertadores_ganadores_acumulado CASCADE');
+    // Verificar/crear tabla libertadores_ganadores_acumulado (NO hacer DROP - mantener histórico)
     await pool.query(`
-      CREATE TABLE libertadores_ganadores_acumulado (
+      CREATE TABLE IF NOT EXISTS libertadores_ganadores_acumulado (
         id SERIAL PRIMARY KEY,
         usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
         puntaje INTEGER NOT NULL,
@@ -22,7 +21,7 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       )
     `);
     
-    console.log('✅ Tabla libertadores_ganadores_acumulado recreada');
+    console.log('✅ Tabla libertadores_ganadores_acumulado verificada');
     
     // Obtener el ranking acumulado TOTAL (todas las jornadas)
     const rankingResult = await pool.query(`

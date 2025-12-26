@@ -138,6 +138,38 @@ function RankingsHistoricos() {
     }
   };
 
+  const actualizarRankings = async () => {
+    if (!confirm('¿Deseas detectar y guardar los nuevos ganadores en el histórico?')) return;
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(buildApiUrl('/api/rankings-historicos/actualizar'), {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(`✅ ${data.mensaje}\n\nNuevos registros agregados:\n${data.registros.map(r => 
+          `• ${r.competencia} - ${r.tipo} - ${r.categoria}`
+        ).join('\n')}`);
+        cargarDatos();
+      } else {
+        const error = await res.json();
+        alert(`❌ Error: ${error.error}`);
+      }
+    } catch (err) {
+      console.error('Error al actualizar rankings:', err);
+      alert('Error al actualizar rankings históricos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const agruparPorCompetencia = (rankings) => {
     const agrupado = {};
     rankings.forEach(r => {
@@ -170,12 +202,21 @@ function RankingsHistoricos() {
       {/* Formulario de Edición (Solo Admin) */}
       {usuario?.rol === 'admin' && (
         <div className="admin-panel">
-          <button 
-            className="btn-toggle-edit"
-            onClick={() => setEditMode(!editMode)}
-          >
-            {editMode ? '❌ Cancelar Edición' : '✏️ Modo Edición'}
-          </button>
+          <div className="admin-actions">
+            <button 
+              className="btn-actualizar"
+              onClick={actualizarRankings}
+              disabled={loading}
+            >
+              🔄 Actualizar Rankings
+            </button>
+            <button 
+              className="btn-toggle-edit"
+              onClick={() => setEditMode(!editMode)}
+            >
+              {editMode ? '❌ Cancelar Edición' : '✏️ Modo Edición'}
+            </button>
+          </div>
 
           {editMode && (
             <form onSubmit={guardarRanking} className="form-ranking">
