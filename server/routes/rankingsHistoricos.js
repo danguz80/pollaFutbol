@@ -209,7 +209,7 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     // 1. CAMPEONATO NACIONAL - Ganadores de Jornadas (Estándar)
     // ============================================
     const ganadoresJornadasNacional = await pool.query(`
-      SELECT DISTINCT
+      SELECT
         2025 as anio,
         'Campeonato Nacional' as competencia,
         'estandar' as tipo,
@@ -265,14 +265,14 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     // 3. LIBERTADORES - Ganadores de Jornadas (Estándar)
     // ============================================
     const ganadoresJornadasLibertadores = await pool.query(`
-      SELECT DISTINCT
+      SELECT
         2025 as anio,
         'Copa Libertadores' as competencia,
         'estandar' as tipo,
         lgj.jornada_numero::text as categoria,
         u.id as usuario_id,
         NULL as nombre_manual,
-        ROW_NUMBER() OVER (PARTITION BY lgj.jornada_numero ORDER BY u.nombre) as posicion,
+        ROW_NUMBER() OVER (PARTITION BY lgj.jornada_numero ORDER BY lgj.puntaje DESC, u.nombre) as posicion,
         lgj.puntaje as puntos
       FROM libertadores_ganadores_jornada lgj
       JOIN usuarios u ON lgj.usuario_id = u.id
@@ -290,7 +290,7 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     // 4. LIBERTADORES - Ganador Acumulado (Mayor)
     // ============================================
     const ganadorAcumuladoLibertadores = await pool.query(`
-      SELECT DISTINCT
+      SELECT
         2025 as anio,
         'Copa Libertadores' as competencia,
         'mayor' as tipo,
@@ -308,7 +308,7 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
           AND rh.tipo = 'mayor'
           AND rh.usuario_id = lga.usuario_id
       )
-      ORDER BY puntos DESC, u.nombre
+      ORDER BY lga.puntaje DESC, u.nombre
       LIMIT 3
     `);
 
