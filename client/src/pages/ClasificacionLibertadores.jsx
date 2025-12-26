@@ -1163,6 +1163,35 @@ export default function ClasificacionLibertadores() {
             </div>
           </div>
 
+          {/* Botones de navegación de jornadas */}
+          <div className="text-center mb-3 d-flex gap-2 justify-content-center align-items-center">
+            <button 
+              className="btn btn-outline-secondary"
+              onClick={() => {
+                const jornadaActualNum = parseInt(filtroJornada);
+                const jornadaAnterior = jornadas.find(j => j.numero === jornadaActualNum - 1);
+                if (jornadaAnterior) setFiltroJornada(jornadaAnterior.numero.toString());
+              }}
+              disabled={!filtroJornada || parseInt(filtroJornada) === jornadas[0]?.numero}
+            >
+              ← Anterior
+            </button>
+            <span className="mx-2 fw-bold">
+              {filtroJornada ? `Jornada ${filtroJornada}` : 'Todas las jornadas'}
+            </span>
+            <button 
+              className="btn btn-outline-secondary"
+              onClick={() => {
+                const jornadaActualNum = parseInt(filtroJornada);
+                const jornadaSiguiente = jornadas.find(j => j.numero === jornadaActualNum + 1);
+                if (jornadaSiguiente) setFiltroJornada(jornadaSiguiente.numero.toString());
+              }}
+              disabled={!filtroJornada || parseInt(filtroJornada) === jornadas[jornadas.length - 1]?.numero}
+            >
+              Siguiente →
+            </button>
+          </div>
+
           {/* Botones de control de ranking */}
           <div className="text-center mb-4 d-flex gap-3 justify-content-center flex-wrap">
             <button 

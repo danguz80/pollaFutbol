@@ -62,7 +62,8 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           WHERE jornada_numero = $1
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL
+        WHERE puntos_partidos.total IS NOT NULL 
+           OR puntos_clasificacion.total IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
