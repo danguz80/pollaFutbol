@@ -178,13 +178,14 @@ function RankingsHistoricos() {
     }
   };
 
-  const limpiarCampeonatoNacional2025 = async () => {
-    if (!confirm('¿Estás seguro de eliminar todos los registros de "Campeonato Nacional" 2025?\n\nEsto no se puede deshacer.')) return;
+  const eliminarCompetencia = async (anio, competencia, tipo) => {
+    const tipoTexto = tipo === 'mayor' ? 'Cuadro de Honor Mayor' : 'Cuadro de Honor Estándar';
+    if (!confirm(`¿Estás seguro de eliminar todos los registros de:\n\n"${competencia}" ${anio}\n${tipoTexto}\n\n⚠️ Esto no se puede deshacer.`)) return;
 
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await fetch(buildApiUrl('/api/rankings-historicos/limpiar/campeonato-nacional-2025'), {
+      const res = await fetch(buildApiUrl(`/api/rankings-historicos/competencia/${anio}/${encodeURIComponent(competencia)}/${tipo}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -198,8 +199,8 @@ function RankingsHistoricos() {
         alert(`❌ Error: ${error.error}`);
       }
     } catch (err) {
-      console.error('Error al limpiar:', err);
-      alert('Error al limpiar registros');
+      console.error('Error al eliminar competencia:', err);
+      alert('Error al eliminar competencia');
     } finally {
       setLoading(false);
     }
@@ -244,13 +245,6 @@ function RankingsHistoricos() {
               disabled={loading}
             >
               🔄 Actualizar Rankings
-            </button>
-            <button 
-              className="btn-limpiar"
-              onClick={limpiarCampeonatoNacional2025}
-              disabled={loading}
-            >
-              🗑️ Limpiar "Campeonato Nacional" 2025
             </button>
             <button 
               className="btn-toggle-edit"
@@ -378,7 +372,18 @@ function RankingsHistoricos() {
           <h3>🏅 Cuadro de Honor Mayor</h3>
           {Object.entries(agruparPorCompetencia(rankings[2024]?.mayor || [])).map(([comp, items]) => (
             <div key={comp} className="competencia-card">
-              <h4>{comp}</h4>
+              <div className="competencia-header">
+                <h4>{comp}</h4>
+                {usuario?.rol === 'admin' && editMode && (
+                  <button 
+                    className="btn-delete-competencia"
+                    onClick={() => eliminarCompetencia(2024, comp, 'mayor')}
+                    title="Eliminar toda esta competencia"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
               <div className="podio">
                 {[1, 2, 3].map(pos => {
                   const ganador = items.find(i => i.posicion === pos);
@@ -419,7 +424,18 @@ function RankingsHistoricos() {
           {/* Competencias desde rankings_historicos (incluye Torneo Nacional si se agregó manualmente) */}
           {Object.entries(agruparPorCompetencia(rankings[2025]?.mayor || [])).map(([comp, items]) => (
             <div key={comp} className="competencia-card">
-              <h4>{comp}</h4>
+              <div className="competencia-header">
+                <h4>{comp}</h4>
+                {usuario?.rol === 'admin' && editMode && (
+                  <button 
+                    className="btn-delete-competencia"
+                    onClick={() => eliminarCompetencia(2025, comp, 'mayor')}
+                    title="Eliminar toda esta competencia"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
               <div className="podio">
                 {[1, 2, 3].map(pos => {
                   const ganador = items.find(i => i.posicion === pos);
@@ -505,7 +521,18 @@ function RankingsHistoricos() {
           <h3>🏅 Cuadro de Honor Mayor</h3>
           {Object.entries(agruparPorCompetencia(rankings[2026]?.mayor || [])).map(([comp, items]) => (
             <div key={comp} className="competencia-card">
-              <h4>{comp}</h4>
+              <div className="competencia-header">
+                <h4>{comp}</h4>
+                {usuario?.rol === 'admin' && editMode && (
+                  <button 
+                    className="btn-delete-competencia"
+                    onClick={() => eliminarCompetencia(2026, comp, 'mayor')}
+                    title="Eliminar toda esta competencia"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
               <div className="podio">
                 {[1, 2, 3].map(pos => {
                   const ganador = items.find(i => i.posicion === pos);

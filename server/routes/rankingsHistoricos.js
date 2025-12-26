@@ -114,26 +114,28 @@ router.delete("/:id", verifyToken, authorizeRoles("admin"), async (req, res) => 
   }
 });
 
-// �️ DELETE - Eliminar registros específicos de "Campeonato Nacional" 2025 (ADMIN)
-router.delete("/limpiar/campeonato-nacional-2025", verifyToken, authorizeRoles("admin"), async (req, res) => {
+
+// 🗑️ DELETE - Eliminar todos los registros de una competencia específica (ADMIN)
+router.delete("/competencia/:anio/:competencia/:tipo", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  const { anio, competencia, tipo } = req.params;
+  
   try {
     const result = await pool.query(`
       DELETE FROM rankings_historicos 
-      WHERE anio = 2025 AND competencia = 'Campeonato Nacional'
+      WHERE anio = $1 AND competencia = $2 AND tipo = $3
       RETURNING *
-    `);
+    `, [anio, competencia, tipo]);
 
     res.json({ 
-      message: `Se eliminaron ${result.rows.length} registros de "Campeonato Nacional" 2025`,
+      message: `Se eliminaron ${result.rows.length} registros de "${competencia}" ${anio} (${tipo})`,
       registros_eliminados: result.rows.length
     });
   } catch (err) {
-    console.error("Error al limpiar registros:", err);
-    res.status(500).json({ error: "Error al limpiar registros" });
+    console.error("Error al eliminar competencia:", err);
+    res.status(500).json({ error: "Error al eliminar competencia" });
   }
 });
 
-// �📊 GET - Obtener estadísticas por usuario (cuántos títulos ha ganado cada uno)
 router.get("/estadisticas/usuarios", async (req, res) => {
   try {
     const result = await pool.query(`
