@@ -88,10 +88,6 @@ export default function Home() {
             console.warn('Error cargando usuarios:', error);
         }
     };
-        } catch (error) {
-            console.error('Error al cargar usuarios:', error);
-        }
-    };
 
     const handleCrearUsuario = async (e) => {
         e.preventDefault();
