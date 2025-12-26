@@ -363,3 +363,4 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
   }
 });
 
+export default router;
