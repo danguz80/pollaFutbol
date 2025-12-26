@@ -342,13 +342,32 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
 
     const pronosticos = pronosticosResult.rows;
 
-    // Agrupar por usuario
+    // Obtener lista única de partidos ordenados por fecha
+    const partidosUnicos = [];
+    const partidosVistos = new Set();
+    pronosticos.forEach(p => {
+      const key = `${p.nombre_local}|${p.nombre_visita}|${p.fecha}`;
+      if (!partidosVistos.has(key)) {
+        partidosVistos.add(key);
+        partidosUnicos.push({
+          nombre_local: p.nombre_local,
+          nombre_visita: p.nombre_visita,
+          fecha: p.fecha
+        });
+      }
+    });
+
+    // Ordenar partidos por fecha
+    partidosUnicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+    // Agrupar pronósticos por usuario
     const pronosticosPorUsuario = {};
     pronosticos.forEach(p => {
       if (!pronosticosPorUsuario[p.usuario]) {
-        pronosticosPorUsuario[p.usuario] = [];
+        pronosticosPorUsuario[p.usuario] = {};
       }
-      pronosticosPorUsuario[p.usuario].push(p);
+      const key = `${p.nombre_local}|${p.nombre_visita}`;
+      pronosticosPorUsuario[p.usuario][key] = p;
     });
 
     // Generar HTML para el PDF
@@ -456,7 +475,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           })}</p>
         </div>
 
-        ${Object.keys(pronosticosPorUsuario).map(usuario => `
+        ${Object.keys(pronosticosPorUsuario).sort().map(usuario => `
           <div class="usuario-section">
             <div class="usuario-nombre">👤 ${usuario}</div>
             <table>
@@ -467,7 +486,19 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
                 </tr>
               </thead>
               <tbody>
-                ${pronosticosPorUsuario[usuario].map(p => {
+                ${partidosUnicos.map(partido => {
+                  const key = `${partido.nombre_local}|${partido.nombre_visita}`;
+                  const p = pronosticosPorUsuario[usuario][key];
+                  
+                  if (!p) {
+                    return `
+                      <tr>
+                        <td>${partido.nombre_local} vs ${partido.nombre_visita}</td>
+                        <td class="pronostico" style="color: #999;">Sin pronóstico</td>
+                      </tr>
+                    `;
+                  }
+                  
                   const pronostico = `${p.goles_local}-${p.goles_visita}`;
                   const penales = (p.penales_local !== null && p.penales_visita !== null) 
                     ? ` (${p.penales_local}-${p.penales_visita} pen.)` 
