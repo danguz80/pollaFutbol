@@ -347,3 +347,5 @@ router.get('/:jornadaNumero', async (req, res) => {
   }
 });
 
+
+export default router;
