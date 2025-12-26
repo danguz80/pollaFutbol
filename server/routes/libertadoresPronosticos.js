@@ -2,6 +2,8 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
+import puppeteer from 'puppeteer';
+import { getWhatsAppService } from '../services/whatsappService.js';
 
 const router = express.Router();
 
@@ -302,6 +304,254 @@ router.delete('/jornada/:numero', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error borrando pronósticos:', error);
     res.status(500).json({ error: 'Error borrando pronósticos' });
+  }
+});
+
+// Generar PDF con pronósticos de una jornada y enviarlo por email
+router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+
+    console.log(`📄 Generando PDF para jornada Libertadores ${numero}...`);
+
+    // Obtener todos los pronósticos de la jornada
+    const pronosticosResult = await pool.query(`
+      SELECT 
+        u.nombre as usuario,
+        pa.nombre_local,
+        pa.nombre_visita,
+        pa.fecha,
+        p.goles_local,
+        p.goles_visita,
+        p.penales_local,
+        p.penales_visita,
+        pa.goles_local as real_local,
+        pa.goles_visita as real_visita,
+        p.puntos
+      FROM libertadores_pronosticos p
+      JOIN usuarios u ON p.usuario_id = u.id
+      JOIN libertadores_partidos pa ON p.partido_id = pa.id
+      JOIN libertadores_jornadas j ON p.jornada_id = j.id
+      WHERE j.numero = $1
+      ORDER BY u.nombre, pa.fecha
+    `, [numero]);
+
+    if (pronosticosResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No hay pronósticos para esta jornada' });
+    }
+
+    const pronosticos = pronosticosResult.rows;
+
+    // Agrupar por usuario
+    const pronosticosPorUsuario = {};
+    pronosticos.forEach(p => {
+      if (!pronosticosPorUsuario[p.usuario]) {
+        pronosticosPorUsuario[p.usuario] = [];
+      }
+      pronosticosPorUsuario[p.usuario].push(p);
+    });
+
+    // Generar HTML para el PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+          }
+          .header {
+            text-align: center;
+            color: #0066cc;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #0066cc;
+            padding-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+          }
+          .header p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 16px;
+          }
+          .usuario-section {
+            background: white;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            page-break-inside: avoid;
+          }
+          .usuario-nombre {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0066cc;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+          }
+          th {
+            background-color: #0066cc;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+          }
+          td {
+            padding: 8px;
+            border-bottom: 1px solid #e0e0e0;
+          }
+          tr:hover {
+            background-color: #f9f9f9;
+          }
+          .pronostico {
+            font-weight: bold;
+            color: #0066cc;
+          }
+          .resultado {
+            color: #28a745;
+            font-weight: bold;
+          }
+          .puntos {
+            font-weight: bold;
+            color: #ff6600;
+            text-align: center;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #999;
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+          }
+          .penales {
+            font-size: 10px;
+            color: #666;
+            font-style: italic;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏆 Pronósticos Copa Libertadores</h1>
+          <p>Jornada ${numero}</p>
+          <p>Fecha de generación: ${new Date().toLocaleDateString('es-ES', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</p>
+        </div>
+
+        ${Object.keys(pronosticosPorUsuario).map(usuario => `
+          <div class="usuario-section">
+            <div class="usuario-nombre">👤 ${usuario}</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Partido</th>
+                  <th>Pronóstico</th>
+                  <th>Resultado</th>
+                  <th style="text-align: center;">Puntos</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${pronosticosPorUsuario[usuario].map(p => {
+                  const pronostico = `${p.goles_local}-${p.goles_visita}`;
+                  const penales = (p.penales_local !== null && p.penales_visita !== null) 
+                    ? ` (${p.penales_local}-${p.penales_visita} pen.)` 
+                    : '';
+                  const resultado = (p.real_local !== null && p.real_visita !== null) 
+                    ? `${p.real_local}-${p.real_visita}` 
+                    : 'Pendiente';
+                  const puntos = p.puntos !== null ? p.puntos : '-';
+                  
+                  return `
+                    <tr>
+                      <td>${p.nombre_local} vs ${p.nombre_visita}</td>
+                      <td class="pronostico">${pronostico}${penales}</td>
+                      <td class="resultado">${resultado}</td>
+                      <td class="puntos">${puntos}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+
+        <div class="footer">
+          <p>Campeonato Polla Fútbol - Copa Libertadores</p>
+          <p>Este documento contiene los pronósticos oficiales registrados</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Generar PDF con Puppeteer
+    console.log('🚀 Iniciando Puppeteer...');
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      }
+    });
+    
+    await browser.close();
+    console.log('✅ PDF generado exitosamente');
+
+    // Enviar PDF por email
+    const nombreArchivo = `Libertadores_Jornada_${numero}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const whatsappService = getWhatsAppService();
+    const resultado = await whatsappService.enviarEmailConPDF(
+      pdfBuffer, 
+      nombreArchivo, 
+      numero,
+      'Copa Libertadores'
+    );
+
+    if (resultado.success) {
+      res.json({ 
+        mensaje: 'PDF generado y enviado exitosamente',
+        detalles: resultado.mensaje
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'PDF generado pero hubo un error al enviarlo',
+        detalles: resultado.mensaje 
+      });
+    }
+
+  } catch (error) {
+    console.error('Error generando PDF:', error);
+    res.status(500).json({ 
+      error: 'Error generando PDF',
+      detalles: error.message 
+    });
   }
 });
 

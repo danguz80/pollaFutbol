@@ -147,6 +147,58 @@ class WhatsAppService {
     }
   }
 
+  async enviarEmailConPDF(pdfBuffer, nombreArchivo, numeroJornada, competicion = 'Libertadores') {
+    try {
+      const resendApiKey = process.env.RESEND_API_KEY;
+      const emailFrom = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+      const emailTo = process.env.EMAIL_TO;
+
+      if (!resendApiKey || !emailTo) {
+        return { 
+          success: false, 
+          mensaje: 'Email no configurado. Configura RESEND_API_KEY y EMAIL_TO en .env' 
+        };
+      }
+
+      const resend = new Resend(resendApiKey);
+
+      console.log(`📧 Enviando email con PDF a ${emailTo}...`);
+      const { data, error } = await resend.emails.send({
+        from: emailFrom,
+        to: [emailTo],
+        subject: `🏆 ${competicion} - Jornada ${numeroJornada} - Pronósticos`,
+        text: `Adjunto encontrarás los pronósticos de la Jornada ${numeroJornada} de ${competicion} en formato PDF.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #0066cc;">🏆 Pronósticos ${competicion}</h2>
+            <p>Adjunto encontrarás los pronósticos de la <strong>Jornada ${numeroJornada}</strong> en formato PDF.</p>
+            <p style="color: #666;">Este documento contiene todos los pronósticos registrados por los participantes.</p>
+            <br/>
+            <p style="font-size: 12px; color: #999;">Campeonato Polla Fútbol</p>
+          </div>
+        `,
+        attachments: [
+          {
+            filename: nombreArchivo,
+            content: pdfBuffer
+          }
+        ]
+      });
+
+      if (error) {
+        console.error('❌ Error Resend:', error);
+        return { success: false, mensaje: `Error al enviar email: ${error.message}` };
+      }
+
+      console.log('✅ Email con PDF enviado:', data.id);
+      return { success: true, mensaje: `Email con PDF enviado correctamente a ${emailTo}` };
+      
+    } catch (error) {
+      console.error('Error enviando email con PDF:', error);
+      return { success: false, mensaje: `Error al enviar email: ${error.message}` };
+    }
+  }
+
   async enviarViaEvolutionAPI(mensaje, numeroJornada) {
     try {
       if (!this.evolutionApiUrl || !this.evolutionInstanceId || !this.evolutionApiKey || !this.groupId) {

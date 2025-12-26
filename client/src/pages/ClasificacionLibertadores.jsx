@@ -232,6 +232,38 @@ export default function ClasificacionLibertadores() {
     }
   };
 
+  const generarPDF = async () => {
+    if (!filtroJornada) {
+      alert('Por favor selecciona una jornada primero');
+      return;
+    }
+
+    if (!confirm(`¿Generar PDF con los pronósticos de la jornada ${filtroJornada} y enviarlo por email?`)) {
+      return;
+    }
+
+    try {
+      setCalculando(true);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_URL}/api/libertadores-pronosticos/generar-pdf/${filtroJornada}`,
+        {},
+        { headers }
+      );
+
+      alert(`✅ ${response.data.mensaje}\n\n${response.data.detalles}`);
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      const mensaje = error.response?.data?.error || 'Error generando PDF';
+      const detalles = error.response?.data?.detalles || error.message;
+      alert(`❌ ${mensaje}\n\n${detalles}`);
+    } finally {
+      setCalculando(false);
+    }
+  };
+
   const calcularGanadoresJornada = async () => {
     if (!filtroJornada) {
       alert('Por favor selecciona una jornada primero');
@@ -1189,6 +1221,22 @@ export default function ClasificacionLibertadores() {
               Siguiente →
             </button>
           </div>
+
+          {/* Botón Generar PDF (Solo Admin) */}
+          {esAdmin && filtroJornada && (
+            <div className="text-center mb-3">
+              <button 
+                className="btn btn-info px-4"
+                onClick={generarPDF}
+                disabled={calculando}
+              >
+                {calculando ? '⏳ Generando...' : '📄 Generar PDF'}
+              </button>
+              <p className="text-muted mt-2 mb-0">
+                <small>Genera un PDF con todos los pronósticos de la jornada y lo envía por email</small>
+              </p>
+            </div>
+          )}
 
           {/* Botones de control de ranking */}
           <div className="text-center mb-4 d-flex gap-3 justify-content-center flex-wrap">

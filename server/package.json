@@ -22,6 +22,7 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.10",
     "pg": "^8.11.3",
+    "puppeteer": "^24.34.0",
     "resend": "^6.6.0"
   },
   "devDependencies": {
