@@ -607,11 +607,8 @@ export default function AdminPanel() {
     <div className="container mt-4">
       <h2>⚙️ Panel de Administración</h2>
       <div className="mb-3 d-flex gap-2">
-        <button onClick={() => navigate("/admin/usuarios")} className="btn btn-success">
-          ✅ Activar usuarios registrados
-        </button>
-        <button onClick={() => navigate("/admin/chile-fixtures")} className="btn btn-outline-secondary">
-          📅 Ver Partidos Liga Chilena
+        <button onClick={() => navigate("/admin/torneo-nacional")} className="btn btn-primary">
+          ⚽ Torneo Nacional
         </button>
         <button onClick={() => navigate("/admin/libertadores")} className="btn btn-warning">
           🏆 Copa Libertadores 2026

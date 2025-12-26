@@ -26,6 +26,7 @@ import calcularPuntosLibertadoresRoutes from "./routes/calcularPuntosLibertadore
 import rankingsLibertadoresRoutes from "./routes/rankingsLibertadores.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 import ganadoresJornadaLibertadoresRoutes from "./routes/ganadoresJornadaLibertadores.js";
+import adminTorneoRoutes from "./routes/adminTorneo.js";
 
 dotenv.config();
 
@@ -214,6 +215,7 @@ app.use('/api/libertadores-calcular', calcularPuntosLibertadoresRoutes);
 app.use('/api/libertadores-rankings', rankingsLibertadoresRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 app.use('/api/libertadores-ganadores-jornada', ganadoresJornadaLibertadoresRoutes);
+app.use('/api/admin', adminTorneoRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");
