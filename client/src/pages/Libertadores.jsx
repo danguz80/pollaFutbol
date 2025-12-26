@@ -183,7 +183,7 @@ export default function Libertadores() {
       {ganadores.length > 0 && (
         <div className="card mb-4 shadow">
           <div className="card-header bg-primary text-white text-center">
-            <h4 className="mb-0">👑 Ganadores</h4>
+            <h4 className="mb-0">👑 Ganadores de Jornadas</h4>
           </div>
           <div className="card-body">
             <div className="row">
@@ -238,6 +238,12 @@ export default function Libertadores() {
           onClick={() => navigate('/libertadores/puntuacion')}
         >
           🏆 Puntuación
+        </button>
+        <button 
+          className="btn btn-success btn-lg px-4"
+          onClick={() => navigate('/libertadores/ganadores-jornada')}
+        >
+          ⭐ Ganadores de Jornadas
         </button>
       </div>
 
