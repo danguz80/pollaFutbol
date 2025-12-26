@@ -56,27 +56,32 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       return res.status(404).json({ error: 'No se encontraron usuarios con pronósticos' });
     }
     
-    // Encontrar el puntaje máximo
+    // Obtener el top 3 del ranking para guardar en históricos
+    const top3 = rankingResult.rows.slice(0, 3);
+    
+    // Encontrar el puntaje máximo para retornar los ganadores
     const puntajeMaximo = Math.max(...rankingResult.rows.map(u => parseInt(u.puntos_acumulados, 10)));
     
-    // Obtener todos los usuarios con el puntaje máximo (manejo de empates)
+    // Obtener todos los usuarios con el puntaje máximo (manejo de empates para mostrar)
     const ganadores = rankingResult.rows.filter(u => parseInt(u.puntos_acumulados, 10) === puntajeMaximo);
     
     console.log('Ganadores acumulado encontrados:', ganadores);
+    console.log('Top 3 para históricos:', top3);
     
     if (ganadores.length === 0) {
       return res.status(404).json({ error: 'No se pudieron determinar ganadores' });
     }
     
-    // Borrar ganadores anteriores (si existen)
+    // Borrar ganadores acumulados anteriores (se recalculan cada vez)
+    // NOTA: Usar endpoint /api/rankings-historicos/actualizar para guardar en históricos permanentes
     await pool.query('DELETE FROM libertadores_ganadores_acumulado');
     
-    // Guardar los nuevos ganadores
-    for (const ganador of ganadores) {
+    // Guardar el TOP 3 en la tabla (no solo el ganador)
+    for (let i = 0; i < top3.length; i++) {
       await pool.query(
         `INSERT INTO libertadores_ganadores_acumulado (usuario_id, puntaje)
          VALUES ($1, $2)`,
-        [ganador.id, puntajeMaximo]
+        [top3[i].id, parseInt(top3[i].puntos_acumulados, 10)]
       );
     }
     
