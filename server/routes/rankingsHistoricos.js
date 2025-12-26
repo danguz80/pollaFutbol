@@ -162,52 +162,52 @@ router.get("/estadisticas/usuarios", async (req, res) => {
 // 📊 GET - Obtener ganadores de jornadas del Torneo Nacional 2025 (J11-J30 + Cuadro Final)
 router.get("/torneo-nacional-2025", async (req, res) => {
   try {
-    // Ganadores por jornada (J11 a J30)
+    // Ganadores por jornada (J11 a J30) - LEER DE RANKINGS_HISTORICOS
     const ganadoresJornadas = await pool.query(`
       SELECT 
-        j.numero as jornada_numero,
+        rh.categoria::integer as jornada_numero,
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil
-      FROM ganadores_jornada gj
-      JOIN jornadas j ON gj.jornada_id = j.id
-      JOIN usuarios u ON gj.jugador_id = u.id
-      WHERE j.numero BETWEEN 11 AND 30
-      ORDER BY j.numero, u.nombre
+      FROM rankings_historicos rh
+      JOIN usuarios u ON rh.usuario_id = u.id
+      WHERE rh.anio = 2025
+        AND rh.competencia = 'Torneo Nacional'
+        AND rh.tipo = 'estandar'
+        AND rh.categoria ~ '^[0-9]+$'
+        AND rh.categoria::integer BETWEEN 11 AND 30
+      ORDER BY rh.categoria::integer, u.nombre
     `);
 
-    // Ganadores del cuadro final (los que tienen el puntaje máximo)
+    // Ganadores del cuadro final (categoria = '999') - LEER DE RANKINGS_HISTORICOS
     const ganadoresCuadroFinal = await pool.query(`
       SELECT 
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil,
-        pf.puntos
-      FROM predicciones_finales pf
-      JOIN usuarios u ON pf.jugador_id = u.id
-      WHERE pf.puntos IS NOT NULL
-        AND pf.puntos = (
-          SELECT MAX(puntos) 
-          FROM predicciones_finales 
-          WHERE puntos IS NOT NULL
-        )
+        rh.puntos
+      FROM rankings_historicos rh
+      JOIN usuarios u ON rh.usuario_id = u.id
+      WHERE rh.anio = 2025
+        AND rh.competencia = 'Torneo Nacional'
+        AND rh.tipo = 'estandar'
+        AND rh.categoria = '999'
       ORDER BY u.nombre
     `);
 
-    // Top 3 del ranking general acumulado (suma de puntos de todas las jornadas)
+    // Top 3 del ranking acumulado - LEER DE RANKINGS_HISTORICOS
     const rankingAcumulado = await pool.query(`
       SELECT 
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(p.puntos), 0) as puntos
-      FROM usuarios u
-      LEFT JOIN pronosticos p ON u.id = p.usuario_id
-      LEFT JOIN jornadas j ON p.jornada_id = j.id
-      WHERE j.cerrada = true OR j.cerrada IS NULL
-      GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING SUM(p.puntos) > 0
-      ORDER BY puntos DESC
+        rh.puntos
+      FROM rankings_historicos rh
+      JOIN usuarios u ON rh.usuario_id = u.id
+      WHERE rh.anio = 2025
+        AND rh.competencia = 'Torneo Nacional'
+        AND rh.tipo = 'mayor'
+      ORDER BY rh.posicion
       LIMIT 3
     `);
 
