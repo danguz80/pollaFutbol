@@ -72,34 +72,52 @@ router.delete('/eliminar-datos-torneo', verifyToken, authorizeRoles('admin'), as
 
     console.log('🗑️ Iniciando eliminación de datos del Torneo Nacional...');
 
+    // Verificar qué tablas existen
+    const tablasExistentes = await client.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name IN ('pronosticos', 'ganadores_jornada', 'predicciones_final', 'partidos', 'jornadas')
+    `);
+    
+    const tablas = new Set(tablasExistentes.rows.map(r => r.table_name));
+
     // 1. Eliminar pronósticos (depende de partidos y jornadas)
-    const pronosticosResult = await client.query('DELETE FROM pronosticos RETURNING id');
-    console.log(`✅ Eliminados ${pronosticosResult.rowCount} pronósticos`);
+    let pronosticosResult = { rowCount: 0 };
+    if (tablas.has('pronosticos')) {
+      pronosticosResult = await client.query('DELETE FROM pronosticos RETURNING id');
+      console.log(`✅ Eliminados ${pronosticosResult.rowCount} pronósticos`);
+    }
 
     // 2. Eliminar ganadores de jornada
-    const ganadoresResult = await client.query('DELETE FROM ganadores_jornada RETURNING id');
-    console.log(`✅ Eliminados ${ganadoresResult.rowCount} ganadores de jornada`);
+    let ganadoresResult = { rowCount: 0 };
+    if (tablas.has('ganadores_jornada')) {
+      ganadoresResult = await client.query('DELETE FROM ganadores_jornada RETURNING id');
+      console.log(`✅ Eliminados ${ganadoresResult.rowCount} ganadores de jornada`);
+    }
 
-    // 3. Eliminar predicciones de cuadro final (si existe la tabla)
+    // 3. Eliminar predicciones de cuadro final
     let prediccionesResult = { rowCount: 0 };
-    try {
+    if (tablas.has('predicciones_final')) {
       prediccionesResult = await client.query('DELETE FROM predicciones_final RETURNING id');
       console.log(`✅ Eliminadas ${prediccionesResult.rowCount} predicciones finales`);
-    } catch (error) {
-      if (error.code === '42P01') {
-        console.log('⚠️ Tabla predicciones_final no existe, continuando...');
-      } else {
-        throw error;
-      }
+    } else {
+      console.log('⚠️ Tabla predicciones_final no existe');
     }
 
     // 4. Eliminar partidos
-    const partidosResult = await client.query('DELETE FROM partidos RETURNING id');
-    console.log(`✅ Eliminados ${partidosResult.rowCount} partidos`);
+    let partidosResult = { rowCount: 0 };
+    if (tablas.has('partidos')) {
+      partidosResult = await client.query('DELETE FROM partidos RETURNING id');
+      console.log(`✅ Eliminados ${partidosResult.rowCount} partidos`);
+    }
 
     // 5. Eliminar jornadas
-    const jornadasResult = await client.query('DELETE FROM jornadas RETURNING id');
-    console.log(`✅ Eliminadas ${jornadasResult.rowCount} jornadas`);
+    let jornadasResult = { rowCount: 0 };
+    if (tablas.has('jornadas')) {
+      jornadasResult = await client.query('DELETE FROM jornadas RETURNING id');
+      console.log(`✅ Eliminadas ${jornadasResult.rowCount} jornadas`);
+    }
 
     await client.query('COMMIT');
 
