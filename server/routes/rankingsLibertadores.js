@@ -153,7 +153,7 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
 });
 
 // GET /api/libertadores-rankings/actual - Ranking acumulado de la jornada actual (última con puntos)
-router.get('/actual', verifyToken, async (req, res) => {
+router.get('/actual', async (req, res) => {
   try {
     // Obtener la última jornada con puntos calculados
     const ultimaJornadaResult = await pool.query(`
