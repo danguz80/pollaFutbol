@@ -39,7 +39,9 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
           FROM libertadores_predicciones_campeon
         ) puntos_campeon ON u.id = puntos_campeon.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL
+        WHERE puntos_partidos.total IS NOT NULL 
+           OR puntos_clasificacion.total IS NOT NULL 
+           OR puntos_campeon.campeon IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `
       : `
