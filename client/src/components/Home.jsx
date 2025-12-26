@@ -51,11 +51,11 @@ export default function Home() {
                 .then(data => {
                     if (data.ranking) {
                         setRankingLibertadores(data.ranking);
-                        // Mapear fotos de ranking libertadores
+                        // Mapear fotos de ranking libertadores (usa 'nombre' en lugar de 'nombre_usuario')
                         setFotoPerfilMap(prev => {
                             const map = { ...prev };
                             data.ranking.forEach(u => { 
-                                map[u.nombre_usuario] = u.foto_perfil; 
+                                map[u.nombre] = u.foto_perfil; 
                             });
                             return map;
                         });
@@ -202,8 +202,8 @@ export default function Home() {
                 <div className="d-flex justify-content-center gap-4 flex-wrap">
                     {top3.map((p, idx) => {
                         // Manejar diferentes estructuras de datos
-                        const usuario = p.usuario || p.nombre_usuario;
-                        const puntaje = p.puntaje_total || p.puntaje || p.total;
+                        const usuario = p.usuario || p.nombre || p.nombre_usuario;
+                        const puntaje = p.puntaje_total || p.puntaje || p.puntos_acumulados || p.total;
                         const key = p.usuario_id || p.id || usuario;
                         
                         return (
