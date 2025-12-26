@@ -21,7 +21,8 @@ router.get("/", async (req, res) => {
     // Agrupar por año y tipo
     const rankings = {
       2024: { mayor: [], estandar: [] },
-      2025: { mayor: [], estandar: [] }
+      2025: { mayor: [], estandar: [] },
+      2026: { mayor: [], estandar: [] }
     };
 
     result.rows.forEach(row => {

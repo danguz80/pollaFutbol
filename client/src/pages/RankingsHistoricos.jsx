@@ -5,7 +5,11 @@ import './RankingsHistoricos.css';
 
 function RankingsHistoricos() {
   const navigate = useNavigate();
-  const [rankings, setRankings] = useState({ 2024: { mayor: [], estandar: [] }, 2025: { mayor: [], estandar: [] } });
+  const [rankings, setRankings] = useState({ 
+    2024: { mayor: [], estandar: [] }, 
+    2025: { mayor: [], estandar: [] },
+    2026: { mayor: [], estandar: [] }
+  });
   const [torneoNacional2025, setTorneoNacional2025] = useState({ jornadas: [], cuadroFinal: [], rankingAcumulado: [] });
   const [usuarios, setUsuarios] = useState([]);
   const [usuario, setUsuario] = useState(null);
@@ -139,7 +143,11 @@ function RankingsHistoricos() {
   };
 
   const actualizarRankings = async () => {
-    if (!confirm('¿Deseas detectar y guardar los nuevos ganadores en el histórico?')) return;
+    const mensaje = `¿Deseas detectar y guardar los nuevos ganadores en el histórico?\n\n⚠️ IMPORTANTE:\n` +
+      `- Para Libertadores: Primero calcula el ganador acumulado desde la página Admin\n` +
+      `- Luego presiona este botón para guardar en histórico permanente`;
+    
+    if (!confirm(mensaje)) return;
 
     try {
       setLoading(true);
@@ -450,6 +458,76 @@ function RankingsHistoricos() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Año 2026 */}
+      <section className="anio-section">
+        <h2>📅 Año 2026</h2>
+        
+        {/* Cuadro de Honor Mayor 2026 */}
+        <div className="cuadro-honor mayor">
+          <h3>🏅 Cuadro de Honor Mayor</h3>
+          {Object.entries(agruparPorCompetencia(rankings[2026]?.mayor || [])).map(([comp, items]) => (
+            <div key={comp} className="competencia-card">
+              <h4>{comp}</h4>
+              <div className="podio">
+                {[1, 2, 3].map(pos => {
+                  const ganador = items.find(i => i.posicion === pos);
+                  return (
+                    <div key={pos} className={`podio-item pos-${pos}`}>
+                      <div className="medalla">
+                        {pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉'}
+                      </div>
+                      {ganador ? (
+                        <div className="podio-contenido">
+                          {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.usuario_nombre} className="foto-perfil" />}
+                          <div className="nombre">{ganador.usuario_nombre}</div>
+                          <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
+                          {usuario?.rol === 'admin' && (
+                            <button onClick={() => eliminarRanking(ganador.id)} className="btn-delete">🗑️</button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="vacio">-</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Cuadro de Honor Estándar 2026 */}
+        <div className="cuadro-honor estandar">
+          <h3>⭐ Cuadro de Honor Estándar</h3>
+          <div className="competencias-jornadas">
+            {Object.entries(agruparPorCompetencia(rankings[2026]?.estandar || []))
+              .map(([comp, items]) => (
+                <div key={comp} className="competencia-section">
+                  <h4>{comp}</h4>
+                  <div className="jornadas-grid">
+                    {Object.entries(agruparPorCategoria(items)).map(([cat, ganadores]) => (
+                      <div key={cat} className="jornada-card">
+                        <h5>{cat === 'General' ? 'General' : `Jornada ${cat}`}</h5>
+                        <div className="ganadores-list">
+                          {ganadores.map(g => (
+                            <div key={g.id} className="ganador-item">
+                              {g.foto_perfil && <img src={g.foto_perfil} alt={g.usuario_nombre} />}
+                              <span>{g.usuario_nombre}</span>
+                              {usuario?.rol === 'admin' && (
+                                <button onClick={() => eliminarRanking(g.id)} className="btn-delete-small">🗑️</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       </section>
