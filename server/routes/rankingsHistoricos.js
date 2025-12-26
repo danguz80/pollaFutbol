@@ -206,12 +206,12 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     const nuevosRegistros = [];
     
     // ============================================
-    // 1. CAMPEONATO NACIONAL - Ganadores de Jornadas (Estándar)
+    // 1. TORNEO NACIONAL - Ganadores de Jornadas (Estándar)
     // ============================================
     const ganadoresJornadasNacional = await pool.query(`
       SELECT
         2025 as anio,
-        'Campeonato Nacional' as competencia,
+        'Torneo Nacional' as competencia,
         'estandar' as tipo,
         j.numero as categoria,
         u.id as usuario_id,
@@ -224,7 +224,7 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
       WHERE NOT EXISTS (
         SELECT 1 FROM rankings_historicos rh
         WHERE rh.anio = 2025
-          AND rh.competencia = 'Campeonato Nacional'
+          AND rh.competencia = 'Torneo Nacional'
           AND rh.tipo = 'estandar'
           AND rh.categoria = j.numero::text
           AND rh.usuario_id = u.id
@@ -232,33 +232,35 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     `);
     
     // ============================================
-    // 2. CAMPEONATO NACIONAL - Ganador Acumulado (Mayor)
+    // 2. TORNEO NACIONAL - Ganador Acumulado (Mayor)
     // ============================================
     const ganadorAcumuladoNacional = await pool.query(`
-      SELECT 
-        2025 as anio,
-        'Campeonato Nacional' as competencia,
-        'mayor' as tipo,
-        NULL as categoria,
-        u.id as usuario_id,
-        NULL as nombre_manual,
-        ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre) as posicion,
-        COALESCE(SUM(p.puntos), 0) as puntos
-      FROM usuarios u
-      LEFT JOIN pronosticos p ON u.id = p.usuario_id
-      LEFT JOIN jornadas j ON p.jornada_id = j.id
-      WHERE j.cerrada = true
-      GROUP BY u.id
-      HAVING COALESCE(SUM(p.puntos), 0) > 0
-        AND NOT EXISTS (
-          SELECT 1 FROM rankings_historicos rh
-          WHERE rh.anio = 2025
-            AND rh.competencia = 'Campeonato Nacional'
-            AND rh.tipo = 'mayor'
-            AND rh.usuario_id = u.id
-        )
-      ORDER BY puntos DESC, u.nombre
-      LIMIT 3
+      SELECT * FROM (
+        SELECT 
+          2025 as anio,
+          'Torneo Nacional' as competencia,
+          'mayor' as tipo,
+          NULL as categoria,
+          u.id as usuario_id,
+          NULL as nombre_manual,
+          ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre) as posicion,
+          COALESCE(SUM(p.puntos), 0) as puntos
+        FROM usuarios u
+        LEFT JOIN pronosticos p ON u.id = p.usuario_id
+        LEFT JOIN jornadas j ON p.jornada_id = j.id
+        WHERE j.cerrada = true
+        GROUP BY u.id
+        HAVING COALESCE(SUM(p.puntos), 0) > 0
+        ORDER BY puntos DESC, u.nombre
+        LIMIT 3
+      ) ranking
+      WHERE NOT EXISTS (
+        SELECT 1 FROM rankings_historicos rh
+        WHERE rh.anio = 2025
+          AND rh.competencia = 'Torneo Nacional'
+          AND rh.tipo = 'mayor'
+          AND rh.usuario_id = ranking.usuario_id
+      )
     `);
 
     // ============================================
@@ -266,7 +268,7 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     // ============================================
     const ganadoresJornadasLibertadores = await pool.query(`
       SELECT
-        2025 as anio,
+        2026 as anio,
         'Copa Libertadores' as competencia,
         'estandar' as tipo,
         lgj.jornada_numero::text as categoria,
@@ -278,7 +280,7 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
       JOIN usuarios u ON lgj.usuario_id = u.id
       WHERE NOT EXISTS (
         SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = 2025
+        WHERE rh.anio = 2026
           AND rh.competencia = 'Copa Libertadores'
           AND rh.tipo = 'estandar'
           AND rh.categoria = lgj.jornada_numero::text
@@ -290,26 +292,28 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     // 4. LIBERTADORES - Ganador Acumulado (Mayor)
     // ============================================
     const ganadorAcumuladoLibertadores = await pool.query(`
-      SELECT
-        2025 as anio,
-        'Copa Libertadores' as competencia,
-        'mayor' as tipo,
-        NULL as categoria,
-        lga.usuario_id,
-        NULL as nombre_manual,
-        ROW_NUMBER() OVER (ORDER BY lga.puntaje DESC, u.nombre) as posicion,
-        lga.puntaje as puntos
-      FROM libertadores_ganadores_acumulado lga
-      JOIN usuarios u ON lga.usuario_id = u.id
+      SELECT * FROM (
+        SELECT
+          2026 as anio,
+          'Copa Libertadores' as competencia,
+          'mayor' as tipo,
+          NULL as categoria,
+          lga.usuario_id,
+          NULL as nombre_manual,
+          ROW_NUMBER() OVER (ORDER BY lga.puntaje DESC, u.nombre) as posicion,
+          lga.puntaje as puntos
+        FROM libertadores_ganadores_acumulado lga
+        JOIN usuarios u ON lga.usuario_id = u.id
+        ORDER BY lga.puntaje DESC, u.nombre
+        LIMIT 3
+      ) ranking
       WHERE NOT EXISTS (
         SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = 2025
+        WHERE rh.anio = 2026
           AND rh.competencia = 'Copa Libertadores'
           AND rh.tipo = 'mayor'
-          AND rh.usuario_id = lga.usuario_id
+          AND rh.usuario_id = ranking.usuario_id
       )
-      ORDER BY lga.puntaje DESC, u.nombre
-      LIMIT 3
     `);
 
     // Combinar todos los resultados
