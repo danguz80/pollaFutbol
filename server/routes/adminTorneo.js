@@ -80,9 +80,18 @@ router.delete('/eliminar-datos-torneo', verifyToken, authorizeRoles('admin'), as
     const ganadoresResult = await client.query('DELETE FROM ganadores_jornada RETURNING id');
     console.log(`✅ Eliminados ${ganadoresResult.rowCount} ganadores de jornada`);
 
-    // 3. Eliminar predicciones de cuadro final
-    const prediccionesResult = await client.query('DELETE FROM predicciones_final RETURNING id');
-    console.log(`✅ Eliminadas ${prediccionesResult.rowCount} predicciones finales`);
+    // 3. Eliminar predicciones de cuadro final (si existe la tabla)
+    let prediccionesResult = { rowCount: 0 };
+    try {
+      prediccionesResult = await client.query('DELETE FROM predicciones_final RETURNING id');
+      console.log(`✅ Eliminadas ${prediccionesResult.rowCount} predicciones finales`);
+    } catch (error) {
+      if (error.code === '42P01') {
+        console.log('⚠️ Tabla predicciones_final no existe, continuando...');
+      } else {
+        throw error;
+      }
+    }
 
     // 4. Eliminar partidos
     const partidosResult = await client.query('DELETE FROM partidos RETURNING id');
