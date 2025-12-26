@@ -8,9 +8,16 @@ export default function Libertadores() {
   const navigate = useNavigate();
   const [jornadas, setJornadas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ranking, setRanking] = useState([]);
+  const [ganadores, setGanadores] = useState([]);
+  const [ultimosGanadores, setUltimosGanadores] = useState(null);
+  const [fotoPerfilMap, setFotoPerfilMap] = useState({});
 
   useEffect(() => {
     cargarJornadas();
+    cargarRanking();
+    cargarGanadores();
+    cargarUltimosGanadores();
   }, []);
 
   const cargarJornadas = async () => {
@@ -24,6 +31,70 @@ export default function Libertadores() {
       console.error('Error cargando jornadas:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarRanking = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/libertadores-pronosticos/ranking`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const top3 = response.data.slice(0, 3);
+      setRanking(top3);
+
+      // Mapear fotos de perfil
+      const fotosMap = {};
+      top3.forEach(jugador => {
+        if (jugador.foto_perfil) {
+          fotosMap[jugador.id] = jugador.foto_perfil;
+        }
+      });
+      setFotoPerfilMap(fotosMap);
+    } catch (error) {
+      console.error('Error cargando ranking:', error);
+    }
+  };
+
+  const cargarGanadores = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/libertadores-ganadores-jornada/titulos`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setGanadores(response.data);
+    } catch (error) {
+      console.error('Error cargando ganadores:', error);
+    }
+  };
+
+  const cargarUltimosGanadores = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const jornadasResponse = await axios.get(`${API_URL}/api/libertadores/jornadas`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Buscar la última jornada cerrada
+      const jornadaCerrada = jornadasResponse.data
+        .filter(j => j.cerrada)
+        .sort((a, b) => b.numero - a.numero)[0];
+
+      if (jornadaCerrada) {
+        const ganadoresResponse = await axios.get(
+          `${API_URL}/api/libertadores-ganadores-jornada/${jornadaCerrada.numero}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        if (ganadoresResponse.data.ganadores && ganadoresResponse.data.ganadores.length > 0) {
+          setUltimosGanadores({
+            jornada: jornadaCerrada.numero,
+            ganadores: ganadoresResponse.data.ganadores
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando últimos ganadores:', error);
     }
   };
 
@@ -58,6 +129,89 @@ export default function Libertadores() {
         <h1 className="display-5 fw-bold">🔴 Copa Libertadores 2026</h1>
         <p className="text-muted">La competición más importante de clubes de Sudamérica</p>
       </div>
+
+      {/* Banner de Últimos Ganadores */}
+      {ultimosGanadores && (
+        <div className="alert alert-success text-center mb-4">
+          <h5 className="mb-0">
+            🏆 Últimos ganadores: {ultimosGanadores.ganadores.map(g => g.nombre).join(', ')} en la Jornada {ultimosGanadores.jornada}
+          </h5>
+        </div>
+      )}
+
+      {/* Top 3 Ranking General */}
+      {ranking.length > 0 && (
+        <div className="card mb-4 shadow">
+          <div className="card-header bg-danger text-white text-center">
+            <h4 className="mb-0">🏆 Top 3 Ranking General</h4>
+          </div>
+          <div className="card-body">
+            <div className="row text-center">
+              {ranking.map((jugador, index) => (
+                <div key={jugador.id} className="col-12 col-md-4 mb-3">
+                  <div className={`p-3 rounded ${index === 0 ? 'bg-warning bg-opacity-25' : index === 1 ? 'bg-secondary bg-opacity-25' : 'bg-warning bg-opacity-10'}`}>
+                    <div className="mb-2">
+                      {fotoPerfilMap[jugador.id] ? (
+                        <img
+                          src={fotoPerfilMap[jugador.id].startsWith('/') ? fotoPerfilMap[jugador.id] : `/perfil/${fotoPerfilMap[jugador.id]}`}
+                          alt={jugador.nombre}
+                          className="rounded-circle"
+                          style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <div 
+                          className="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center text-white"
+                          style={{ width: '80px', height: '80px', fontSize: '2rem' }}
+                        >
+                          {jugador.nombre.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <h5 className="mb-1">{index + 1}° {jugador.nombre}</h5>
+                    <p className="mb-0 fw-bold text-primary">{jugador.puntaje_total || 0} puntos</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ganadores por Títulos */}
+      {ganadores.length > 0 && (
+        <div className="card mb-4 shadow">
+          <div className="card-header bg-primary text-white text-center">
+            <h4 className="mb-0">👑 Ganadores</h4>
+          </div>
+          <div className="card-body">
+            <div className="row">
+              {ganadores.map((ganador) => (
+                <div key={ganador.id} className="col-6 col-md-3 text-center mb-3">
+                  <div className="p-2">
+                    {ganador.foto_perfil ? (
+                      <img
+                        src={ganador.foto_perfil.startsWith('/') ? ganador.foto_perfil : `/perfil/${ganador.foto_perfil}`}
+                        alt={ganador.nombre}
+                        className="rounded-circle mb-2"
+                        style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div 
+                        className="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center text-white mb-2"
+                        style={{ width: '60px', height: '60px', fontSize: '1.5rem' }}
+                      >
+                        {ganador.nombre.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <p className="mb-0 small fw-bold">{ganador.nombre}</p>
+                    <p className="mb-0">{'⭐'.repeat(parseInt(ganador.titulos))}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Botonera Principal */}
       <div className="mb-4 text-center d-flex gap-3 justify-content-center flex-wrap">

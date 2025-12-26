@@ -144,10 +144,28 @@ router.get('/acumulado', async (req, res) => {
 });
 
 
+// GET: Obtener resumen de títulos de todos los ganadores
+router.get('/titulos', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.nombre, u.foto_perfil, COUNT(*) AS titulos
+      FROM libertadores_ganadores_jornada lgj
+      JOIN usuarios u ON lgj.usuario_id = u.id
+      GROUP BY u.id, u.nombre, u.foto_perfil
+      ORDER BY titulos DESC, u.nombre
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo títulos:', error);
+    res.status(500).json({ error: 'No se pudo obtener el resumen de títulos' });
+  }
+});
+
+
 // IMPORTANTE: Rutas específicas ANTES de rutas con parámetros
 
-// POST: Calcular y guardar ganador del ranking acumulado TOTAL (todas las jornadas)
-router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
+// POST: Calcular y guardar ganadores de una jornada específica
+router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res) => {
   const jornadaNumero = parseInt(req.params.jornadaNumero);
   
   // Validar que jornadaNumero sea un número válido
