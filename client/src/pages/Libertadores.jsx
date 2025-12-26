@@ -206,7 +206,11 @@ export default function Libertadores() {
                       </div>
                     )}
                     <p className="mb-0 small fw-bold">{ganador.nombre}</p>
-                    <p className="mb-0">{'⭐'.repeat(parseInt(ganador.titulos))}</p>
+                    <div className="d-flex justify-content-center align-items-center gap-1 mt-1">
+                      <span className="badge bg-warning text-dark fs-6">
+                        ⭐ {ganador.titulos} {parseInt(ganador.titulos) === 1 ? 'título' : 'títulos'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
