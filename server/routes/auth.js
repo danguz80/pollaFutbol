@@ -74,7 +74,12 @@ router.post("/login", async (req, res) => {
         id: user.id,
         nombre: user.nombre,
         email: user.email,
-        rol: user.rol
+        rol: user.rol,
+        activo_torneo_nacional: user.activo_torneo_nacional || false,
+        activo_libertadores: user.activo_libertadores || false,
+        activo_sudamericana: user.activo_sudamericana || false,
+        activo_copa_mundo: user.activo_copa_mundo || false,
+        foto_perfil: user.foto_perfil || null
       }
     });
   } catch (error) {

@@ -48,6 +48,18 @@ export default function CuadroFinal() {
   ];
 
   useEffect(() => {
+    if (!user) {
+      return;
+    }
+    
+    // Solo permitir acceso si está explícitamente en true
+    if (user.activo_torneo_nacional !== true) {
+      console.log('🚫 Usuario sin acceso a Torneo Nacional:', user);
+      alert("⚠️ No tienes acceso para ingresar pronósticos en el Torneo Nacional. Contacta al administrador.");
+      window.location.href = "/";
+      return;
+    }
+    
     cargarPredicciones();
     verificarEstadoJornada();
   }, [user]);

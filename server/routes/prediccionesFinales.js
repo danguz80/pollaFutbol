@@ -64,6 +64,15 @@ router.post('/', verifyToken, async (req, res) => {
       goleador
     } = req.body;
 
+    // Verificar si el usuario está activo en Torneo Nacional
+    const usuarioCheck = await pool.query(
+      'SELECT activo_torneo_nacional FROM usuarios WHERE id = $1',
+      [jugador_id]
+    );
+    if (usuarioCheck.rowCount === 0 || !usuarioCheck.rows[0].activo_torneo_nacional) {
+      return res.status(403).json({ message: 'No tienes acceso para ingresar pronósticos en el Torneo Nacional' });
+    }
+
     // Verificar si ya existen predicciones para este jugador
     const existingResult = await pool.query(
       'SELECT id FROM predicciones_finales WHERE jugador_id = $1',

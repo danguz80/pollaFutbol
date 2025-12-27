@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import AccesosDirectos from '../../components/AccesosDirectos';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -108,14 +109,30 @@ export default function AdminTorneoNacional() {
 
   return (
     <div className="container mt-4">
+      <AccesosDirectos />
+      
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2>⚽ Administración Torneo Nacional</h2>
-        <button 
-          className="btn btn-secondary"
-          onClick={() => navigate('/admin')}
-        >
-          ← Volver
-        </button>
+        <div className="d-flex gap-2">
+          <button 
+            className="btn btn-success"
+            onClick={() => navigate('/admin/torneo-nacional/resultados')}
+          >
+            📊 Resultados y Jornadas
+          </button>
+          <button 
+            className="btn btn-primary"
+            onClick={() => navigate('/admin/torneo-nacional/fixture')}
+          >
+            📋 Importar Fixture
+          </button>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => navigate('/admin')}
+          >
+            ← Volver
+          </button>
+        </div>
       </div>
 
       {/* Estado del respaldo */}

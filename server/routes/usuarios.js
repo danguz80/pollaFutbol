@@ -52,40 +52,6 @@ router.post("/register", async (req, res) => {
     }
 });
 
-// 🔐 Login
-router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-    try {
-        const result = await pool.query("SELECT * FROM usuarios WHERE email = $1", [email]);
-
-        if (result.rowCount === 0) {
-            return res.status(401).json({ error: "Credenciales inválidas" });
-        }
-
-        const usuario = result.rows[0];
-        const match = await bcrypt.compare(password, usuario.password);
-
-        if (!match) {
-            return res.status(401).json({ error: "Credenciales inválidas" });
-        }
-
-        const token = jwt.sign(
-            { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol },
-            SECRET,
-            { expiresIn: "7d" }
-        );
-
-        res.json({
-            mensaje: "Login exitoso",
-            token,
-            usuario: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol },
-        });
-    } catch (err) {
-        console.error("Error al hacer login:", err);
-        res.status(500).json({ error: "Error al hacer login" });
-    }
-});
-
 // 🧾 Ruta para obtener datos del usuario logueado
 router.get("/me", verifyToken, (req, res) => {
     res.json({ usuario: req.usuario });

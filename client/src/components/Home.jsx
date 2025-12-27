@@ -15,17 +15,21 @@ export default function Home() {
     const [formNuevo, setFormNuevo] = useState({ nombre: '', email: '', password: '', rol: 'jugador' });
 
     // Chequeo rápido si hay usuario logueado en localStorage
-    let usuario = null;
-    try {
-        usuario = JSON.parse(localStorage.getItem("usuario"));
-    } catch {
-        usuario = null;
-    }
+    const getUsuario = () => {
+        try {
+            return JSON.parse(localStorage.getItem("usuario"));
+        } catch {
+            return null;
+        }
+    };
 
+    const usuario = getUsuario();
     const esAdmin = usuario && usuario.rol === 'admin';
 
     useEffect(() => {
-        if (usuario) {
+        const currentUser = getUsuario();
+        
+        if (currentUser) {
             const token = localStorage.getItem('token');
             
             // Ranking Campeonato (Torneo Nacional)
@@ -64,11 +68,11 @@ export default function Home() {
                 .catch(err => console.error('Error al cargar ranking Libertadores:', err));
 
             // Si es admin, cargar todos los usuarios
-            if (esAdmin) {
+            if (currentUser.rol === 'admin') {
                 cargarUsuarios();
             }
         }
-    }, [usuario, esAdmin]);
+    }, []); // Solo ejecutar una vez al montar el componente
 
     const cargarUsuarios = async () => {
         try {
@@ -142,6 +146,25 @@ export default function Home() {
             
             if (res.ok) {
                 alert('✅ Usuario actualizado');
+                
+                // Si el usuario editado es el mismo que está logueado, actualizar localStorage
+                if (usuario && usuarioEditando.id === usuario.id) {
+                    const usuarioActualizado = {
+                        ...usuario,
+                        nombre: usuarioEditando.nombre,
+                        email: usuarioEditando.email,
+                        rol: usuarioEditando.rol,
+                        activo: usuarioEditando.activo,
+                        foto_perfil: usuarioEditando.foto_perfil,
+                        activo_torneo_nacional: usuarioEditando.activo_torneo_nacional,
+                        activo_libertadores: usuarioEditando.activo_libertadores,
+                        activo_sudamericana: usuarioEditando.activo_sudamericana,
+                        activo_copa_mundo: usuarioEditando.activo_copa_mundo
+                    };
+                    localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+                    console.log('✅ Usuario actualizado en localStorage:', usuarioActualizado);
+                }
+                
                 setUsuarioEditando(null);
                 cargarUsuarios();
             } else {

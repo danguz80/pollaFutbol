@@ -37,13 +37,25 @@ export default function Jornada() {
   const [pronosticoFinal, setPronosticoFinal] = useState({ goles_local: '', goles_visita: '', penales_local: '', penales_visita: '' });
   const [mostrarCalcularFinalistas, setMostrarCalcularFinalistas] = useState(false);
 
-  // Si no es jugador, fuera
+  // Si no hay usuario autenticado, redirigir al login
+  // Si el usuario no está activo en Torneo Nacional, redirigir al home
   useEffect(() => {
-    if (!usuario) return;
-    if (usuario.rol !== "jugador") {
-      navigate("/");
+    if (!usuario) {
+      navigate("/login");
+      return;
     }
-  }, [usuario, navigate]);
+    
+    console.log('👤 Usuario actual:', usuario);
+    console.log('🏆 activo_torneo_nacional:', usuario.activo_torneo_nacional);
+    
+    // Solo permitir acceso si está explícitamente en true
+    if (usuario.activo_torneo_nacional !== true) {
+      console.log('🚫 Usuario sin acceso a Torneo Nacional');
+      alert("⚠️ No tienes acceso para ingresar pronósticos en el Torneo Nacional.\n\nPor favor CIERRA SESIÓN y vuelve a INICIAR SESIÓN para actualizar tus permisos.");
+      navigate("/");
+      return;
+    }
+  }, []); // Ejecutar solo una vez al montar
 
   // Cargar jornadas disponibles
   useEffect(() => {
@@ -263,6 +275,28 @@ export default function Jornada() {
     }));
   };
 
+  const generarAleatorioTodos = () => {
+    const nuevosPronosticos = {};
+    partidos.forEach(partido => {
+      nuevosPronosticos[partido.id] = {
+        goles_local: Math.floor(Math.random() * 5), // 0 a 4
+        goles_visita: Math.floor(Math.random() * 5), // 0 a 4
+      };
+    });
+    setPronosticos(nuevosPronosticos);
+  };
+
+  const resetearTodos = () => {
+    const nuevosPronosticos = {};
+    partidos.forEach(partido => {
+      nuevosPronosticos[partido.id] = {
+        goles_local: 0,
+        goles_visita: 0,
+      };
+    });
+    setPronosticos(nuevosPronosticos);
+  };
+
   const handleEnviar = async () => {
     if (cerrada) return; // Seguridad extra
     try {
@@ -364,38 +398,68 @@ export default function Jornada() {
           )}
 
           {loading ? (
-            <div className="text-center">Cargando partidos...</div>
+            <div className="text-center">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Cargando...</span>
+              </div>
+              <p className="mt-2">Cargando partidos...</p>
+            </div>
           ) : (
             <>
-              {partidos
-                .filter((p, index) => jornadaSeleccionada !== 10 || index < 4) // En J10 solo mostrar semifinales
-                .map((p) => (
-                  <div key={p.id} className="border p-3 mb-3 rounded">
-                    <strong>{p.local} vs {p.visita}</strong><br />
-                    <div className="row mt-2">
-                      <div className="col">
-                        <input
-                          type="number"
-                          className="form-control"
-                          placeholder="Goles local"
-                          value={pronosticos[p.id]?.goles_local ?? ""}
-                          onChange={(e) => handleChange(p.id, "goles_local", e.target.value)}
-                          disabled={cerrada}
-                        />
-                      </div>
-                      <div className="col">
-                        <input
-                          type="number"
-                          className="form-control"
-                          placeholder="Goles visita"
-                          value={pronosticos[p.id]?.goles_visita ?? ""}
-                          onChange={(e) => handleChange(p.id, "goles_visita", e.target.value)}
-                          disabled={cerrada}
-                        />
+              <div className="row g-3">
+                {partidos
+                  .filter((p, index) => jornadaSeleccionada !== 10 || index < 4) // En J10 solo mostrar semifinales
+                  .map((p) => (
+                    <div key={p.id} className="col-12">
+                      <div className="card shadow-sm h-100">
+                        <div className="card-body">
+                          <div className="row align-items-center text-center">
+                            <div className="col-5">
+                              <p className="fw-bold mb-2 fs-5">{p.local}</p>
+                              <input
+                                type="number"
+                                min="0"
+                                className="form-control form-control-lg text-center fw-bold"
+                                style={{ MozAppearance: 'textfield' }}
+                                value={pronosticos[p.id]?.goles_local ?? ""}
+                                onChange={(e) => handleChange(p.id, "goles_local", e.target.value)}
+                                disabled={cerrada}
+                                placeholder="0"
+                              />
+                            </div>
+
+                            <div className="col-2">
+                              <p className="fw-bold text-muted fs-3 mb-0">VS</p>
+                            </div>
+
+                            <div className="col-5">
+                              <p className="fw-bold mb-2 fs-5">{p.visita}</p>
+                              <input
+                                type="number"
+                                min="0"
+                                className="form-control form-control-lg text-center fw-bold"
+                                style={{ MozAppearance: 'textfield' }}
+                                value={pronosticos[p.id]?.goles_visita ?? ""}
+                                onChange={(e) => handleChange(p.id, "goles_visita", e.target.value)}
+                                disabled={cerrada}
+                                placeholder="0"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Mostrar resultado si existe */}
+                          {p.goles_local !== null && p.goles_visita !== null && (
+                            <div className="text-center mt-3">
+                              <span className="badge bg-success fs-6">
+                                Resultado: {p.goles_local} - {p.goles_visita}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+              </div>
 
               {/* Sección especial para Jornada 10 - Botón Calcular y Finalistas */}
               {jornadaSeleccionada === 10 && partidos.length === 5 && mostrarCalcularFinalistas && equiposFinalistasPronosticados.length === 0 && (
@@ -417,50 +481,53 @@ export default function Jornada() {
 
               {jornadaSeleccionada === 10 && equiposFinalistasPronosticados.length === 2 && (
                 <>
-                  <div className="card bg-success bg-opacity-10 border-success mt-4 mb-3">
-                    <div className="card-body">
-                      <h5 className="fw-bold text-success mb-3">🎯 Tus Finalistas Pronosticados</h5>
-                      <p className="small text-muted">Basado en tus pronósticos de semifinales</p>
-                      <div className="d-flex justify-content-center gap-4 flex-wrap">
-                        {equiposFinalistasPronosticados.map((equipo, index) => (
-                          <div key={index} className="text-center">
-                            <div className="badge bg-success mb-2">Finalista {index + 1}</div>
-                            <p className="fw-bold fs-5 mb-0">{equipo}</p>
-                          </div>
-                        ))}
-                      </div>
+                  <div className="alert alert-success mt-4 mb-3">
+                    <h5 className="fw-bold mb-3">🎯 Tus Finalistas Pronosticados</h5>
+                    <p className="small mb-3">Basado en tus pronósticos de semifinales</p>
+                    <div className="row g-3">
+                      {equiposFinalistasPronosticados.map((equipo, index) => (
+                        <div key={index} className="col-6 text-center">
+                          <span className="badge bg-success mb-2">Finalista {index + 1}</span>
+                          <p className="fw-bold fs-4 mb-0">{equipo}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
                   {/* Card de Partido Final */}
-                  <div className="card border-warning border-3 mt-3 mb-3">
+                  <div className="card border-warning border-3 shadow">
+                    <div className="card-header bg-warning bg-opacity-25 text-center">
+                      <h5 className="fw-bold mb-0">🏆 PARTIDO FINAL</h5>
+                    </div>
                     <div className="card-body">
-                      <h5 className="fw-bold text-warning mb-3 text-center">
-                        🏆 Tu Partido Final
-                      </h5>
-                      <p className="fw-bold fs-5 text-center mb-4">
+                      <p className="fw-bold fs-4 text-center mb-4">
                         {equiposFinalistasPronosticados[0]} <span className="text-muted">vs</span> {equiposFinalistasPronosticados[1]}
                       </p>
 
-                      <div className="row g-3">
-                        <div className="col-md-6">
-                          <label className="form-label fw-bold">{equiposFinalistasPronosticados[0]} - Goles</label>
+                      <div className="row g-3 align-items-center text-center">
+                        <div className="col-5">
+                          <label className="form-label fw-bold">{equiposFinalistasPronosticados[0]}</label>
                           <input
                             type="number"
-                            className="form-control"
-                            placeholder="Goles"
+                            className="form-control form-control-lg text-center fw-bold"
+                            style={{ MozAppearance: 'textfield' }}
+                            placeholder="0"
                             value={pronosticoFinal.goles_local ?? ""}
                             onChange={(e) => handleChangeFinal("goles_local", e.target.value)}
                             disabled={cerrada}
                             min="0"
                           />
                         </div>
-                        <div className="col-md-6">
-                          <label className="form-label fw-bold">{equiposFinalistasPronosticados[1]} - Goles</label>
+                        <div className="col-2">
+                          <p className="fw-bold text-muted fs-3 mb-0">VS</p>
+                        </div>
+                        <div className="col-5">
+                          <label className="form-label fw-bold">{equiposFinalistasPronosticados[1]}</label>
                           <input
                             type="number"
-                            className="form-control"
-                            placeholder="Goles"
+                            className="form-control form-control-lg text-center fw-bold"
+                            style={{ MozAppearance: 'textfield' }}
+                            placeholder="0"
                             value={pronosticoFinal.goles_visita ?? ""}
                             onChange={(e) => handleChangeFinal("goles_visita", e.target.value)}
                             disabled={cerrada}
@@ -473,33 +540,33 @@ export default function Jornada() {
                       {pronosticoFinal.goles_local !== "" && 
                        pronosticoFinal.goles_visita !== "" && 
                        Number(pronosticoFinal.goles_local) === Number(pronosticoFinal.goles_visita) && (
-                        <div className="mt-3">
-                          <div className="alert alert-warning mb-3">
-                            <strong>⚠️ Empate detectado</strong> - Debes ingresar el resultado de los penales
+                        <div className="mt-4">
+                          <div className="alert alert-warning py-2 mb-3">
+                            <small className="fw-bold">⚠️ Empate detectado - Debes ingresar el resultado de los penales</small>
                           </div>
                           <div className="row g-3">
-                            <div className="col-md-6">
-                              <label className="form-label fw-bold">Penales {equiposFinalistasPronosticados[0]}</label>
+                            <div className="col-6">
+                              <label className="form-label small fw-bold">Penales {equiposFinalistasPronosticados[0]}</label>
                               <input
                                 type="number"
-                                className="form-control border-danger"
-                                placeholder="Penales"
+                                min="0"
+                                className="form-control form-control-sm text-center border-danger"
+                                placeholder="0"
                                 value={pronosticoFinal.penales_local ?? ""}
                                 onChange={(e) => handleChangeFinal("penales_local", e.target.value)}
                                 disabled={cerrada}
-                                min="0"
                               />
                             </div>
-                            <div className="col-md-6">
-                              <label className="form-label fw-bold">Penales {equiposFinalistasPronosticados[1]}</label>
+                            <div className="col-6">
+                              <label className="form-label small fw-bold">Penales {equiposFinalistasPronosticados[1]}</label>
                               <input
                                 type="number"
-                                className="form-control border-danger"
-                                placeholder="Penales"
+                                min="0"
+                                className="form-control form-control-sm text-center border-danger"
+                                placeholder="0"
                                 value={pronosticoFinal.penales_visita ?? ""}
                                 onChange={(e) => handleChangeFinal("penales_visita", e.target.value)}
                                 disabled={cerrada}
-                                min="0"
                               />
                             </div>
                           </div>
@@ -512,33 +579,56 @@ export default function Jornada() {
             </>
           )}
 
-          {partidos.length > 0 && (
-            <div className="d-flex gap-2 mt-3">
-              <button
-                className="btn btn-success flex-grow-1"
-                onClick={handleEnviar}
-                disabled={cerrada || loading}
-              >
-                Guardar Pronósticos
+          {partidos.length > 0 && !cerrada && (
+            <div className="text-center d-flex gap-3 justify-content-center flex-wrap mt-4">
+              <button className="btn btn-outline-info btn-lg px-4" onClick={generarAleatorioTodos}>
+                🎲 Azar
+              </button>
+              <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
+                🔄 Resetear
+              </button>
+              <button className="btn btn-danger btn-lg px-5" onClick={handleEnviar}>
+                💾 Guardar Pronósticos
               </button>
               <button
-                className="btn btn-outline-secondary"
-                onClick={() => setJornadaSeleccionada(jornadaSeleccionada - 1)}
-                disabled={jornadaSeleccionada <= 1}
+                className="btn btn-outline-secondary btn-lg"
+                onClick={() => {
+                  const jornadaActual = Number(jornadaSeleccionada);
+                  setJornadaSeleccionada(String(jornadaActual - 1));
+                }}
+                disabled={Number(jornadaSeleccionada) <= 1}
               >
                 ← Anterior
               </button>
               <button
-                className="btn btn-outline-secondary"
-                onClick={() => setJornadaSeleccionada(jornadaSeleccionada + 1)}
-                disabled={jornadaSeleccionada >= Math.max(...jornadas.map(j => j.numero))}
+                className="btn btn-outline-secondary btn-lg"
+                onClick={() => {
+                  const jornadaActual = Number(jornadaSeleccionada);
+                  setJornadaSeleccionada(String(jornadaActual + 1));
+                }}
+                disabled={Number(jornadaSeleccionada) >= jornadas.length}
               >
                 Siguiente →
               </button>
             </div>
           )}
           
-          {mensaje && <div className="alert alert-info mt-3 text-center">{mensaje}</div>}
+          {partidos.length > 0 && cerrada && (
+            <div className="mt-4">
+              <button
+                className="btn btn-secondary btn-lg w-100 fw-bold"
+                disabled
+              >
+                🔒 Jornada Cerrada
+              </button>
+            </div>
+          )}
+          
+          {mensaje && (
+            <div className={`alert ${mensaje.includes('❌') ? 'alert-danger' : mensaje.includes('✅') ? 'alert-success' : 'alert-info'} mt-3 text-center fw-bold`}>
+              {mensaje}
+            </div>
+          )}
         </>
       )}
     </div>

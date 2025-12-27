@@ -45,6 +45,15 @@ export default function JornadaLibertadores() {
       navigate("/login");
       return;
     }
+    
+    // Solo permitir acceso si está explícitamente en true
+    if (usuario.activo_libertadores !== true) {
+      console.log('🚫 Usuario sin acceso a Libertadores:', usuario);
+      alert("⚠️ No tienes acceso para ingresar pronósticos en la Copa Libertadores. Contacta al administrador.");
+      navigate("/");
+      return;
+    }
+    
     cargarDatos();
   }, [numero]);
 

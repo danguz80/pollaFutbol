@@ -22,6 +22,8 @@ import PuntuacionLibertadores from "./pages/PuntuacionLibertadores";
 import GanadoresJornadaLibertadores from "./pages/GanadoresJornadaLibertadores";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
+import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
+import AdminTorneoResultados from "./pages/Admin/AdminTorneoResultados";
 
 export default function AppRouter() {
   return (
@@ -57,6 +59,16 @@ export default function AppRouter() {
         <Route path="/admin/torneo-nacional" element={
           <RutaProtegidaAdmin>
             <AdminTorneoNacional />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/torneo-nacional/fixture" element={
+          <RutaProtegidaAdmin>
+            <FixtureTorneoNacional />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/torneo-nacional/resultados" element={
+          <RutaProtegidaAdmin>
+            <AdminTorneoResultados />
           </RutaProtegidaAdmin>
         } />
 

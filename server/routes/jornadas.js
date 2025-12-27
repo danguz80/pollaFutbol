@@ -667,6 +667,118 @@ router.use("/ganadores", ganadoresRouter);
 //   }
 // });
 
+// 🔹 POST /api/jornadas/importar-fixture → Importar fixture completo (30 jornadas)
+router.post("/importar-fixture", verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { fixtureTexto } = req.body;
+
+  if (!fixtureTexto || typeof fixtureTexto !== 'string') {
+    return res.status(400).json({ error: "Se requiere el texto del fixture" });
+  }
+
+  try {
+    const lineas = fixtureTexto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    let jornadaActual = null;
+    let numeroJornada = null;
+    let jornadasCreadas = 0;
+    let partidosCreados = 0;
+    const errores = [];
+    
+    console.log(`📋 Procesando ${lineas.length} líneas...`);
+    
+    for (let i = 0; i < lineas.length; i++) {
+      const linea = lineas[i];
+      
+      // Saltar líneas que son encabezados de sección
+      if (linea.match(/^(PRIMERA|SEGUNDA)\s+RUEDA/i)) {
+        console.log(`ℹ️  Sección: ${linea}`);
+        continue;
+      }
+      
+      // Detectar línea de jornada con múltiples formatos
+      // "Jornada 1", "Fecha 1", "Fecha 1 – 16 feb", "Fecha 16 – 20 jul"
+      const matchJornada = linea.match(/^(?:Jornada|Fecha)\s*(\d+)/i);
+      if (matchJornada) {
+        numeroJornada = parseInt(matchJornada[1]);
+        console.log(`✅ Detectada jornada ${numeroJornada}`);
+        
+        // Buscar o crear la jornada
+        const jornadaExistente = await pool.query(
+          "SELECT id FROM jornadas WHERE numero = $1",
+          [numeroJornada]
+        );
+        
+        if (jornadaExistente.rowCount === 0) {
+          const nuevaJornada = await pool.query(
+            "INSERT INTO jornadas (numero, cerrada) VALUES ($1, false) RETURNING id",
+            [numeroJornada]
+          );
+          jornadaActual = nuevaJornada.rows[0].id;
+          jornadasCreadas++;
+          console.log(`✅ Jornada ${numeroJornada} creada con ID ${jornadaActual}`);
+        } else {
+          jornadaActual = jornadaExistente.rows[0].id;
+          console.log(`ℹ️  Jornada ${numeroJornada} ya existe con ID ${jornadaActual}`);
+        }
+        
+        continue;
+      }
+      
+      // Detectar línea de partido con múltiples formatos
+      // "Equipo Local vs Equipo Visita", "Equipo Local v/s Equipo Visita"
+      const matchPartido = linea.match(/^(.+?)\s+(?:vs|v\/s)\s+(.+)$/i);
+      if (matchPartido && jornadaActual) {
+        const local = matchPartido[1].trim();
+        const visita = matchPartido[2].trim();
+        
+        console.log(`⚽ Partido detectado: ${local} vs ${visita} (Jornada ${numeroJornada})`);
+        
+        // Verificar si el partido ya existe
+        const partidoExistente = await pool.query(
+          `SELECT id FROM partidos 
+           WHERE jornada_id = $1 
+           AND nombre_local = $2 
+           AND nombre_visita = $3`,
+          [jornadaActual, local, visita]
+        );
+        
+        if (partidoExistente.rowCount === 0) {
+          await pool.query(
+            `INSERT INTO partidos (jornada_id, nombre_local, nombre_visita, status, bonus) 
+             VALUES ($1, $2, $3, 'NS', 1)`,
+            [jornadaActual, local, visita]
+          );
+          partidosCreados++;
+          console.log(`✅ Partido creado: ${local} vs ${visita}`);
+        } else {
+          console.log(`ℹ️  Partido ya existe: ${local} vs ${visita}`);
+        }
+      } else if (jornadaActual && linea.length > 5 && !matchJornada) {
+        // Línea no reconocida que podría ser un partido
+        errores.push(`Línea ${i + 1} no reconocida: "${linea}"`);
+        console.log(`⚠️  Línea no reconocida: "${linea}"`);
+      }
+    }
+    
+    console.log(`✅ Proceso completado: ${jornadasCreadas} jornadas, ${partidosCreados} partidos`);
+    
+    res.json({
+      ok: true,
+      message: "Fixture importado exitosamente",
+      jornadasCreadas,
+      partidosCreados,
+      errores: errores.length > 0 ? errores : undefined
+    });
+    
+  } catch (error) {
+    console.error("Error importando fixture:", error);
+    res.status(500).json({ 
+      error: "Error al importar el fixture", 
+      details: error.message 
+    });
+  }
+});
+
 // Función para cierre automático de jornadas basándose en fecha_cierre
 async function cierreAutomaticoJornadas() {
   try {

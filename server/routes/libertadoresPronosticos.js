@@ -13,6 +13,17 @@ router.post('/final-virtual', verifyToken, async (req, res) => {
     const usuario_id = req.usuario.id;
     const { jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita } = req.body;
 
+    // Verificar si el usuario está activo en Libertadores
+    const usuarioCheck = await pool.query(
+      'SELECT activo_libertadores FROM usuarios WHERE id = $1',
+      [usuario_id]
+    );
+    // Solo permitir si está explícitamente en true
+    if (usuarioCheck.rowCount === 0 || usuarioCheck.rows[0].activo_libertadores !== true) {
+      console.log('🚫 Usuario sin acceso a Libertadores (final-virtual):', usuario_id, usuarioCheck.rows[0]);
+      return res.status(403).json({ error: 'No tienes acceso para ingresar pronósticos en la Copa Libertadores' });
+    }
+
     // Verificar si la jornada está cerrada
     const jornadaCheck = await pool.query(
       'SELECT cerrada, numero FROM libertadores_jornadas WHERE id = $1',
@@ -92,6 +103,17 @@ router.post('/', verifyToken, async (req, res) => {
   try {
     const usuario_id = req.usuario.id;
     const { partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita } = req.body;
+
+    // Verificar si el usuario está activo en Libertadores
+    const usuarioCheck = await pool.query(
+      'SELECT activo_libertadores FROM usuarios WHERE id = $1',
+      [usuario_id]
+    );
+    // Solo permitir si está explícitamente en true
+    if (usuarioCheck.rowCount === 0 || usuarioCheck.rows[0].activo_libertadores !== true) {
+      console.log('🚫 Usuario sin acceso a Libertadores:', usuario_id, usuarioCheck.rows[0]);
+      return res.status(403).json({ error: 'No tienes acceso para ingresar pronósticos en la Copa Libertadores' });
+    }
 
     // Verificar si la jornada está cerrada
     const jornadaCheck = await pool.query(

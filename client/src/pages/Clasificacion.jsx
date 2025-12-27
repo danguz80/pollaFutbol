@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import axios from "axios";
 import FireworksEffect from "../components/FireworksEffect";
 import AccesosDirectos from "../components/AccesosDirectos";
 import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
@@ -19,6 +20,8 @@ export default function Clasificacion() {
   const [ganadoresJornada, setGanadoresJornada] = useState([]);
   const [showFireworks, setShowFireworks] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [participantes, setParticipantes] = useState([]); // Usuarios que han subido pronósticos
+  const [generandoPDF, setGenerandoPDF] = useState(false);
   
   // Estados para Cuadro Final
   const [prediccionesReales, setPrediccionesReales] = useState({});
@@ -43,16 +46,44 @@ export default function Clasificacion() {
     }
   }, []);
 
-  // Cargar jornadas y definir por defecto la última
+  // Cargar jornadas y definir por defecto la última con pronósticos
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/jornadas`)
-      .then(res => res.json())
-      .then(jornadas => {
+    const cargarJornadas = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/jornadas`);
+        const jornadas = await res.json();
         setJornadas(jornadas);
-        if (jornadas.length && !jornadaActual) {
-          setJornadaActual(jornadas[jornadas.length - 1].numero);
+        
+        if (!jornadaActual && jornadas.length) {
+          // Filtrar jornadas normales (excluir 999)
+          const jornadasNormales = jornadas.filter(j => j.numero !== 999);
+          
+          // Buscar la última jornada que tenga pronósticos
+          for (let i = jornadasNormales.length - 1; i >= 0; i--) {
+            const jornada = jornadasNormales[i];
+            try {
+              const resPronosticos = await fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornada.numero}`);
+              const pronosticos = await resPronosticos.json();
+              if (pronosticos && pronosticos.length > 0) {
+                setJornadaActual(jornada.numero);
+                return;
+              }
+            } catch (err) {
+              console.error(`Error verificando pronósticos jornada ${jornada.numero}:`, err);
+            }
+          }
+          
+          // Si no hay ninguna con pronósticos, seleccionar la última jornada normal
+          if (jornadasNormales.length > 0) {
+            setJornadaActual(jornadasNormales[jornadasNormales.length - 1].numero);
+          }
         }
-      });
+      } catch (err) {
+        console.error("Error al cargar jornadas:", err);
+      }
+    };
+    
+    cargarJornadas();
   }, []);
 
   // Actualizar si la jornada está cerrada cuando cambia la jornada actual o la lista de jornadas
@@ -83,7 +114,30 @@ export default function Clasificacion() {
       fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
         .then(res => res.json())
         .then(setDetallePuntos);
+      setParticipantes([]); // Limpiar participantes
     } else {
+      // Si no es admin y la jornada está abierta, cargar solo participantes
+      fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
+        .then(res => res.json())
+        .then(data => {
+          // Extraer usuarios únicos que tienen pronósticos
+          const usuariosUnicos = [];
+          const idsVistos = new Set();
+          
+          data.forEach(p => {
+            if (!idsVistos.has(p.usuario_id)) {
+              idsVistos.add(p.usuario_id);
+              usuariosUnicos.push({
+                id: p.usuario_id,
+                nombre: p.usuario || 'Usuario',
+                foto_perfil: p.usuario_foto_perfil || null
+              });
+            }
+          });
+          
+          setParticipantes(usuariosUnicos);
+        })
+        .catch(() => setParticipantes([]));
       setDetallePuntos([]);
     }
   }, [jornadaActual, isAdmin, jornadaCerrada]);
@@ -140,6 +194,39 @@ export default function Clasificacion() {
       }
     } catch (error) {
       console.error("Error cargando datos cuadro final:", error);
+    }
+  };
+
+  // Función para generar PDF
+  const generarPDF = async () => {
+    if (!jornadaActual) {
+      alert('Por favor selecciona una jornada primero');
+      return;
+    }
+
+    if (!confirm(`¿Generar PDF con los pronósticos de la jornada ${jornadaActual} y enviarlo por email?`)) {
+      return;
+    }
+
+    try {
+      setGenerandoPDF(true);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/pronosticos/generar-pdf/${jornadaActual}`,
+        {},
+        { headers }
+      );
+
+      alert(`✅ ${response.data.mensaje}\n\n${response.data.detalles}`);
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      const mensaje = error.response?.data?.error || 'Error generando PDF';
+      const detalles = error.response?.data?.detalles || error.message;
+      alert(`❌ ${mensaje}\n\n${detalles}`);
+    } finally {
+      setGenerandoPDF(false);
     }
   };
 
@@ -411,6 +498,22 @@ export default function Clasificacion() {
         </div>
       </div>
 
+      {/* Botón Generar PDF (Solo Admin) */}
+      {isAdmin && jornadaActual && jornadaActual !== "999" && (
+        <div className="text-center mb-4">
+          <button 
+            className="btn btn-info btn-lg px-4"
+            onClick={generarPDF}
+            disabled={generandoPDF}
+          >
+            {generandoPDF ? '⏳ Generando...' : '📄 Generar PDF'}
+          </button>
+          <p className="text-muted mt-2 mb-0">
+            <small>Genera un PDF con todos los pronósticos de la jornada y lo envía por email</small>
+          </p>
+        </div>
+      )}
+
       {/* 1. Detalle de pronósticos por jugador */}
       <div id="detalle-pronosticos" className="mt-5">
         <h4 className="text-center">
@@ -424,10 +527,48 @@ export default function Clasificacion() {
           )}
         </h4>
         {!isAdmin && !jornadaCerrada ? (
-          <div className="alert alert-warning text-center">
-            Esperando el cierre de jornada para mostrar resultados
-            <br />
-            <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
+          <div>
+            <div className="alert alert-info text-center mb-4">
+              <h5>⏳ Jornada Abierta</h5>
+              <p className="mb-0">Los pronósticos se mostrarán una vez que se cierre la jornada.</p>
+              <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
+            </div>
+            
+            {participantes.length > 0 && (
+              <div className="card">
+                <div className="card-header bg-primary text-white">
+                  <h5 className="mb-0">✅ Participantes que ya subieron sus pronósticos ({participantes.length})</h5>
+                </div>
+                <div className="card-body">
+                  <div className="row g-3">
+                    {participantes.map(p => (
+                      <div key={p.id} className="col-6 col-md-4 col-lg-3">
+                        <div className="card h-100 shadow-sm">
+                          <div className="card-body text-center p-2">
+                            {p.foto_perfil ? (
+                              <img 
+                                src={p.foto_perfil} 
+                                alt={p.nombre}
+                                className="rounded-circle mb-2"
+                                style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div 
+                                className="rounded-circle bg-secondary d-flex align-items-center justify-content-center mb-2 mx-auto"
+                                style={{ width: '60px', height: '60px' }}
+                              >
+                                <span className="text-white fs-4">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                              </div>
+                            )}
+                            <p className="mb-0 small fw-bold">{p.nombre || 'Usuario'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <table className="table table-bordered table-sm text-center">
