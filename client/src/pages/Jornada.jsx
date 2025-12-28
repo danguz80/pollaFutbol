@@ -7,6 +7,30 @@ import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+// Mapeo de nombres de equipos a logos (nombres exactos como están en la BD)
+const LOGOS_EQUIPOS = {
+  'Audax Italiano': '/logos_torneo_nacional/audax.png',
+  'Unión La Calera': '/logos_torneo_nacional/calera.png',
+  'Cobresal': '/logos_torneo_nacional/cobresal.png',
+  'Colo-Colo': '/logos_torneo_nacional/colo-colo.png',
+  'Deportes Iquique': '/logos_torneo_nacional/iquique.png',
+  'Coquimbo Unido': '/logos_torneo_nacional/coquimbo.png',
+  'Everton': '/logos_torneo_nacional/everton.png',
+  'Huachipato': '/logos_torneo_nacional/huachipato.png',
+  'Deportes La Serena': '/logos_torneo_nacional/laserena.png',
+  'Deportes Limache': '/logos_torneo_nacional/limache.webp',
+  "O'Higgins": '/logos_torneo_nacional/ohiggins.webp',
+  'Palestino': '/logos_torneo_nacional/palestino.png',
+  'U. Católica': '/logos_torneo_nacional/uc.png',
+  'U. de Chile': '/logos_torneo_nacional/udechile.png',
+  'Unión Española': '/logos_torneo_nacional/union-espanola.png',
+  'Ñublense': '/logos_torneo_nacional/ñublense.png'
+};
+
+// Función para obtener el logo de un equipo
+const getLogoEquipo = (nombreEquipo) => {
+  return LOGOS_EQUIPOS[nombreEquipo] || null;
+};
 
 // Hook local para obtener usuario desde localStorage
 function useAuth() {
@@ -415,6 +439,14 @@ export default function Jornada() {
                         <div className="card-body">
                           <div className="row align-items-center text-center">
                             <div className="col-5">
+                              {getLogoEquipo(p.local) && (
+                                <img 
+                                  src={getLogoEquipo(p.local)} 
+                                  alt={p.local}
+                                  className="mb-2"
+                                  style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+                                />
+                              )}
                               <p className="fw-bold mb-2 fs-5">{p.local}</p>
                               <input
                                 type="number"
@@ -433,6 +465,14 @@ export default function Jornada() {
                             </div>
 
                             <div className="col-5">
+                              {getLogoEquipo(p.visita) && (
+                                <img 
+                                  src={getLogoEquipo(p.visita)} 
+                                  alt={p.visita}
+                                  className="mb-2"
+                                  style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+                                />
+                              )}
                               <p className="fw-bold mb-2 fs-5">{p.visita}</p>
                               <input
                                 type="number"
@@ -488,6 +528,15 @@ export default function Jornada() {
                       {equiposFinalistasPronosticados.map((equipo, index) => (
                         <div key={index} className="col-6 text-center">
                           <span className="badge bg-success mb-2">Finalista {index + 1}</span>
+                          {getLogoEquipo(equipo) && (
+                            <div>
+                              <img 
+                                src={getLogoEquipo(equipo)} 
+                                alt={equipo}
+                                style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                              />
+                            </div>
+                          )}
                           <p className="fw-bold fs-4 mb-0">{equipo}</p>
                         </div>
                       ))}
@@ -506,6 +555,14 @@ export default function Jornada() {
 
                       <div className="row g-3 align-items-center text-center">
                         <div className="col-5">
+                          {getLogoEquipo(equiposFinalistasPronosticados[0]) && (
+                            <img 
+                              src={getLogoEquipo(equiposFinalistasPronosticados[0])} 
+                              alt={equiposFinalistasPronosticados[0]}
+                              className="mb-2"
+                              style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+                            />
+                          )}
                           <label className="form-label fw-bold">{equiposFinalistasPronosticados[0]}</label>
                           <input
                             type="number"
@@ -522,6 +579,14 @@ export default function Jornada() {
                           <p className="fw-bold text-muted fs-3 mb-0">VS</p>
                         </div>
                         <div className="col-5">
+                          {getLogoEquipo(equiposFinalistasPronosticados[1]) && (
+                            <img 
+                              src={getLogoEquipo(equiposFinalistasPronosticados[1])} 
+                              alt={equiposFinalistasPronosticados[1]}
+                              className="mb-2"
+                              style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+                            />
+                          )}
                           <label className="form-label fw-bold">{equiposFinalistasPronosticados[1]}</label>
                           <input
                             type="number"
