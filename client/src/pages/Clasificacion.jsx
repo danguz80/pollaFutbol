@@ -17,11 +17,16 @@ export default function Clasificacion() {
   const [rankingJornada, setRankingJornada] = useState([]);
   const [rankingAcumulado, setRankingAcumulado] = useState([]);
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
-  const [ganadoresJornada, setGanadoresJornada] = useState([]);
   const [showFireworks, setShowFireworks] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [participantes, setParticipantes] = useState([]); // Usuarios que han subido pronósticos
   const [generandoPDF, setGenerandoPDF] = useState(false);
+  const [calculandoGanadores, setCalculandoGanadores] = useState(false);
+  const [ganadores, setGanadores] = useState(null);
+  const [mostrarGanadores, setMostrarGanadores] = useState(false);
+  const [calculandoGanadoresAcumulado, setCalculandoGanadoresAcumulado] = useState(false);
+  const [ganadoresAcumulado, setGanadoresAcumulado] = useState(null);
+  const [mostrarGanadoresAcumulado, setMostrarGanadoresAcumulado] = useState(false);
   
   // Estados para Cuadro Final
   const [prediccionesReales, setPrediccionesReales] = useState({});
@@ -109,6 +114,9 @@ export default function Clasificacion() {
       .then(res => res.json())
       .then(setRankingAcumulado);
     
+    // Cargar ganadores de la jornada
+    cargarGanadoresJornada(jornadaActual);
+    
     // Detalle de pronósticos solo si admin o cerrada
     if (isAdmin || jornadaCerrada) {
       fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
@@ -141,24 +149,6 @@ export default function Clasificacion() {
       setDetallePuntos([]);
     }
   }, [jornadaActual, isAdmin, jornadaCerrada]);
-
-  // Obtener ganadores de la jornada seleccionada (visible para todos)
-  useEffect(() => {
-    if (!jornadaActual) {
-      setGanadoresJornada([]);
-      setShowFireworks(false);
-      return;
-    }
-    // Buscar la jornada seleccionada en el array de jornadas
-    const jornadaSel = jornadas.find(j => String(j.numero) === String(jornadaActual));
-    if (jornadaSel && Array.isArray(jornadaSel.ganadores) && jornadaSel.ganadores.length > 0) {
-      setGanadoresJornada(jornadaSel.ganadores);
-      setShowFireworks(true);
-    } else {
-      setGanadoresJornada([]);
-      setShowFireworks(false);
-    }
-  }, [jornadaActual, jornadas]);
 
   // Verificar estado del Cuadro Final
   useEffect(() => {
@@ -229,6 +219,111 @@ export default function Clasificacion() {
       setGenerandoPDF(false);
     }
   };
+
+  // Calcular ganadores de la jornada
+  const calcularGanadoresJornada = async () => {
+    if (!jornadaActual) {
+      alert('Por favor selecciona una jornada primero');
+      return;
+    }
+
+    if (!confirm(`¿Calcular los ganadores de la jornada ${jornadaActual}?`)) {
+      return;
+    }
+
+    try {
+      setCalculandoGanadores(true);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/ganadores-jornada/${jornadaActual}`,
+        {},
+        { headers }
+      );
+
+      setGanadores(response.data);
+      setMostrarGanadores(true);
+      
+      // Recargar rankings
+      const rankingJornadaRes = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/jornada/${jornadaActual}`);
+      setRankingJornada(await rankingJornadaRes.json());
+      
+      const rankingAcumuladoRes = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`);
+      setRankingAcumulado(await rankingAcumuladoRes.json());
+      
+    } catch (error) {
+      console.error('Error calculando ganadores:', error);
+      alert('❌ Error al calcular los ganadores');
+    } finally {
+      setCalculandoGanadores(false);
+    }
+  };
+
+  // Cargar ganadores de la jornada
+  const cargarGanadoresJornada = async (jornadaNumero) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/api/ganadores-jornada/${jornadaNumero}`
+      );
+
+      if (response.data.ganadores && response.data.ganadores.length > 0) {
+        setGanadores(response.data);
+      } else {
+        setGanadores(null);
+      }
+    } catch (error) {
+      console.error('Error cargando ganadores:', error);
+      setGanadores(null);
+    }
+  };
+
+  // Calcular ganadores del ranking acumulado
+  const calcularGanadoresAcumulado = async () => {
+    if (!confirm('¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado (TODAS LAS JORNADAS)?')) {
+      return;
+    }
+
+    try {
+      setCalculandoGanadoresAcumulado(true);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/ganadores-jornada/acumulado`,
+        {},
+        { headers }
+      );
+
+      setGanadoresAcumulado(response.data);
+      setMostrarGanadoresAcumulado(true);
+      
+      // Recargar ranking acumulado
+      const rankingAcumuladoRes = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`);
+      setRankingAcumulado(await rankingAcumuladoRes.json());
+      
+    } catch (error) {
+      console.error('Error calculando ganadores acumulado:', error);
+      alert('❌ Error al calcular los ganadores del ranking acumulado');
+    } finally {
+      setCalculandoGanadoresAcumulado(false);
+    }
+  };
+
+  // Cargar ganadores del ranking acumulado al inicio
+  useEffect(() => {
+    const cargarGanadoresAcumulado = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/ganadores-jornada/acumulado`);
+        if (response.data.ganadores && response.data.ganadores.length > 0) {
+          setGanadoresAcumulado(response.data);
+        }
+      } catch (error) {
+        console.error('Error cargando ganadores acumulado:', error);
+      }
+    };
+    cargarGanadoresAcumulado();
+  }, []);
 
   // Función para calcular aciertos (igual que en AdminPanel)
   const calcularAciertos = (prediccionUsuario) => {
@@ -498,19 +593,247 @@ export default function Clasificacion() {
         </div>
       </div>
 
-      {/* Botón Generar PDF (Solo Admin) */}
+      {/* Botones de Administración (Solo Admin) */}
       {isAdmin && jornadaActual && jornadaActual !== "999" && (
         <div className="text-center mb-4">
-          <button 
-            className="btn btn-info btn-lg px-4"
-            onClick={generarPDF}
-            disabled={generandoPDF}
-          >
-            {generandoPDF ? '⏳ Generando...' : '📄 Generar PDF'}
-          </button>
+          <div className="d-flex justify-content-center gap-3 flex-wrap">
+            {/* Botón Calcular Ganadores Jornada */}
+            <button
+              className="btn btn-success btn-lg px-4"
+              onClick={calcularGanadoresJornada}
+              disabled={calculandoGanadores}
+            >
+              {calculandoGanadores ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2"></span>
+                  Calculando...
+                </>
+              ) : (
+                '🏆 Calcular Ganadores Jornada'
+              )}
+            </button>
+
+            {/* Botón Ganador Ranking Acumulado */}
+            <button
+              className="btn btn-warning text-dark fw-bold btn-lg px-4"
+              onClick={calcularGanadoresAcumulado}
+              disabled={calculandoGanadoresAcumulado}
+            >
+              {calculandoGanadoresAcumulado ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2"></span>
+                  Calculando...
+                </>
+              ) : (
+                <>👑 Ganador Ranking Acumulado</>
+              )}
+            </button>
+            
+            {/* Botón Generar PDF */}
+            <button 
+              className="btn btn-info btn-lg px-4"
+              onClick={generarPDF}
+              disabled={generandoPDF}
+            >
+              {generandoPDF ? '⏳ Generando...' : '📄 Generar PDF'}
+            </button>
+          </div>
           <p className="text-muted mt-2 mb-0">
-            <small>Genera un PDF con todos los pronósticos de la jornada y lo envía por email</small>
+            <small>Calcula ganadores de jornada, ranking acumulado y genera PDF con todos los pronósticos</small>
           </p>
+        </div>
+      )}
+
+      {/* Mostrar Ganadores de la Jornada */}
+      {mostrarGanadores && ganadores && (
+        <>
+          <FireworksEffect />
+          <div 
+            className="modal show d-block" 
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setMostrarGanadores(false)}
+          >
+            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header bg-warning text-dark">
+                  <h5 className="modal-title">
+                    🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {jornadaActual}
+                  </h5>
+                  <button 
+                    type="button" 
+                    className="btn-close" 
+                    onClick={() => setMostrarGanadores(false)}
+                  ></button>
+                </div>
+                <div className="modal-body text-center py-4">
+                  <div className="mb-4">
+                    <h2 className="text-warning">🎉 ¡Felicitaciones! 🎉</h2>
+                  </div>
+                  {ganadores.ganadores.map((ganador, index) => (
+                    <div key={index} className="alert alert-success mb-3">
+                      {ganador.foto_perfil && (
+                        <img
+                          src={ganador.foto_perfil}
+                          alt={ganador.nombre}
+                          className="rounded-circle mb-2"
+                          style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                        />
+                      )}
+                      <h4 className="mb-0">
+                        🏆 {ganador.nombre}
+                      </h4>
+                      <p className="mb-0 fs-5 fw-bold text-success">
+                        {ganador.puntaje} puntos
+                      </p>
+                    </div>
+                  ))}
+                  <p className="text-muted mt-3">
+                    {ganadores.mensaje}
+                  </p>
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-primary" 
+                    onClick={() => setMostrarGanadores(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Mostrar ganadores guardados si existen (sin modal) */}
+      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
+        <div className="alert alert-info text-center mb-4">
+          <h5 className="mb-3">
+            🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {jornadaActual}
+          </h5>
+          <div className="d-flex justify-content-center gap-3 flex-wrap">
+            {ganadores.ganadores.map((ganador, index) => (
+              <div key={index} className="text-center">
+                {ganador.foto_perfil && (
+                  <img
+                    src={ganador.foto_perfil}
+                    alt={ganador.nombre}
+                    className="rounded-circle mb-2"
+                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                  />
+                )}
+                <p className="mb-0 fw-bold">{ganador.nombre}</p>
+                <span className="badge bg-warning text-dark">{ganador.puntaje} puntos</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ganadores Ranking Acumulado */}
+      {mostrarGanadoresAcumulado && ganadoresAcumulado && (
+        <>
+          <FireworksEffect />
+          <div 
+            className="modal show d-block" 
+            style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 2000 }}
+            onClick={() => setMostrarGanadoresAcumulado(false)}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content border-5 border-warning">
+                <div className="modal-header bg-gradient" style={{ background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }}>
+                  <h3 className="modal-title text-dark fw-bold w-100 text-center">
+                    👑 TOP 3 DEL RANKING ACUMULADO 👑
+                  </h3>
+                  <button 
+                    type="button" 
+                    className="btn-close" 
+                    onClick={() => setMostrarGanadoresAcumulado(false)}
+                  ></button>
+                </div>
+                <div className="modal-body text-center py-5" style={{ background: 'linear-gradient(to bottom, #fff 0%, #fffaf0 100%)' }}>
+                  <div className="mb-5">
+                    <h1 className="display-3 mb-3">🎊 🎉 🎊</h1>
+                    <h2 className="text-warning fw-bold" style={{ fontSize: '2.5rem', textShadow: '2px 2px 4px rgba(0,0,0,0.2)' }}>
+                      ¡FELICITACIONES!
+                    </h2>
+                  </div>
+                  {ganadoresAcumulado.ganadores.map((ganador, index) => (
+                    <div key={index} className="alert alert-warning mb-4 border-3 border-warning shadow-lg position-relative" style={{ backgroundColor: '#FFF8DC' }}>
+                      <div className="position-absolute top-0 start-0 m-2 bg-dark text-warning rounded-circle d-flex align-items-center justify-content-center fw-bold" style={{ width: '35px', height: '35px', fontSize: '18px' }}>
+                        {ganador.posicion}°
+                      </div>
+                      <h1 className="mb-3" style={{ fontSize: '3rem' }}>👑</h1>
+                      {ganador.foto_perfil && (
+                        <img
+                          src={ganador.foto_perfil}
+                          alt={ganador.nombre}
+                          className="rounded-circle mb-3"
+                          style={{ width: '80px', height: '80px', objectFit: 'cover', border: '3px solid #FFD700' }}
+                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                        />
+                      )}
+                      <h2 className="mb-2 fw-bold text-dark" style={{ fontSize: '2rem' }}>
+                        {ganador.nombre.toUpperCase()}
+                      </h2>
+                      <p className="mb-0 fw-bold text-warning" style={{ fontSize: '1.8rem' }}>
+                        {ganador.puntaje} PUNTOS
+                      </p>
+                    </div>
+                  ))}
+                  <div className="mt-4">
+                    <p className="fs-5 fw-bold text-dark">
+                      {ganadoresAcumulado.mensaje}
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <h1>🏆 🥇 🏆</h1>
+                  </div>
+                </div>
+                <div className="modal-footer bg-light">
+                  <button 
+                    type="button" 
+                    className="btn btn-warning btn-lg fw-bold" 
+                    onClick={() => setMostrarGanadoresAcumulado(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Mostrar ganadores acumulado guardados si existen */}
+      {ganadoresAcumulado && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
+        <div className="alert alert-warning text-center border-3 border-warning shadow mb-4">
+          <h4 className="mb-3">
+            👑 TOP 3 DEL RANKING ACUMULADO 👑
+          </h4>
+          <div className="d-flex justify-content-center gap-4 flex-wrap mb-2">
+            {ganadoresAcumulado.ganadores.map((ganador, index) => (
+              <div key={index} className="text-center position-relative">
+                <div className="position-absolute top-0 start-0 bg-dark text-warning rounded-circle d-flex align-items-center justify-content-center fw-bold" style={{ width: '28px', height: '28px', fontSize: '14px', zIndex: 1 }}>
+                  {ganador.posicion}°
+                </div>
+                {ganador.foto_perfil && (
+                  <img
+                    src={ganador.foto_perfil}
+                    alt={ganador.nombre}
+                    className="rounded-circle mb-2"
+                    style={{ width: '60px', height: '60px', objectFit: 'cover', border: '2px solid #FFD700' }}
+                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                  />
+                )}
+                <p className="mb-0 fw-bold">{ganador.nombre.toUpperCase()}</p>
+                <span className="badge bg-dark text-warning">{ganador.puntaje} PUNTOS</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -589,16 +912,6 @@ export default function Clasificacion() {
         )}
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
-
-      {/* Ganador de la jornada */}
-      {ganadoresJornada.length > 0 && (
-        <div className="ganador-jornada-container" style={{ position: 'relative', margin: '2rem 0' }}>
-          <h3 className="text-center" style={{ color: '#e67e22', fontWeight: 'bold', position: 'relative', zIndex: 2 }}>
-            Ganador{ganadoresJornada.length > 1 ? 'es' : ''} de la Jornada {jornadaActual}: {ganadoresJornada.join(', ')} ¡Felicitaciones!
-          </h3>
-          {showFireworks && <FireworksEffect targetSelector=".ganador-jornada-container" />}
-        </div>
-      )}
 
       {/* CUADRO FINAL */}
       {jornadaActual === "999" && (

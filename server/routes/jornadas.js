@@ -9,6 +9,8 @@ import ganadoresRouter from "./ganadores.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { getWhatsAppService } from "../services/whatsappService.js";
+import htmlPdf from 'html-pdf-node';
+import { getLogoBase64 } from '../utils/logoHelper.js';
 // COMENTADO - FASE 2: Moviendo código Sudamericana a archivos especializados
 // import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
@@ -254,6 +256,247 @@ router.patch("/:numero/partidos", async (req, res) => {
   }
 });
 
+// Función auxiliar para generar PDF de pronósticos
+async function generarPDFPronosticos(numeroJornada) {
+  try {
+    console.log(`📄 Generando PDF para jornada ${numeroJornada}...`);
+
+    // Obtener todos los pronósticos de la jornada
+    const pronosticosResult = await pool.query(`
+      SELECT 
+        u.nombre as usuario,
+        pa.nombre_local,
+        pa.nombre_visita,
+        pa.fecha,
+        p.goles_local,
+        p.goles_visita,
+        pa.goles_local as real_local,
+        pa.goles_visita as real_visita,
+        p.puntos
+      FROM pronosticos p
+      JOIN usuarios u ON p.usuario_id = u.id
+      JOIN partidos pa ON p.partido_id = pa.id
+      JOIN jornadas j ON pa.jornada_id = j.id
+      WHERE j.numero = $1 AND u.activo_torneo_nacional = true
+      ORDER BY u.nombre, pa.fecha
+    `, [numeroJornada]);
+
+    if (pronosticosResult.rows.length === 0) {
+      console.log(`⚠️ No hay pronósticos para la jornada ${numeroJornada}`);
+      return null;
+    }
+
+    const pronosticos = pronosticosResult.rows;
+
+    // Obtener lista única de partidos ordenados por fecha
+    const partidosUnicos = [];
+    const partidosVistos = new Set();
+    pronosticos.forEach(p => {
+      const key = `${p.nombre_local}|${p.nombre_visita}|${p.fecha}`;
+      if (!partidosVistos.has(key)) {
+        partidosVistos.add(key);
+        partidosUnicos.push({
+          nombre_local: p.nombre_local,
+          nombre_visita: p.nombre_visita,
+          fecha: p.fecha
+        });
+      }
+    });
+
+    // Ordenar partidos por fecha
+    partidosUnicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+    // Agrupar pronósticos por usuario
+    const pronosticosPorUsuario = {};
+    pronosticos.forEach(p => {
+      if (!pronosticosPorUsuario[p.usuario]) {
+        pronosticosPorUsuario[p.usuario] = {};
+      }
+      const key = `${p.nombre_local}|${p.nombre_visita}`;
+      pronosticosPorUsuario[p.usuario][key] = p;
+    });
+
+    // Generar HTML para el PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+          }
+          .header {
+            text-align: center;
+            color: #0066cc;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #0066cc;
+            padding-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+          }
+          .header p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 16px;
+          }
+          .usuario-section {
+            background: white;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            page-break-inside: avoid;
+          }
+          .usuario-nombre {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0066cc;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+          }
+          th {
+            background-color: #0066cc;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+          }
+          td {
+            padding: 8px;
+            border-bottom: 1px solid #e0e0e0;
+          }
+          tr:hover {
+            background-color: #f9f9f9;
+          }
+          .pronostico {
+            font-weight: bold;
+            color: #0066cc;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #999;
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>⚽ Pronósticos Torneo Nacional</h1>
+          <p>Jornada ${numeroJornada}</p>
+          <p><strong>Documento Testigo - Pronósticos Registrados</strong></p>
+          <p>Fecha de generación: ${new Date().toLocaleDateString('es-ES', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</p>
+        </div>
+
+        ${Object.keys(pronosticosPorUsuario).sort().map(usuario => `
+          <div class="usuario-section">
+            <div class="usuario-nombre">👤 ${usuario}</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Partido</th>
+                  <th>Pronóstico</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${partidosUnicos.map(partido => {
+                  const key = `${partido.nombre_local}|${partido.nombre_visita}`;
+                  const p = pronosticosPorUsuario[usuario][key];
+                  
+                  // Obtener logos de los equipos
+                  const logoLocal = getLogoBase64(partido.nombre_local) || '';
+                  const logoVisita = getLogoBase64(partido.nombre_visita) || '';
+                  
+                  if (!p) {
+                    return `
+                      <tr>
+                        <td>
+                          <div style="display: flex; align-items: center;">
+                            ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                            <span>${partido.nombre_local}</span>
+                            <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
+                            ${logoVisita ? `<img src="${logoVisita}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                            <span>${partido.nombre_visita}</span>
+                          </div>
+                        </td>
+                        <td class="pronostico" style="color: #999;">Sin pronóstico</td>
+                      </tr>
+                    `;
+                  }
+                  
+                  const pronostico = `${p.goles_local}-${p.goles_visita}`;
+                  
+                  return `
+                    <tr>
+                      <td>
+                        <div style="display: flex; align-items: center;">
+                          ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                          <span>${p.nombre_local}</span>
+                          <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
+                          ${logoVisita ? `<img src="${logoVisita}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                          <span>${p.nombre_visita}</span>
+                        </div>
+                      </td>
+                      <td class="pronostico">${pronostico}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+
+        <div class="footer">
+          <p>Campeonato Polla Fútbol - Torneo Nacional</p>
+          <p>Este documento certifica los pronósticos registrados antes del inicio de la jornada</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Generar PDF con html-pdf-node
+    const options = { 
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      }
+    };
+    
+    const file = { content: htmlContent };
+    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    
+    console.log('✅ PDF generado exitosamente');
+    return pdfBuffer;
+
+  } catch (error) {
+    console.error('❌ Error generando PDF:', error);
+    return null;
+  }
+}
+
 // PATCH /api/jornadas/:id/cerrar → cambia el estado 'cerrada'
 router.patch("/:id/cerrar", async (req, res) => {
   const { id } = req.params;
@@ -269,22 +512,39 @@ router.patch("/:id/cerrar", async (req, res) => {
     
     const jornada = result.rows[0];
     
-    // Si se está cerrando la jornada (cerrada = true), enviar notificación por email
+    // Si se está cerrando la jornada (cerrada = true), generar PDF y enviar por email
     if (cerrada === true) {
       try {
         const whatsappService = getWhatsAppService();
         
-        // Enviar mensaje en modo no bloqueante
+        // Generar y enviar PDF en modo no bloqueante
         setTimeout(async () => {
           try {
-            const resultado = await whatsappService.enviarMensajeJornadaCerrada(jornada.numero);
-            if (resultado.success) {
-              console.log(`✅ Notificación enviada para jornada ${jornada.numero}`);
+            console.log(`📄 Generando y enviando PDF para jornada ${jornada.numero}...`);
+            
+            // Generar el PDF
+            const pdfBuffer = await generarPDFPronosticos(jornada.numero);
+            
+            if (pdfBuffer) {
+              // Enviar PDF por email
+              const nombreArchivo = `TorneoNacional_Jornada_${jornada.numero}_${new Date().toISOString().split('T')[0]}.pdf`;
+              const resultado = await whatsappService.enviarEmailConPDF(
+                pdfBuffer, 
+                nombreArchivo, 
+                jornada.numero,
+                'Torneo Nacional'
+              );
+              
+              if (resultado.success) {
+                console.log(`✅ PDF generado y enviado para jornada ${jornada.numero}`);
+              } else {
+                console.error(`❌ Error enviando PDF para jornada ${jornada.numero}:`, resultado.mensaje);
+              }
             } else {
-              console.error(`❌ Error enviando notificación para jornada ${jornada.numero}:`, resultado.mensaje);
+              console.warn(`⚠️ No se pudo generar PDF para jornada ${jornada.numero} (sin pronósticos)`);
             }
           } catch (error) {
-            console.error(`❌ Error enviando notificación para jornada ${jornada.numero}:`, error);
+            console.error(`❌ Error generando/enviando PDF para jornada ${jornada.numero}:`, error);
           }
         }, 2000); // 2 segundos de delay para asegurar que la respuesta HTTP se envíe primero
         

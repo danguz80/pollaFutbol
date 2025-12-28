@@ -8,7 +8,8 @@ function RankingsHistoricos() {
   const [rankings, setRankings] = useState({ 
     2024: { mayor: [], estandar: [] }, 
     2025: { mayor: [], estandar: [] },
-    2026: { mayor: [], estandar: [] }
+    2026: { mayor: [], estandar: [] },
+    2027: { mayor: [], estandar: [] }
   });
   const [torneoNacional2025, setTorneoNacional2025] = useState({ jornadas: [], cuadroFinal: [], rankingAcumulado: [] });
   const [usuarios, setUsuarios] = useState([]);
@@ -264,6 +265,8 @@ function RankingsHistoricos() {
                   <select value={formData.anio} onChange={(e) => setFormData({...formData, anio: parseInt(e.target.value)})}>
                     <option value={2024}>2024</option>
                     <option value={2025}>2025</option>
+                    <option value={2026}>2026</option>
+                    <option value={2027}>2027</option>
                   </select>
                 </label>
 
@@ -298,7 +301,7 @@ function RankingsHistoricos() {
                     Categoría (Jornada):
                     <select value={formData.categoria || ''} onChange={(e) => setFormData({...formData, categoria: e.target.value})}>
                       <option value="">General</option>
-                      {Array.from({length: 20}, (_, i) => i + 11).map(j => (
+                      {Array.from({length: 30}, (_, i) => i + 1).map(j => (
                         <option key={j} value={`J${j}`}>Jornada {j}</option>
                       ))}
                       <option value="Cuadro Final">Cuadro Final</option>
@@ -397,7 +400,7 @@ function RankingsHistoricos() {
                           {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.usuario_nombre || ganador.nombre_manual} className="foto-perfil" />}
                           <div className="nombre">{ganador.usuario_nombre || ganador.nombre_manual}</div>
                           <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
-                          {usuario?.rol === 'admin' && (
+                          {usuario?.rol === 'admin' && editMode && (
                             <button onClick={() => eliminarRanking(ganador.id)} className="btn-delete">🗑️</button>
                           )}
                         </div>
@@ -449,7 +452,7 @@ function RankingsHistoricos() {
                           {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.usuario_nombre} className="foto-perfil" />}
                           <div className="nombre">{ganador.usuario_nombre}</div>
                           <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
-                          {usuario?.rol === 'admin' && (
+                          {usuario?.rol === 'admin' && editMode && (
                             <button onClick={() => eliminarRanking(ganador.id)} className="btn-delete">🗑️</button>
                           )}
                         </div>
@@ -546,7 +549,7 @@ function RankingsHistoricos() {
                           {ganador.foto_perfil && <img src={ganador.foto_perfil} alt={ganador.usuario_nombre} className="foto-perfil" />}
                           <div className="nombre">{ganador.usuario_nombre}</div>
                           <div className="puntos">{ganador.puntos ? `${ganador.puntos} pts` : '-'}</div>
-                          {usuario?.rol === 'admin' && (
+                          {usuario?.rol === 'admin' && editMode && (
                             <button onClick={() => eliminarRanking(ganador.id)} className="btn-delete">🗑️</button>
                           )}
                         </div>
