@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import NavegacionLibertadores from '../components/NavegacionLibertadores';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -132,6 +133,9 @@ export default function Libertadores() {
         <p className="text-muted">La competición más importante de clubes de Sudamérica</p>
       </div>
 
+      {/* Botonera Principal */}
+      <NavegacionLibertadores />
+
       {/* Banner de Últimos Ganadores */}
       {ultimosGanadores && (
         <div className="alert alert-success text-center mb-4">
@@ -219,79 +223,58 @@ export default function Libertadores() {
         </div>
       )}
 
-      {/* Botonera Principal */}
-      <div className="mb-4 text-center d-flex gap-3 justify-content-center flex-wrap">
-        <button 
-          className="btn btn-danger btn-lg px-4"
-          onClick={() => navigate('/libertadores/estadisticas')}
-        >
-          📊 Estadísticas
-        </button>
-        <button 
-          className="btn btn-primary btn-lg px-4"
-          onClick={() => navigate('/libertadores/clasificacion')}
-        >
-          📋 Clasificación
-        </button>
-        <button 
-          className="btn btn-warning btn-lg px-4"
-          onClick={() => navigate('/libertadores/puntuacion')}
-        >
-          🏆 Puntuación
-        </button>
-        <button 
-          className="btn btn-success btn-lg px-4"
-          onClick={() => navigate('/libertadores/ganadores-jornada')}
-        >
-          ⭐ Ganadores de Jornadas
-        </button>
-      </div>
-
-      <div className="row g-3">
-        {jornadas.map((jornada) => {
-          const estado = getEstadoJornada(jornada);
-          return (
-            <div key={jornada.id} className="col-12 col-md-6 col-lg-4">
-              <div className="card h-100 shadow-sm hover-shadow">
-                <div className="card-body">
-                  <div className="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                      <h5 className="card-title mb-0">{jornada.nombre}</h5>
-                      <p className="text-muted small mb-0">{getSubtitulo(jornada.numero)}</p>
-                    </div>
-                    <span className={`badge bg-${estado.clase}`}>{estado.texto}</span>
-                  </div>
-                  
-                  {jornada.fecha_inicio && (
-                    <p className="text-muted small mb-2">
-                      📅 {new Date(jornada.fecha_inicio).toLocaleDateString('es-CL')}
-                    </p>
-                  )}
-                  
-                  {jornada.descripcion && (
-                    <p className="card-text small text-muted">{jornada.descripcion}</p>
-                  )}
-                  
-                  <button
-                    className="btn btn-primary w-100 mt-2"
-                    onClick={() => navigate(`/libertadores/jornada/${jornada.numero}`)}
-                    disabled={!jornada.activa && jornada.cerrada}
-                  >
-                    {jornada.activa ? '⚽ Ingresar Pronósticos' : jornada.cerrada ? '👁️ Ver Resultados' : '👁️ Ver Detalles'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {jornadas.length === 0 && (
-        <div className="alert alert-info text-center mt-4">
-          <h5>📋 No hay jornadas disponibles</h5>
-          <p className="mb-0">Las jornadas de la Copa Libertadores se habilitarán próximamente.</p>
+      {/* Sección de Ingreso de Pronósticos */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header bg-danger text-white">
+          <h4 className="mb-0">⚽ Ingreso de Pronósticos</h4>
         </div>
-      )}
+        <div className="card-body">
+          <div className="row g-3">
+            {jornadas.map((jornada) => {
+              const estado = getEstadoJornada(jornada);
+              return (
+                <div key={jornada.id} className="col-12 col-md-6 col-lg-4">
+                  <div className="card h-100 shadow-sm hover-shadow">
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                          <h5 className="card-title mb-0">{jornada.nombre}</h5>
+                          <p className="text-muted small mb-0">{getSubtitulo(jornada.numero)}</p>
+                        </div>
+                        <span className={`badge bg-${estado.clase}`}>{estado.texto}</span>
+                      </div>
+                      
+                      {jornada.fecha_inicio && (
+                        <p className="text-muted small mb-2">
+                          📅 {new Date(jornada.fecha_inicio).toLocaleDateString('es-CL')}
+                        </p>
+                      )}
+                      
+                      {jornada.descripcion && (
+                        <p className="card-text small text-muted">{jornada.descripcion}</p>
+                      )}
+                      
+                      <button
+                        className="btn btn-primary w-100 mt-2"
+                        onClick={() => navigate(`/libertadores/jornada/${jornada.numero}`)}
+                      >
+                        {jornada.activa ? '⚽ Ingresar Pronósticos' : jornada.cerrada ? '👁️ Ver Resultados' : '👁️ Ver Detalles'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {jornadas.length === 0 && (
+            <div className="alert alert-info text-center">
+              <h5>📋 No hay jornadas disponibles</h5>
+              <p className="mb-0">Las jornadas de la Copa Libertadores se habilitarán próximamente.</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

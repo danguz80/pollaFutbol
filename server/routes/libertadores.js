@@ -24,36 +24,67 @@ router.get('/equipos', async (req, res) => {
 // Guardar/Actualizar equipos (Admin)
 router.post('/equipos', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    const { equipos } = req.body; // Array de 32 equipos
+    const { equipos } = req.body; // Array de equipos (puede ser 32 o menos)
     
-    if (!Array.isArray(equipos) || equipos.length !== 32) {
-      return res.status(400).json({ error: 'Se requieren exactamente 32 equipos' });
+    if (!Array.isArray(equipos) || equipos.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de equipos' });
     }
 
     // Limpiar equipos existentes
     await pool.query('DELETE FROM libertadores_equipos');
 
-    // Insertar nuevos equipos
-    const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    let index = 0;
+    // Si vienen 32 equipos ordenados (modo antiguo)
+    if (equipos.length === 32 && !equipos[0].grupo) {
+      const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      let index = 0;
 
-    for (const grupo of grupos) {
-      for (let pos = 1; pos <= 4; pos++) {
-        const equipo = equipos[index];
-        if (equipo && equipo.nombre) {
-          await pool.query(`
-            INSERT INTO libertadores_equipos (nombre, grupo, posicion_grupo, api_id, pais)
-            VALUES ($1, $2, $3, $4, $5)
-          `, [equipo.nombre, grupo, pos, equipo.api_id || null, equipo.pais || '']);
+      for (const grupo of grupos) {
+        for (let pos = 1; pos <= 4; pos++) {
+          const equipo = equipos[index];
+          if (equipo && equipo.nombre) {
+            await pool.query(`
+              INSERT INTO libertadores_equipos (nombre, grupo, posicion_grupo, api_id, pais)
+              VALUES ($1, $2, $3, $4, $5)
+            `, [equipo.nombre, grupo, pos, equipo.api_id || null, equipo.pais || '']);
+          }
+          index++;
         }
-        index++;
+      }
+    } else {
+      // Modo nuevo: equipos con grupo definido
+      const gruposCount = {};
+      
+      for (const equipo of equipos) {
+        if (!equipo.nombre || !equipo.grupo) {
+          console.warn('Equipo sin nombre o grupo:', equipo);
+          continue;
+        }
+
+        const grupo = equipo.grupo.toUpperCase();
+        
+        // Contar posición en el grupo
+        if (!gruposCount[grupo]) {
+          gruposCount[grupo] = 0;
+        }
+        gruposCount[grupo]++;
+        
+        await pool.query(`
+          INSERT INTO libertadores_equipos (nombre, grupo, posicion_grupo, api_id, pais)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [
+          equipo.nombre,
+          grupo,
+          gruposCount[grupo],
+          equipo.api_id || null,
+          equipo.pais || ''
+        ]);
       }
     }
 
-    res.json({ mensaje: 'Equipos guardados exitosamente' });
+    res.json({ mensaje: 'Equipos guardados exitosamente', total: equipos.length });
   } catch (error) {
     console.error('Error guardando equipos:', error);
-    res.status(500).json({ error: 'Error guardando equipos' });
+    res.status(500).json({ error: 'Error guardando equipos', details: error.message });
   }
 });
 

@@ -571,7 +571,18 @@ function RankingsHistoricos() {
             {Object.entries(agruparPorCompetencia(rankings[2026]?.estandar || []))
               .map(([comp, items]) => (
                 <div key={comp} className="competencia-section">
-                  <h4>{comp}</h4>
+                  <div className="competencia-header">
+                    <h4>{comp}</h4>
+                    {usuario?.rol === 'admin' && editMode && (
+                      <button 
+                        className="btn-delete-competencia"
+                        onClick={() => eliminarCompetencia(2026, comp, 'estandar')}
+                        title="Eliminar toda esta competencia"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
                   <div className="jornadas-grid">
                     {Object.entries(agruparPorCategoria(items)).map(([cat, ganadores]) => (
                       <div key={cat} className="jornada-card">

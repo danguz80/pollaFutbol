@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import NavegacionLibertadores from '../components/NavegacionLibertadores';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -48,7 +49,6 @@ export default function JornadaLibertadores() {
     
     // Solo permitir acceso si está explícitamente en true
     if (usuario.activo_libertadores !== true) {
-      console.log('🚫 Usuario sin acceso a Libertadores:', usuario);
       alert("⚠️ No tienes acceso para ingresar pronósticos en la Copa Libertadores. Contacta al administrador.");
       navigate("/");
       return;
@@ -59,8 +59,6 @@ export default function JornadaLibertadores() {
 
   // Calcular finalistas basados en pronósticos del usuario (solo jornada 10)
   useEffect(() => {
-    console.log('🔍 useEffect ejecutándose - Jornada:', numero, 'Partidos:', partidos.length);
-    
     if (Number(numero) !== 10) {
       setEquiposFinalistasPronosticados([]);
       setPartidoFinal(null);
@@ -69,22 +67,16 @@ export default function JornadaLibertadores() {
     }
     
     if (partidos.length === 0) {
-      console.log('⚠️ Esperando que carguen los partidos...');
       return;
     }
-
-    console.log('🔍 Calculando finalistas - Partidos:', partidos.length);
-    console.log('🔍 Pronósticos actuales:', pronosticos);
 
     const partidosSemifinal = partidos.slice(0, 4);
     
     if (partidosSemifinal.length < 4) {
-      console.log('⚠️ No hay suficientes partidos de semifinal');
       return;
     }
 
     if (partidos.length < 5) {
-      console.log('⚠️ No hay partido de final creado todavía');
       setEquiposFinalistasPronosticados([]);
       setPartidoFinal(null);
       return;
@@ -97,23 +89,20 @@ export default function JornadaLibertadores() {
     );
 
     if (hayPronosticos) {
-      console.log('✅ Hay pronósticos guardados, verificando si están completos...');
       setMostrarCalcularFinalistas(true);
     }
 
     // Verificar que todos los pronósticos de semifinal estén completos para calcular
     const todosPronosticosCompletos = partidosSemifinal.every(p => 
       pronosticos[p.id] && 
-      pronosticos[p.id].goles_local !== undefined && 
+      pronosticos[p.id].goles_local !== undefined &&
       pronosticos[p.id].goles_visita !== undefined
     );
 
+    
     if (!todosPronosticosCompletos) {
-      console.log('⚠️ No todos los pronósticos están completos, esperando...');
       return;
-    }
-
-    // Calcular ganadores basados en PRONÓSTICOS del usuario
+    }    // Calcular ganadores basados en PRONÓSTICOS del usuario
     const ganadores = [];
     const partidosIda = [partidosSemifinal[0], partidosSemifinal[2]];
     const partidosVuelta = [partidosSemifinal[1], partidosSemifinal[3]];
@@ -121,25 +110,16 @@ export default function JornadaLibertadores() {
     partidosIda.forEach((ida, index) => {
       const vuelta = partidosVuelta[index];
       
-      console.log(`\n🏟️ Semifinal ${index + 1}:`);
-      console.log(`  IDA: ${ida.nombre_local} vs ${ida.nombre_visita}`);
-      console.log(`  VUELTA: ${vuelta.nombre_local} vs ${vuelta.nombre_visita}`);
-      
       const golesIdaLocal = Number(pronosticos[ida.id]?.goles_local ?? 0);
       const golesIdaVisita = Number(pronosticos[ida.id]?.goles_visita ?? 0);
       const golesVueltaLocal = Number(pronosticos[vuelta.id]?.goles_local ?? 0);
       const golesVueltaVisita = Number(pronosticos[vuelta.id]?.goles_visita ?? 0);
-      
-      console.log(`  Pronóstico IDA: ${golesIdaLocal}-${golesIdaVisita}`);
-      console.log(`  Pronóstico VUELTA: ${golesVueltaLocal}-${golesVueltaVisita}`);
       
       const penalesVueltaLocal = Number(pronosticos[vuelta.id]?.penales_local ?? 0);
       const penalesVueltaVisita = Number(pronosticos[vuelta.id]?.penales_visita ?? 0);
       
       const golesEquipoLocal = golesIdaLocal + golesVueltaVisita;
       const golesEquipoVisita = golesIdaVisita + golesVueltaLocal;
-      
-      console.log(`  Marcador global: ${ida.nombre_local} ${golesEquipoLocal} - ${golesEquipoVisita} ${ida.nombre_visita}`);
       
       let ganador = null;
       
@@ -150,24 +130,17 @@ export default function JornadaLibertadores() {
       } else {
         if (penalesVueltaLocal > 0 || penalesVueltaVisita > 0) {
           ganador = penalesVueltaLocal > penalesVueltaVisita ? vuelta.nombre_local : vuelta.nombre_visita;
-          console.log(`  Definido por penales: ${penalesVueltaLocal}-${penalesVueltaVisita}`);
         } else {
           ganador = ida.nombre_local;
-          console.log(`  ⚠️ Empate sin penales - ganador por defecto: ${ganador}`);
         }
       }
-      
-      console.log(`  ✅ Ganador: ${ganador}`);
       
       if (ganador) {
         ganadores.push(ganador);
       }
     });
     
-    console.log('\n🎯 Finalistas calculados:', ganadores);
-    
     const partidoFinalEncontrado = partidos[partidos.length - 1];
-    console.log('🏆 Partido final encontrado:', partidoFinalEncontrado);
     
     setEquiposFinalistasPronosticados(ganadores);
     setPartidoFinal(partidoFinalEncontrado);
@@ -186,14 +159,23 @@ export default function JornadaLibertadores() {
       setJornada(jornadaRes.data);
       setPartidos(jornadaRes.data.partidos || []);
 
-      // Cargar pronósticos guardados
-      const pronosticosRes = await axios.get(`${API_URL}/api/libertadores-pronosticos/jornada/${numero}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Cargar pronósticos guardados (si la jornada está abierta)
+      let pronosticosData = [];
+      try {
+        const pronosticosRes = await axios.get(`${API_URL}/api/libertadores-pronosticos/jornada/${numero}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          validateStatus: (status) => status < 500 // No lanzar error para 403
+        });
+        if (pronosticosRes.status === 200) {
+          pronosticosData = pronosticosRes.data;
+        }
+      } catch (err) {
+        // Ignorar errores - jornada probablemente cerrada
+      }
 
       const map = {};
       
-      pronosticosRes.data.forEach((pr) => {
+      pronosticosData.forEach((pr) => {
         map[pr.partido_id] = {
           goles_local: pr.goles_local,
           goles_visita: pr.goles_visita,
@@ -219,7 +201,7 @@ export default function JornadaLibertadores() {
             });
           }
         } catch (err) {
-          console.log('No hay pronóstico de final virtual aún');
+          // No hay pronóstico de final virtual aún
         }
       }
       setPronosticos(map);
@@ -497,7 +479,12 @@ export default function JornadaLibertadores() {
         
         <h2 className="h4 mb-1">Jornada {numero}</h2>
         <p className="text-muted small mb-3">{getSubtitulo(Number(numero))}</p>
+      </div>
         
+      {/* Botonera de navegación */}
+      <NavegacionLibertadores />
+        
+      <div className="text-center">
         {jornada.cerrada && (
           <div className="alert alert-warning mt-3">
             🔒 Esta jornada está cerrada. No puedes modificar los pronósticos.
@@ -512,8 +499,8 @@ export default function JornadaLibertadores() {
       ) : (
         <>
           <div className="row">
-            {/* Columna de partidos - 2/3 del ancho con 2 columnas internas */}
-            <div className="col-12 col-lg-8">
+            {/* Columna de partidos - centrada para J7-J10, 2/3 para J1-J6 */}
+            <div className={`col-12 ${Number(numero) <= 6 ? 'col-lg-8' : 'col-lg-10 offset-lg-1'}`}>
               <h5 className="fw-bold mb-3">🎯 Tus Pronósticos</h5>
               <div className="row g-3 mb-4">
                 {partidos
@@ -622,7 +609,6 @@ export default function JornadaLibertadores() {
                       
                       // Si no encuentra partido IDA, no mostrar penales
                       if (!partidoIda) {
-                        console.log(`❌ J${numero} - No se encontró partido IDA para`, partido.nombre_local, 'vs', partido.nombre_visita);
                         return null;
                       }
                       
@@ -637,10 +623,6 @@ export default function JornadaLibertadores() {
                       const hayEmpate = golesEquipoA === golesEquipoB && 
                                        (pronosticos[partido.id]?.goles_local !== undefined || 
                                         pronosticos[partido.id]?.goles_visita !== undefined);
-                      
-                      console.log(`⚽ J${numero} - Partido VUELTA:`, partido.nombre_local, 'vs', partido.nombre_visita);
-                      console.log(`  IDA: ${golesIdaLocal}-${golesIdaVisita}, VUELTA: ${golesVueltaLocal}-${golesVueltaVisita}`);
-                      console.log(`  Global: ${golesEquipoA}-${golesEquipoB}, Empate: ${hayEmpate}`);
                       
                       if (!hayEmpate) return null;
                       
@@ -700,7 +682,6 @@ export default function JornadaLibertadores() {
                   <button 
                     className="btn btn-primary btn-sm"
                     onClick={() => {
-                      console.log('🔄 Forzando recálculo de finalistas...');
                       setPronosticos(prev => ({...prev}));
                     }}
                   >

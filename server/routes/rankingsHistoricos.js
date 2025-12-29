@@ -227,140 +227,148 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
   try {
     // Obtener temporada del query param o usar año actual
     const temporada = parseInt(req.query.temporada) || new Date().getFullYear();
+    const competenciaParam = req.query.competencia || 'todas'; // 'todas', 'libertadores', 'nacional'
     
     const nuevosRegistros = [];
     
     // ============================================
     // 1. TORNEO NACIONAL - Ganadores de Jornadas (Estándar)
     // ============================================
-    const ganadoresJornadasNacional = await pool.query(`
-      SELECT
-        $1::integer as anio,
-        'Torneo Nacional' as competencia,
-        'estandar' as tipo,
-        j.numero::text as categoria,
-        u.id as usuario_id,
-        NULL as nombre_manual,
-        ROW_NUMBER() OVER (PARTITION BY j.numero ORDER BY u.nombre) as posicion,
-        0 as puntos
-      FROM ganadores_jornada gj
-      JOIN jornadas j ON gj.jornada_id = j.id
-      JOIN usuarios u ON gj.jugador_id = u.id
-      WHERE NOT EXISTS (
-        SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = $1::integer
-          AND rh.competencia = 'Torneo Nacional'
-          AND rh.tipo = 'estandar'
-          AND rh.categoria = j.numero::text
-          AND rh.usuario_id = u.id
-      )
-    `, [temporada]);
+    if (competenciaParam === 'todas' || competenciaParam === 'nacional') {
+      const ganadoresJornadasNacional = await pool.query(`
+        SELECT
+          $1::integer as anio,
+          'Torneo Nacional' as competencia,
+          'estandar' as tipo,
+          j.numero::text as categoria,
+          u.id as usuario_id,
+          NULL as nombre_manual,
+          ROW_NUMBER() OVER (PARTITION BY j.numero ORDER BY u.nombre) as posicion,
+          0 as puntos
+        FROM ganadores_jornada gj
+        JOIN jornadas j ON gj.jornada_id = j.id
+        JOIN usuarios u ON gj.jugador_id = u.id
+        WHERE NOT EXISTS (
+          SELECT 1 FROM rankings_historicos rh
+          WHERE rh.anio = $1::integer
+            AND rh.competencia = 'Torneo Nacional'
+            AND rh.tipo = 'estandar'
+            AND rh.categoria = j.numero::text
+            AND rh.usuario_id = u.id
+        )
+      `, [temporada]);
+      
+      nuevosRegistros.push(...ganadoresJornadasNacional.rows);
+    }
     
     // ============================================
     // 2. TORNEO NACIONAL - Ganador Acumulado (Mayor)
     // ============================================
-    const ganadorAcumuladoNacional = await pool.query(`
-      SELECT * FROM (
-        SELECT 
-          $1::integer as anio,
-          'Torneo Nacional' as competencia,
-          'mayor' as tipo,
-          NULL::text as categoria,
-          u.id as usuario_id,
-          NULL as nombre_manual,
-          ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre ASC) as posicion,
-          COALESCE(SUM(p.puntos), 0) as puntos
-        FROM usuarios u
-        LEFT JOIN pronosticos p ON u.id = p.usuario_id
-        LEFT JOIN jornadas j ON p.jornada_id = j.id
-        WHERE j.cerrada = true
-        GROUP BY u.id
-        HAVING COALESCE(SUM(p.puntos), 0) > 0
-        ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre ASC
-        LIMIT 3
-      ) ranking
-      WHERE NOT EXISTS (
-        SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = $1::integer
-          AND rh.competencia = 'Torneo Nacional'
-          AND rh.tipo = 'mayor'
-          AND rh.usuario_id = ranking.usuario_id
-          AND rh.posicion = ranking.posicion
-      )
-    `, [temporada]);
+    if (competenciaParam === 'todas' || competenciaParam === 'nacional') {
+      const ganadorAcumuladoNacional = await pool.query(`
+        SELECT * FROM (
+          SELECT 
+            $1::integer as anio,
+            'Torneo Nacional' as competencia,
+            'mayor' as tipo,
+            NULL::text as categoria,
+            u.id as usuario_id,
+            NULL as nombre_manual,
+            ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre ASC) as posicion,
+            COALESCE(SUM(p.puntos), 0) as puntos
+          FROM usuarios u
+          LEFT JOIN pronosticos p ON u.id = p.usuario_id
+          LEFT JOIN jornadas j ON p.jornada_id = j.id
+          WHERE j.cerrada = true
+          GROUP BY u.id
+          HAVING COALESCE(SUM(p.puntos), 0) > 0
+          ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre ASC
+          LIMIT 3
+        ) ranking
+        WHERE NOT EXISTS (
+          SELECT 1 FROM rankings_historicos rh
+          WHERE rh.anio = $1::integer
+            AND rh.competencia = 'Torneo Nacional'
+            AND rh.tipo = 'mayor'
+            AND rh.usuario_id = ranking.usuario_id
+            AND rh.posicion = ranking.posicion
+        )
+      `, [temporada]);
+      
+      nuevosRegistros.push(...ganadorAcumuladoNacional.rows);
+    }
 
     // ============================================
     // 3. LIBERTADORES - Ganadores de Jornadas (Estándar)
     // ============================================
-    const ganadoresJornadasLibertadores = await pool.query(`
-      SELECT
-        2026 as anio,
-        'Copa Libertadores' as competencia,
-        'estandar' as tipo,
-        lgj.jornada_numero::text as categoria,
-        u.id as usuario_id,
-        NULL as nombre_manual,
-        ROW_NUMBER() OVER (PARTITION BY lgj.jornada_numero ORDER BY lgj.puntaje DESC, u.nombre) as posicion,
-        lgj.puntaje as puntos
-      FROM libertadores_ganadores_jornada lgj
-      JOIN usuarios u ON lgj.usuario_id = u.id
-      WHERE NOT EXISTS (
-        SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = 2026
-          AND rh.competencia = 'Copa Libertadores'
-          AND rh.tipo = 'estandar'
-          AND rh.categoria = lgj.jornada_numero::text
-          AND rh.usuario_id = u.id
-      )
-    `);
+    if (competenciaParam === 'todas' || competenciaParam === 'libertadores') {
+      const ganadoresJornadasLibertadores = await pool.query(`
+        SELECT
+          $1::integer as anio,
+          'Copa Libertadores' as competencia,
+          'estandar' as tipo,
+          lgj.jornada_numero::text as categoria,
+          u.id as usuario_id,
+          NULL as nombre_manual,
+          ROW_NUMBER() OVER (PARTITION BY lgj.jornada_numero ORDER BY lgj.puntaje DESC, u.nombre) as posicion,
+          lgj.puntaje as puntos
+        FROM libertadores_ganadores_jornada lgj
+        JOIN usuarios u ON lgj.usuario_id = u.id
+        WHERE NOT EXISTS (
+          SELECT 1 FROM rankings_historicos rh
+          WHERE rh.anio = $1::integer
+            AND rh.competencia = 'Copa Libertadores'
+            AND rh.tipo = 'estandar'
+            AND rh.categoria = lgj.jornada_numero::text
+            AND rh.usuario_id = u.id
+        )
+      `, [temporada]);
+      
+      nuevosRegistros.push(...ganadoresJornadasLibertadores.rows);
+    }
 
     // ============================================
     // 4. LIBERTADORES - Ganador Acumulado (Mayor)
     // ============================================
-    const ganadorAcumuladoLibertadores = await pool.query(`
-      SELECT * FROM (
-        SELECT
-          2026 as anio,
-          'Copa Libertadores' as competencia,
-          'mayor' as tipo,
-          NULL as categoria,
-          lga.usuario_id,
-          NULL as nombre_manual,
-          ROW_NUMBER() OVER (ORDER BY lga.puntaje DESC, u.nombre) as posicion,
-          lga.puntaje as puntos
-        FROM libertadores_ganadores_acumulado lga
-        JOIN usuarios u ON lga.usuario_id = u.id
-        ORDER BY lga.puntaje DESC, u.nombre
-        LIMIT 3
-      ) ranking
-      WHERE NOT EXISTS (
-        SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = 2026
-          AND rh.competencia = 'Copa Libertadores'
-          AND rh.tipo = 'mayor'
-          AND rh.usuario_id = ranking.usuario_id
-      )
-    `);
-
-    // Combinar todos los resultados
-    const todosLosNuevos = [
-      ...ganadoresJornadasNacional.rows,
-      ...ganadorAcumuladoNacional.rows,
-      ...ganadoresJornadasLibertadores.rows,
-      ...ganadorAcumuladoLibertadores.rows
-    ];
+    if (competenciaParam === 'todas' || competenciaParam === 'libertadores') {
+      const ganadorAcumuladoLibertadores = await pool.query(`
+        SELECT * FROM (
+          SELECT
+            $1::integer as anio,
+            'Copa Libertadores' as competencia,
+            'mayor' as tipo,
+            NULL as categoria,
+            lga.usuario_id,
+            NULL as nombre_manual,
+            ROW_NUMBER() OVER (ORDER BY lga.puntaje DESC, u.nombre) as posicion,
+            lga.puntaje as puntos
+          FROM libertadores_ganadores_acumulado lga
+          JOIN usuarios u ON lga.usuario_id = u.id
+          ORDER BY lga.puntaje DESC, u.nombre
+          LIMIT 3
+        ) ranking
+        WHERE NOT EXISTS (
+          SELECT 1 FROM rankings_historicos rh
+          WHERE rh.anio = $1::integer
+            AND rh.competencia = 'Copa Libertadores'
+            AND rh.tipo = 'mayor'
+            AND rh.usuario_id = ranking.usuario_id
+        )
+      `, [temporada]);
+      
+      nuevosRegistros.push(...ganadorAcumuladoLibertadores.rows);
+    }
 
     // Insertar los nuevos registros
-    for (const registro of todosLosNuevos) {
+    const registrosInsertados = [];
+    for (const registro of nuevosRegistros) {
       try {
         await pool.query(`
           INSERT INTO rankings_historicos 
             (anio, competencia, tipo, categoria, usuario_id, nombre_manual, posicion, puntos)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          ON CONFLICT (anio, competencia, categoria, usuario_id, nombre_manual, posicion)
-          DO UPDATE SET 
-            puntos = EXCLUDED.puntos,
-            actualizado_en = CURRENT_TIMESTAMP
+          ON CONFLICT (anio, competencia, tipo, categoria, usuario_id, nombre_manual, posicion)
+          DO NOTHING
         `, [
           registro.anio,
           registro.competencia,
@@ -371,16 +379,17 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
           registro.posicion,
           registro.puntos
         ]);
-        nuevosRegistros.push(registro);
+        registrosInsertados.push(registro);
       } catch (insertErr) {
         console.error('Error insertando registro:', insertErr);
       }
     }
 
     res.json({
-      mensaje: `Se detectaron y agregaron ${nuevosRegistros.length} nuevos registros`,
-      cantidad: nuevosRegistros.length,
-      registros: nuevosRegistros.map(r => ({
+      mensaje: `Se detectaron y agregaron ${registrosInsertados.length} nuevos registros para ${competenciaParam === 'libertadores' ? 'Copa Libertadores' : competenciaParam === 'nacional' ? 'Torneo Nacional' : 'todas las competencias'}`,
+      total: registrosInsertados.length,
+      temporada: temporada,
+      registros: registrosInsertados.map(r => ({
         competencia: r.competencia,
         tipo: r.tipo === 'mayor' ? 'Cuadro de Honor Mayor' : 'Cuadro de Honor Estándar',
         categoria: r.categoria ? `Jornada ${r.categoria}` : 'Ranking Acumulado'

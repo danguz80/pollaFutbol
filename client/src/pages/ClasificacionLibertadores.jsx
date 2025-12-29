@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import FireworksEffect from '../components/FireworksEffect';
+import NavegacionLibertadores from '../components/NavegacionLibertadores';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -484,27 +485,7 @@ export default function ClasificacionLibertadores() {
       </div>
 
       {/* Botonera Principal */}
-      <div className="mb-4 text-center d-flex gap-3 justify-content-center flex-wrap">
-        <button 
-          className="btn btn-danger btn-lg px-4"
-          onClick={() => navigate('/libertadores/estadisticas')}
-        >
-          📊 Estadísticas
-        </button>
-        <button 
-          className="btn btn-primary btn-lg px-4"
-          onClick={() => navigate('/libertadores/clasificacion')}
-          disabled
-        >
-          📋 Clasificación
-        </button>
-        <button 
-          className="btn btn-warning btn-lg px-4"
-          onClick={() => navigate('/libertadores/puntuacion')}
-        >
-          🏆 Puntuación
-        </button>
-      </div>
+      <NavegacionLibertadores />
 
       {/* Botón Calcular Puntos (Solo Admin) */}
       {esAdmin && (
