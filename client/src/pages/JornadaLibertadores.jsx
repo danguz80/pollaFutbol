@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import NavegacionLibertadores from '../components/NavegacionLibertadores';
+import { LogoEquipo } from '../utils/libertadoresLogos.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -298,6 +299,65 @@ export default function JornadaLibertadores() {
     setPronosticos(nuevosPronosticos);
   };
 
+  const generarAzarFaseGruposCompleta = async () => {
+    if (!confirm('¿Estás seguro de completar TODAS las jornadas de fase de grupos (1-6) con resultados aleatorios?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Iterar sobre jornadas 1 a 6
+      for (let jornadaNum = 1; jornadaNum <= 6; jornadaNum++) {
+        // Obtener jornada para el ID
+        const responseJornada = await axios.get(
+          `${API_URL}/api/libertadores/jornadas`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const jornadaActual = responseJornada.data.find(j => j.numero === jornadaNum);
+        
+        if (!jornadaActual) continue;
+
+        // Obtener partidos de la jornada
+        const responsePartidos = await axios.get(
+          `${API_URL}/api/libertadores/jornadas/${jornadaNum}/partidos`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        const partidosJornada = responsePartidos.data;
+        
+        // Enviar pronósticos uno por uno
+        for (const partido of partidosJornada) {
+          await axios.post(
+            `${API_URL}/api/libertadores-pronosticos`,
+            {
+              partido_id: partido.id,
+              jornada_id: jornadaActual.id,
+              goles_local: Math.floor(Math.random() * 5),
+              goles_visita: Math.floor(Math.random() * 5),
+              penales_local: null,
+              penales_visita: null
+            },
+            { 
+              headers: { 
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              } 
+            }
+          );
+        }
+      }
+
+      alert('✅ Se completaron todas las jornadas de fase de grupos (1-6) con resultados aleatorios');
+      
+      // Recargar la jornada actual
+      cargarDatos();
+    } catch (error) {
+      console.error('Error al generar azar fase grupos completa:', error);
+      alert('❌ Error al completar fase de grupos: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
   const resetearTodos = () => {
     const nuevosPronosticos = {};
     partidos.forEach(partido => {
@@ -311,6 +371,12 @@ export default function JornadaLibertadores() {
 
   const handleEnviar = async () => {
     if (!jornada || jornada.cerrada) return;
+
+    // Validar que la jornada esté activa
+    if (!jornada.activa) {
+      setMensaje("❌ Esta jornada no está activa. No puedes guardar pronósticos.");
+      return;
+    }
 
     try {
       setMensaje("");
@@ -485,6 +551,12 @@ export default function JornadaLibertadores() {
       <NavegacionLibertadores />
         
       <div className="text-center">
+        {!jornada.activa && !jornada.cerrada && (
+          <div className="alert alert-warning mt-3">
+            ⚠️ Esta jornada aún no está activa. No puedes ingresar pronósticos hasta que el administrador la active.
+          </div>
+        )}
+        
         {jornada.cerrada && (
           <div className="alert alert-warning mt-3">
             🔒 Esta jornada está cerrada. No puedes modificar los pronósticos.
@@ -535,10 +607,13 @@ export default function JornadaLibertadores() {
 
                     <div className="row align-items-center text-center">
                       <div className="col-5">
-                        <p className="fw-bold mb-2">
-                          {partido.nombre_local}
-                          {partido.pais_local && <span className="text-muted ms-1">({partido.pais_local})</span>}
-                        </p>
+                        <div className="d-flex align-items-center justify-content-center mb-2">
+                          <LogoEquipo nombre={partido.nombre_local} />
+                          <p className="fw-bold mb-0">
+                            {partido.nombre_local}
+                            {partido.pais_local && <span className="text-muted ms-1">({partido.pais_local})</span>}
+                          </p>
+                        </div>
                         <input
                           type="number"
                           min="0"
@@ -556,10 +631,13 @@ export default function JornadaLibertadores() {
                       </div>
 
                       <div className="col-5">
-                        <p className="fw-bold mb-2">
-                          {partido.nombre_visita}
-                          {partido.pais_visita && <span className="text-muted ms-1">({partido.pais_visita})</span>}
-                        </p>
+                        <div className="d-flex align-items-center justify-content-center mb-2">
+                          <LogoEquipo nombre={partido.nombre_visita} />
+                          <p className="fw-bold mb-0">
+                            {partido.nombre_visita}
+                            {partido.pais_visita && <span className="text-muted ms-1">({partido.pais_visita})</span>}
+                          </p>
+                        </div>
                         <input
                           type="number"
                           min="0"
@@ -813,7 +891,10 @@ export default function JornadaLibertadores() {
                                 <tr key={equipo.nombre} className={index < 2 ? 'table-success' : ''}>
                                   <td className="text-center fw-bold">{equipo.posicion}</td>
                                   <td className="small">
-                                    {equipo.nombre.length > 15 ? equipo.nombre.substring(0, 15) + '...' : equipo.nombre}
+                                    <div className="d-flex align-items-center">
+                                      <LogoEquipo nombre={equipo.nombre} style={{ width: '20px', height: '20px', marginRight: '6px' }} />
+                                      {equipo.nombre.length > 15 ? equipo.nombre.substring(0, 15) + '...' : equipo.nombre}
+                                    </div>
                                   </td>
                                   <td className="text-center">{equipo.pj}</td>
                                   <td className="text-center">{equipo.dif > 0 ? '+' : ''}{equipo.dif}</td>
@@ -832,10 +913,15 @@ export default function JornadaLibertadores() {
             )}
           </div>
 
-          {!jornada.cerrada && (
+          {!jornada.cerrada && jornada.activa && (
             <div className="text-center d-flex gap-3 justify-content-center flex-wrap">
+              {Number(numero) <= 6 && (
+                <button className="btn btn-outline-warning btn-lg px-4" onClick={generarAzarFaseGruposCompleta}>
+                  🎲✨ Azar Fase Grupos Completa
+                </button>
+              )}
               <button className="btn btn-outline-info btn-lg px-4" onClick={generarAleatorioTodos}>
-                🎲 Azar
+                🎲 Azar Solo Jornada {numero}
               </button>
               <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
                 🔄 Resetear

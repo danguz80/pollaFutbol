@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import NavegacionLibertadores from '../components/NavegacionLibertadores';
+import { LogoEquipo } from '../utils/libertadoresLogos.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -100,10 +101,15 @@ export default function EstadisticasLibertadores() {
                               >
                                 <td className="text-center fw-bold">{equipo.posicion}</td>
                                 <td>
-                                  {equipo.nombre}
-                                  {equipo.pais && (
-                                    <span className="text-muted small ms-1">({equipo.pais})</span>
-                                  )}
+                                  <div className="d-flex align-items-center">
+                                    <LogoEquipo nombre={equipo.nombre} style={{ width: '24px', height: '24px', marginRight: '8px' }} />
+                                    <span>
+                                      {equipo.nombre}
+                                      {equipo.pais && (
+                                        <span className="text-muted small ms-1">({equipo.pais})</span>
+                                      )}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="text-center">{equipo.pj}</td>
                                 <td className="text-center">{equipo.pg}</td>

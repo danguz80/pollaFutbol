@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import AccesosDirectos from "../../components/AccesosDirectos";
+import NavegacionLibertadores from "../../components/NavegacionLibertadores";
+import { LogoEquipo } from "../../utils/libertadoresLogos.jsx";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -156,6 +157,53 @@ export default function AdminLibertadoresResultados() {
     setPartidos(partidosAzar);
   };
 
+  const generarAzarFaseGruposCompleta = async () => {
+    if (!confirm('¿Estás seguro de completar TODAS las jornadas de fase de grupos (1-6) con resultados aleatorios?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Iterar sobre jornadas 1 a 6
+      for (let jornadaNum = 1; jornadaNum <= 6; jornadaNum++) {
+        // Obtener partidos de la jornada
+        const responsePartidos = await fetch(
+          `${API_BASE_URL}/api/libertadores/jornadas/${jornadaNum}/partidos`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const partidosJornada = await responsePartidos.json();
+        
+        // Generar resultados aleatorios y guardarlos
+        const resultados = partidosJornada.map(partido => ({
+          id: partido.id,
+          golesLocal: Math.floor(Math.random() * 4),
+          golesVisita: Math.floor(Math.random() * 4)
+        }));
+
+        // Guardar resultados
+        await fetch(`${API_BASE_URL}/api/libertadores/resultados`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ resultados })
+        });
+      }
+
+      alert('✅ Se completaron todas las jornadas de fase de grupos (1-6) con resultados aleatorios');
+      
+      // Recargar la jornada actual
+      if (jornadaSeleccionada) {
+        cargarPartidos();
+      }
+    } catch (error) {
+      console.error('Error al generar azar fase grupos completa:', error);
+      alert('❌ Error al completar fase de grupos');
+    }
+  };
+
   const toggleCierreJornada = async () => {
     if (!jornadaSeleccionada) return;
     try {
@@ -164,6 +212,45 @@ export default function AdminLibertadoresResultados() {
       if (!jornada) {
         alert("No se encontró la jornada");
         return;
+      }
+      
+      // Si se está cerrando la jornada, generar y enviar PDF primero
+      if (!jornadaCerrada) {
+        const confirmarCierre = confirm(
+          `¿Cerrar la jornada ${jornadaSeleccionada}?\n\n` +
+          `Se generará un PDF con todos los pronósticos y se enviará por email antes de cerrar.`
+        );
+        
+        if (!confirmarCierre) return;
+        
+        // Generar y enviar PDF
+        try {
+          const pdfResponse = await fetch(
+            `${API_BASE_URL}/api/libertadores-pronosticos/generar-pdf/${jornadaSeleccionada}`,
+            {
+              method: 'POST',
+              headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (!pdfResponse.ok) {
+            const errorData = await pdfResponse.json();
+            throw new Error(errorData.error || 'Error al generar PDF');
+          }
+          
+          const pdfData = await pdfResponse.json();
+          console.log('PDF generado:', pdfData.mensaje);
+        } catch (pdfError) {
+          const continuar = confirm(
+            `⚠️ Error al generar/enviar PDF: ${pdfError.message}\n\n` +
+            `¿Deseas cerrar la jornada de todos modos?`
+          );
+          
+          if (!continuar) return;
+        }
       }
       
       const res = await fetch(`${API_BASE_URL}/api/libertadores/jornadas/${jornada.id}/estado`, {
@@ -179,7 +266,7 @@ export default function AdminLibertadoresResultados() {
       setJornadaCerrada(!!data.jornada?.cerrada);
       
       if (data.jornada?.cerrada) {
-        alert("🔒 Jornada cerrada");
+        alert("🔒 Jornada cerrada exitosamente\n\n✉️ PDF testigo enviado por email");
       } else {
         alert("🔓 Jornada abierta");
       }
@@ -232,7 +319,7 @@ export default function AdminLibertadoresResultados() {
 
   return (
     <div className="container mt-4">
-      <AccesosDirectos />
+      <NavegacionLibertadores />
       
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2>📊 Resultados y Jornadas - Copa Libertadores</h2>
@@ -329,14 +416,19 @@ export default function AdminLibertadoresResultados() {
                     <th>Local</th>
                     <th>Marcador</th>
                     <th>Visita</th>
-                    <th>Penales</th>
+                    {Number(jornadaSeleccionada) >= 8 && <th>Penales</th>}
                     <th>Bonus</th>
                   </tr>
                 </thead>
                 <tbody>
                   {partidos.map((p) => (
                     <tr key={p.id}>
-                      <td className="fw-bold">{p.local}</td>
+                      <td className="fw-bold">
+                        <div className="d-flex align-items-center">
+                          <LogoEquipo nombre={p.local} style={{ width: '24px', height: '24px' }} />
+                          {p.local}
+                        </div>
+                      </td>
                       <td>
                         <div className="d-flex justify-content-center align-items-center gap-2">
                           <input
@@ -358,30 +450,37 @@ export default function AdminLibertadoresResultados() {
                           />
                         </div>
                       </td>
-                      <td className="fw-bold">{p.visita}</td>
-                      <td>
-                        <div className="d-flex justify-content-center align-items-center gap-2">
-                          <input
-                            type="number"
-                            min="0"
-                            className="form-control text-center"
-                            style={{ width: "60px" }}
-                            placeholder="P"
-                            value={p.penalesLocal ?? ""}
-                            onChange={(e) => handleCambiarGoles(p.id, "penalesLocal", e.target.value)}
-                          />
-                          <span>-</span>
-                          <input
-                            type="number"
-                            min="0"
-                            className="form-control text-center"
-                            style={{ width: "60px" }}
-                            placeholder="P"
-                            value={p.penalesVisita ?? ""}
-                            onChange={(e) => handleCambiarGoles(p.id, "penalesVisita", e.target.value)}
-                          />
+                      <td className="fw-bold">
+                        <div className="d-flex align-items-center">
+                          <LogoEquipo nombre={p.visita} style={{ width: '24px', height: '24px' }} />
+                          {p.visita}
                         </div>
                       </td>
+                      {Number(jornadaSeleccionada) >= 8 && (
+                        <td>
+                          <div className="d-flex justify-content-center align-items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-control text-center"
+                              style={{ width: "60px" }}
+                              placeholder="P"
+                              value={p.penalesLocal ?? ""}
+                              onChange={(e) => handleCambiarGoles(p.id, "penalesLocal", e.target.value)}
+                            />
+                            <span>-</span>
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-control text-center"
+                              style={{ width: "60px" }}
+                              placeholder="P"
+                              value={p.penalesVisita ?? ""}
+                              onChange={(e) => handleCambiarGoles(p.id, "penalesVisita", e.target.value)}
+                            />
+                          </div>
+                        </td>
+                      )}
                       <td>
                         <select
                           className="form-select form-select-sm"
@@ -400,8 +499,13 @@ export default function AdminLibertadoresResultados() {
               </table>
 
               <div className="d-flex gap-2 justify-content-center flex-wrap">
+                {Number(jornadaSeleccionada) <= 6 && (
+                  <button className="btn btn-outline-warning btn-lg" onClick={generarAzarFaseGruposCompleta}>
+                    🎲✨ Azar Fase Grupos Completa
+                  </button>
+                )}
                 <button className="btn btn-outline-info btn-lg" onClick={generarAzar}>
-                  🎲 Azar
+                  🎲 Azar Solo Jornada {jornadaSeleccionada}
                 </button>
                 <button className="btn btn-primary btn-lg" onClick={guardarResultados}>
                   💾 Guardar Resultados

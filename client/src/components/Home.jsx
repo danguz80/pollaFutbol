@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import CuentaRegresivaGlobal from "./CuentaRegresivaGlobal";
+import HeroSection from "./HeroSection";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -266,7 +267,7 @@ export default function Home() {
         <div className="container text-center mt-5">
             <h1 className="mb-4">🏠 Home - Bienvenido a Polla del Campeonato</h1>
 
-            {/* Botón de acceso directo al campeonato */}
+            {/* Botones de acceso directo al campeonato - ARRIBA */}
             <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3 mb-4">
                 <button
                     className="btn btn-primary px-4 py-2"
@@ -282,24 +283,31 @@ export default function Home() {
                 </button>
             </div>
 
+            {/* Hero Section con partidos destacados - DEBAJO DE BOTONES */}
+            {usuario && <HeroSection />}
+
             {usuario && (
                 <>
                     {/* Cuenta Regresiva Campeonato */}
                     <CuentaRegresivaGlobal />
 
-                    {/* Top 3 Ranking Torneo Nacional */}
-                    <Top3Component 
-                        title="Top 3 Torneo Nacional" 
-                        ranking={rankingCampeonato} 
-                        emoji="🏆"
-                    />
+                    {/* Top 3 Ranking Torneo Nacional - Solo si hay puntos */}
+                    {rankingCampeonato.length > 0 && rankingCampeonato[0]?.puntaje_total > 0 && (
+                        <Top3Component 
+                            title="Top 3 Torneo Nacional" 
+                            ranking={rankingCampeonato} 
+                            emoji="🏆"
+                        />
+                    )}
 
-                    {/* Top 3 Ranking Libertadores */}
-                    <Top3Component 
-                        title="Top 3 Copa Libertadores" 
-                        ranking={rankingLibertadores} 
-                        emoji="🔴"
-                    />
+                    {/* Top 3 Ranking Libertadores - Solo si hay puntos */}
+                    {rankingLibertadores.length > 0 && rankingLibertadores[0]?.puntos_total > 0 && (
+                        <Top3Component 
+                            title="Top 3 Copa Libertadores" 
+                            ranking={rankingLibertadores} 
+                            emoji="🔴"
+                        />
+                    )}
 
                     {/* SECCIÓN DE ADMINISTRACIÓN DE USUARIOS - SOLO ADMIN */}
                     {esAdmin && (

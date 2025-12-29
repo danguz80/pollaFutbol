@@ -93,6 +93,11 @@ export default function ClasificacionLibertadores() {
       setJugadores(jugadoresRes.data);
       
       console.log('Jornadas cargadas:', jornadasRes.data.length);
+      console.log('Jornadas:', jornadasRes.data);
+      
+      if (jornadasRes.data.length === 0) {
+        console.warn('⚠️ No hay jornadas disponibles en la base de datos');
+      }
     } catch (error) {
       console.error('Error cargando datos iniciales:', error);
       if (error.response?.status === 401 || error.response?.status === 403) {

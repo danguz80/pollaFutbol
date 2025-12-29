@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import NavegacionLibertadores from '../components/NavegacionLibertadores';
+import HeroSection from '../components/HeroSection';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -113,7 +114,7 @@ export default function Libertadores() {
   const getEstadoJornada = (jornada) => {
     if (jornada.cerrada) return { texto: 'Cerrada', clase: 'danger' };
     if (jornada.activa) return { texto: 'Abierta', clase: 'success' };
-    return { texto: 'Próximamente', clase: 'secondary' };
+    return { texto: 'Disponible', clase: 'info' };
   };
 
   if (loading) {
@@ -135,6 +136,9 @@ export default function Libertadores() {
 
       {/* Botonera Principal */}
       <NavegacionLibertadores />
+
+      {/* Hero Section con partidos destacados de Libertadores */}
+      <HeroSection competencia="libertadores" />
 
       {/* Banner de Últimos Ganadores */}
       {ultimosGanadores && (
