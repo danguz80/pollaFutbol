@@ -10,6 +10,7 @@ export default function AdminTorneoNacional() {
   const [loading, setLoading] = useState(false);
   const [respaldoExiste, setRespaldoExiste] = useState(false);
   const [estadisticas, setEstadisticas] = useState(null);
+  const [temporada, setTemporada] = useState(2026); // Temporada actual del torneo
 
   useEffect(() => {
     verificarRespaldo();
@@ -20,7 +21,7 @@ export default function AdminTorneoNacional() {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `${API_URL}/api/admin/verificar-respaldo-torneo`,
+        `${API_URL}/api/admin/verificar-respaldo-torneo?temporada=${temporada}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setRespaldoExiste(response.data.existe);
@@ -43,7 +44,7 @@ export default function AdminTorneoNacional() {
   };
 
   const crearRespaldo = async () => {
-    if (!confirm('¿Crear respaldo de ganadores en Rankings Históricos?')) {
+    if (!confirm(`¿Crear respaldo de ganadores del Torneo Nacional ${temporada} en Rankings Históricos?`)) {
       return;
     }
 
@@ -51,12 +52,12 @@ export default function AdminTorneoNacional() {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${API_URL}/api/rankings-historicos/actualizar`,
+        `${API_URL}/api/rankings-historicos/actualizar?temporada=${temporada}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      alert(`✅ Respaldo creado exitosamente\n\n${response.data.mensaje}\n\nTotal guardados: ${response.data.total}`);
+      alert(`✅ Respaldo creado exitosamente para temporada ${temporada}\n\n${response.data.mensaje}\n\nTotal guardados: ${response.data.total}`);
       verificarRespaldo();
     } catch (error) {
       console.error('Error creando respaldo:', error);
@@ -68,12 +69,13 @@ export default function AdminTorneoNacional() {
 
   const eliminarDatos = async () => {
     if (!respaldoExiste) {
-      alert('⚠️ Primero debes crear un respaldo de los ganadores');
+      alert(`⚠️ Primero debes crear un respaldo de los ganadores para la temporada ${temporada}`);
       return;
     }
 
     const confirmacion = window.prompt(
-      '⚠️ ADVERTENCIA: Esta acción eliminará todos los datos del Torneo Nacional actual.\n\n' +
+      `⚠️ ADVERTENCIA: Esta acción eliminará todos los datos del Torneo Nacional.\n\n` +
+      `Los ganadores se guardarán en Rankings Históricos bajo la temporada ${temporada}.\n\n` +
       'Se eliminarán:\n' +
       '- Todas las jornadas\n' +
       '- Todos los partidos\n' +
@@ -93,12 +95,13 @@ export default function AdminTorneoNacional() {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.delete(
-        `${API_URL}/api/admin/eliminar-datos-torneo`,
+        `${API_URL}/api/admin/eliminar-datos-torneo?temporada=${temporada}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      alert(`✅ Datos eliminados exitosamente\n\n${response.data.mensaje}`);
+      alert(`✅ Datos eliminados exitosamente\n\n${response.data.mensaje}\n\nLos ganadores fueron guardados en Rankings Históricos - Temporada ${temporada}`);
       cargarEstadisticas();
+      verificarRespaldo();
     } catch (error) {
       console.error('Error eliminando datos:', error);
       alert(`❌ Error: ${error.response?.data?.error || error.message}`);
@@ -136,14 +139,41 @@ export default function AdminTorneoNacional() {
       </div>
 
       {/* Estado del respaldo */}
+      <div className="card mb-4">
+        <div className="card-header">
+          <h5>🗓️ Temporada del Torneo</h5>
+        </div>
+        <div className="card-body">
+          <div className="d-flex align-items-center gap-3">
+            <label className="fw-bold">Seleccionar Temporada:</label>
+            <select 
+              className="form-select w-auto"
+              value={temporada}
+              onChange={(e) => {
+                setTemporada(parseInt(e.target.value));
+                setTimeout(verificarRespaldo, 100);
+              }}
+            >
+              <option value={2025}>2025</option>
+              <option value={2026}>2026</option>
+              <option value={2027}>2027</option>
+              <option value={2028}>2028</option>
+            </select>
+            <span className="text-muted">
+              Esta temporada se usará para respaldar los ganadores en Rankings Históricos
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className={`alert ${respaldoExiste ? 'alert-success' : 'alert-warning'} mb-4`}>
         <h5 className="alert-heading">
-          {respaldoExiste ? '✅ Respaldo Existente' : '⚠️ Sin Respaldo'}
+          {respaldoExiste ? `✅ Respaldo Existente (Temporada ${temporada})` : `⚠️ Sin Respaldo para Temporada ${temporada}`}
         </h5>
         <p className="mb-0">
           {respaldoExiste 
-            ? 'Los ganadores actuales están respaldados en Rankings Históricos. Puedes eliminar los datos de forma segura.'
-            : 'No existe un respaldo reciente. Debes crear uno antes de eliminar datos.'}
+            ? `Los ganadores de la temporada ${temporada} están respaldados en Rankings Históricos. Puedes eliminar los datos de forma segura.`
+            : `No existe un respaldo para la temporada ${temporada}. Debes crear uno antes de eliminar datos.`}
         </p>
       </div>
 

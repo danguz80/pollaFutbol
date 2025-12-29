@@ -130,13 +130,16 @@ export default function Campeonato() {
       <button className="btn btn-info" onClick={() => navigate("/clasificacion")}>Clasificación</button>
       <button className="btn btn-success" onClick={() => navigate("/jornada/1")}>Ingresar Pronósticos</button>
       <button className="btn btn-warning" onClick={() => navigate("/cuadro-final")}>Cuadro Final</button>
+      <button className="btn btn-primary" onClick={() => navigate("/estadisticas-nacional")}>Estadísticas</button>
       <button className="btn btn-danger" onClick={() => navigate("/ganadores-jornada")}>Ganadores</button>
     </div>
   );
 
   // --- Resumen de Ranking General ---
   const top3 = rankingGeneral.slice(0, 3);
-  const resumenRanking = (
+  const tieneAlgunPunto = top3.some(p => p.puntaje_total > 0);
+  
+  const resumenRanking = tieneAlgunPunto ? (
     <div className="mb-4">
       <h4 className="text-center">🏅 Top 3 Ranking General</h4>
       <div className="d-flex justify-content-center gap-4 flex-wrap">
@@ -163,7 +166,7 @@ export default function Campeonato() {
         ))}
       </div>
     </div>
-  );
+  ) : null;
 
   // --- Resumen de Ganadores (foto, nombre, estrella y títulos) ---
   const resumenGanadores = (
@@ -270,17 +273,6 @@ export default function Campeonato() {
         {resumenRanking}
         {/* Resumen de ganadores */}
         {resumenGanadores}
-        {proximaJornada && proximaJornada.fecha_cierre && (
-          <CuentaRegresiva
-            fechaCierre={proximaJornada.fecha_cierre}
-            numeroJornada={proximaJornada.numero}
-            onCero={cerrarJornada}
-          />
-        )}
-        <ConfigurarCuentaRegresiva onConfigurar={handleConfigurarCuenta} loading={loadingConfig} />
-        <div className="d-flex flex-column gap-2 mt-3">
-          <button className="btn btn-warning" onClick={() => navigate("/admin")}>Panel Admin</button>
-        </div>
       </div>
     );
   }

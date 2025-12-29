@@ -28,6 +28,7 @@ import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 import ganadoresJornadaLibertadoresRoutes from "./routes/ganadoresJornadaLibertadores.js";
 import ganadoresJornadaRoutes from "./routes/ganadoresJornada.js";
 import adminTorneoRoutes from "./routes/adminTorneo.js";
+import estadisticasNacionalRoutes from "./routes/estadisticas_nacional.js";
 
 dotenv.config();
 
@@ -231,6 +232,7 @@ app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 app.use('/api/libertadores-ganadores-jornada', ganadoresJornadaLibertadoresRoutes);
 app.use('/api/ganadores-jornada', ganadoresJornadaRoutes);
 app.use('/api/admin', adminTorneoRoutes);
+app.use('/api/estadisticas-nacional', estadisticasNacionalRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");

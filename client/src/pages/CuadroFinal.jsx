@@ -19,6 +19,8 @@ export default function CuadroFinal() {
     septimo: "",
     quinceto: "",
     dieciseisavo: "",
+    campeon_ascenso: "",
+    ganador_liguilla: "",
     goleador: ""
   });
 
@@ -33,6 +35,14 @@ export default function CuadroFinal() {
     "Cobresal", "Everton", "Audax Italiano", "Deportes Iquique",
     "Ñublense", "Huachipato", "Unión La Calera", "Coquimbo Unido",
     "Unión Española", "La Serena", "Deportes Limache", "O'Higgins"
+  ];
+
+  const equiposPrimeraB = [
+    "Santiago Morning", "Deportes Recoleta", "Deportes Santa Cruz",
+    "Rangers", "San Luis", "Deportes Temuco", "Magallanes",
+    "Deportes Concepción", "Santiago Wanderers", "Cobreloa",
+    "Antofagasta", "Fernández Vial", "Provincial Osorno",
+    "Deportes Copiapó", "San Marcos de Arica", "Deportes Melipilla"
   ];
 
   const goleadores = [
@@ -137,6 +147,8 @@ export default function CuadroFinal() {
             septimo: data.septimo || "",
             quinceto: data.quinceto || "",
             dieciseisavo: data.dieciseisavo || "",
+            campeon_ascenso: data.campeon_ascenso || "",
+            ganador_liguilla: data.ganador_liguilla || "",
             goleador: data.goleador || ""
           });
         }
@@ -231,6 +243,8 @@ export default function CuadroFinal() {
         septimo: "",
         quinceto: "",
         dieciseisavo: "",
+        campeon_ascenso: "",
+        ganador_liguilla: "",
         goleador: ""
       });
       setMessage("Datos limpiados exitosamente");
@@ -302,11 +316,19 @@ export default function CuadroFinal() {
                   <td>16º Lugar</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
+                <tr>
+                  <td>Campeón Ascenso (1ª B)</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
+                <tr>
+                  <td>Ganador Liguilla (1ª B)</td>
+                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
+                </tr>
               </tbody>
               <tfoot className="table-light">
                 <tr>
                   <td><strong>Total Máximo</strong></td>
-                  <td className="text-center"><strong>71 puntos</strong></td>
+                  <td className="text-center"><strong>81 puntos</strong></td>
                 </tr>
               </tfoot>
             </table>
@@ -350,16 +372,18 @@ export default function CuadroFinal() {
                   <div className="table-responsive">
                     <table className="table table-sm">
                       <tbody>
-                        <tr><td className="fw-bold">🥇 Campeón:</td><td>{pronostico.campeon}</td></tr>
-                        <tr><td className="fw-bold">🥈 Sub-Campeón:</td><td>{pronostico.subcampeon}</td></tr>
-                        <tr><td className="fw-bold">🥉 Tercero:</td><td>{pronostico.tercero}</td></tr>
-                        <tr><td className="fw-bold">🇨🇱 Chile 4° Libertadores:</td><td>{pronostico.chile_4_lib}</td></tr>
-                        <tr><td className="fw-bold">4️⃣ Cuarto:</td><td>{pronostico.cuarto}</td></tr>
-                        <tr><td className="fw-bold">5️⃣ Quinto:</td><td>{pronostico.quinto}</td></tr>
-                        <tr><td className="fw-bold">6️⃣ Sexto:</td><td>{pronostico.sexto}</td></tr>
-                        <tr><td className="fw-bold">7️⃣ Séptimo:</td><td>{pronostico.septimo}</td></tr>
+                        <tr><td className="fw-bold">🥇 Campeón (Chile 1 Lib):</td><td>{pronostico.campeon}</td></tr>
+                        <tr><td className="fw-bold">🥈 2° Tabla (Chile 2 Lib):</td><td>{pronostico.subcampeon}</td></tr>
+                        <tr><td className="fw-bold">🏆 Campeón Copa Liga (Chile 3 Lib):</td><td>{pronostico.tercero}</td></tr>
+                        <tr><td className="fw-bold">⚔️ Ganador 3°Tabla vs Cpa.Chile (Chile 4 Lib):</td><td>{pronostico.chile_4_lib}</td></tr>
+                        <tr><td className="fw-bold">4️⃣ 4° Tabla (Chile 1 Sud):</td><td>{pronostico.cuarto}</td></tr>
+                        <tr><td className="fw-bold">5️⃣ 5° Tabla (Chile 2 Sud):</td><td>{pronostico.quinto}</td></tr>
+                        <tr><td className="fw-bold">6️⃣ 6° Tabla (Chile 3 Sud):</td><td>{pronostico.sexto}</td></tr>
+                        <tr><td className="fw-bold">7️⃣ Perdedor 3°Tabla vs Cpa.Chile (Chile 4 Sud):</td><td>{pronostico.septimo}</td></tr>
                         <tr><td className="fw-bold">🔻 15° (Descenso):</td><td>{pronostico.quinceto}</td></tr>
                         <tr><td className="fw-bold">🔻 16° (Descenso):</td><td>{pronostico.dieciseisavo}</td></tr>
+                        <tr><td className="fw-bold">🔼 Campeón Ascenso (1ª B):</td><td>{pronostico.campeon_ascenso}</td></tr>
+                        <tr><td className="fw-bold">🔼 Ganador Liguilla (1ª B):</td><td>{pronostico.ganador_liguilla}</td></tr>
                         <tr><td className="fw-bold">⚽ Goleador:</td><td>{pronostico.goleador}</td></tr>
                       </tbody>
                     </table>
@@ -379,20 +403,23 @@ export default function CuadroFinal() {
             <tr>
               <th colSpan="4" style={{backgroundColor: "#28a745"}}>COPA LIBERTADORES</th>
               <th colSpan="4" style={{backgroundColor: "#17a2b8"}}>COPA SUDAMERICANA</th>
-              <th colSpan="2" style={{backgroundColor: "#dc3545"}}>PRIMERA B</th>
+              <th colSpan="2" style={{backgroundColor: "#dc3545"}}>DESCIENDEN</th>
+              <th colSpan="2" style={{backgroundColor: "#6f42c1", color: "#fff"}}>ASCIENDEN</th>
               <th style={{backgroundColor: "#ffc107", color: "#000"}}>Goleador</th>
             </tr>
             <tr>
               <th>CAMPEÓN<br/>Chile 1</th>
-              <th>SUB CAMPEÓN<br/>Chile 2</th>
-              <th>TERCERO<br/>Chile 3</th>
-              <th>CHILE 4<br/>Copa Chile</th>
-              <th>CUARTO<br/>Chile 1</th>
-              <th>QUINTO<br/>Chile 2</th>
-              <th>SEXTO<br/>Chile 3</th>
-              <th>SÉPTIMO<br/>Chile 4</th>
+              <th>2° TABLA<br/>Chile 2</th>
+              <th>CAMPEÓN<br/>COPA LIGA<br/>Chile 3</th>
+              <th>GANADOR<br/>3°Tabla vs<br/>Cpa.Chile<br/>Chile 4</th>
+              <th>4° TABLA<br/>Chile 1</th>
+              <th>5° TABLA<br/>Chile 2</th>
+              <th>6° TABLA<br/>Chile 3</th>
+              <th>PERDEDOR<br/>3°Tabla vs<br/>Cpa.Chile<br/>Chile 4</th>
               <th>15vo</th>
               <th>16vo</th>
+              <th>CAMPEÓN<br/>1ª B</th>
+              <th>GANADOR<br/>LIGUILLA</th>
               <th></th>
             </tr>
           </thead>
@@ -534,6 +561,32 @@ export default function CuadroFinal() {
                   <option value="">Seleccionar...</option>
                   {predicciones.dieciseisavo && <option value={predicciones.dieciseisavo}>{predicciones.dieciseisavo}</option>}
                   {getEquiposParaCampo('dieciseisavo').map(equipo => (
+                    <option key={equipo} value={equipo}>{equipo}</option>
+                  ))}
+                </select>
+              </td>
+              <td>
+                <select 
+                  className="form-select"
+                  value={predicciones.campeon_ascenso}
+                  onChange={(e) => handleChange('campeon_ascenso', e.target.value)}
+                  disabled={jornadaCerrada}
+                >
+                  <option value="">Seleccionar...</option>
+                  {equiposPrimeraB.map(equipo => (
+                    <option key={equipo} value={equipo}>{equipo}</option>
+                  ))}
+                </select>
+              </td>
+              <td>
+                <select 
+                  className="form-select"
+                  value={predicciones.ganador_liguilla}
+                  onChange={(e) => handleChange('ganador_liguilla', e.target.value)}
+                  disabled={jornadaCerrada}
+                >
+                  <option value="">Seleccionar...</option>
+                  {equiposPrimeraB.filter(e => e !== predicciones.campeon_ascenso).map(equipo => (
                     <option key={equipo} value={equipo}>{equipo}</option>
                   ))}
                 </select>

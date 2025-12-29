@@ -24,6 +24,7 @@ import RankingsHistoricos from "./pages/RankingsHistoricos";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
 import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
 import AdminTorneoResultados from "./pages/Admin/AdminTorneoResultados";
+import EstadisticasNacional from "./pages/EstadisticasNacional";
 
 export default function AppRouter() {
   return (
@@ -73,6 +74,7 @@ export default function AppRouter() {
         } />
 
         <Route path="/campeonato" element={<Campeonato />} />
+        <Route path="/estadisticas-nacional" element={<EstadisticasNacional />} />
         <Route path="/libertadores" element={<Libertadores />} />
         <Route path="/libertadores/jornada/:numero" element={<JornadaLibertadores />} />
         <Route path="/libertadores/estadisticas" element={<EstadisticasLibertadores />} />

@@ -581,7 +581,7 @@ function RankingsHistoricos() {
                             <div key={g.id} className="ganador-item">
                               {g.foto_perfil && <img src={g.foto_perfil} alt={g.usuario_nombre} />}
                               <span>{g.usuario_nombre}</span>
-                              {usuario?.rol === 'admin' && (
+                              {usuario?.rol === 'admin' && editMode && (
                                 <button onClick={() => eliminarRanking(g.id)} className="btn-delete-small">🗑️</button>
                               )}
                             </div>

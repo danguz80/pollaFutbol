@@ -225,6 +225,9 @@ router.get("/torneo-nacional-2025", async (req, res) => {
 // 🔄 POST - Detectar y actualizar nuevos ganadores automáticamente (ADMIN)
 router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res) => {
   try {
+    // Obtener temporada del query param o usar año actual
+    const temporada = parseInt(req.query.temporada) || new Date().getFullYear();
+    
     const nuevosRegistros = [];
     
     // ============================================
@@ -232,10 +235,10 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     // ============================================
     const ganadoresJornadasNacional = await pool.query(`
       SELECT
-        2025 as anio,
+        $1::integer as anio,
         'Torneo Nacional' as competencia,
         'estandar' as tipo,
-        j.numero as categoria,
+        j.numero::text as categoria,
         u.id as usuario_id,
         NULL as nombre_manual,
         ROW_NUMBER() OVER (PARTITION BY j.numero ORDER BY u.nombre) as posicion,
@@ -245,13 +248,13 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
       JOIN usuarios u ON gj.jugador_id = u.id
       WHERE NOT EXISTS (
         SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = 2025
+        WHERE rh.anio = $1::integer
           AND rh.competencia = 'Torneo Nacional'
           AND rh.tipo = 'estandar'
           AND rh.categoria = j.numero::text
           AND rh.usuario_id = u.id
       )
-    `);
+    `, [temporada]);
     
     // ============================================
     // 2. TORNEO NACIONAL - Ganador Acumulado (Mayor)
@@ -259,13 +262,13 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     const ganadorAcumuladoNacional = await pool.query(`
       SELECT * FROM (
         SELECT 
-          2025 as anio,
+          $1::integer as anio,
           'Torneo Nacional' as competencia,
           'mayor' as tipo,
-          NULL as categoria,
+          NULL::text as categoria,
           u.id as usuario_id,
           NULL as nombre_manual,
-          ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre) as posicion,
+          ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre ASC) as posicion,
           COALESCE(SUM(p.puntos), 0) as puntos
         FROM usuarios u
         LEFT JOIN pronosticos p ON u.id = p.usuario_id
@@ -273,17 +276,18 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
         WHERE j.cerrada = true
         GROUP BY u.id
         HAVING COALESCE(SUM(p.puntos), 0) > 0
-        ORDER BY puntos DESC, u.nombre
+        ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre ASC
         LIMIT 3
       ) ranking
       WHERE NOT EXISTS (
         SELECT 1 FROM rankings_historicos rh
-        WHERE rh.anio = 2025
+        WHERE rh.anio = $1::integer
           AND rh.competencia = 'Torneo Nacional'
           AND rh.tipo = 'mayor'
           AND rh.usuario_id = ranking.usuario_id
+          AND rh.posicion = ranking.posicion
       )
-    `);
+    `, [temporada]);
 
     // ============================================
     // 3. LIBERTADORES - Ganadores de Jornadas (Estándar)

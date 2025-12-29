@@ -7,6 +7,7 @@ export default function AccesosDirectos() {
       <button className="btn btn-info" onClick={() => navigate("/clasificacion")}>Clasificación</button>
       <button className="btn btn-success" onClick={() => navigate("/jornada/1")}>Ingresar Pronósticos</button>
       <button className="btn btn-warning" onClick={() => navigate("/cuadro-final")}>Cuadro Final</button>
+      <button className="btn btn-primary" onClick={() => navigate("/estadisticas-nacional")}>Estadísticas</button>
       <button className="btn btn-danger" onClick={() => navigate("/ganadores-jornada")}>Ganadores</button>
     </div>
   );
