@@ -13,6 +13,9 @@ export default function AdminLibertadoresResultados() {
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
   const [jornadaActiva, setJornadaActiva] = useState(false);
   const [jornadaId, setJornadaId] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState("success");
 
   // Obtener jornadas al montar
   useEffect(() => {
@@ -132,7 +135,7 @@ export default function AdminLibertadoresResultados() {
 
   const calcularPuntajes = async () => {
     if (!jornadaSeleccionada) return;
-    if (!confirm("¿Calcular puntajes de todos los pronósticos de esta jornada?")) return;
+    if (!confirm("¿Calcular puntajes de todos los pronósticos de Libertadores?")) return;
     
     try {
       const token = localStorage.getItem('token');
@@ -141,6 +144,7 @@ export default function AdminLibertadoresResultados() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
+      
       alert(data.mensaje || "✅ Puntajes calculados correctamente");
     } catch (error) {
       console.error("Error al calcular puntajes:", error);
@@ -548,6 +552,55 @@ export default function AdminLibertadoresResultados() {
         <div className="alert alert-info text-center">
           <h5>Selecciona una jornada para comenzar</h5>
           <p className="mb-0">Podrás ingresar resultados reales, cerrar/abrir la jornada, activar/desactivar y calcular puntajes</p>
+        </div>
+      )}
+
+      {/* Modal de Confirmación */}
+      {showModal && (
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowModal(false)}
+        >
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className={`modal-header ${
+                modalType === 'success' ? 'bg-success text-white' :
+                modalType === 'warning' ? 'bg-warning text-dark' :
+                'bg-danger text-white'
+              }`}>
+                <h5 className="modal-title">
+                  {modalType === 'success' ? '✅ Operación Exitosa' :
+                   modalType === 'warning' ? '⚠️ Advertencia' :
+                   '❌ Error'}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowModal(false)}
+                  style={{ filter: modalType === 'warning' ? 'none' : 'invert(1)' }}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div style={{ whiteSpace: 'pre-line', fontSize: '16px' }}>
+                  {modalMessage}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className={`btn btn-lg ${
+                    modalType === 'success' ? 'btn-success' :
+                    modalType === 'warning' ? 'btn-warning' :
+                    'btn-danger'
+                  }`}
+                  onClick={() => setShowModal(false)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

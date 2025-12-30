@@ -61,7 +61,7 @@ router.post("/", verifyToken, async (req, res) => {
   }
 });
 
-// CALCULAR PUNTAJES con BONUS
+// CALCULAR PUNTAJES con BONUS y generar PDF con resultados
 router.post("/calcular/:jornada", async (req, res) => {
   const { jornada } = req.params;
 
@@ -120,10 +120,29 @@ router.post("/calcular/:jornada", async (req, res) => {
       actualizados++;
     }
 
+    // Generar y enviar PDF con resultados completos
+    let pdfGenerado = false;
+    let pdfError = null;
+    try {
+      console.log(`📄 Generando PDF con resultados para jornada ${jornada}...`);
+      await generarPDFConResultados(jornada);
+      console.log('✅ PDF con resultados generado y enviado exitosamente');
+      pdfGenerado = true;
+    } catch (error) {
+      console.error('❌ Error generando PDF con resultados:', error);
+      pdfError = error.message;
+      // No fallar la petición completa si el PDF falla
+    }
+
+    const mensaje = pdfGenerado 
+      ? `✅ Puntajes calculados correctamente (con bonus) y PDF enviado por email`
+      : `⚠️ Puntajes calculados correctamente pero el PDF falló: ${pdfError}`;
+
     res.json({
-      mensaje: `✅ Puntajes calculados correctamente (con bonus)`,
+      mensaje,
       pronosticos: pronosticos.rowCount,
-      actualizados
+      actualizados,
+      pdfGenerado
     });
 
   } catch (error) {
@@ -267,6 +286,7 @@ router.get("/ranking/general", async (req, res) => {
       FROM usuarios u
       LEFT JOIN pronosticos p ON p.usuario_id = u.id
       WHERE u.activo_torneo_nacional = true
+        AND u.rol != 'admin'
       GROUP BY u.id, u.nombre, u.foto_perfil
       ORDER BY puntaje_total DESC, usuario ASC`
     );
@@ -275,6 +295,481 @@ router.get("/ranking/general", async (req, res) => {
     res.status(500).json({ error: "No se pudo obtener el ranking general" });
   }
 });
+
+// ==================== FUNCIÓN PARA GENERAR PDF CON RESULTADOS ====================
+async function generarPDFConResultados(jornadaNumero) {
+  try {
+    // 1. Obtener pronósticos con resultados reales y puntos
+    const pronosticosQuery = await pool.query(
+      `SELECT 
+        u.nombre AS usuario,
+        pa.nombre_local,
+        pa.nombre_visita,
+        pa.fecha,
+        p.goles_local AS pred_local,
+        p.goles_visita AS pred_visita,
+        pa.goles_local AS real_local,
+        pa.goles_visita AS real_visita,
+        p.puntos,
+        COALESCE(pa.bonus, 1) AS bonus
+      FROM pronosticos p
+      JOIN usuarios u ON p.usuario_id = u.id
+      JOIN partidos pa ON p.partido_id = pa.id
+      JOIN jornadas j ON pa.jornada_id = j.id
+      WHERE j.numero = $1
+      ORDER BY u.nombre, pa.fecha`,
+      [jornadaNumero]
+    );
+
+    // 2. Obtener ranking de la jornada (desde ganadores_jornada)
+    const rankingJornadaQuery = await pool.query(
+      `SELECT 
+        posicion,
+        nombre AS usuario,
+        puntos_jornada
+      FROM ganadores_jornada
+      WHERE jornada_numero = $1
+      ORDER BY posicion ASC`,
+      [jornadaNumero]
+    );
+
+    // 3. Obtener ranking acumulado
+    const rankingAcumuladoQuery = await pool.query(
+      `SELECT 
+        u.nombre AS usuario,
+        COALESCE(SUM(p.puntos), 0) AS puntaje_total,
+        ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(p.puntos), 0) DESC, u.nombre ASC) AS posicion
+      FROM usuarios u
+      LEFT JOIN pronosticos p ON p.usuario_id = u.id
+      LEFT JOIN partidos pa ON p.partido_id = pa.id
+      LEFT JOIN jornadas j ON pa.jornada_id = j.id
+      WHERE u.activo_torneo_nacional = true
+        AND (j.numero IS NULL OR j.numero <= $1)
+      GROUP BY u.id, u.nombre
+      ORDER BY puntaje_total DESC, usuario ASC
+      LIMIT 10`,
+      [jornadaNumero]
+    );
+
+    // 4. Obtener ganadores de la jornada
+    const ganadoresQuery = await pool.query(
+      `SELECT nombre AS usuario, puntos_jornada
+      FROM ganadores_jornada
+      WHERE jornada_numero = $1 AND posicion = 1`,
+      [jornadaNumero]
+    );
+
+    const pronosticos = pronosticosQuery.rows;
+    const rankingJornada = rankingJornadaQuery.rows;
+    const rankingAcumulado = rankingAcumuladoQuery.rows;
+    const ganadores = ganadoresQuery.rows;
+
+    console.log(`📊 Datos obtenidos - Pronósticos: ${pronosticos.length}, Ranking Jornada: ${rankingJornada.length}, Ganadores: ${ganadores.length}`);
+
+    // Agrupar pronósticos por usuario
+    const pronosticosPorUsuario = {};
+    pronosticos.forEach((p) => {
+      if (!pronosticosPorUsuario[p.usuario]) {
+        pronosticosPorUsuario[p.usuario] = [];
+      }
+      pronosticosPorUsuario[p.usuario].push(p);
+    });
+
+    // Obtener logos
+    const whatsappService = getWhatsAppService();
+    const logoItauBase64 = whatsappService.getLogoBase64('itau');
+    const logoTorneoBase64 = whatsappService.getLogoBase64('torneo');
+
+    // Generar HTML
+    let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: 'Arial', sans-serif; 
+          padding: 20px; 
+          background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+          color: #333;
+        }
+        .header {
+          text-align: center;
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          margin-bottom: 30px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header img {
+          height: 60px;
+          margin: 0 15px;
+          vertical-align: middle;
+        }
+        .header h1 {
+          color: #1e3c72;
+          font-size: 28px;
+          margin: 15px 0 5px 0;
+        }
+        .header p {
+          color: #666;
+          font-size: 16px;
+        }
+        
+        .usuario-section {
+          background: white;
+          padding: 20px;
+          margin-bottom: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          page-break-inside: avoid;
+        }
+        .usuario-section h2 {
+          color: #1e3c72;
+          font-size: 20px;
+          margin-bottom: 15px;
+          border-bottom: 3px solid #ff6b35;
+          padding-bottom: 8px;
+        }
+        
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 10px;
+        }
+        th {
+          background: #1e3c72;
+          color: white;
+          padding: 12px 8px;
+          text-align: left;
+          font-size: 13px;
+          font-weight: bold;
+        }
+        td {
+          padding: 10px 8px;
+          border-bottom: 1px solid #e0e0e0;
+          font-size: 12px;
+        }
+        tr:hover {
+          background-color: #f5f5f5;
+        }
+        .partido-cell {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .equipo-logo {
+          width: 24px;
+          height: 24px;
+          object-fit: contain;
+        }
+        .vs {
+          color: #999;
+          font-weight: bold;
+          margin: 0 4px;
+        }
+        .resultado {
+          font-weight: bold;
+          color: #1e3c72;
+        }
+        .puntos-cell {
+          font-weight: bold;
+          font-size: 14px;
+        }
+        .puntos-5 { color: #27ae60; }
+        .puntos-3 { color: #f39c12; }
+        .puntos-1 { color: #e67e22; }
+        .puntos-0 { color: #c0392b; }
+        .bonus-badge {
+          display: inline-block;
+          background: linear-gradient(135deg, #ff6b35, #ff8c42);
+          color: white;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 10px;
+          font-weight: bold;
+          margin-left: 5px;
+        }
+
+        .rankings-section {
+          background: white;
+          padding: 20px;
+          margin-bottom: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          page-break-inside: avoid;
+        }
+        .rankings-section h2 {
+          color: #1e3c72;
+          font-size: 22px;
+          margin-bottom: 15px;
+          text-align: center;
+        }
+        .ranking-table {
+          margin-top: 15px;
+        }
+        .ranking-table th {
+          background: #27ae60;
+        }
+        .ranking-table .posicion {
+          text-align: center;
+          font-weight: bold;
+          font-size: 16px;
+          color: #1e3c72;
+        }
+        .ranking-table .top-1 {
+          background: #ffd700 !important;
+          color: #000 !important;
+        }
+        .ranking-table .top-2 {
+          background: #c0c0c0 !important;
+          color: #000 !important;
+        }
+        .ranking-table .top-3 {
+          background: #cd7f32 !important;
+          color: #000 !important;
+        }
+
+        .ganadores-section {
+          background: linear-gradient(135deg, #ffd700, #ffed4e);
+          padding: 25px;
+          margin-bottom: 25px;
+          border-radius: 10px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+          text-align: center;
+          page-break-inside: avoid;
+        }
+        .ganadores-section h2 {
+          color: #1e3c72;
+          font-size: 26px;
+          margin-bottom: 15px;
+        }
+        .ganador-nombre {
+          font-size: 24px;
+          font-weight: bold;
+          color: #1e3c72;
+          margin: 10px 0;
+        }
+        .ganador-puntos {
+          font-size: 18px;
+          color: #666;
+        }
+
+        .footer {
+          text-align: center;
+          color: white;
+          font-size: 12px;
+          margin-top: 30px;
+          padding: 15px;
+          background: rgba(255,255,255,0.1);
+          border-radius: 10px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <img src="${logoItauBase64}" alt="Itau">
+        <img src="${logoTorneoBase64}" alt="Torneo">
+        <h1>📊 RESULTADOS JORNADA ${jornadaNumero}</h1>
+        <p>Torneo Nacional - Campeonato Itaú</p>
+        <p style="font-size: 14px; color: #999; margin-top: 10px;">
+          Fecha de generación: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}
+        </p>
+      </div>
+    `;
+
+    // GANADORES DE LA JORNADA
+    if (ganadores.length > 0) {
+      html += `
+      <div class="ganadores-section">
+        <h2>🏆 GANADOR${ganadores.length > 1 ? 'ES' : ''} DE LA JORNADA</h2>
+      `;
+      ganadores.forEach((g) => {
+        html += `
+        <div class="ganador-nombre">${g.usuario}</div>
+        <div class="ganador-puntos">${g.puntos_jornada} puntos</div>
+        `;
+      });
+      html += `</div>`;
+    }
+
+    // RANKING DE LA JORNADA
+    if (rankingJornada.length > 0) {
+      html += `
+      <div class="rankings-section">
+        <h2>🥇 RANKING DE LA JORNADA ${jornadaNumero}</h2>
+        <table class="ranking-table">
+          <thead>
+            <tr>
+              <th style="width: 15%; text-align: center;">Posición</th>
+              <th style="width: 60%;">Jugador</th>
+              <th style="width: 25%; text-align: center;">Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      rankingJornada.forEach((r) => {
+        let rowClass = '';
+        if (r.posicion === 1) rowClass = 'top-1';
+        else if (r.posicion === 2) rowClass = 'top-2';
+        else if (r.posicion === 3) rowClass = 'top-3';
+        
+        html += `
+            <tr class="${rowClass}">
+              <td class="posicion">${r.posicion}</td>
+              <td>${r.usuario}</td>
+              <td style="text-align: center; font-weight: bold;">${r.puntos_jornada}</td>
+            </tr>
+        `;
+      });
+      html += `
+          </tbody>
+        </table>
+      </div>
+      `;
+    }
+
+    // RANKING ACUMULADO
+    if (rankingAcumulado.length > 0) {
+      html += `
+      <div class="rankings-section">
+        <h2>📈 RANKING ACUMULADO (hasta Jornada ${jornadaNumero})</h2>
+        <table class="ranking-table">
+          <thead>
+            <tr>
+              <th style="width: 15%; text-align: center;">Posición</th>
+              <th style="width: 60%;">Jugador</th>
+              <th style="width: 25%; text-align: center;">Puntos Totales</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      rankingAcumulado.forEach((r) => {
+        let rowClass = '';
+        if (r.posicion === 1) rowClass = 'top-1';
+        else if (r.posicion === 2) rowClass = 'top-2';
+        else if (r.posicion === 3) rowClass = 'top-3';
+        
+        html += `
+            <tr class="${rowClass}">
+              <td class="posicion">${r.posicion}</td>
+              <td>${r.usuario}</td>
+              <td style="text-align: center; font-weight: bold;">${r.puntaje_total}</td>
+            </tr>
+        `;
+      });
+      html += `
+          </tbody>
+        </table>
+      </div>
+      `;
+    }
+
+    // PRONÓSTICOS POR USUARIO
+    for (const [usuario, pronosticosUsuario] of Object.entries(pronosticosPorUsuario)) {
+      html += `
+      <div class="usuario-section">
+        <h2>👤 ${usuario}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 35%;">Partido</th>
+              <th style="width: 15%;">Pronóstico</th>
+              <th style="width: 15%;">Resultado</th>
+              <th style="width: 10%;">Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      pronosticosUsuario.forEach((p) => {
+        const logoLocal = whatsappService.getLogoBase64(p.nombre_local);
+        const logoVisita = whatsappService.getLogoBase64(p.nombre_visita);
+        
+        const pronostico = `${p.pred_local} - ${p.pred_visita}`;
+        const resultado = (p.real_local !== null && p.real_visita !== null) 
+          ? `${p.real_local} - ${p.real_visita}` 
+          : 'Pendiente';
+        
+        const puntos = p.puntos || 0;
+        let puntosClass = 'puntos-0';
+        const puntosBase = p.bonus > 1 ? puntos / p.bonus : puntos;
+        if (puntosBase === 5) puntosClass = 'puntos-5';
+        else if (puntosBase === 3) puntosClass = 'puntos-3';
+        else if (puntosBase === 1) puntosClass = 'puntos-1';
+
+        const bonusBadge = p.bonus > 1 ? `<span class="bonus-badge">x${p.bonus}</span>` : '';
+
+        html += `
+            <tr>
+              <td>
+                <div class="partido-cell">
+                  <img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">
+                  <span>${p.nombre_local}</span>
+                  <span class="vs">vs</span>
+                  <img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">
+                  <span>${p.nombre_visita}</span>
+                </div>
+              </td>
+              <td style="text-align: center;">${pronostico}</td>
+              <td style="text-align: center;" class="resultado">${resultado}</td>
+              <td style="text-align: center;" class="puntos-cell ${puntosClass}">
+                ${puntos} ${bonusBadge}
+              </td>
+            </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      </div>
+      `;
+    }
+
+    html += `
+      <div class="footer">
+        <p>Campeonato Itaú ${new Date().getFullYear()} • Torneo Nacional</p>
+        <p>Sistema de Pronósticos Deportivos</p>
+      </div>
+    </body>
+    </html>
+    `;
+
+    // Generar PDF
+    console.log('📝 Generando PDF desde HTML...');
+    const options = {
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+    };
+    const file = { content: html };
+    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    console.log(`✅ PDF generado, tamaño: ${pdfBuffer.length} bytes`);
+
+    // Enviar por email
+    const nombreArchivo = `Resultados_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
+    console.log(`📧 Enviando PDF por email...`);
+    const resultadoEmail = await whatsappService.enviarEmailConPDF(
+      pdfBuffer,
+      nombreArchivo,
+      jornadaNumero,
+      'Torneo Nacional'
+    );
+
+    if (!resultadoEmail.success) {
+      throw new Error(resultadoEmail.mensaje);
+    }
+
+    console.log(`✅ PDF con resultados de jornada ${jornadaNumero} generado y enviado exitosamente`);
+    return true;
+
+  } catch (error) {
+    console.error('Error al generar PDF con resultados:', error);
+    throw error;
+  }
+}
 
 // Generar PDF con pronósticos de una jornada
 router.post('/generar-pdf/:jornada', verifyToken, authorizeRoles('admin'), async (req, res) => {

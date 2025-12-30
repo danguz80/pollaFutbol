@@ -265,7 +265,7 @@ export default function Home() {
 
     return (
         <div className="container text-center mt-5">
-            <h1 className="mb-4">🏠 Home - Bienvenido a Polla del Campeonato</h1>
+            <h1 className="mb-4">🏠 Home - Bienvenido a Polla de Torneos</h1>
 
             {/* Botones de acceso directo al campeonato - ARRIBA */}
             <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3 mb-4">
@@ -301,7 +301,7 @@ export default function Home() {
                     )}
 
                     {/* Top 3 Ranking Libertadores - Solo si hay puntos */}
-                    {rankingLibertadores.length > 0 && rankingLibertadores[0]?.puntos_total > 0 && (
+                    {rankingLibertadores.length > 0 && rankingLibertadores[0]?.puntos_acumulados > 0 && (
                         <Top3Component 
                             title="Top 3 Copa Libertadores" 
                             ranking={rankingLibertadores} 

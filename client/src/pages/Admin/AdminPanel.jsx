@@ -161,12 +161,13 @@ export default function AdminPanel() {
   // POST para calcular puntajes de la jornada seleccionada
   const calcularPuntajes = async () => {
     if (!jornadaSeleccionada) return;
+    if (!confirm("¿Calcular puntajes de esta jornada y generar PDF con resultados completos?\n\nEl PDF incluirá: pronósticos, resultados reales, puntos, rankings y ganadores. Se enviará automáticamente por email.")) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/pronosticos/calcular/${jornadaSeleccionada}`, {
         method: "POST"
       });
       const data = await res.json();
-      alert(`✅ Puntajes recalculados: ${data.actualizados ?? ""} pronósticos actualizados`);
+      alert(data.mensaje || `✅ Puntajes recalculados: ${data.actualizados ?? ""} pronósticos actualizados`);
     } catch (error) {
       alert("❌ Error al recalcular puntajes");
       console.error(error);

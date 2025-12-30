@@ -2,6 +2,15 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { checkRole } from '../middleware/checkRole.js';
+import htmlPdf from 'html-pdf-node';
+import { getWhatsAppService } from '../services/whatsappService.js';
+import { getLogoBase64 } from '../utils/logoHelper.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -207,9 +216,9 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       )
     `);
     
-    // 1. Obtener todos los usuarios activos
+    // 1. Obtener todos los usuarios activos con sus fotos de perfil
     const usuariosResult = await pool.query(
-      'SELECT id, nombre FROM usuarios WHERE activo = true ORDER BY nombre'
+      'SELECT id, nombre, foto_perfil FROM usuarios WHERE activo = true ORDER BY nombre'
     );
     
     if (usuariosResult.rows.length === 0) {
@@ -256,6 +265,7 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       puntosUsuarios.push({
         usuario_id: usuario.id,
         nombre: usuario.nombre,
+        foto_perfil: usuario.foto_perfil,
         puntaje: puntosTotal
       });
     }
@@ -296,16 +306,38 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       );
     }
     
-    // 7. Retornar los ganadores
+    // 7. Generar y enviar PDF con resultados completos
+    let pdfGenerado = false;
+    let pdfError = null;
+    try {
+      console.log(`📄 Generando PDF con resultados de jornada ${jornadaNumero}...`);
+      await generarPDFLibertadoresConGanadores(jornadaNumero, ganadores);
+      console.log('✅ PDF de Libertadores generado y enviado exitosamente');
+      pdfGenerado = true;
+    } catch (error) {
+      console.error('❌ Error generando PDF de Libertadores:', error);
+      pdfError = error.message;
+      // No fallar la petición completa si el PDF falla
+    }
+
+    const mensaje = pdfGenerado
+      ? (ganadores.length === 1 
+          ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}. PDF enviado por email.`
+          : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}. PDF enviado por email.`)
+      : (ganadores.length === 1 
+          ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}. PDF falló: ${pdfError}`
+          : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}. PDF falló: ${pdfError}`);
+
+    // 8. Retornar los ganadores
     res.json({
       jornadaNumero,
       ganadores: ganadores.map(g => ({
         nombre: g.nombre,
-        puntaje: g.puntaje
+        puntaje: g.puntaje,
+        foto_perfil: g.foto_perfil
       })),
-      mensaje: ganadores.length === 1 
-        ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}`
-        : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}`
+      mensaje,
+      pdfGenerado
     });
     
   } catch (error) {
@@ -368,5 +400,587 @@ router.get('/:jornadaNumero', async (req, res) => {
   }
 });
 
+// ==================== FUNCIÓN PARA GENERAR PDF CON RESULTADOS Y GANADORES ====================
+async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
+  try {
+    console.log(`\n🎯 Generando PDF para jornada ${jornadaNumero}`);
+    console.log(`📸 Ganadores recibidos:`, ganadores.map(g => ({ nombre: g.nombre, foto: g.foto_perfil })));
+    
+    // 1. Obtener pronósticos con resultados reales y puntos de la jornada específica
+    const pronosticosQuery = await pool.query(
+      `SELECT 
+        u.nombre AS usuario,
+        u.foto_perfil,
+        p.nombre_local,
+        p.nombre_visita,
+        p.fecha,
+        lp.goles_local AS pred_local,
+        lp.goles_visita AS pred_visita,
+        p.goles_local AS real_local,
+        p.goles_visita AS real_visita,
+        lp.puntos,
+        lj.numero AS jornada_numero,
+        lj.nombre AS jornada_nombre
+      FROM libertadores_pronosticos lp
+      JOIN usuarios u ON lp.usuario_id = u.id
+      JOIN libertadores_partidos p ON lp.partido_id = p.id
+      JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+      WHERE p.goles_local IS NOT NULL AND p.goles_visita IS NOT NULL
+        AND lj.numero = $1
+      ORDER BY u.nombre, p.fecha`,
+      [jornadaNumero]
+    );
+
+    // 2. Obtener ranking acumulado hasta la jornada (excluyendo admins)
+    const rankingQuery = await pool.query(
+      `SELECT 
+        u.nombre AS usuario,
+        u.foto_perfil,
+        COALESCE(SUM(lp.puntos), 0) AS puntaje_total,
+        ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(lp.puntos), 0) DESC, u.nombre ASC) AS posicion
+      FROM usuarios u
+      LEFT JOIN libertadores_pronosticos lp ON lp.usuario_id = u.id
+      LEFT JOIN libertadores_partidos p ON lp.partido_id = p.id
+      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+      WHERE u.activo_libertadores = true
+        AND u.rol != 'admin'
+        AND (lj.numero IS NULL OR lj.numero <= $1)
+        AND (p.goles_local IS NULL OR p.goles_visita IS NULL OR (p.goles_local IS NOT NULL AND p.goles_visita IS NOT NULL))
+      GROUP BY u.id, u.nombre, u.foto_perfil
+      ORDER BY puntaje_total DESC
+      LIMIT 10`,
+      [jornadaNumero]
+    );
+
+    // 3. Obtener ranking de la jornada específica (excluyendo admins)
+    const rankingJornadaQuery = await pool.query(
+      `SELECT 
+        u.nombre AS usuario,
+        u.foto_perfil,
+        COALESCE(SUM(lp.puntos), 0) AS puntos_jornada,
+        ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(lp.puntos), 0) DESC, u.nombre ASC) AS posicion
+      FROM usuarios u
+      LEFT JOIN libertadores_pronosticos lp ON lp.usuario_id = u.id
+      LEFT JOIN libertadores_partidos p ON lp.partido_id = p.id
+      LEFT JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+      WHERE u.activo_libertadores = true
+        AND u.rol != 'admin'
+        AND lj.numero = $1
+        AND p.goles_local IS NOT NULL AND p.goles_visita IS NOT NULL
+      GROUP BY u.id, u.nombre, u.foto_perfil
+      ORDER BY puntos_jornada DESC
+      LIMIT 10`,
+      [jornadaNumero]
+    );
+
+    const pronosticos = pronosticosQuery.rows;
+    const ranking = rankingQuery.rows;
+    const rankingJornada = rankingJornadaQuery.rows;
+
+    console.log(`📊 Datos obtenidos - Pronósticos: ${pronosticos.length}, Ranking: ${ranking.length}, Ranking Jornada: ${rankingJornada.length}, Ganadores: ${ganadores.length}`);
+
+    // Agrupar pronósticos por usuario
+    const pronosticosPorUsuario = {};
+    pronosticos.forEach((p) => {
+      if (!pronosticosPorUsuario[p.usuario]) {
+        pronosticosPorUsuario[p.usuario] = {
+          foto_perfil: p.foto_perfil,
+          pronosticos: []
+        };
+      }
+      pronosticosPorUsuario[p.usuario].pronosticos.push(p);
+    });
+
+    // Función para convertir foto de perfil a base64
+    const getFotoPerfilBase64 = (fotoPerfil) => {
+      if (!fotoPerfil) return null;
+      try {
+        // Limpiar el path: si empieza con /perfil/, quitarlo
+        let cleanPath = fotoPerfil;
+        if (cleanPath.startsWith('/perfil/')) {
+          cleanPath = cleanPath.substring(8); // Quitar "/perfil/"
+        } else if (cleanPath.startsWith('perfil/')) {
+          cleanPath = cleanPath.substring(7); // Quitar "perfil/"
+        }
+        
+        const fotoPath = path.join(__dirname, '../../client/public/perfil', cleanPath);
+        console.log(`🖼️  Buscando foto: ${fotoPerfil} -> ${fotoPath}`);
+        
+        if (fs.existsSync(fotoPath)) {
+          const imageBuffer = fs.readFileSync(fotoPath);
+          const ext = path.extname(cleanPath).substring(1);
+          const base64 = `data:image/${ext};base64,${imageBuffer.toString('base64')}`;
+          console.log(`✅ Foto cargada: ${cleanPath} (${imageBuffer.length} bytes)`);
+          return base64;
+        } else {
+          console.warn(`⚠️  Foto no encontrada: ${fotoPath}`);
+        }
+      } catch (error) {
+        console.warn(`❌ Error cargando foto: ${fotoPerfil}`, error.message);
+      }
+      return null;
+    };
+
+    // Obtener servicio de WhatsApp para envío de email
+    const whatsappService = getWhatsAppService();
+
+    // Generar HTML
+    let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: 'Arial', sans-serif; 
+          padding: 20px; 
+          background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+          color: #333;
+        }
+        .header {
+          text-align: center;
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          margin-bottom: 30px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header img {
+          height: 60px;
+          margin: 0 15px;
+          vertical-align: middle;
+        }
+        .header h1 {
+          color: #1e3c72;
+          font-size: 28px;
+          margin: 15px 0 5px 0;
+        }
+        .header p {
+          color: #666;
+          font-size: 16px;
+        }
+        
+        .ganadores-section {
+          background: linear-gradient(135deg, #ffd700, #ffed4e);
+          padding: 25px;
+          margin-bottom: 25px;
+          border-radius: 10px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+          text-align: center;
+          page-break-inside: avoid;
+        }
+        .ganadores-section h2 {
+          color: #1e3c72;
+          font-size: 26px;
+          margin-bottom: 15px;
+        }
+        .ganador-card {
+          display: inline-block;
+          background: white;
+          padding: 15px;
+          margin: 10px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          vertical-align: top;
+        }
+        .ganador-foto {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 3px solid #ffd700;
+          margin-bottom: 10px;
+        }
+        .ganador-nombre {
+          font-size: 20px;
+          font-weight: bold;
+          color: #1e3c72;
+          margin: 10px 0;
+        }
+        .ganador-puntos {
+          font-size: 16px;
+          color: #666;
+        }
+
+        .rankings-section {
+          background: white;
+          padding: 20px;
+          margin-bottom: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          page-break-inside: avoid;
+        }
+        .rankings-section h2 {
+          color: #1e3c72;
+          font-size: 22px;
+          margin-bottom: 15px;
+          text-align: center;
+        }
+        
+        .usuario-section {
+          background: white;
+          padding: 20px;
+          margin-bottom: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          page-break-inside: avoid;
+        }
+        .usuario-header {
+          display: flex;
+          align-items: center;
+          margin-bottom: 15px;
+          border-bottom: 3px solid #ff6b35;
+          padding-bottom: 10px;
+        }
+        .usuario-foto {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          object-fit: cover;
+          margin-right: 15px;
+          border: 2px solid #1e3c72;
+        }
+        .usuario-info {
+          flex-grow: 1;
+        }
+        .usuario-nombre {
+          color: #1e3c72;
+          font-size: 20px;
+          font-weight: bold;
+          margin: 0;
+        }
+        .usuario-total {
+          color: #27ae60;
+          font-size: 18px;
+          font-weight: bold;
+          text-align: right;
+        }
+        
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 10px;
+        }
+        th {
+          background: #1e3c72;
+          color: white;
+          padding: 12px 8px;
+          text-align: left;
+          font-size: 13px;
+          font-weight: bold;
+        }
+        td {
+          padding: 10px 8px;
+          border-bottom: 1px solid #e0e0e0;
+          font-size: 12px;
+        }
+        tr:hover {
+          background-color: #f5f5f5;
+        }
+        .partido-cell {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .equipo-logo {
+          width: 24px;
+          height: 24px;
+          object-fit: contain;
+        }
+        .vs {
+          color: #999;
+          font-weight: bold;
+          margin: 0 4px;
+        }
+        .resultado {
+          font-weight: bold;
+          color: #1e3c72;
+        }
+        .puntos-cell {
+          font-weight: bold;
+          font-size: 14px;
+        }
+        .puntos-positivo { color: #27ae60; }
+        .puntos-cero { color: #c0392b; }
+        
+        .ranking-table th {
+          background: #27ae60;
+        }
+        .ranking-table .posicion {
+          text-align: center;
+          font-weight: bold;
+          font-size: 16px;
+          color: #1e3c72;
+        }
+        .ranking-table .top-1 {
+          background: #ffd700 !important;
+          color: #000 !important;
+        }
+        .ranking-table .top-2 {
+          background: #c0c0c0 !important;
+          color: #000 !important;
+        }
+        .ranking-table .top-3 {
+          background: #cd7f32 !important;
+          color: #000 !important;
+        }
+        .ranking-foto {
+          width: 35px;
+          height: 35px;
+          border-radius: 50%;
+          object-fit: cover;
+          vertical-align: middle;
+          margin-right: 10px;
+          border: 2px solid #ddd;
+        }
+
+        .footer {
+          text-align: center;
+          color: white;
+          font-size: 12px;
+          margin-top: 30px;
+          padding: 15px;
+          background: rgba(255,255,255,0.1);
+          border-radius: 10px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>🏆 RESULTADOS LIBERTADORES - JORNADA ${jornadaNumero}</h1>
+        <p>Copa Libertadores</p>
+        <p style="font-size: 14px; color: #999; margin-top: 10px;">
+          Fecha de generación: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}
+        </p>
+      </div>
+    `;
+
+    // GANADORES DE LA JORNADA
+    if (ganadores && ganadores.length > 0) {
+      html += `
+      <div class="ganadores-section">
+        <h2>🏆 GANADOR${ganadores.length > 1 ? 'ES' : ''} DE LA JORNADA ${jornadaNumero}</h2>
+      `;
+      
+      for (const ganador of ganadores) {
+        console.log(`\n🏆 Procesando ganador: ${ganador.nombre}`);
+        console.log(`   foto_perfil: ${ganador.foto_perfil}`);
+        
+        const fotoBase64 = ganador.foto_perfil ? getFotoPerfilBase64(ganador.foto_perfil) : null;
+        console.log(`   fotoBase64 generado: ${fotoBase64 ? 'SÍ (' + fotoBase64.substring(0, 50) + '...)' : 'NO'}`);
+        
+        const fotoHTML = fotoBase64 
+          ? `<img src="${fotoBase64}" class="ganador-foto" alt="${ganador.nombre}">` 
+          : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
+        
+        html += `
+        <div class="ganador-card">
+          ${fotoHTML}
+          <div class="ganador-nombre">${ganador.nombre}</div>
+          <div class="ganador-puntos">${ganador.puntaje} puntos</div>
+        </div>
+        `;
+      }
+      html += `</div>`;
+    }
+
+    // RANKING DE LA JORNADA
+    if (rankingJornada.length > 0) {
+      html += `
+      <div class="rankings-section">
+        <h2>🥇 RANKING JORNADA ${jornadaNumero}</h2>
+        <table class="ranking-table">
+          <thead>
+            <tr>
+              <th style="width: 15%; text-align: center;">Posición</th>
+              <th style="width: 60%;">Jugador</th>
+              <th style="width: 25%; text-align: center;">Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      rankingJornada.forEach((r) => {
+        let rowClass = '';
+        if (r.posicion === 1) rowClass = 'top-1';
+        else if (r.posicion === 2) rowClass = 'top-2';
+        else if (r.posicion === 3) rowClass = 'top-3';
+        
+        const fotoBase64 = r.foto_perfil ? getFotoPerfilBase64(r.foto_perfil) : null;
+        const fotoHTML = fotoBase64 ? `<img src="${fotoBase64}" class="ranking-foto" alt="${r.usuario}">` : '';
+        
+        html += `
+            <tr class="${rowClass}">
+              <td class="posicion">${r.posicion}</td>
+              <td>${fotoHTML}${r.usuario}</td>
+              <td style="text-align: center; font-weight: bold;">${r.puntos_jornada}</td>
+            </tr>
+        `;
+      });
+      html += `
+          </tbody>
+        </table>
+      </div>
+      `;
+    }
+
+    // RANKING ACUMULADO
+    if (ranking.length > 0) {
+      html += `
+      <div class="rankings-section">
+        <h2>📈 RANKING ACUMULADO (hasta Jornada ${jornadaNumero})</h2>
+        <table class="ranking-table">
+          <thead>
+            <tr>
+              <th style="width: 15%; text-align: center;">Posición</th>
+              <th style="width: 60%;">Jugador</th>
+              <th style="width: 25%; text-align: center;">Puntos Totales</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      ranking.forEach((r) => {
+        let rowClass = '';
+        if (r.posicion === 1) rowClass = 'top-1';
+        else if (r.posicion === 2) rowClass = 'top-2';
+        else if (r.posicion === 3) rowClass = 'top-3';
+        
+        const fotoBase64 = r.foto_perfil ? getFotoPerfilBase64(r.foto_perfil) : null;
+        const fotoHTML = fotoBase64 ? `<img src="${fotoBase64}" class="ranking-foto" alt="${r.usuario}">` : '';
+        
+        html += `
+            <tr class="${rowClass}">
+              <td class="posicion">${r.posicion}</td>
+              <td>${fotoHTML}${r.usuario}</td>
+              <td style="text-align: center; font-weight: bold;">${r.puntaje_total}</td>
+            </tr>
+        `;
+      });
+      html += `
+          </tbody>
+        </table>
+      </div>
+      `;
+    }
+
+    // PRONÓSTICOS POR USUARIO
+    for (const [usuario, userData] of Object.entries(pronosticosPorUsuario)) {
+      const pronosticosUsuario = userData.pronosticos;
+      const fotoPerfil = userData.foto_perfil;
+      
+      // Calcular puntaje de la jornada (solo pronósticos de la jornada actual)
+      const puntajeJornada = pronosticosUsuario
+        .filter(p => p.jornada_numero === jornadaNumero)
+        .reduce((sum, p) => sum + (p.puntos || 0), 0);
+      
+      const fotoBase64 = fotoPerfil ? getFotoPerfilBase64(fotoPerfil) : null;
+      const fotoHTML = fotoBase64 
+        ? `<img src="${fotoBase64}" class="usuario-foto" alt="${usuario}">` 
+        : '';
+      
+      html += `
+      <div class="usuario-section">
+        <div class="usuario-header">
+          ${fotoHTML}
+          <div class="usuario-info">
+            <h2 class="usuario-nombre">👤 ${usuario}</h2>
+          </div>
+          <div class="usuario-total">Jornada ${jornadaNumero}: ${puntajeJornada} pts</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 10%;">Jornada</th>
+              <th style="width: 35%;">Partido</th>
+              <th style="width: 15%;">Pronóstico</th>
+              <th style="width: 15%;">Resultado</th>
+              <th style="width: 10%;">Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      pronosticosUsuario.forEach((p) => {
+        const logoLocal = getLogoBase64(p.nombre_local);
+        const logoVisita = getLogoBase64(p.nombre_visita);
+        
+        const pronostico = `${p.pred_local} - ${p.pred_visita}`;
+        const resultado = (p.real_local !== null && p.real_visita !== null) 
+          ? `${p.real_local} - ${p.real_visita}` 
+          : 'Pendiente';
+        
+        const puntos = p.puntos || 0;
+        const puntosClass = puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
+
+        html += `
+            <tr>
+              <td style="text-align: center;">${p.jornada_numero}</td>
+              <td>
+                <div class="partido-cell">
+                  <img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">
+                  <span>${p.nombre_local}</span>
+                  <span class="vs">vs</span>
+                  <img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">
+                  <span>${p.nombre_visita}</span>
+                </div>
+              </td>
+              <td style="text-align: center;">${pronostico}</td>
+              <td style="text-align: center;" class="resultado">${resultado}</td>
+              <td style="text-align: center;" class="puntos-cell ${puntosClass}">
+                ${puntos}
+              </td>
+            </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      </div>
+      `;
+    }
+
+    html += `
+      <div class="footer">
+        <p>Campeonato Itaú ${new Date().getFullYear()} • Copa Libertadores</p>
+        <p>Sistema de Pronósticos Deportivos</p>
+      </div>
+    </body>
+    </html>
+    `;
+
+    // Generar PDF
+    console.log('📝 Generando PDF desde HTML...');
+    const options = {
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+    };
+    const file = { content: html };
+    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    console.log(`✅ PDF generado, tamaño: ${pdfBuffer.length} bytes`);
+
+    // Enviar por email
+    const nombreArchivo = `Resultados_Libertadores_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
+    console.log(`📧 Enviando PDF por email...`);
+    const resultadoEmail = await whatsappService.enviarEmailConPDF(
+      pdfBuffer,
+      nombreArchivo,
+      jornadaNumero,
+      'Libertadores'
+    );
+
+    if (!resultadoEmail.success) {
+      throw new Error(resultadoEmail.mensaje);
+    }
+
+    console.log(`✅ PDF de Libertadores jornada ${jornadaNumero} generado y enviado exitosamente`);
+    return true;
+
+  } catch (error) {
+    console.error('Error al generar PDF de Libertadores:', error);
+    throw error;
+  }
+}
 
 export default router;

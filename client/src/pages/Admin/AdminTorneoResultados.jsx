@@ -11,6 +11,9 @@ export default function AdminTorneoResultados() {
   const [partidos, setPartidos] = useState([]);
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
   const [jornadaId, setJornadaId] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState("success"); // success, warning, error
 
   // Obtener jornadas al montar
   useEffect(() => {
@@ -118,17 +121,30 @@ export default function AdminTorneoResultados() {
 
   const calcularPuntajes = async () => {
     if (!jornadaSeleccionada) return;
-    if (!confirm("¿Calcular puntajes de todos los pronósticos de esta jornada?")) return;
+    if (!confirm("¿Calcular puntajes de esta jornada y generar PDF con resultados completos?\n\nEl PDF incluirá: pronósticos, resultados reales, puntos, rankings y ganadores. Se enviará automáticamente por email.")) return;
     
     try {
       const res = await fetch(`${API_BASE_URL}/api/pronosticos/calcular/${jornadaSeleccionada}`, {
         method: "POST"
       });
       const data = await res.json();
-      alert(data.mensaje || "✅ Puntajes calculados correctamente");
+      
+      console.log('📊 Respuesta del servidor:', data);
+      
+      // Mostrar modal en lugar de alert
+      if (data.pdfGenerado) {
+        setModalType("success");
+        setModalMessage(`✅ Puntajes calculados correctamente\n\n📧 PDF enviado por email con:\n• Pronósticos\n• Resultados reales\n• Puntos por jugador\n• Ranking de la jornada\n• Ranking acumulado\n• Ganadores\n\n📊 ${data.actualizados} pronósticos actualizados`);
+      } else {
+        setModalType("warning");
+        setModalMessage(`⚠️ ${data.mensaje}\n\n📊 ${data.actualizados} pronósticos actualizados`);
+      }
+      setShowModal(true);
     } catch (error) {
       console.error("Error al calcular puntajes:", error);
-      alert("❌ Error al calcular puntajes");
+      setModalType("error");
+      setModalMessage("❌ Error al calcular puntajes\n\n" + (error.message || "Error desconocido"));
+      setShowModal(true);
     }
   };
 
@@ -331,6 +347,55 @@ export default function AdminTorneoResultados() {
         <div className="alert alert-info text-center">
           <h5>Selecciona una jornada para comenzar</h5>
           <p className="mb-0">Podrás ingresar resultados reales, cerrar/abrir la jornada y calcular puntajes</p>
+        </div>
+      )}
+
+      {/* Modal de Confirmación */}
+      {showModal && (
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowModal(false)}
+        >
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className={`modal-header ${
+                modalType === 'success' ? 'bg-success text-white' :
+                modalType === 'warning' ? 'bg-warning text-dark' :
+                'bg-danger text-white'
+              }`}>
+                <h5 className="modal-title">
+                  {modalType === 'success' ? '✅ Operación Exitosa' :
+                   modalType === 'warning' ? '⚠️ Advertencia' :
+                   '❌ Error'}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowModal(false)}
+                  style={{ filter: modalType === 'warning' ? 'none' : 'invert(1)' }}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div style={{ whiteSpace: 'pre-line', fontSize: '16px' }}>
+                  {modalMessage}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className={`btn btn-lg ${
+                    modalType === 'success' ? 'btn-success' :
+                    modalType === 'warning' ? 'btn-warning' :
+                    'btn-danger'
+                  }`}
+                  onClick={() => setShowModal(false)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

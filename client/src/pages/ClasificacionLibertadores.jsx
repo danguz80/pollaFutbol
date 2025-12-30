@@ -41,6 +41,11 @@ export default function ClasificacionLibertadores() {
   const [mostrarGanadoresAcumulado, setMostrarGanadoresAcumulado] = useState(false);
   const [calculandoGanadoresAcumulado, setCalculandoGanadoresAcumulado] = useState(false);
 
+  // Modal
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState("success");
+
   useEffect(() => {
     // Verificar si es admin
     const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
@@ -238,37 +243,7 @@ export default function ClasificacionLibertadores() {
     }
   };
 
-  const generarPDF = async () => {
-    if (!filtroJornada) {
-      alert('Por favor selecciona una jornada primero');
-      return;
-    }
 
-    if (!confirm(`¿Generar PDF con los pronósticos de la jornada ${filtroJornada} y enviarlo por email?`)) {
-      return;
-    }
-
-    try {
-      setCalculando(true);
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await axios.post(
-        `${API_URL}/api/libertadores-pronosticos/generar-pdf/${filtroJornada}`,
-        {},
-        { headers }
-      );
-
-      alert(`✅ ${response.data.mensaje}\n\n${response.data.detalles}`);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      const mensaje = error.response?.data?.error || 'Error generando PDF';
-      const detalles = error.response?.data?.detalles || error.message;
-      alert(`❌ ${mensaje}\n\n${detalles}`);
-    } finally {
-      setCalculando(false);
-    }
-  };
 
   const calcularGanadoresJornada = async () => {
     if (!filtroJornada) {
@@ -276,7 +251,7 @@ export default function ClasificacionLibertadores() {
       return;
     }
 
-    if (!confirm(`¿Calcular los ganadores de la jornada ${filtroJornada}?`)) {
+    if (!confirm(`¿Calcular los ganadores de la jornada ${filtroJornada} y generar PDF con resultados?\n\nEl PDF incluirá: pronósticos, resultados reales, puntos, rankings, fotos de perfil y ganadores. Se enviará automáticamente por email.`)) {
       return;
     }
 
@@ -291,14 +266,28 @@ export default function ClasificacionLibertadores() {
         { headers }
       );
 
+      console.log('📊 Respuesta calcular ganadores:', response.data);
+
       setGanadores(response.data);
       setMostrarGanadores(true);
+      
+      // Mostrar modal con resultado
+      if (response.data.pdfGenerado) {
+        setModalType("success");
+        setModalMessage(`✅ ${response.data.mensaje}\n\n📧 PDF enviado por email con:\n• Ganadores de la jornada (con fotos)\n• Ranking de la jornada\n• Ranking acumulado\n• Pronósticos con resultados\n• Fotos de perfil de todos los jugadores`);
+      } else {
+        setModalType("warning");
+        setModalMessage(`⚠️ ${response.data.mensaje}`);
+      }
+      setShowModal(true);
       
       // Recargar rankings
       cargarRankings();
     } catch (error) {
       console.error('Error calculando ganadores:', error);
-      alert('❌ Error al calcular los ganadores');
+      setModalType("error");
+      setModalMessage("❌ Error al calcular los ganadores\n\n" + (error.response?.data?.error || error.message || "Error desconocido"));
+      setShowModal(true);
     } finally {
       setCalculandoGanadores(false);
     }
@@ -1208,22 +1197,6 @@ export default function ClasificacionLibertadores() {
             </button>
           </div>
 
-          {/* Botón Generar PDF (Solo Admin) */}
-          {esAdmin && filtroJornada && (
-            <div className="text-center mb-3">
-              <button 
-                className="btn btn-info px-4"
-                onClick={generarPDF}
-                disabled={calculando}
-              >
-                {calculando ? '⏳ Generando...' : '📄 Generar PDF'}
-              </button>
-              <p className="text-muted mt-2 mb-0">
-                <small>Genera un PDF con todos los pronósticos de la jornada y lo envía por email</small>
-              </p>
-            </div>
-          )}
-
           {/* Botones de control de ranking */}
           <div className="text-center mb-4 d-flex gap-3 justify-content-center flex-wrap">
             <button 
@@ -1278,7 +1251,21 @@ export default function ClasificacionLibertadores() {
                     <h2 className="text-warning">🎉 ¡Felicitaciones! 🎉</h2>
                   </div>
                   {ganadores.ganadores.map((ganador, index) => (
-                    <div key={index} className="alert alert-success mb-3">
+                    <div key={index} className="alert alert-success mb-3 d-flex flex-column align-items-center">
+                      {ganador.foto_perfil && (
+                        <img
+                          src={ganador.foto_perfil.startsWith('/') ? ganador.foto_perfil : `/perfil/${ganador.foto_perfil}`}
+                          alt={ganador.nombre}
+                          style={{
+                            width: '80px',
+                            height: '80px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '3px solid #28a745',
+                            marginBottom: '15px'
+                          }}
+                        />
+                      )}
                       <h4 className="mb-0">
                         🏆 {ganador.nombre}
                       </h4>
@@ -1392,6 +1379,49 @@ export default function ClasificacionLibertadores() {
           <p className="mb-0 fw-bold fs-5">
             {ganadoresAcumulado.ganadores.map(g => g.nombre.toUpperCase()).join(', ')} - {ganadoresAcumulado.ganadores[0].puntaje} PUNTOS
           </p>
+        </div>
+      )}
+
+      {/* Modal de confirmación para cálculo de ganadores */}
+      {showModal && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowModal(false)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content border-3 shadow-lg">
+              <div className={`modal-header ${
+                modalType === 'success' ? 'bg-success text-white' : 
+                modalType === 'warning' ? 'bg-warning text-dark' : 
+                'bg-danger text-white'
+              }`}>
+                <h5 className="modal-title fw-bold">
+                  {modalType === 'success' ? '✅ Éxito' : modalType === 'warning' ? '⚠️ Advertencia' : '❌ Error'}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowModal(false)}
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div style={{ whiteSpace: 'pre-line' }}>
+                  {modalMessage}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className={`btn ${
+                    modalType === 'success' ? 'btn-success' : 
+                    modalType === 'warning' ? 'btn-warning' : 
+                    'btn-danger'
+                  }`}
+                  onClick={() => setShowModal(false)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

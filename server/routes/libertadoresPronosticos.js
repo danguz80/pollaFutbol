@@ -4,6 +4,12 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import htmlPdf from 'html-pdf-node';
 import { getWhatsAppService } from '../services/whatsappService.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -340,6 +346,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
     const pronosticosResult = await pool.query(`
       SELECT 
         u.nombre as usuario,
+        u.foto_perfil,
         pa.nombre_local,
         pa.nombre_visita,
         pa.fecha,
@@ -382,15 +389,43 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
     // Ordenar partidos por fecha
     partidosUnicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-    // Agrupar pronósticos por usuario
+    // Agrupar pronósticos por usuario con foto de perfil
     const pronosticosPorUsuario = {};
     pronosticos.forEach(p => {
       if (!pronosticosPorUsuario[p.usuario]) {
-        pronosticosPorUsuario[p.usuario] = {};
+        pronosticosPorUsuario[p.usuario] = {
+          foto_perfil: p.foto_perfil,
+          pronosticos: {}
+        };
       }
       const key = `${p.nombre_local}|${p.nombre_visita}`;
-      pronosticosPorUsuario[p.usuario][key] = p;
+      pronosticosPorUsuario[p.usuario].pronosticos[key] = p;
     });
+
+    // Función para convertir foto de perfil a base64
+    const getFotoPerfilBase64 = (fotoPerfil) => {
+      if (!fotoPerfil) return null;
+      try {
+        // Limpiar el path: si empieza con /perfil/, quitarlo
+        let cleanPath = fotoPerfil;
+        if (cleanPath.startsWith('/perfil/')) {
+          cleanPath = cleanPath.substring(8);
+        } else if (cleanPath.startsWith('perfil/')) {
+          cleanPath = cleanPath.substring(7);
+        }
+        
+        const fotoPath = path.join(__dirname, '../../client/public/perfil', cleanPath);
+        
+        if (fs.existsSync(fotoPath)) {
+          const imageBuffer = fs.readFileSync(fotoPath);
+          const ext = path.extname(cleanPath).substring(1);
+          return `data:image/${ext};base64,${imageBuffer.toString('base64')}`;
+        }
+      } catch (error) {
+        console.warn(`⚠️  Error cargando foto: ${fotoPerfil}`, error.message);
+      }
+      return null;
+    };
 
     // Generar HTML para el PDF
     const htmlContent = `
@@ -428,13 +463,26 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             page-break-inside: avoid;
           }
+          .usuario-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+          }
+          .usuario-foto {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #0066cc;
+          }
           .usuario-nombre {
             font-size: 18px;
             font-weight: bold;
             color: #0066cc;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 8px;
+            flex: 1;
           }
           table {
             width: 100%;
@@ -497,9 +545,19 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           })}</p>
         </div>
 
-        ${Object.keys(pronosticosPorUsuario).sort().map(usuario => `
+        ${Object.keys(pronosticosPorUsuario).sort().map(usuario => {
+          const userData = pronosticosPorUsuario[usuario];
+          const fotoBase64 = userData.foto_perfil ? getFotoPerfilBase64(userData.foto_perfil) : null;
+          const fotoHTML = fotoBase64 
+            ? `<img src="${fotoBase64}" class="usuario-foto" alt="${usuario}">` 
+            : '';
+          
+          return `
           <div class="usuario-section">
-            <div class="usuario-nombre">👤 ${usuario}</div>
+            <div class="usuario-header">
+              ${fotoHTML}
+              <div class="usuario-nombre">👤 ${usuario}</div>
+            </div>
             <table>
               <thead>
                 <tr>
@@ -510,7 +568,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
               <tbody>
                 ${partidosUnicos.map(partido => {
                   const key = `${partido.nombre_local}|${partido.nombre_visita}`;
-                  const p = pronosticosPorUsuario[usuario][key];
+                  const p = userData.pronosticos[key];
                   
                   if (!p) {
                     return `
@@ -536,7 +594,8 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
               </tbody>
             </table>
           </div>
-        `).join('')}
+          `;
+        }).join('')}
 
         <div class="footer">
           <p>Campeonato Polla Fútbol - Copa Libertadores</p>

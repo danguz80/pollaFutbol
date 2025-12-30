@@ -20,7 +20,6 @@ export default function Clasificacion() {
   const [showFireworks, setShowFireworks] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [participantes, setParticipantes] = useState([]); // Usuarios que han subido pronósticos
-  const [generandoPDF, setGenerandoPDF] = useState(false);
   const [calculandoGanadores, setCalculandoGanadores] = useState(false);
   const [ganadores, setGanadores] = useState(null);
   const [mostrarGanadores, setMostrarGanadores] = useState(false);
@@ -187,38 +186,7 @@ export default function Clasificacion() {
     }
   };
 
-  // Función para generar PDF
-  const generarPDF = async () => {
-    if (!jornadaActual) {
-      alert('Por favor selecciona una jornada primero');
-      return;
-    }
 
-    if (!confirm(`¿Generar PDF con los pronósticos de la jornada ${jornadaActual} y enviarlo por email?`)) {
-      return;
-    }
-
-    try {
-      setGenerandoPDF(true);
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await axios.post(
-        `${API_BASE_URL}/api/pronosticos/generar-pdf/${jornadaActual}`,
-        {},
-        { headers }
-      );
-
-      alert(`✅ ${response.data.mensaje}\n\n${response.data.detalles}`);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      const mensaje = error.response?.data?.error || 'Error generando PDF';
-      const detalles = error.response?.data?.detalles || error.message;
-      alert(`❌ ${mensaje}\n\n${detalles}`);
-    } finally {
-      setGenerandoPDF(false);
-    }
-  };
 
   // Calcular ganadores de la jornada
   const calcularGanadoresJornada = async () => {
@@ -628,18 +596,10 @@ export default function Clasificacion() {
                 <>👑 Ganador Ranking Acumulado</>
               )}
             </button>
-            
-            {/* Botón Generar PDF */}
-            <button 
-              className="btn btn-info btn-lg px-4"
-              onClick={generarPDF}
-              disabled={generandoPDF}
-            >
-              {generandoPDF ? '⏳ Generando...' : '📄 Generar PDF'}
-            </button>
+
           </div>
           <p className="text-muted mt-2 mb-0">
-            <small>Calcula ganadores de jornada, ranking acumulado y genera PDF con todos los pronósticos</small>
+            <small>Calcula ganadores de jornada y del ranking acumulado</small>
           </p>
         </div>
       )}
