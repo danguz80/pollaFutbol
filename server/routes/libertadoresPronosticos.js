@@ -448,12 +448,12 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           }
           .header h1 {
             margin: 0;
-            font-size: 28px;
+            font-size: 34px;
           }
           .header p {
             margin: 5px 0;
             color: #666;
-            font-size: 16px;
+            font-size: 19px;
           }
           .usuario-section {
             background: white;
@@ -479,7 +479,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
             border: 2px solid #0066cc;
           }
           .usuario-nombre {
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
             color: #0066cc;
             flex: 1;
@@ -487,18 +487,21 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 15px;
           }
           th {
             background-color: #0066cc;
             color: white;
-            padding: 10px;
+            padding: 12px;
             text-align: left;
+            font-size: 18px;
             font-weight: bold;
           }
           td {
-            padding: 8px;
+            padding: 10px;
             border-bottom: 1px solid #e0e0e0;
+            font-size: 17px;
+            font-weight: bold;
           }
           tr:hover {
             background-color: #f9f9f9;
@@ -506,6 +509,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           .pronostico {
             font-weight: bold;
             color: #0066cc;
+            font-size: 18px;
           }
           .resultado {
             color: #28a745;
