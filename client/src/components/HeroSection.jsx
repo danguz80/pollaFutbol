@@ -485,7 +485,7 @@ export default function HeroSection({ competencia }) {
 
           .team-name {
             font-size: 1.1rem;
-            text-align: left;
+            text-align: center;
             max-width: 150px;
             display: flex;
             align-items: center;
