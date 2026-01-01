@@ -465,23 +465,57 @@ export default function HeroSection({ competencia }) {
             gap: 1rem;
           }
 
+          .team-side {
+            flex-direction: row;
+            justify-content: center;
+            width: 100%;
+            gap: 1rem;
+          }
+
           .team-logo {
-            width: 100px;
-            height: 100px;
+            width: 80px;
+            height: 80px;
+          }
+
+          .team-logo-placeholder {
+            width: 80px;
+            height: 80px;
+            font-size: 2.5rem;
           }
 
           .team-name {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
+            text-align: left;
+            max-width: 150px;
+            display: flex;
+            align-items: center;
           }
 
           .vs-text {
             font-size: 2rem;
           }
 
+          .bonus-badge {
+            padding: 0.75rem 1rem;
+          }
+
+          .bonus-star {
+            font-size: 1.5rem;
+          }
+
+          .bonus-text {
+            font-size: 1rem;
+          }
+
           .nav-arrow {
             width: 40px;
             height: 40px;
             font-size: 2rem;
+          }
+
+          .cta-button {
+            padding: 0.75rem 1.5rem;
+            font-size: 0.95rem;
           }
         }
       `}</style>
