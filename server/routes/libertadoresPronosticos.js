@@ -4,6 +4,7 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import htmlPdf from 'html-pdf-node';
 import { getWhatsAppService } from '../services/whatsappService.js';
+import { getLogoBase64 } from '../utils/logoHelper.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -533,6 +534,18 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
             color: #666;
             font-style: italic;
           }
+          .equipo-logo {
+            width: 30px;
+            height: 30px;
+            object-fit: contain;
+            vertical-align: middle;
+            margin-right: 8px;
+          }
+          .partido-info {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+          }
         </style>
       </head>
       <body>
@@ -574,10 +587,22 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
                   const key = `${partido.nombre_local}|${partido.nombre_visita}`;
                   const p = userData.pronosticos[key];
                   
+                  // Obtener logos
+                  const logoLocal = getLogoBase64(partido.nombre_local) || '';
+                  const logoVisita = getLogoBase64(partido.nombre_visita) || '';
+                  
                   if (!p) {
                     return `
                       <tr>
-                        <td>${partido.nombre_local} vs ${partido.nombre_visita}</td>
+                        <td>
+                          <div class="partido-info">
+                            ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${partido.nombre_local}">` : ''}
+                            <span>${partido.nombre_local}</span>
+                            <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
+                            ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${partido.nombre_visita}">` : ''}
+                            <span>${partido.nombre_visita}</span>
+                          </div>
+                        </td>
                         <td class="pronostico" style="color: #999;">Sin pronóstico</td>
                       </tr>
                     `;
@@ -590,7 +615,15 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
                   
                   return `
                     <tr>
-                      <td>${p.nombre_local} vs ${p.nombre_visita}</td>
+                      <td>
+                        <div class="partido-info">
+                          ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">` : ''}
+                          <span>${p.nombre_local}</span>
+                          <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
+                          ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">` : ''}
+                          <span>${p.nombre_visita}</span>
+                        </div>
+                      </td>
                       <td class="pronostico">${pronostico}${penales}</td>
                     </tr>
                   `;
