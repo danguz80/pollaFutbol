@@ -10,7 +10,6 @@ const LOGOS_EQUIPOS = {
   // Torneo Nacional
   'Audax Italiano': 'audax.png',
   'Colo-Colo': 'colo-colo.png',
-  'Cobreloa': 'cobreloa.png',
   'Cobresal': 'cobresal.png',
   'Coquimbo Unido': 'coquimbo.png',
   'Deportes Iquique': 'iquique.png',
@@ -57,12 +56,10 @@ export function getLogoBase64(nombreEquipo) {
 
   // Buscar primero en logos nacionales
   let archivoLogo = LOGOS_EQUIPOS[nombreEquipo];
-  let carpeta = 'logos_torneo_nacional';
   
   // Si no está en nacionales, buscar en libertadores
   if (!archivoLogo) {
     archivoLogo = LOGOS_LIBERTADORES[nombreEquipo];
-    carpeta = 'copa_libertadores_logos_equipos';
   }
   
   if (!archivoLogo) {
@@ -71,8 +68,8 @@ export function getLogoBase64(nombreEquipo) {
   }
 
   try {
-    // Ruta al archivo de logo
-    const rutaLogo = path.join(__dirname, `../../client/public/${carpeta}`, archivoLogo);
+    // Ruta al archivo de logo en el servidor
+    const rutaLogo = path.join(__dirname, '../public/logos_equipos', archivoLogo);
     
     // Verificar si el archivo existe
     if (!fs.existsSync(rutaLogo)) {
@@ -94,7 +91,7 @@ export function getLogoBase64(nombreEquipo) {
     // Guardar en cache
     logoCache[nombreEquipo] = base64Image;
     
-    console.log(`✅ Logo cargado: ${nombreEquipo} desde ${carpeta}`);
+    console.log(`✅ Logo cargado: ${nombreEquipo}`);
     
     return base64Image;
   } catch (error) {
