@@ -44,9 +44,9 @@ const LOGOS_LIBERTADORES = {
 const logoCache = {};
 
 /**
- * Obtiene el logo de un equipo en formato base64
+ * Obtiene el logo de un equipo en formato base64 o URL
  * @param {string} nombreEquipo - Nombre del equipo
- * @returns {string|null} - Logo en base64 o null si no existe
+ * @returns {string|null} - Logo en base64/URL o null si no existe
  */
 export function getLogoBase64(nombreEquipo) {
   // Si ya está en cache, retornar
@@ -56,10 +56,12 @@ export function getLogoBase64(nombreEquipo) {
 
   // Buscar primero en logos nacionales
   let archivoLogo = LOGOS_EQUIPOS[nombreEquipo];
+  let carpeta = 'logos_torneo_nacional';
   
   // Si no está en nacionales, buscar en libertadores
   if (!archivoLogo) {
     archivoLogo = LOGOS_LIBERTADORES[nombreEquipo];
+    carpeta = 'copa_libertadores_logos_equipos';
   }
   
   if (!archivoLogo) {
@@ -68,35 +70,36 @@ export function getLogoBase64(nombreEquipo) {
   }
 
   try {
-    // Ruta al archivo de logo en el servidor
+    // Intentar leer desde el servidor primero (para desarrollo local)
     const rutaLogo = path.join(__dirname, '../public/logos_equipos', archivoLogo);
     
-    // Verificar si el archivo existe
-    if (!fs.existsSync(rutaLogo)) {
-      console.warn(`⚠️ Archivo de logo no existe: ${rutaLogo}`);
-      return null;
+    if (fs.existsSync(rutaLogo)) {
+      // Leer el archivo y convertir a base64
+      const imageBuffer = fs.readFileSync(rutaLogo);
+      const extension = path.extname(archivoLogo).toLowerCase();
+      const mimeType = extension === '.png' ? 'image/png' : 
+                       extension === '.webp' ? 'image/webp' : 
+                       extension === '.svg' ? 'image/svg+xml' :
+                       extension === '.jpg' || extension === '.jpeg' ? 'image/jpeg' : 
+                       'image/png';
+      
+      const base64Image = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+      logoCache[nombreEquipo] = base64Image;
+      console.log(`✅ Logo cargado desde servidor: ${nombreEquipo}`);
+      return base64Image;
+    } else {
+      // En producción, usar URL de Netlify
+      const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
+      logoCache[nombreEquipo] = urlLogo;
+      console.log(`✅ Logo URL: ${nombreEquipo} -> ${urlLogo}`);
+      return urlLogo;
     }
-
-    // Leer el archivo y convertir a base64
-    const imageBuffer = fs.readFileSync(rutaLogo);
-    const extension = path.extname(archivoLogo).toLowerCase();
-    const mimeType = extension === '.png' ? 'image/png' : 
-                     extension === '.webp' ? 'image/webp' : 
-                     extension === '.svg' ? 'image/svg+xml' :
-                     extension === '.jpg' || extension === '.jpeg' ? 'image/jpeg' : 
-                     'image/png';
-    
-    const base64Image = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
-    
-    // Guardar en cache
-    logoCache[nombreEquipo] = base64Image;
-    
-    console.log(`✅ Logo cargado: ${nombreEquipo}`);
-    
-    return base64Image;
   } catch (error) {
-    console.error(`❌ Error leyendo logo de ${nombreEquipo}:`, error.message);
-    return null;
+    // Fallback a URL de Netlify si hay error
+    const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
+    logoCache[nombreEquipo] = urlLogo;
+    console.log(`⚠️ Error leyendo logo, usando URL: ${nombreEquipo}`);
+    return urlLogo;
   }
 }
 
