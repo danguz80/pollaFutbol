@@ -553,12 +553,12 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
         .header h1 {
           color: #1e3c72;
-          font-size: 28px;
+          font-size: 34px;
           margin: 15px 0 5px 0;
         }
         .header p {
           color: #666;
-          font-size: 16px;
+          font-size: 19px;
         }
         
         .ganadores-section {
@@ -572,7 +572,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
         .ganadores-section h2 {
           color: #1e3c72;
-          font-size: 26px;
+          font-size: 32px;
           margin-bottom: 15px;
         }
         .ganador-card {
@@ -593,13 +593,13 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           margin-bottom: 10px;
         }
         .ganador-nombre {
-          font-size: 20px;
+          font-size: 24px;
           font-weight: bold;
           color: #1e3c72;
           margin: 10px 0;
         }
         .ganador-puntos {
-          font-size: 16px;
+          font-size: 19px;
           color: #666;
         }
 
@@ -613,7 +613,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
         .rankings-section h2 {
           color: #1e3c72;
-          font-size: 22px;
+          font-size: 27px;
           margin-bottom: 15px;
           text-align: center;
         }
@@ -646,13 +646,13 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
         .usuario-nombre {
           color: #1e3c72;
-          font-size: 20px;
+          font-size: 24px;
           font-weight: bold;
           margin: 0;
         }
         .usuario-total {
           color: #27ae60;
-          font-size: 18px;
+          font-size: 22px;
           font-weight: bold;
           text-align: right;
         }
@@ -667,13 +667,14 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           color: white;
           padding: 12px 8px;
           text-align: left;
-          font-size: 13px;
+          font-size: 18px;
           font-weight: bold;
         }
         td {
           padding: 10px 8px;
           border-bottom: 1px solid #e0e0e0;
-          font-size: 12px;
+          font-size: 17px;
+          font-weight: bold;
         }
         tr:hover {
           background-color: #f5f5f5;
@@ -684,8 +685,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           gap: 8px;
         }
         .equipo-logo {
-          width: 24px;
-          height: 24px;
+          width: 32px;
+          height: 32px;
           object-fit: contain;
         }
         .vs {
@@ -699,7 +700,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
         .puntos-cell {
           font-weight: bold;
-          font-size: 14px;
+          font-size: 17px;
         }
         .puntos-positivo { color: #27ae60; }
         .puntos-cero { color: #c0392b; }
@@ -710,7 +711,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         .ranking-table .posicion {
           text-align: center;
           font-weight: bold;
-          font-size: 16px;
+          font-size: 19px;
           color: #1e3c72;
         }
         .ranking-table .top-1 {
@@ -917,10 +918,10 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
               <td style="text-align: center;">${p.jornada_numero}</td>
               <td>
                 <div class="partido-cell">
-                  <img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">
+                  ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">` : ''}
                   <span>${p.nombre_local}</span>
                   <span class="vs">vs</span>
-                  <img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">
+                  ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">` : ''}
                   <span>${p.nombre_visita}</span>
                 </div>
               </td>

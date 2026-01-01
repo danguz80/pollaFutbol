@@ -337,12 +337,12 @@ async function generarPDFPronosticos(numeroJornada) {
           }
           .header h1 {
             margin: 0;
-            font-size: 28px;
+            font-size: 34px;
           }
           .header p {
             margin: 5px 0;
             color: #666;
-            font-size: 16px;
+            font-size: 19px;
           }
           .usuario-section {
             background: white;
@@ -353,7 +353,7 @@ async function generarPDFPronosticos(numeroJornada) {
             page-break-inside: avoid;
           }
           .usuario-nombre {
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
             color: #0066cc;
             margin-bottom: 15px;
@@ -363,18 +363,21 @@ async function generarPDFPronosticos(numeroJornada) {
           table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 15px;
           }
           th {
             background-color: #0066cc;
             color: white;
-            padding: 10px;
+            padding: 12px;
             text-align: left;
+            font-size: 18px;
             font-weight: bold;
           }
           td {
-            padding: 8px;
+            padding: 10px;
             border-bottom: 1px solid #e0e0e0;
+            font-size: 17px;
+            font-weight: bold;
           }
           tr:hover {
             background-color: #f9f9f9;
@@ -382,6 +385,7 @@ async function generarPDFPronosticos(numeroJornada) {
           .pronostico {
             font-weight: bold;
             color: #0066cc;
+            font-size: 18px;
           }
           .footer {
             text-align: center;
@@ -431,10 +435,10 @@ async function generarPDFPronosticos(numeroJornada) {
                       <tr>
                         <td>
                           <div style="display: flex; align-items: center;">
-                            ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                            ${logoLocal ? `<img src="${logoLocal}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
                             <span>${partido.nombre_local}</span>
-                            <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
-                            ${logoVisita ? `<img src="${logoVisita}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                            <span style="margin: 0 10px; color: #999; font-weight: bold;">vs</span>
+                            ${logoVisita ? `<img src="${logoVisita}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
                             <span>${partido.nombre_visita}</span>
                           </div>
                         </td>
@@ -449,10 +453,10 @@ async function generarPDFPronosticos(numeroJornada) {
                     <tr>
                       <td>
                         <div style="display: flex; align-items: center;">
-                          ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                          ${logoLocal ? `<img src="${logoLocal}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
                           <span>${p.nombre_local}</span>
-                          <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
-                          ${logoVisita ? `<img src="${logoVisita}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                          <span style="margin: 0 10px; color: #999; font-weight: bold;">vs</span>
+                          ${logoVisita ? `<img src="${logoVisita}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
                           <span>${p.nombre_visita}</span>
                         </div>
                       </td>
