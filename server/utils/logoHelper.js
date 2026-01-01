@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 
 // Mapeo de nombres de equipos a archivos de logo
 const LOGOS_EQUIPOS = {
+  // Torneo Nacional
   'Audax Italiano': 'audax.png',
   'Colo-Colo': 'colo-colo.png',
   'Cobreloa': 'cobreloa.png',
@@ -28,6 +29,18 @@ const LOGOS_EQUIPOS = {
   'Universidad de Concepción': 'udeconce.png'
 };
 
+// Mapeo de equipos de Libertadores
+const LOGOS_LIBERTADORES = {
+  'Atlético Bucaramanga': 'AtléticoBucaramanga.png',
+  'Fortaleza': 'Fortaleza.png',
+  'Racing': 'Racing.png',
+  'Botafogo': 'botafogo.png',
+  'Carabobo': 'carabobo.png',
+  'Colo-Colo': 'colo-colo.png',
+  'Estudiantes de La Plata': 'estudiantes_de_la_plata.svg',
+  'Universidad de Chile': 'udechile.png'
+};
+
 // Cache para almacenar logos en base64
 const logoCache = {};
 
@@ -42,15 +55,24 @@ export function getLogoBase64(nombreEquipo) {
     return logoCache[nombreEquipo];
   }
 
-  const archivoLogo = LOGOS_EQUIPOS[nombreEquipo];
+  // Buscar primero en logos nacionales
+  let archivoLogo = LOGOS_EQUIPOS[nombreEquipo];
+  let carpeta = 'logos_torneo_nacional';
+  
+  // Si no está en nacionales, buscar en libertadores
+  if (!archivoLogo) {
+    archivoLogo = LOGOS_LIBERTADORES[nombreEquipo];
+    carpeta = 'copa_libertadores_logos_equipos';
+  }
+  
   if (!archivoLogo) {
     console.warn(`⚠️ Logo no encontrado para equipo: ${nombreEquipo}`);
     return null;
   }
 
   try {
-    // Ruta al archivo de logo (ajustar según la estructura del proyecto)
-    const rutaLogo = path.join(__dirname, '../../client/public/logos_torneo_nacional', archivoLogo);
+    // Ruta al archivo de logo
+    const rutaLogo = path.join(__dirname, `../../client/public/${carpeta}`, archivoLogo);
     
     // Verificar si el archivo existe
     if (!fs.existsSync(rutaLogo)) {
@@ -63,6 +85,7 @@ export function getLogoBase64(nombreEquipo) {
     const extension = path.extname(archivoLogo).toLowerCase();
     const mimeType = extension === '.png' ? 'image/png' : 
                      extension === '.webp' ? 'image/webp' : 
+                     extension === '.svg' ? 'image/svg+xml' :
                      extension === '.jpg' || extension === '.jpeg' ? 'image/jpeg' : 
                      'image/png';
     
@@ -70,6 +93,8 @@ export function getLogoBase64(nombreEquipo) {
     
     // Guardar en cache
     logoCache[nombreEquipo] = base64Image;
+    
+    console.log(`✅ Logo cargado: ${nombreEquipo} desde ${carpeta}`);
     
     return base64Image;
   } catch (error) {
@@ -85,7 +110,15 @@ export function precargarLogos() {
   console.log('📦 Precargando logos de equipos...');
   let cargados = 0;
   
+  // Precargar logos nacionales
   Object.keys(LOGOS_EQUIPOS).forEach(equipo => {
+    if (getLogoBase64(equipo)) {
+      cargados++;
+    }
+  });
+  
+  // Precargar logos de Libertadores
+  Object.keys(LOGOS_LIBERTADORES).forEach(equipo => {
     if (getLogoBase64(equipo)) {
       cargados++;
     }
