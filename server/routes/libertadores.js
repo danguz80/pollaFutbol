@@ -419,7 +419,67 @@ router.post('/jornadas/:numero/partidos', verifyToken, authorizeRoles('admin'), 
 router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const { partidos } = req.body;
+    const jornadaNumero = parseInt(req.params.numero);
 
+    // VALIDACIÓN ESPECIAL PARA JORNADA 8 (VUELTA OCTAVOS)
+    if (jornadaNumero === 8) {
+      // Obtener los IDs de jornadas 7 y 8
+      const jornadasResult = await pool.query(
+        'SELECT id, numero FROM libertadores_jornadas WHERE numero IN (7, 8) ORDER BY numero'
+      );
+      
+      if (jornadasResult.rows.length === 2) {
+        const jornada7Id = jornadasResult.rows[0].id;
+        const jornada8Id = jornadasResult.rows[1].id;
+
+        // Obtener todos los partidos de jornada 7 (IDA)
+        const partidosIda = await pool.query(`
+          SELECT id, nombre_local, nombre_visita, goles_local, goles_visita
+          FROM libertadores_partidos
+          WHERE jornada_id = $1
+          ORDER BY id
+        `, [jornada7Id]);
+
+        // Validar cada partido de vuelta contra su ida
+        for (const partidoVuelta of partidos) {
+          // Solo validar partidos que tienen resultado
+          if (partidoVuelta.goles_local === null || partidoVuelta.goles_visita === null) continue;
+
+          // Buscar el partido de ida correspondiente (equipos invertidos)
+          const partidoVueltaCompleto = await pool.query(
+            'SELECT nombre_local, nombre_visita FROM libertadores_partidos WHERE id = $1',
+            [partidoVuelta.id]
+          );
+
+          if (partidoVueltaCompleto.rows.length === 0) continue;
+
+          const localVuelta = partidoVueltaCompleto.rows[0].nombre_local;
+          const visitaVuelta = partidoVueltaCompleto.rows[0].nombre_visita;
+
+          // Encontrar partido IDA (local vuelta = visita ida, visita vuelta = local ida)
+          const partidoIda = partidosIda.rows.find(p => 
+            p.nombre_local === visitaVuelta && p.nombre_visita === localVuelta
+          );
+
+          if (!partidoIda || partidoIda.goles_local === null || partidoIda.goles_visita === null) continue;
+
+          // Calcular marcador global
+          const golesLocalGlobal = partidoIda.goles_visita + partidoVuelta.goles_local; // El local de vuelta fue visita en ida
+          const golesVisitaGlobal = partidoIda.goles_local + partidoVuelta.goles_visita; // El visita de vuelta fue local en ida
+
+          // Si hay empate global, exigir penales
+          if (golesLocalGlobal === golesVisitaGlobal) {
+            if (partidoVuelta.penales_local === null || partidoVuelta.penales_visita === null) {
+              return res.status(400).json({ 
+                error: `⚠️ EMPATE EN MARCADOR GLOBAL\n\n🔴 ${localVuelta} vs ${visitaVuelta}\n\n📊 Marcador Global: ${golesLocalGlobal} - ${golesVisitaGlobal}\n- IDA: ${visitaVuelta} ${partidoIda.goles_local} - ${partidoIda.goles_visita} ${localVuelta}\n- VUELTA: ${localVuelta} ${partidoVuelta.goles_local} - ${partidoVuelta.goles_visita} ${visitaVuelta}\n\n⚽ Debes ingresar el resultado de PENALES para determinar quién avanza.`
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Si pasa todas las validaciones, guardar resultados
     for (const partido of partidos) {
       await pool.query(`
         UPDATE libertadores_partidos
