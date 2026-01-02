@@ -858,7 +858,7 @@ export default function ClasificacionLibertadores() {
                           
                           return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
                             <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
-                              <td colSpan="5">
+                              <td colSpan="4">
                                 <div className="fw-bold mb-2 text-center">⚡ Equipo que avanza</div>
                                 {(jornada === 8 || jornada === 9 || jornada === 10) && pronostico.partido_ida && (
                                   <div className="d-flex justify-content-between small">
@@ -911,6 +911,9 @@ export default function ClasificacionLibertadores() {
                                 ) : (
                                   <span className="text-muted">Pendiente</span>
                                 )}
+                              </td>
+                              <td className="text-center">
+                                {/* Columna Bonus vacía */}
                               </td>
                               <td className="text-center fw-bold">
                                 {pronostico.puntos_clasificacion !== null && pronostico.puntos_clasificacion !== undefined ? (
