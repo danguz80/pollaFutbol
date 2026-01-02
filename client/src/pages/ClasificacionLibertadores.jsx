@@ -1034,7 +1034,14 @@ export default function ClasificacionLibertadores() {
                     {/* FILA 8: Cuadro Final (Campeón + Subcampeón) - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && (() => {
                       const primerPronostico = grupo.pronosticos[0];
-                      if (!primerPronostico.equipos_pronosticados_final) return null;
+                      
+                      console.log('🔍 FILA 8 - Intentando mostrar Cuadro Final');
+                      console.log('🔍 primerPronostico.equipos_pronosticados_final:', primerPronostico.equipos_pronosticados_final);
+                      
+                      if (!primerPronostico.equipos_pronosticados_final) {
+                        console.log('❌ No hay equipos_pronosticados_final, retornando null');
+                        return null;
+                      }
                       
                       const { campeon: pronosticadoCampeon, subcampeon: pronosticadoSubcampeon } = primerPronostico.equipos_pronosticados_final;
                       
