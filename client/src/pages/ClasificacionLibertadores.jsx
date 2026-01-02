@@ -938,11 +938,20 @@ export default function ClasificacionLibertadores() {
                         penales_visita: primerPronostico.final_virtual_penales_visita
                       };
                       
+                      console.log('✅ Equipos pronosticados FINAL:', equiposPronosticados);
+                      console.log('🔍 Buscando partido FINAL en pronósticos...');
+                      console.log('🔍 Tipos de partido en grupo:', grupo.pronosticos.map(p => p.partido.tipo_partido));
+                      
                       // Buscar el partido FINAL real
                       const partidoFinalReal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
                       
+                      console.log('🔍 Partido FINAL encontrado:', partidoFinalReal);
+                      
                       // Si no hay partido FINAL en la BD, no mostrar esta sección
-                      if (!partidoFinalReal) return null;
+                      if (!partidoFinalReal) {
+                        console.log('❌ No se encontró partido FINAL en los pronósticos del usuario');
+                        return null;
+                      }
                       
                       const equiposReales = {
                         local: partidoFinalReal.partido.local.nombre,
