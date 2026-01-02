@@ -912,7 +912,7 @@ export default function ClasificacionLibertadores() {
                       </>
                     ))}
                     
-                    {/* Fila del PARTIDO FINAL - Solo para Jornada 10 */}
+                    {/* FILA 7: PARTIDO FINAL - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && grupo.pronosticos.length > 0 && (() => {
                       // Tomar el primer pronóstico para obtener los datos de la FINAL virtual
                       const primerPronostico = grupo.pronosticos[0];
@@ -931,7 +931,7 @@ export default function ClasificacionLibertadores() {
                         penales_visita: primerPronostico.final_virtual_penales_visita
                       };
                       
-                      // Buscar el partido FINAL real desde el estado de partidos (no en pronósticos del usuario)
+                      // Buscar el partido FINAL real desde el estado de partidos
                       const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL' && p.jornada_id === primerPronostico.jornada.id);
                       
                       // Si no existe el partido FINAL en la BD, no mostrar
@@ -956,80 +956,59 @@ export default function ClasificacionLibertadores() {
                       const jornadaCerrada = jornada?.cerrada || false;
                       
                       return (
-                        <tr className={coincidePartido ? 'table-info' : 'table-warning'}>
-                          <td colSpan="4" className="fw-bold">
-                            <div className="text-center mb-2">🏆 FINAL</div>
-                            <div className="d-flex justify-content-between small">
-                              {/* PARTIDO PRONOSTICADO */}
-                              <div className="text-start" style={{flex: 1}}>
-                                <div className="text-primary fw-bold mb-2">Pronosticado</div>
-                                <div className="mb-1">
-                                  <strong>Partido:</strong> {equiposPronosticados.local} vs {equiposPronosticados.visita}
-                                </div>
-                                <div>
-                                  <strong>Resultado:</strong> {equiposPronosticados.goles_local} - {equiposPronosticados.goles_visita}
-                                  {equiposPronosticados.penales_local !== null && equiposPronosticados.penales_visita !== null && (
-                                    <span className="text-muted ms-1">
-                                      (Pen: {equiposPronosticados.penales_local} - {equiposPronosticados.penales_visita})
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {/* PARTIDO REAL */}
-                              {hayResultado && jornadaCerrada ? (
-                                <div className="text-end text-muted" style={{flex: 1}}>
-                                  <div className="text-success fw-bold mb-2">Real</div>
-                                  <div className="mb-1">
-                                    <strong>Partido:</strong> {equiposReales.local} vs {equiposReales.visita}
-                                  </div>
-                                  <div>
-                                    <strong>Resultado:</strong> {partidoFinalReal.goles_local} - {partidoFinalReal.goles_visita}
-                                    {partidoFinalReal.penales_local !== null && partidoFinalReal.penales_visita !== null && (
-                                      <span className="text-muted ms-1">
-                                        (Pen: {partidoFinalReal.penales_local} - {partidoFinalReal.penales_visita})
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-end text-muted" style={{flex: 1}}>
-                                  <div className="text-secondary fw-bold mb-2">Real</div>
-                                  <div className="mb-1">
-                                    <strong>Partido:</strong> {equiposReales.local} vs {equiposReales.visita}
-                                  </div>
-                                  <div>
-                                    <span className="text-muted">Pendiente</span>
-                                  </div>
+                        <tr className={coincidePartido && hayResultado && jornadaCerrada ? 'table-success' : hayResultado && jornadaCerrada ? 'table-danger' : ''}>
+                          <td colSpan="4">
+                            <div className="text-center mb-2">
+                              <strong style={{fontSize: '1.1rem'}}>🏆 FINAL</strong>
+                            </div>
+                            {/* Partido REAL arriba (grande) */}
+                            <div className="mb-2">
+                              <strong>{equiposReales.local} vs {equiposReales.visita}</strong>
+                              <span className="text-muted ms-2">(Partido Real)</span>
+                            </div>
+                            {/* Partido PRONOSTICADO abajo (pequeño, cursiva) */}
+                            <div style={{fontSize: '0.85rem', fontStyle: 'italic'}} className="text-muted">
+                              {equiposPronosticados.local} vs {equiposPronosticados.visita}
+                              <span className="ms-2">(Partido Pronosticado)</span>
+                            </div>
+                          </td>
+                          {/* Columna: Goles Pronosticado */}
+                          <td className="text-center">
+                            <div className="fw-bold text-primary">
+                              {equiposPronosticados.goles_local} - {equiposPronosticados.goles_visita}
+                              {equiposPronosticados.penales_local !== null && equiposPronosticados.penales_visita !== null && (
+                                <div style={{fontSize: '0.85rem'}}>
+                                  (Pen: {equiposPronosticados.penales_local} - {equiposPronosticados.penales_visita})
                                 </div>
                               )}
                             </div>
                           </td>
-                          <td colSpan="2" className="text-center">
+                          {/* Columna: Goles Real */}
+                          <td className="text-center">
                             {hayResultado && jornadaCerrada ? (
-                              coincidePartido ? (
-                                <div>
-                                  <div className="badge bg-success mb-2">✓ Partido SI coincide</div>
-                                  <div className="text-muted small">Puntos por resultado</div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <div className="badge bg-danger mb-2">✗ Partido NO coincide</div>
-                                  <div className="text-muted small">0 puntos</div>
-                                </div>
-                              )
+                              <div className="fw-bold text-success">
+                                {partidoFinalReal.goles_local} - {partidoFinalReal.goles_visita}
+                                {partidoFinalReal.penales_local !== null && partidoFinalReal.penales_visita !== null && (
+                                  <div style={{fontSize: '0.85rem'}}>
+                                    (Pen: {partidoFinalReal.penales_local} - {partidoFinalReal.penales_visita})
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-muted">Pendiente</span>
                             )}
                           </td>
-                          <td className="text-center fw-bold">
-                            {hayResultado && jornadaCerrada && coincidePartido ? (
-                              <span className="badge bg-warning text-dark fs-6">
-                                {/* Los puntos se calculan del pronóstico, no del partido FINAL real (que no tiene pronóstico directo) */}
-                                0 pts
-                              </span>
-                            ) : hayResultado && jornadaCerrada ? (
-                              <span className="badge bg-secondary">0 pts</span>
+                          {/* Columna: Puntaje + Coincidencia */}
+                          <td className="text-center">
+                            {hayResultado && jornadaCerrada ? (
+                              <div>
+                                <div className="fw-bold fs-5">
+                                  {coincidePartido ? '0 pts' : '0 pts'}
+                                </div>
+                                <div style={{fontSize: '0.85rem'}} className={coincidePartido ? 'text-success' : 'text-danger'}>
+                                  {coincidePartido ? 'Partido SI coincide' : 'Partido NO coincide'}
+                                </div>
+                              </div>
                             ) : (
                               <span className="text-muted">-</span>
                             )}
@@ -1038,37 +1017,43 @@ export default function ClasificacionLibertadores() {
                       );
                     })()}
                     
-                    {/* Fila de "Cuadro Final" (Campeón + Subcampeón) - Solo para Jornada 10 */}
+                    {/* FILA 8: Cuadro Final (Campeón + Subcampeón) - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && (() => {
-                      // Buscar el partido FINAL y obtener equipos pronosticados
-                      const partidoFinal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
-                      if (!partidoFinal || !partidoFinal.equipos_pronosticados_final) return null;
+                      const primerPronostico = grupo.pronosticos[0];
+                      if (!primerPronostico.equipos_pronosticados_final) return null;
                       
-                      const { campeon: pronosticadoCampeon, subcampeon: pronosticadoSubcampeon } = partidoFinal.equipos_pronosticados_final;
+                      const { campeon: pronosticadoCampeon, subcampeon: pronosticadoSubcampeon } = primerPronostico.equipos_pronosticados_final;
+                      
+                      // Buscar el partido FINAL real
+                      const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL' && p.jornada_id === primerPronostico.jornada.id);
+                      if (!partidoFinalReal) return null;
                       
                       // Determinar campeón y subcampeón REALES
                       let realCampeon = null;
                       let realSubcampeon = null;
-                      if (partidoFinal.partido.resultado.local !== null && partidoFinal.partido.resultado.visita !== null) {
-                        // Determinar ganador por marcador
-                        let golesLocal = partidoFinal.partido.resultado.local;
-                        let golesVisita = partidoFinal.partido.resultado.visita;
+                      const hayResultado = partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null;
+                      const jornada = jornadas.find(j => j.id === primerPronostico.jornada.id);
+                      const jornadaCerrada = jornada?.cerrada || false;
+                      
+                      if (hayResultado) {
+                        let golesLocal = partidoFinalReal.goles_local;
+                        let golesVisita = partidoFinalReal.goles_visita;
                         
                         if (golesLocal > golesVisita) {
-                          realCampeon = partidoFinal.partido.local.nombre;
-                          realSubcampeon = partidoFinal.partido.visita.nombre;
+                          realCampeon = partidoFinalReal.nombre_local;
+                          realSubcampeon = partidoFinalReal.nombre_visita;
                         } else if (golesLocal < golesVisita) {
-                          realCampeon = partidoFinal.partido.visita.nombre;
-                          realSubcampeon = partidoFinal.partido.local.nombre;
+                          realCampeon = partidoFinalReal.nombre_visita;
+                          realSubcampeon = partidoFinalReal.nombre_local;
                         } else {
                           // Empate, revisar penales
-                          if (partidoFinal.partido.resultado.penales_local !== null && partidoFinal.partido.resultado.penales_visita !== null) {
-                            if (partidoFinal.partido.resultado.penales_local > partidoFinal.partido.resultado.penales_visita) {
-                              realCampeon = partidoFinal.partido.local.nombre;
-                              realSubcampeon = partidoFinal.partido.visita.nombre;
+                          if (partidoFinalReal.penales_local !== null && partidoFinalReal.penales_visita !== null) {
+                            if (partidoFinalReal.penales_local > partidoFinalReal.penales_visita) {
+                              realCampeon = partidoFinalReal.nombre_local;
+                              realSubcampeon = partidoFinalReal.nombre_visita;
                             } else {
-                              realCampeon = partidoFinal.partido.visita.nombre;
-                              realSubcampeon = partidoFinal.partido.local.nombre;
+                              realCampeon = partidoFinalReal.nombre_visita;
+                              realSubcampeon = partidoFinalReal.nombre_local;
                             }
                           }
                         }
@@ -1077,71 +1062,46 @@ export default function ClasificacionLibertadores() {
                       // Verificar si coinciden
                       const coincideCampeon = pronosticadoCampeon === realCampeon;
                       const coincideSubcampeon = pronosticadoSubcampeon === realSubcampeon;
-                      const ambosCoinciden = coincideCampeon && coincideSubcampeon;
                       
                       return (
-                        <tr className="table-warning fw-bold">
-                          <td colSpan="2" className="text-center">
-                            <strong>🏆 Cuadro Final</strong>
-                          </td>
-                          <td colSpan="2" className="text-center text-primary">
-                            <div><strong>Campeón:</strong> {pronosticadoCampeon}</div>
-                            <div><strong>Subcampeón:</strong> {pronosticadoSubcampeon}</div>
-                          </td>
-                          <td colSpan="2" className="text-center">
-                            {realCampeon ? (
-                              <>
-                                <div className={coincideCampeon ? 'text-success' : 'text-danger'}>
-                                  <strong>Campeón:</strong> {realCampeon} {coincideCampeon ? '✓' : '✗'}
-                                </div>
-                                <div className={coincideSubcampeon ? 'text-success' : 'text-danger'}>
-                                  <strong>Subcampeón:</strong> {realSubcampeon} {coincideSubcampeon ? '✓' : '✗'}
-                                </div>
-                              </>
+                        <tr className="table-info">
+                          <td colSpan="4">
+                            <div className="text-center mb-2">
+                              <strong>🏆 Cuadro Final (Campeón + Subcampeón)</strong>
+                            </div>
+                            {/* REAL arriba (grande) */}
+                            {hayResultado && jornadaCerrada ? (
+                              <div className="mb-2">
+                                <strong>Campeón: {realCampeon}</strong> | <strong>Subcampeón: {realSubcampeon}</strong>
+                              </div>
                             ) : (
-                              <span className="text-muted">Pendiente</span>
+                              <div className="mb-2 text-muted">
+                                <strong>Pendiente</strong>
+                              </div>
                             )}
+                            {/* PRONOSTICADO abajo (pequeño, cursiva) */}
+                            <div style={{fontSize: '0.85rem', fontStyle: 'italic'}} className="text-muted">
+                              Campeón: {pronosticadoCampeon} | Subcampeón: {pronosticadoSubcampeon}
+                            </div>
                           </td>
+                          <td colSpan="2" className="text-center">
+                            {/* Vacío o info adicional */}
+                          </td>
+                          {/* Columna: Puntaje desglosado */}
                           <td className="text-center">
-                            {realCampeon && ambosCoinciden ? (
-                              <span className="badge bg-success fs-6">Coincide ✓</span>
-                            ) : realCampeon ? (
-                              <span className="badge bg-danger fs-6">No coincide ✗</span>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
-                          </td>
-                        </tr>
+                            {hayResultado && jornadaCerrada ? (
+                              <div>
+                                <div className={coincideCampeon ? 'text-success fw-bold' : 'text-danger'}>
+                                  {primerPronostico.puntos_campeon || 0} pts Campeón
+                                </div>
+                                <div className={coincideSubcampeon ? 'text-success fw-bold' : 'text-danger'}>
+                                  {primerPronostico.puntos_subcampeon || 0} pts Subcampeón
+                                </div>
                       );
                     })()}
                     
-                    {/* Fila de puntos del cuadro final - Solo para Jornada 10 */}
-                    {grupo.jornada === 10 && grupo.pronosticos.length > 0 && (() => {
-                      const primerPronostico = grupo.pronosticos[0];
-                      const puntosCampeon = primerPronostico.puntos_campeon || 0;
-                      const puntosSubcampeon = primerPronostico.puntos_subcampeon || 0;
-                      const totalCuadroFinal = puntosCampeon + puntosSubcampeon;
-                      
-                      if (totalCuadroFinal > 0) {
-                        return (
-                          <tr className="table-success">
-                            <td colSpan="6" className="text-end fw-bold">Puntos Cuadro Final (Campeón + Subcampeón):</td>
-                            <td className="text-center fw-bold">
-                              <span className="badge bg-success fs-6">
-                                {puntosCampeon > 0 && `${puntosCampeon} pts Campeón`}
-                                {puntosCampeon > 0 && puntosSubcampeon > 0 && ' + '}
-                                {puntosSubcampeon > 0 && `${puntosSubcampeon} pts Subcampeón`}
-                                {totalCuadroFinal > 0 && ` = ${totalCuadroFinal} pts`}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      }
-                      return null;
-                    })()}
-                    
-                    {/* Fila de total */}
-                    <tr className="table-info fw-bold">
+                    {/* FILA 9: TOTAL - Solo para todas las jornadas */}
+                    <tr className="table-dark fw-bold">
                       <td colSpan="6" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
                       <td className="text-center">
                         <span className="badge bg-dark fs-5">
