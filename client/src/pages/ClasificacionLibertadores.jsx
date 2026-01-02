@@ -940,15 +940,9 @@ export default function ClasificacionLibertadores() {
                       };
                       
                       console.log('🔍 partidos array length:', partidos.length);
-                      console.log('🔍 Buscando partido FINAL con jornada_id:', primerPronostico.jornada.id);
                       
-                      // Ver qué partidos hay para jornada 29
-                      const partidosJornada29 = partidos.filter(p => p.jornada_id === primerPronostico.jornada.id);
-                      console.log('🔍 Partidos con jornada_id 29:', partidosJornada29);
-                      console.log('🔍 Tipos de partido en jornada 29:', partidosJornada29.map(p => ({id: p.id, tipo: p.tipo_partido, equipos: `${p.nombre_local} vs ${p.nombre_visita}`})));
-                      
-                      // Buscar el partido FINAL real desde el estado de partidos
-                      const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL' && p.jornada_id === primerPronostico.jornada.id);
+                      // Buscar el partido FINAL real desde el estado de partidos (sin filtrar por jornada ya que hay un solo FINAL)
+                      const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL');
                       
                       console.log('🔍 partidoFinalReal encontrado:', partidoFinalReal);
                       
