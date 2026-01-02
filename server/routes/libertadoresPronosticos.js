@@ -443,9 +443,9 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           .header {
             text-align: center;
             color: #0066cc;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             border-bottom: 3px solid #0066cc;
-            padding-bottom: 20px;
+            padding-bottom: 10px;
           }
           .header h1 {
             margin: 0;
@@ -458,8 +458,8 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           }
           .usuario-section {
             background: white;
-            padding: 15px;
-            margin-bottom: 20px;
+            padding: 10px;
+            margin-bottom: 12px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             page-break-inside: avoid;
@@ -468,9 +468,9 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
             display: flex;
             align-items: center;
             gap: 15px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 8px;
+            padding-bottom: 6px;
           }
           .usuario-foto {
             width: 50px;
@@ -493,13 +493,13 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           th {
             background-color: #0066cc;
             color: white;
-            padding: 12px;
+            padding: 8px;
             text-align: left;
             font-size: 18px;
             font-weight: bold;
           }
           td {
-            padding: 10px;
+            padding: 6px;
             border-bottom: 1px solid #e0e0e0;
             font-size: 17px;
             font-weight: bold;
@@ -510,7 +510,7 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           .pronostico {
             font-weight: bold;
             color: #0066cc;
-            font-size: 18px;
+            font-size: 22px;
           }
           .resultado {
             color: #28a745;
