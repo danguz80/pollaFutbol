@@ -941,17 +941,8 @@ export default function ClasificacionLibertadores() {
                       
                       console.log('🔍 partidos array length:', partidos.length);
                       
-                      // Ver qué tipos de partido hay en el array
-                      const tiposUnicos = [...new Set(partidos.map(p => p.tipo_partido))];
-                      console.log('🔍 Tipos de partido únicos en array:', tiposUnicos);
-                      console.log('🔍 Hay partido con tipo_partido=FINAL?', partidos.some(p => p.tipo_partido === 'FINAL'));
-                      
-                      // Ver si hay algún partido con id 456
-                      const partido456 = partidos.find(p => p.id === 456);
-                      console.log('🔍 Partido con id 456:', partido456);
-                      
-                      // Buscar el partido FINAL real desde el estado de partidos (sin filtrar por jornada ya que hay un solo FINAL)
-                      const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL');
+                      // TEMPORAL: Buscar por id 456 ya que tipo_partido no está llegando del backend
+                      const partidoFinalReal = partidos.find(p => p.id === 456);
                       
                       console.log('🔍 partidoFinalReal encontrado:', partidoFinalReal);
                       
