@@ -541,9 +541,9 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         .header {
           text-align: center;
           background: white;
-          padding: 20px;
+          padding: 10px;
           border-radius: 10px;
-          margin-bottom: 30px;
+          margin-bottom: 15px;
           box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .header img {
@@ -563,8 +563,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         
         .ganadores-section {
           background: linear-gradient(135deg, #ffd700, #ffed4e);
-          padding: 25px;
-          margin-bottom: 25px;
+          padding: 15px;
+          margin-bottom: 15px;
           border-radius: 10px;
           box-shadow: 0 4px 8px rgba(0,0,0,0.2);
           text-align: center;
@@ -605,8 +605,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
 
         .rankings-section {
           background: white;
-          padding: 20px;
-          margin-bottom: 25px;
+          padding: 10px;
+          margin-bottom: 12px;
           border-radius: 10px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           page-break-inside: avoid;
@@ -620,8 +620,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         
         .usuario-section {
           background: white;
-          padding: 20px;
-          margin-bottom: 25px;
+          padding: 10px;
+          margin-bottom: 12px;
           border-radius: 10px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           page-break-inside: avoid;
@@ -629,9 +629,9 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         .usuario-header {
           display: flex;
           align-items: center;
-          margin-bottom: 15px;
+          margin-bottom: 10px;
           border-bottom: 3px solid #ff6b35;
-          padding-bottom: 10px;
+          padding-bottom: 6px;
         }
         .usuario-foto {
           width: 50px;
@@ -665,13 +665,13 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         th {
           background: #1e3c72;
           color: white;
-          padding: 12px 8px;
+          padding: 8px;
           text-align: left;
           font-size: 18px;
           font-weight: bold;
         }
         td {
-          padding: 10px 8px;
+          padding: 6px;
           border-bottom: 1px solid #e0e0e0;
           font-size: 17px;
           font-weight: bold;
@@ -697,10 +697,11 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         .resultado {
           font-weight: bold;
           color: #1e3c72;
+          font-size: 22px;
         }
         .puntos-cell {
           font-weight: bold;
-          font-size: 17px;
+          font-size: 22px;
         }
         .puntos-positivo { color: #27ae60; }
         .puntos-cero { color: #c0392b; }
