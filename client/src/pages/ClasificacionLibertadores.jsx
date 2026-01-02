@@ -969,6 +969,33 @@ export default function ClasificacionLibertadores() {
                       const jornada = jornadas.find(j => j.id === primerPronostico.jornada.id);
                       const jornadaCerrada = jornada?.cerrada || false;
                       
+                      // Calcular puntos si hay resultado y coinciden los equipos
+                      let puntosPartidoFinal = 0;
+                      if (hayResultado && coincidePartido) {
+                        // Si los equipos coinciden, calcular puntos por resultado
+                        const golesPronosticadosLocal = equiposPronosticados.goles_local;
+                        const golesPronosticadosVisita = equiposPronosticados.goles_visita;
+                        const golesRealesLocal = partidoFinalReal.goles_local;
+                        const golesRealesVisita = partidoFinalReal.goles_visita;
+                        
+                        // Diferencia de goles
+                        const difPronosticada = golesPronosticadosLocal - golesPronosticadosVisita;
+                        const difReal = golesRealesLocal - golesRealesVisita;
+                        
+                        // 3 puntos si acierta resultado exacto
+                        if (golesPronosticadosLocal === golesRealesLocal && golesPronosticadosVisita === golesRealesVisita) {
+                          puntosPartidoFinal = 3;
+                        }
+                        // 2 puntos si acierta diferencia de goles
+                        else if (difPronosticada === difReal) {
+                          puntosPartidoFinal = 2;
+                        }
+                        // 1 punto si acierta ganador/empate
+                        else if ((difPronosticada > 0 && difReal > 0) || (difPronosticada < 0 && difReal < 0) || (difPronosticada === 0 && difReal === 0)) {
+                          puntosPartidoFinal = 1;
+                        }
+                      }
+                      
                       return (
                         <tr className={coincidePartido && hayResultado && jornadaCerrada ? 'table-success' : hayResultado && jornadaCerrada ? 'table-danger' : ''}>
                           <td colSpan="4" className="text-center">
@@ -1017,7 +1044,7 @@ export default function ClasificacionLibertadores() {
                             {hayResultado && jornadaCerrada ? (
                               <div>
                                 <div className="fw-bold fs-5">
-                                  {coincidePartido ? '0 pts' : '0 pts'}
+                                  {puntosPartidoFinal} pts
                                 </div>
                                 <div style={{fontSize: '0.85rem'}} className={coincidePartido ? 'text-success' : 'text-danger'}>
                                   {coincidePartido ? 'Partido SI coincide' : 'Partido NO coincide'}
