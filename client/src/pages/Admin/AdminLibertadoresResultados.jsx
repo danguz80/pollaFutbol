@@ -64,6 +64,7 @@ export default function AdminLibertadoresResultados() {
         penalesLocal: p.penales_local ?? "",
         penalesVisita: p.penales_visita ?? "",
         bonus: p.bonus ?? 1,
+        tipoPartido: p.tipo_partido || null, // IDA, VUELTA, FINAL o null (fase grupos)
       }));
       setPartidos(partidosConGoles);
     } catch (err) {
@@ -425,7 +426,7 @@ export default function AdminLibertadoresResultados() {
                     <th>Local</th>
                     <th>Marcador</th>
                     <th>Visita</th>
-                    {Number(jornadaSeleccionada) >= 8 && <th>Penales</th>}
+                    {partidos.some(p => p.tipoPartido === 'VUELTA' || p.tipoPartido === 'FINAL') && <th>Penales</th>}
                     <th>Bonus</th>
                   </tr>
                 </thead>
@@ -465,29 +466,33 @@ export default function AdminLibertadoresResultados() {
                           {p.visita}
                         </div>
                       </td>
-                      {Number(jornadaSeleccionada) >= 8 && (
+                      {partidos.some(partido => partido.tipoPartido === 'VUELTA' || partido.tipoPartido === 'FINAL') && (
                         <td>
-                          <div className="d-flex justify-content-center align-items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              className="form-control text-center"
-                              style={{ width: "60px" }}
-                              placeholder="P"
-                              value={p.penalesLocal ?? ""}
-                              onChange={(e) => handleCambiarGoles(p.id, "penalesLocal", e.target.value)}
-                            />
-                            <span>-</span>
-                            <input
-                              type="number"
-                              min="0"
-                              className="form-control text-center"
-                              style={{ width: "60px" }}
-                              placeholder="P"
-                              value={p.penalesVisita ?? ""}
-                              onChange={(e) => handleCambiarGoles(p.id, "penalesVisita", e.target.value)}
-                            />
-                          </div>
+                          {(p.tipoPartido === 'VUELTA' || p.tipoPartido === 'FINAL') ? (
+                            <div className="d-flex justify-content-center align-items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                className="form-control text-center"
+                                style={{ width: "60px" }}
+                                placeholder="P"
+                                value={p.penalesLocal ?? ""}
+                                onChange={(e) => handleCambiarGoles(p.id, "penalesLocal", e.target.value)}
+                              />
+                              <span>-</span>
+                              <input
+                                type="number"
+                                min="0"
+                                className="form-control text-center"
+                                style={{ width: "60px" }}
+                                placeholder="P"
+                                value={p.penalesVisita ?? ""}
+                                onChange={(e) => handleCambiarGoles(p.id, "penalesVisita", e.target.value)}
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
                         </td>
                       )}
                       <td>
