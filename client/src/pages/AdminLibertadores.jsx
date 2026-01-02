@@ -186,6 +186,7 @@ export default function AdminLibertadores() {
       }
 
       showMessage('success', `✅ Fase de grupos generada:\n- ${equiposArray.length} equipos\n- ${partidosCreados} partidos en ${Object.keys(jornadasPartidos).filter(j => jornadasPartidos[j].length > 0).length} jornadas`);
+      alert(`✅ Fase de Grupos generada exitosamente\n\n📊 Resumen:\n- ${equiposArray.length} equipos creados\n- ${partidosCreados} partidos generados\n- Jornadas: ${Object.keys(jornadasPartidos).filter(j => jornadasPartidos[j].length > 0).map(j => `J${j}`).join(', ')}\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
       setTextFaseGrupos('');
       
     } catch (error) {
@@ -222,7 +223,7 @@ export default function AdminLibertadores() {
         equipo_local: cruce.local,
         equipo_visitante: cruce.visita,
         fecha_hora: new Date().toISOString(),
-        bonus: 2
+        bonus: 1
       }));
 
       // Generar partidos VUELTA (Jornada 8)
@@ -230,7 +231,7 @@ export default function AdminLibertadores() {
         equipo_local: cruce.visita,
         equipo_visitante: cruce.local,
         fecha_hora: new Date().toISOString(),
-        bonus: 2
+        bonus: 1
       }));
 
       const token = localStorage.getItem('token');
@@ -250,6 +251,7 @@ export default function AdminLibertadores() {
       );
 
       showMessage('success', `✅ Octavos generados: 8 partidos en Jornada 7 (IDA) y 8 en Jornada 8 (VUELTA)`);
+      alert(`✅ Octavos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 7 (IDA): 8 partidos\n- Jornada 8 (VUELTA): 8 partidos\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
       setTextOctavos('');
     } catch (error) {
       console.error('Error generando octavos:', error);
@@ -287,14 +289,14 @@ export default function AdminLibertadores() {
           equipo_local: cruce.local,
           equipo_visitante: cruce.visita,
           fecha_hora: new Date().toISOString(),
-          bonus: 2
+          bonus: 1
         });
         // VUELTA
         partidos.push({
           equipo_local: cruce.visita,
           equipo_visitante: cruce.local,
           fecha_hora: new Date().toISOString(),
-          bonus: 2
+          bonus: 1
         });
       });
 
@@ -307,6 +309,7 @@ export default function AdminLibertadores() {
       );
 
       showMessage('success', `✅ Cuartos generados: 8 partidos en Jornada 9 (4 IDA + 4 VUELTA)`);
+      alert(`✅ Cuartos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 9: 8 partidos (4 IDA + 4 VUELTA)\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
       setTextCuartos('');
     } catch (error) {
       console.error('Error generando cuartos:', error);
@@ -346,14 +349,14 @@ export default function AdminLibertadores() {
           equipo_local: cruce.local,
           equipo_visitante: cruce.visita,
           fecha_hora: new Date().toISOString(),
-          bonus: 3
+          bonus: 1
         });
         // VUELTA
         partidos.push({
           equipo_local: cruce.visita,
           equipo_visitante: cruce.local,
           fecha_hora: new Date().toISOString(),
-          bonus: 3
+          bonus: 1
         });
       });
 
@@ -362,7 +365,7 @@ export default function AdminLibertadores() {
         equipo_local: 'Ganador SF1',
         equipo_visitante: 'Ganador SF2',
         fecha_hora: new Date().toISOString(),
-        bonus: 5
+        bonus: 1
       });
 
       const token = localStorage.getItem('token');
@@ -374,6 +377,7 @@ export default function AdminLibertadores() {
       );
 
       showMessage('success', `✅ Semifinales y Final generadas: 5 partidos en Jornada 10 (2 SF IDA + 2 SF VUELTA + 1 FINAL)`);
+      alert(`✅ Semifinales y Final generadas exitosamente\n\n📊 Resumen:\n- Jornada 10: 5 partidos\n  * 2 Semifinales IDA\n  * 2 Semifinales VUELTA\n  * 1 FINAL\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
       setTextSemiFinal('');
     } catch (error) {
       console.error('Error generando semifinales:', error);
