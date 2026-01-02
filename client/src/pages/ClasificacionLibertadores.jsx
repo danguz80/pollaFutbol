@@ -1097,6 +1097,12 @@ export default function ClasificacionLibertadores() {
                                 <div className={coincideSubcampeon ? 'text-success fw-bold' : 'text-danger'}>
                                   {primerPronostico.puntos_subcampeon || 0} pts Subcampeón
                                 </div>
+                              </div>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                        </tr>
                       );
                     })()}
                     
