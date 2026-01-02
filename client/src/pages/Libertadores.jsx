@@ -142,10 +142,26 @@ export default function Libertadores() {
 
       {/* Banner de Últimos Ganadores */}
       {ultimosGanadores && (
-        <div className="alert alert-success text-center mb-4">
-          <h5 className="mb-0">
-            🏆 Últimos ganadores: {ultimosGanadores.ganadores.map(g => g.nombre).join(', ')} en la Jornada {ultimosGanadores.jornada}
-          </h5>
+        <div className="alert alert-success text-center mb-4 py-3">
+          <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3">
+            <h5 className="mb-0 d-flex align-items-center gap-3 flex-wrap justify-content-center">
+              <span>🏆 Últimos ganadores en la Jornada {ultimosGanadores.jornada}:</span>
+              {ultimosGanadores.ganadores.map((ganador, index) => (
+                <span key={index} className="d-inline-flex align-items-center gap-2 bg-white px-3 py-2 rounded shadow-sm">
+                  <img
+                    src={ganador.foto_perfil || '/perfil/default.png'}
+                    alt={ganador.nombre}
+                    className="rounded-circle"
+                    style={{ width: '40px', height: '40px', objectFit: 'cover', border: '2px solid #28a745' }}
+                    onError={(e) => {
+                      e.target.src = '/perfil/default.png';
+                    }}
+                  />
+                  <strong className="text-dark">{ganador.nombre}</strong>
+                </span>
+              ))}
+            </h5>
+          </div>
         </div>
       )}
 
