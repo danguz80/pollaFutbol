@@ -65,11 +65,33 @@ export default function AdminLibertadoresResultados() {
         penalesVisita: p.penales_visita ?? "",
         bonus: p.bonus ?? 1,
         tipoPartido: p.tipo_partido || null, // IDA, VUELTA, FINAL o null (fase grupos)
+        jornadaId: p.jornada_id,
       }));
       setPartidos(partidosConGoles);
     } catch (err) {
       console.error("Error al cargar partidos:", err);
     }
+  };
+
+  // Función para calcular si hay empate global en un partido de VUELTA
+  const calcularEmpateGlobal = (partidoVuelta) => {
+    if (!partidoVuelta.tipoPartido || partidoVuelta.tipoPartido !== 'VUELTA') return false;
+    if (partidoVuelta.golesLocal === "" || partidoVuelta.golesVisita === "") return false;
+
+    // Buscar partido IDA (equipos invertidos)
+    const partidoIda = partidos.find(p => 
+      p.tipoPartido === 'IDA' && 
+      p.local === partidoVuelta.visita && 
+      p.visita === partidoVuelta.local
+    );
+
+    if (!partidoIda || partidoIda.golesLocal === "" || partidoIda.golesVisita === "") return false;
+
+    // Calcular marcador global
+    const golesLocalGlobal = Number(partidoIda.golesVisita) + Number(partidoVuelta.golesLocal);
+    const golesVisitaGlobal = Number(partidoIda.golesLocal) + Number(partidoVuelta.golesVisita);
+
+    return golesLocalGlobal === golesVisitaGlobal;
   };
 
   const fetchJornadaInfo = async (numero) => {
@@ -468,31 +490,70 @@ export default function AdminLibertadoresResultados() {
                       </td>
                       {partidos.some(partido => partido.tipoPartido === 'VUELTA' || partido.tipoPartido === 'FINAL') && (
                         <td>
-                          {(p.tipoPartido === 'VUELTA' || p.tipoPartido === 'FINAL') ? (
-                            <div className="d-flex justify-content-center align-items-center gap-2">
-                              <input
-                                type="number"
-                                min="0"
-                                className="form-control text-center"
-                                style={{ width: "60px" }}
-                                placeholder="P"
-                                value={p.penalesLocal ?? ""}
-                                onChange={(e) => handleCambiarGoles(p.id, "penalesLocal", e.target.value)}
-                              />
-                              <span>-</span>
-                              <input
-                                type="number"
-                                min="0"
-                                className="form-control text-center"
-                                style={{ width: "60px" }}
-                                placeholder="P"
-                                value={p.penalesVisita ?? ""}
-                                onChange={(e) => handleCambiarGoles(p.id, "penalesVisita", e.target.value)}
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
+                          {(() => {
+                            const esVuelta = p.tipoPartido === 'VUELTA';
+                            const esFinal = p.tipoPartido === 'FINAL';
+                            const hayEmpateGlobal = calcularEmpateGlobal(p);
+                            
+                            // Para VUELTA: solo mostrar inputs si hay empate global
+                            if (esVuelta && hayEmpateGlobal) {
+                              return (
+                                <div className="d-flex flex-column gap-1">
+                                  <small className="text-danger fw-bold">⚠️ Empate global</small>
+                                  <div className="d-flex justify-content-center align-items-center gap-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      className="form-control text-center border-warning"
+                                      style={{ width: "60px" }}
+                                      placeholder="P"
+                                      value={p.penalesLocal ?? ""}
+                                      onChange={(e) => handleCambiarGoles(p.id, "penalesLocal", e.target.value)}
+                                    />
+                                    <span>-</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      className="form-control text-center border-warning"
+                                      style={{ width: "60px" }}
+                                      placeholder="P"
+                                      value={p.penalesVisita ?? ""}
+                                      onChange={(e) => handleCambiarGoles(p.id, "penalesVisita", e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
+                            // Para FINAL: siempre mostrar inputs de penales (puede empatar 90 min)
+                            if (esFinal) {
+                              return (
+                                <div className="d-flex justify-content-center align-items-center gap-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className="form-control text-center"
+                                    style={{ width: "60px" }}
+                                    placeholder="P"
+                                    value={p.penalesLocal ?? ""}
+                                    onChange={(e) => handleCambiarGoles(p.id, "penalesLocal", e.target.value)}
+                                  />
+                                  <span>-</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className="form-control text-center"
+                                    style={{ width: "60px" }}
+                                    placeholder="P"
+                                    value={p.penalesVisita ?? ""}
+                                    onChange={(e) => handleCambiarGoles(p.id, "penalesVisita", e.target.value)}
+                                  />
+                                </div>
+                              );
+                            }
+                            
+                            return <span className="text-muted">-</span>;
+                          })()}
                         </td>
                       )}
                       <td>
