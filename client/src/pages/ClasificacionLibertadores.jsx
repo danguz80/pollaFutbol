@@ -914,18 +914,11 @@ export default function ClasificacionLibertadores() {
                     
                     {/* Fila del PARTIDO FINAL - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && grupo.pronosticos.length > 0 && (() => {
-                      // Tomar el primer pronóstico para obtener los datos de la FINAL virtual (son iguales para todos los partidos del usuario)
+                      // Tomar el primer pronóstico para obtener los datos de la FINAL virtual
                       const primerPronostico = grupo.pronosticos[0];
-                      
-                      // DEBUG: Mostrar en consola
-                      console.log('🔍 DEBUG FINAL - Usuario:', grupo.jugador);
-                      console.log('🔍 Primer pronóstico:', primerPronostico);
-                      console.log('🔍 final_virtual_local:', primerPronostico.final_virtual_local);
-                      console.log('🔍 final_virtual_visita:', primerPronostico.final_virtual_visita);
                       
                       // Verificar que existan datos de FINAL virtual
                       if (!primerPronostico.final_virtual_local || !primerPronostico.final_virtual_visita) {
-                        console.log('❌ No hay datos de FINAL virtual para', grupo.jugador);
                         return null;
                       }
                       
@@ -938,24 +931,17 @@ export default function ClasificacionLibertadores() {
                         penales_visita: primerPronostico.final_virtual_penales_visita
                       };
                       
-                      console.log('✅ Equipos pronosticados FINAL:', equiposPronosticados);
-                      console.log('🔍 Buscando partido FINAL en pronósticos...');
-                      console.log('🔍 Tipos de partido en grupo:', grupo.pronosticos.map(p => p.partido.tipo_partido));
+                      // Buscar el partido FINAL real desde el estado de partidos (no en pronósticos del usuario)
+                      const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL' && p.jornada_id === primerPronostico.jornada.id);
                       
-                      // Buscar el partido FINAL real
-                      const partidoFinalReal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
-                      
-                      console.log('🔍 Partido FINAL encontrado:', partidoFinalReal);
-                      
-                      // Si no hay partido FINAL en la BD, no mostrar esta sección
+                      // Si no existe el partido FINAL en la BD, no mostrar
                       if (!partidoFinalReal) {
-                        console.log('❌ No se encontró partido FINAL en los pronósticos del usuario');
                         return null;
                       }
                       
                       const equiposReales = {
-                        local: partidoFinalReal.partido.local.nombre,
-                        visita: partidoFinalReal.partido.visita.nombre
+                        local: partidoFinalReal.nombre_local,
+                        visita: partidoFinalReal.nombre_visita
                       };
                       
                       // Verificar si coinciden los equipos (en cualquier orden)
@@ -963,6 +949,11 @@ export default function ClasificacionLibertadores() {
                         (equiposPronosticados.local === equiposReales.local && equiposPronosticados.visita === equiposReales.visita) ||
                         (equiposPronosticados.local === equiposReales.visita && equiposPronosticados.visita === equiposReales.local)
                       );
+                      
+                      // Determinar si hay resultado real y si la jornada está cerrada
+                      const hayResultado = partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null;
+                      const jornada = jornadas.find(j => j.id === primerPronostico.jornada.id);
+                      const jornadaCerrada = jornada?.cerrada || false;
                       
                       return (
                         <tr className={coincidePartido ? 'table-info' : 'table-warning'}>
@@ -986,17 +977,17 @@ export default function ClasificacionLibertadores() {
                               </div>
                               
                               {/* PARTIDO REAL */}
-                              {partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada ? (
+                              {hayResultado && jornadaCerrada ? (
                                 <div className="text-end text-muted" style={{flex: 1}}>
                                   <div className="text-success fw-bold mb-2">Real</div>
                                   <div className="mb-1">
                                     <strong>Partido:</strong> {equiposReales.local} vs {equiposReales.visita}
                                   </div>
                                   <div>
-                                    <strong>Resultado:</strong> {partidoFinalReal.partido.resultado.local} - {partidoFinalReal.partido.resultado.visita}
-                                    {partidoFinalReal.partido.resultado.penales_local !== null && partidoFinalReal.partido.resultado.penales_visita !== null && (
+                                    <strong>Resultado:</strong> {partidoFinalReal.goles_local} - {partidoFinalReal.goles_visita}
+                                    {partidoFinalReal.penales_local !== null && partidoFinalReal.penales_visita !== null && (
                                       <span className="text-muted ms-1">
-                                        (Pen: {partidoFinalReal.partido.resultado.penales_local} - {partidoFinalReal.partido.resultado.penales_visita})
+                                        (Pen: {partidoFinalReal.penales_local} - {partidoFinalReal.penales_visita})
                                       </span>
                                     )}
                                   </div>
@@ -1004,6 +995,9 @@ export default function ClasificacionLibertadores() {
                               ) : (
                                 <div className="text-end text-muted" style={{flex: 1}}>
                                   <div className="text-secondary fw-bold mb-2">Real</div>
+                                  <div className="mb-1">
+                                    <strong>Partido:</strong> {equiposReales.local} vs {equiposReales.visita}
+                                  </div>
                                   <div>
                                     <span className="text-muted">Pendiente</span>
                                   </div>
@@ -1012,7 +1006,7 @@ export default function ClasificacionLibertadores() {
                             </div>
                           </td>
                           <td colSpan="2" className="text-center">
-                            {partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada ? (
+                            {hayResultado && jornadaCerrada ? (
                               coincidePartido ? (
                                 <div>
                                   <div className="badge bg-success mb-2">✓ Partido SI coincide</div>
@@ -1029,11 +1023,12 @@ export default function ClasificacionLibertadores() {
                             )}
                           </td>
                           <td className="text-center fw-bold">
-                            {partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada && coincidePartido ? (
+                            {hayResultado && jornadaCerrada && coincidePartido ? (
                               <span className="badge bg-warning text-dark fs-6">
-                                {partidoFinalReal.puntos || 0} pts
+                                {/* Los puntos se calculan del pronóstico, no del partido FINAL real (que no tiene pronóstico directo) */}
+                                0 pts
                               </span>
-                            ) : partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada ? (
+                            ) : hayResultado && jornadaCerrada ? (
                               <span className="badge bg-secondary">0 pts</span>
                             ) : (
                               <span className="text-muted">-</span>
