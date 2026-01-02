@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import FireworksEffect from '../components/FireworksEffect';
 import NavegacionLibertadores from '../components/NavegacionLibertadores';
+import { getLogoEquipo } from '../utils/libertadoresLogos';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -737,13 +738,33 @@ export default function ClasificacionLibertadores() {
                           <td>
                             <div className="d-flex flex-column align-items-center">
                               <div className="d-flex justify-content-center align-items-center gap-2 w-100">
-                                <small className="fw-bold text-end" style={{flex: 1}}>
-                                  {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
-                                </small>
+                                <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
+                                  <small className="fw-bold text-end">
+                                    {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                                  </small>
+                                  {getLogoEquipo(pronostico.partido.local.nombre) && (
+                                    <img 
+                                      src={getLogoEquipo(pronostico.partido.local.nombre)} 
+                                      alt={pronostico.partido.local.nombre}
+                                      style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                      onError={(e) => e.target.style.display = 'none'}
+                                    />
+                                  )}
+                                </div>
                                 <span className="text-muted">vs</span>
-                                <small className="fw-bold text-start" style={{flex: 1}}>
-                                  {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
-                                </small>
+                                <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
+                                  {getLogoEquipo(pronostico.partido.visita.nombre) && (
+                                    <img 
+                                      src={getLogoEquipo(pronostico.partido.visita.nombre)} 
+                                      alt={pronostico.partido.visita.nombre}
+                                      style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                      onError={(e) => e.target.style.display = 'none'}
+                                    />
+                                  )}
+                                  <small className="fw-bold text-start">
+                                    {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                                  </small>
+                                </div>
                               </div>
                               {/* Si es FINAL en J10, mostrar equipos pronosticados debajo */}
                               {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
