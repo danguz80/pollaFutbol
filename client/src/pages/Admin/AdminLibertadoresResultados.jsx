@@ -125,7 +125,12 @@ export default function AdminLibertadoresResultados() {
       });
       
       const data = await res.json();
-      alert(data.mensaje || "✅ Resultados guardados en la base de datos");
+      
+      // Contar partidos con resultados
+      const partidosConResultado = partidosParaGuardar.filter(p => p.goles_local !== null && p.goles_visita !== null).length;
+      const bonusModificados = partidosParaGuardar.filter(p => p.bonus !== 1).length;
+      
+      alert(`✅ Resultados guardados exitosamente\n\n📊 Resumen Jornada ${jornadaSeleccionada}:\n- ${partidosConResultado} de ${partidosParaGuardar.length} partidos con resultado\n- ${bonusModificados} partidos con bonus modificado (x2 o x3)\n\n💾 Datos guardados en la base de datos`);
       fetchPartidos(jornadaSeleccionada);
     } catch (error) {
       console.error("Error al guardar resultados:", error);
