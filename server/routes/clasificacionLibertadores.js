@@ -366,7 +366,14 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         fecha_pronostico: row.fecha_pronostico,
         partido_ida: partidoIda,
         equipo_real_avanza: equipoRealQueAvanza,
-        equipos_pronosticados_final: equiposPronosticadosFinal  // Nuevo campo para FINAL
+        equipos_pronosticados_final: equiposPronosticadosFinal,  // Nuevo campo para FINAL
+        // Campos de la predicción FINAL virtual
+        final_virtual_local: row.final_virtual_local,
+        final_virtual_visita: row.final_virtual_visita,
+        final_virtual_goles_local: row.final_virtual_goles_local,
+        final_virtual_goles_visita: row.final_virtual_goles_visita,
+        final_virtual_penales_local: row.final_virtual_penales_local,
+        final_virtual_penales_visita: row.final_virtual_penales_visita
       };
     }));
 
