@@ -914,19 +914,11 @@ export default function ClasificacionLibertadores() {
                     
                     {/* FILA 7: PARTIDO FINAL - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && grupo.pronosticos.length > 0 && (() => {
-                      console.log('🔍 FILA 7 - Intentando mostrar FINAL');
-                      console.log('🔍 grupo.jornada:', grupo.jornada);
-                      console.log('🔍 grupo.pronosticos.length:', grupo.pronosticos.length);
-                      
                       // Tomar el primer pronóstico para obtener los datos de la FINAL virtual
                       const primerPronostico = grupo.pronosticos[0];
                       
-                      console.log('🔍 primerPronostico.final_virtual_local:', primerPronostico.final_virtual_local);
-                      console.log('🔍 primerPronostico.final_virtual_visita:', primerPronostico.final_virtual_visita);
-                      
                       // Verificar que existan datos de FINAL virtual
                       if (!primerPronostico.final_virtual_local || !primerPronostico.final_virtual_visita) {
-                        console.log('❌ No hay datos de FINAL virtual, retornando null');
                         return null;
                       }
                       
@@ -939,13 +931,8 @@ export default function ClasificacionLibertadores() {
                         penales_visita: primerPronostico.final_virtual_penales_visita
                       };
                       
-                      console.log('🔍 partidos array length:', partidos.length);
-                      
                       // TEMPORAL: Buscar por id 456 ya que tipo_partido no está llegando del backend
                       const partidoFinalReal = partidos.find(p => p.id === 456);
-                      
-                      console.log('🔍 partidoFinalReal encontrado:', partidoFinalReal);
-                      console.log('🔍 Todos los campos de partidoFinalReal:', Object.keys(partidoFinalReal || {}));
                       
                       // Si no existe el partido FINAL en la BD, no mostrar
                       if (!partidoFinalReal) {
@@ -972,7 +959,7 @@ export default function ClasificacionLibertadores() {
                       // Calcular puntos si hay resultado y coinciden los equipos
                       let puntosPartidoFinal = 0;
                       if (hayResultado && coincidePartido) {
-                        // Si los equipos coinciden, calcular puntos por resultado
+                        // SISTEMA DE PUNTOS ESPECIAL PARA LA FINAL
                         const golesPronosticadosLocal = equiposPronosticados.goles_local;
                         const golesPronosticadosVisita = equiposPronosticados.goles_visita;
                         const golesRealesLocal = partidoFinalReal.goles_local;
@@ -982,17 +969,20 @@ export default function ClasificacionLibertadores() {
                         const difPronosticada = golesPronosticadosLocal - golesPronosticadosVisita;
                         const difReal = golesRealesLocal - golesRealesVisita;
                         
-                        // 3 puntos si acierta resultado exacto
+                        // Obtener bonus del partido (x1, x2, x3)
+                        const bonus = partidoFinalReal.bonus || 1;
+                        
+                        // 10 puntos si acierta resultado exacto
                         if (golesPronosticadosLocal === golesRealesLocal && golesPronosticadosVisita === golesRealesVisita) {
-                          puntosPartidoFinal = 3;
+                          puntosPartidoFinal = 10 * bonus;
                         }
-                        // 2 puntos si acierta diferencia de goles
+                        // 7 puntos si acierta diferencia de goles
                         else if (difPronosticada === difReal) {
-                          puntosPartidoFinal = 2;
+                          puntosPartidoFinal = 7 * bonus;
                         }
-                        // 1 punto si acierta ganador/empate
+                        // 4 puntos si acierta ganador/empate (signo 1X2)
                         else if ((difPronosticada > 0 && difReal > 0) || (difPronosticada < 0 && difReal < 0) || (difPronosticada === 0 && difReal === 0)) {
-                          puntosPartidoFinal = 1;
+                          puntosPartidoFinal = 4 * bonus;
                         }
                       }
                       
@@ -1062,11 +1052,7 @@ export default function ClasificacionLibertadores() {
                     {grupo.jornada === 10 && (() => {
                       const primerPronostico = grupo.pronosticos[0];
                       
-                      console.log('🔍 FILA 8 - Intentando mostrar Cuadro Final');
-                      console.log('🔍 primerPronostico.equipos_pronosticados_final:', primerPronostico.equipos_pronosticados_final);
-                      
                       if (!primerPronostico.equipos_pronosticados_final) {
-                        console.log('❌ No hay equipos_pronosticados_final, retornando null');
                         return null;
                       }
                       
@@ -1179,13 +1165,60 @@ export default function ClasificacionLibertadores() {
                             
                             // Para jornada 10, sumar puntos de campeón y subcampeón (solo una vez)
                             let puntosCuadroFinal = 0;
+                            let puntosPartidoFinal = 0;
+                            
                             if (grupo.jornada === 10 && grupo.pronosticos.length > 0) {
                               // Tomar los puntos del primer pronóstico ya que son los mismos para todos los partidos del usuario
                               const primerPronostico = grupo.pronosticos[0];
                               puntosCuadroFinal = (primerPronostico.puntos_campeon || 0) + (primerPronostico.puntos_subcampeon || 0);
+                              
+                              // Calcular puntos del partido FINAL si existen datos
+                              if (primerPronostico.final_virtual_local && primerPronostico.final_virtual_visita) {
+                                const partidoFinalReal = partidos.find(p => p.id === 456);
+                                
+                                if (partidoFinalReal && partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null) {
+                                  // Verificar si coinciden los equipos
+                                  const equiposPronosticados = {
+                                    local: primerPronostico.final_virtual_local,
+                                    visita: primerPronostico.final_virtual_visita,
+                                    goles_local: primerPronostico.final_virtual_goles_local,
+                                    goles_visita: primerPronostico.final_virtual_goles_visita
+                                  };
+                                  
+                                  const equiposReales = {
+                                    local: partidoFinalReal.nombre_local,
+                                    visita: partidoFinalReal.nombre_visita
+                                  };
+                                  
+                                  const coincidePartido = (
+                                    (equiposPronosticados.local === equiposReales.local && equiposPronosticados.visita === equiposReales.visita) ||
+                                    (equiposPronosticados.local === equiposReales.visita && equiposPronosticados.visita === equiposReales.local)
+                                  );
+                                  
+                                  if (coincidePartido) {
+                                    const difPronosticada = equiposPronosticados.goles_local - equiposPronosticados.goles_visita;
+                                    const difReal = partidoFinalReal.goles_local - partidoFinalReal.goles_visita;
+                                    const bonus = partidoFinalReal.bonus || 1;
+                                    
+                                    // 10 puntos resultado exacto
+                                    if (equiposPronosticados.goles_local === partidoFinalReal.goles_local && 
+                                        equiposPronosticados.goles_visita === partidoFinalReal.goles_visita) {
+                                      puntosPartidoFinal = 10 * bonus;
+                                    }
+                                    // 7 puntos diferencia de goles
+                                    else if (difPronosticada === difReal) {
+                                      puntosPartidoFinal = 7 * bonus;
+                                    }
+                                    // 4 puntos signo 1X2
+                                    else if ((difPronosticada > 0 && difReal > 0) || (difPronosticada < 0 && difReal < 0) || (difPronosticada === 0 && difReal === 0)) {
+                                      puntosPartidoFinal = 4 * bonus;
+                                    }
+                                  }
+                                }
+                              }
                             }
                             
-                            return puntosPartidos + puntosClasificacion + puntosCuadroFinal;
+                            return puntosPartidos + puntosClasificacion + puntosCuadroFinal + puntosPartidoFinal;
                           })()} pts
                         </span>
                       </td>
