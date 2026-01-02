@@ -835,13 +835,9 @@ export default function ClasificacionLibertadores() {
                             )}
                           </td>
                           <td className="text-center fw-bold">
-                            {pronostico.partido.bonus && pronostico.partido.bonus > 1 ? (
-                              <span className="badge bg-info text-white">
-                                x{pronostico.partido.bonus}
-                              </span>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
+                            <span className={pronostico.partido.bonus && pronostico.partido.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
+                              x{pronostico.partido.bonus || 1}
+                            </span>
                           </td>
                           <td className="text-center fw-bold">
                             {pronostico.puntos !== null ? (
@@ -1011,7 +1007,7 @@ export default function ClasificacionLibertadores() {
                       
                       return (
                         <tr className={coincidePartido && hayResultado && jornadaCerrada ? 'table-success' : hayResultado && jornadaCerrada ? 'table-danger' : ''}>
-                          <td colSpan="5" className="text-center">
+                          <td colSpan="4" className="text-center">
                             <div className="mb-2">
                               <strong style={{fontSize: '1.1rem'}}>🏆 FINAL</strong>
                             </div>
@@ -1054,13 +1050,9 @@ export default function ClasificacionLibertadores() {
                           </td>
                           {/* Columna: Bonus */}
                           <td className="text-center">
-                            {partidoFinalReal.bonus && partidoFinalReal.bonus > 1 ? (
-                              <span className="badge bg-info text-white">
-                                x{partidoFinalReal.bonus}
-                              </span>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
+                            <span className={partidoFinalReal.bonus && partidoFinalReal.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
+                              x{partidoFinalReal.bonus || 1}
+                            </span>
                           </td>
                           {/* Columna: Puntaje + Coincidencia */}
                           <td className="text-center">
@@ -1132,7 +1124,7 @@ export default function ClasificacionLibertadores() {
                       
                       return (
                         <tr className="table-info">
-                          <td colSpan="5" className="text-center">
+                          <td colSpan="4" className="text-center">
                             <div className="mb-2">
                               <strong>🏆 Cuadro Final (Campeón + Subcampeón)</strong>
                             </div>
@@ -1151,7 +1143,7 @@ export default function ClasificacionLibertadores() {
                               Campeón: {pronosticadoCampeon} | Subcampeón: {pronosticadoSubcampeon}
                             </div>
                           </td>
-                          <td colSpan="2" className="text-center">
+                          <td colSpan="3" className="text-center">
                             {/* Vacío o info adicional */}
                           </td>
                           {/* Columna: Puntaje desglosado */}
