@@ -155,9 +155,25 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       let equipoPronosticadoAvanza = null;
       let partidoIda = null;
       let equipoRealQueAvanza = null;
-      let equiposPronosticadosFinal = null;  // Para jornada 10 - FINAL
+      let equiposPronosticadosFinal = null;  // Para jornada 10 - Campeón y Subcampeón
       
-      // Si es jornada 10 y es el partido FINAL, obtener datos del pronóstico virtual y predicción
+      // Si es jornada 10, SIEMPRE obtener predicciones de campeón y subcampeón
+      if (row.jornada_numero === 10) {
+        const prediccionResult = await pool.query(`
+          SELECT campeon, subcampeon
+          FROM libertadores_predicciones_campeon
+          WHERE usuario_id = $1
+        `, [row.usuario_id]);
+        
+        if (prediccionResult.rows.length > 0) {
+          equiposPronosticadosFinal = {
+            campeon: prediccionResult.rows[0].campeon,
+            subcampeon: prediccionResult.rows[0].subcampeon
+          };
+        }
+      }
+      
+      // Si es jornada 10 y es el partido FINAL, obtener datos del pronóstico virtual
       if (row.jornada_numero === 10 && row.tipo_partido === 'FINAL') {
         const pronosticoVirtualResult = await pool.query(`
           SELECT equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita
