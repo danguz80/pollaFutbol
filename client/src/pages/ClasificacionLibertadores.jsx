@@ -805,7 +805,7 @@ export default function ClasificacionLibertadores() {
                             )}
                           </td>
                           <td className="text-center fw-bold fs-5">
-                            {pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
+                            {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
                               <>
                                 {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
                                 {pronostico.partido.tipo_partido === 'VUELTA' && 
@@ -858,8 +858,8 @@ export default function ClasificacionLibertadores() {
                                       </div>
                                     </div>
                                     
-                                    {/* REAL (Derecha) */}
-                                    {pronostico.partido.resultado.local !== null && (
+                                    {/* REAL (Derecha) - Solo si la jornada está cerrada */}
+                                    {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null && (
                                       <div className="text-end text-muted" style={{flex: 1}}>
                                         <div className="text-success fw-bold mb-2">Real</div>
                                         <div className="mb-1">
@@ -885,7 +885,7 @@ export default function ClasificacionLibertadores() {
                                 {pronostico.equipo_pronosticado_avanza}
                               </td>
                               <td className="text-center">
-                                {pronostico.partido.resultado.local !== null ? (
+                                {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null ? (
                                   <div className="fw-bold text-success">
                                     {pronostico.equipo_real_avanza || '?'}
                                   </div>
