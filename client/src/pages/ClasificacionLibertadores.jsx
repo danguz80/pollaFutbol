@@ -913,21 +913,37 @@ export default function ClasificacionLibertadores() {
                     ))}
                     
                     {/* Fila del PARTIDO FINAL - Solo para Jornada 10 */}
-                    {grupo.jornada === 10 && (() => {
-                      // Buscar el partido FINAL
-                      const partidoFinal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
-                      if (!partidoFinal || !partidoFinal.equipos_pronosticados_final) return null;
+                    {grupo.jornada === 10 && grupo.pronosticos.length > 0 && (() => {
+                      // Tomar el primer pronóstico para obtener los datos de la FINAL virtual (son iguales para todos los partidos del usuario)
+                      const primerPronostico = grupo.pronosticos[0];
                       
-                      const equiposPronosticados = partidoFinal.equipos_pronosticados_final;
+                      // Verificar que existan datos de FINAL virtual
+                      if (!primerPronostico.final_virtual_local || !primerPronostico.final_virtual_visita) return null;
+                      
+                      const equiposPronosticados = {
+                        local: primerPronostico.final_virtual_local,
+                        visita: primerPronostico.final_virtual_visita,
+                        goles_local: primerPronostico.final_virtual_goles_local,
+                        goles_visita: primerPronostico.final_virtual_goles_visita,
+                        penales_local: primerPronostico.final_virtual_penales_local,
+                        penales_visita: primerPronostico.final_virtual_penales_visita
+                      };
+                      
+                      // Buscar el partido FINAL real
+                      const partidoFinalReal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
+                      
+                      // Si no hay partido FINAL en la BD, no mostrar esta sección
+                      if (!partidoFinalReal) return null;
+                      
                       const equiposReales = {
-                        local: partidoFinal.partido.local.nombre,
-                        visita: partidoFinal.partido.visita.nombre
+                        local: partidoFinalReal.partido.local.nombre,
+                        visita: partidoFinalReal.partido.visita.nombre
                       };
                       
                       // Verificar si coinciden los equipos (en cualquier orden)
                       const coincidePartido = (
-                        (equiposPronosticados.equipo_local === equiposReales.local && equiposPronosticados.equipo_visita === equiposReales.visita) ||
-                        (equiposPronosticados.equipo_local === equiposReales.visita && equiposPronosticados.equipo_visita === equiposReales.local)
+                        (equiposPronosticados.local === equiposReales.local && equiposPronosticados.visita === equiposReales.visita) ||
+                        (equiposPronosticados.local === equiposReales.visita && equiposPronosticados.visita === equiposReales.local)
                       );
                       
                       return (
@@ -939,7 +955,7 @@ export default function ClasificacionLibertadores() {
                               <div className="text-start" style={{flex: 1}}>
                                 <div className="text-primary fw-bold mb-2">Pronosticado</div>
                                 <div className="mb-1">
-                                  <strong>Partido:</strong> {equiposPronosticados.equipo_local} vs {equiposPronosticados.equipo_visita}
+                                  <strong>Partido:</strong> {equiposPronosticados.local} vs {equiposPronosticados.visita}
                                 </div>
                                 <div>
                                   <strong>Resultado:</strong> {equiposPronosticados.goles_local} - {equiposPronosticados.goles_visita}
@@ -952,17 +968,17 @@ export default function ClasificacionLibertadores() {
                               </div>
                               
                               {/* PARTIDO REAL */}
-                              {partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada ? (
+                              {partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada ? (
                                 <div className="text-end text-muted" style={{flex: 1}}>
                                   <div className="text-success fw-bold mb-2">Real</div>
                                   <div className="mb-1">
                                     <strong>Partido:</strong> {equiposReales.local} vs {equiposReales.visita}
                                   </div>
                                   <div>
-                                    <strong>Resultado:</strong> {partidoFinal.partido.resultado.local} - {partidoFinal.partido.resultado.visita}
-                                    {partidoFinal.partido.resultado.penales_local !== null && partidoFinal.partido.resultado.penales_visita !== null && (
+                                    <strong>Resultado:</strong> {partidoFinalReal.partido.resultado.local} - {partidoFinalReal.partido.resultado.visita}
+                                    {partidoFinalReal.partido.resultado.penales_local !== null && partidoFinalReal.partido.resultado.penales_visita !== null && (
                                       <span className="text-muted ms-1">
-                                        (Pen: {partidoFinal.partido.resultado.penales_local} - {partidoFinal.partido.resultado.penales_visita})
+                                        (Pen: {partidoFinalReal.partido.resultado.penales_local} - {partidoFinalReal.partido.resultado.penales_visita})
                                       </span>
                                     )}
                                   </div>
@@ -978,7 +994,7 @@ export default function ClasificacionLibertadores() {
                             </div>
                           </td>
                           <td colSpan="2" className="text-center">
-                            {partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada ? (
+                            {partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada ? (
                               coincidePartido ? (
                                 <div>
                                   <div className="badge bg-success mb-2">✓ Partido SI coincide</div>
@@ -995,11 +1011,11 @@ export default function ClasificacionLibertadores() {
                             )}
                           </td>
                           <td className="text-center fw-bold">
-                            {partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada && coincidePartido ? (
+                            {partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada && coincidePartido ? (
                               <span className="badge bg-warning text-dark fs-6">
-                                {partidoFinal.puntos || 0} pts
+                                {partidoFinalReal.puntos || 0} pts
                               </span>
-                            ) : partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada ? (
+                            ) : partidoFinalReal.partido.resultado.local !== null && partidoFinalReal.jornada.cerrada ? (
                               <span className="badge bg-secondary">0 pts</span>
                             ) : (
                               <span className="text-muted">-</span>
