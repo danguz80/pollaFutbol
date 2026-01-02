@@ -912,7 +912,104 @@ export default function ClasificacionLibertadores() {
                       </>
                     ))}
                     
-                    {/* Fila de "Cuadro Final" - Solo para Jornada 10 */}
+                    {/* Fila del PARTIDO FINAL - Solo para Jornada 10 */}
+                    {grupo.jornada === 10 && (() => {
+                      // Buscar el partido FINAL
+                      const partidoFinal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
+                      if (!partidoFinal || !partidoFinal.equipos_pronosticados_final) return null;
+                      
+                      const equiposPronosticados = partidoFinal.equipos_pronosticados_final;
+                      const equiposReales = {
+                        local: partidoFinal.partido.local.nombre,
+                        visita: partidoFinal.partido.visita.nombre
+                      };
+                      
+                      // Verificar si coinciden los equipos (en cualquier orden)
+                      const coincidePartido = (
+                        (equiposPronosticados.equipo_local === equiposReales.local && equiposPronosticados.equipo_visita === equiposReales.visita) ||
+                        (equiposPronosticados.equipo_local === equiposReales.visita && equiposPronosticados.equipo_visita === equiposReales.local)
+                      );
+                      
+                      return (
+                        <tr className={coincidePartido ? 'table-info' : 'table-warning'}>
+                          <td colSpan="4" className="fw-bold">
+                            <div className="text-center mb-2">🏆 FINAL</div>
+                            <div className="d-flex justify-content-between small">
+                              {/* PARTIDO PRONOSTICADO */}
+                              <div className="text-start" style={{flex: 1}}>
+                                <div className="text-primary fw-bold mb-2">Pronosticado</div>
+                                <div className="mb-1">
+                                  <strong>Partido:</strong> {equiposPronosticados.equipo_local} vs {equiposPronosticados.equipo_visita}
+                                </div>
+                                <div>
+                                  <strong>Resultado:</strong> {equiposPronosticados.goles_local} - {equiposPronosticados.goles_visita}
+                                  {equiposPronosticados.penales_local !== null && equiposPronosticados.penales_visita !== null && (
+                                    <span className="text-muted ms-1">
+                                      (Pen: {equiposPronosticados.penales_local} - {equiposPronosticados.penales_visita})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* PARTIDO REAL */}
+                              {partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada ? (
+                                <div className="text-end text-muted" style={{flex: 1}}>
+                                  <div className="text-success fw-bold mb-2">Real</div>
+                                  <div className="mb-1">
+                                    <strong>Partido:</strong> {equiposReales.local} vs {equiposReales.visita}
+                                  </div>
+                                  <div>
+                                    <strong>Resultado:</strong> {partidoFinal.partido.resultado.local} - {partidoFinal.partido.resultado.visita}
+                                    {partidoFinal.partido.resultado.penales_local !== null && partidoFinal.partido.resultado.penales_visita !== null && (
+                                      <span className="text-muted ms-1">
+                                        (Pen: {partidoFinal.partido.resultado.penales_local} - {partidoFinal.partido.resultado.penales_visita})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-end text-muted" style={{flex: 1}}>
+                                  <div className="text-secondary fw-bold mb-2">Real</div>
+                                  <div>
+                                    <span className="text-muted">Pendiente</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td colSpan="2" className="text-center">
+                            {partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada ? (
+                              coincidePartido ? (
+                                <div>
+                                  <div className="badge bg-success mb-2">✓ Partido SI coincide</div>
+                                  <div className="text-muted small">Puntos por resultado</div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="badge bg-danger mb-2">✗ Partido NO coincide</div>
+                                  <div className="text-muted small">0 puntos</div>
+                                </div>
+                              )
+                            ) : (
+                              <span className="text-muted">Pendiente</span>
+                            )}
+                          </td>
+                          <td className="text-center fw-bold">
+                            {partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada && coincidePartido ? (
+                              <span className="badge bg-warning text-dark fs-6">
+                                {partidoFinal.puntos || 0} pts
+                              </span>
+                            ) : partidoFinal.partido.resultado.local !== null && partidoFinal.jornada.cerrada ? (
+                              <span className="badge bg-secondary">0 pts</span>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                    
+                    {/* Fila de "Cuadro Final" (Campeón + Subcampeón) - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && (() => {
                       // Buscar el partido FINAL y obtener equipos pronosticados
                       const partidoFinal = grupo.pronosticos.find(p => p.partido.tipo_partido === 'FINAL');
