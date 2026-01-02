@@ -414,6 +414,7 @@ router.get('/partidos', verifyToken, async (req, res) => {
         p.penales_local,
         p.penales_visita,
         p.tipo_partido,
+        p.bonus,
         el.pais as pais_local,
         ev.pais as pais_visita,
         el.grupo as grupo,

@@ -699,18 +699,32 @@ export default function ClasificacionLibertadores() {
             <table className="table table-bordered table-hover">
               <thead className="table-dark">
                 <tr>
-                  <th style={{ width: '150px' }}>Jugador</th>
-                  <th style={{ width: '100px' }}>Jornada</th>
-                  <th style={{ width: '80px' }}>Grupo</th>
-                  <th>Partido</th>
-                  <th style={{ width: '100px' }}>Pronóstico</th>
-                  <th style={{ width: '100px' }}>Resultado</th>
-                  <th style={{ width: '80px' }}>Puntos</th>
+                  <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                  <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                  <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                  <th className="text-center">Partido</th>
+                  <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
+                  <th className="text-center" style={{ width: '100px' }}>Resultado</th>
+                  <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                  <th className="text-center" style={{ width: '80px' }}>Puntos</th>
                 </tr>
               </thead>
               <tbody>
                 {agruparPronosticos().map((grupo, grupoIndex) => (
                   <>
+                    {/* Encabezado para cada grupo de usuario */}
+                    {grupoIndex > 0 && (
+                      <tr className="table-dark">
+                        <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                        <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                        <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                        <th className="text-center">Partido</th>
+                        <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
+                        <th className="text-center" style={{ width: '100px' }}>Resultado</th>
+                        <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                        <th className="text-center" style={{ width: '80px' }}>Puntos</th>
+                      </tr>
+                    )}
                     {grupo.pronosticos.map((pronostico, index) => (
                       <>
                         <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
@@ -821,6 +835,15 @@ export default function ClasificacionLibertadores() {
                             )}
                           </td>
                           <td className="text-center fw-bold">
+                            {pronostico.partido.bonus && pronostico.partido.bonus > 1 ? (
+                              <span className="badge bg-info text-white">
+                                x{pronostico.partido.bonus}
+                              </span>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                          <td className="text-center fw-bold">
                             {pronostico.puntos !== null ? (
                               <span className="badge bg-warning text-dark fs-6">
                                 {pronostico.puntos} pts
@@ -839,7 +862,7 @@ export default function ClasificacionLibertadores() {
                           
                           return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
                             <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
-                              <td colSpan="4">
+                              <td colSpan="5">
                                 <div className="fw-bold mb-2 text-center">⚡ Equipo que avanza</div>
                                 {(jornada === 8 || jornada === 9 || jornada === 10) && pronostico.partido_ida && (
                                   <div className="d-flex justify-content-between small">
@@ -988,7 +1011,7 @@ export default function ClasificacionLibertadores() {
                       
                       return (
                         <tr className={coincidePartido && hayResultado && jornadaCerrada ? 'table-success' : hayResultado && jornadaCerrada ? 'table-danger' : ''}>
-                          <td colSpan="4" className="text-center">
+                          <td colSpan="5" className="text-center">
                             <div className="mb-2">
                               <strong style={{fontSize: '1.1rem'}}>🏆 FINAL</strong>
                             </div>
@@ -1027,6 +1050,16 @@ export default function ClasificacionLibertadores() {
                               </div>
                             ) : (
                               <span className="text-muted">Pendiente</span>
+                            )}
+                          </td>
+                          {/* Columna: Bonus */}
+                          <td className="text-center">
+                            {partidoFinalReal.bonus && partidoFinalReal.bonus > 1 ? (
+                              <span className="badge bg-info text-white">
+                                x{partidoFinalReal.bonus}
+                              </span>
+                            ) : (
+                              <span className="text-muted">-</span>
                             )}
                           </td>
                           {/* Columna: Puntaje + Coincidencia */}
@@ -1099,7 +1132,7 @@ export default function ClasificacionLibertadores() {
                       
                       return (
                         <tr className="table-info">
-                          <td colSpan="4" className="text-center">
+                          <td colSpan="5" className="text-center">
                             <div className="mb-2">
                               <strong>🏆 Cuadro Final (Campeón + Subcampeón)</strong>
                             </div>
@@ -1142,7 +1175,7 @@ export default function ClasificacionLibertadores() {
                     
                     {/* FILA 9: TOTAL - Solo para todas las jornadas */}
                     <tr className="table-dark fw-bold">
-                      <td colSpan="6" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
+                      <td colSpan="7" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
                       <td className="text-center">
                         <span className="badge bg-dark fs-5">
                           {(() => {
@@ -1226,7 +1259,7 @@ export default function ClasificacionLibertadores() {
                     {/* Separador entre grupos */}
                     {grupoIndex < agruparPronosticos().length - 1 && (
                       <tr style={{ height: '30px', backgroundColor: '#e9ecef' }}>
-                        <td colSpan="7" className="p-0 text-center align-middle">
+                        <td colSpan="8" className="p-0 text-center align-middle">
                           <button
                             className="btn btn-sm btn-outline-secondary"
                             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
