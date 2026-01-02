@@ -74,6 +74,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         p.goles_visita as resultado_visita,
         p.penales_local as penales_real_local,
         p.penales_visita as penales_real_visita,
+        p.bonus,
         lp.puntos,
         lp.created_at as fecha_pronostico,
         lpc.equipo_clasificado as equipo_pronosticado_avanza,
@@ -353,6 +354,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
           fecha: row.partido_fecha,
           grupo: row.grupo_local,
           tipo_partido: row.tipo_partido,
+          bonus: row.bonus,
           local: {
             nombre: row.nombre_local,
             pais: row.pais_local
