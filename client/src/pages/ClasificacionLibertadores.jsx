@@ -914,11 +914,19 @@ export default function ClasificacionLibertadores() {
                     
                     {/* FILA 7: PARTIDO FINAL - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && grupo.pronosticos.length > 0 && (() => {
+                      console.log('🔍 FILA 7 - Intentando mostrar FINAL');
+                      console.log('🔍 grupo.jornada:', grupo.jornada);
+                      console.log('🔍 grupo.pronosticos.length:', grupo.pronosticos.length);
+                      
                       // Tomar el primer pronóstico para obtener los datos de la FINAL virtual
                       const primerPronostico = grupo.pronosticos[0];
                       
+                      console.log('🔍 primerPronostico.final_virtual_local:', primerPronostico.final_virtual_local);
+                      console.log('🔍 primerPronostico.final_virtual_visita:', primerPronostico.final_virtual_visita);
+                      
                       // Verificar que existan datos de FINAL virtual
                       if (!primerPronostico.final_virtual_local || !primerPronostico.final_virtual_visita) {
+                        console.log('❌ No hay datos de FINAL virtual, retornando null');
                         return null;
                       }
                       
@@ -931,11 +939,17 @@ export default function ClasificacionLibertadores() {
                         penales_visita: primerPronostico.final_virtual_penales_visita
                       };
                       
+                      console.log('🔍 partidos array length:', partidos.length);
+                      console.log('🔍 Buscando partido FINAL con jornada_id:', primerPronostico.jornada.id);
+                      
                       // Buscar el partido FINAL real desde el estado de partidos
                       const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL' && p.jornada_id === primerPronostico.jornada.id);
                       
+                      console.log('🔍 partidoFinalReal encontrado:', partidoFinalReal);
+                      
                       // Si no existe el partido FINAL en la BD, no mostrar
                       if (!partidoFinalReal) {
+                        console.log('❌ No se encontró partido FINAL, retornando null');
                         return null;
                       }
                       
