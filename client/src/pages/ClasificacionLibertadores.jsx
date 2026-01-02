@@ -945,6 +945,8 @@ export default function ClasificacionLibertadores() {
                       const partidoFinalReal = partidos.find(p => p.id === 456);
                       
                       console.log('🔍 partidoFinalReal encontrado:', partidoFinalReal);
+                      console.log('🔍 partidoFinalReal.goles_local:', partidoFinalReal?.goles_local);
+                      console.log('🔍 partidoFinalReal.goles_visita:', partidoFinalReal?.goles_visita);
                       
                       // Si no existe el partido FINAL en la BD, no mostrar
                       if (!partidoFinalReal) {
@@ -970,8 +972,8 @@ export default function ClasificacionLibertadores() {
                       
                       return (
                         <tr className={coincidePartido && hayResultado && jornadaCerrada ? 'table-success' : hayResultado && jornadaCerrada ? 'table-danger' : ''}>
-                          <td colSpan="4">
-                            <div className="text-center mb-2">
+                          <td colSpan="4" className="text-center">
+                            <div className="mb-2">
                               <strong style={{fontSize: '1.1rem'}}>🏆 FINAL</strong>
                             </div>
                             {/* Partido REAL arriba (grande) */}
@@ -1037,8 +1039,8 @@ export default function ClasificacionLibertadores() {
                       
                       const { campeon: pronosticadoCampeon, subcampeon: pronosticadoSubcampeon } = primerPronostico.equipos_pronosticados_final;
                       
-                      // Buscar el partido FINAL real
-                      const partidoFinalReal = partidos.find(p => p.tipo_partido === 'FINAL' && p.jornada_id === primerPronostico.jornada.id);
+                      // Buscar el partido FINAL real - TEMPORAL: usar id 456
+                      const partidoFinalReal = partidos.find(p => p.id === 456);
                       if (!partidoFinalReal) return null;
                       
                       // Determinar campeón y subcampeón REALES
@@ -1078,8 +1080,8 @@ export default function ClasificacionLibertadores() {
                       
                       return (
                         <tr className="table-info">
-                          <td colSpan="4">
-                            <div className="text-center mb-2">
+                          <td colSpan="4" className="text-center">
+                            <div className="mb-2">
                               <strong>🏆 Cuadro Final (Campeón + Subcampeón)</strong>
                             </div>
                             {/* REAL arriba (grande) */}
