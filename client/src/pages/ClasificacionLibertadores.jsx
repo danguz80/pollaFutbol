@@ -945,8 +945,7 @@ export default function ClasificacionLibertadores() {
                       const partidoFinalReal = partidos.find(p => p.id === 456);
                       
                       console.log('🔍 partidoFinalReal encontrado:', partidoFinalReal);
-                      console.log('🔍 partidoFinalReal.goles_local:', partidoFinalReal?.goles_local);
-                      console.log('🔍 partidoFinalReal.goles_visita:', partidoFinalReal?.goles_visita);
+                      console.log('🔍 Todos los campos de partidoFinalReal:', Object.keys(partidoFinalReal || {}));
                       
                       // Si no existe el partido FINAL en la BD, no mostrar
                       if (!partidoFinalReal) {
