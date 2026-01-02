@@ -548,7 +548,7 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
       if (jornadaResult.rows.length > 0) {
         const jornada10Id = jornadaResult.rows[0].id;
         
-        // Obtener todos los partidos de J10 con tipo
+        // Obtener todos los partidos de J10 ACTUALIZADOS con tipo
         const partidosJ10 = await pool.query(`
           SELECT 
             p.*,
@@ -573,9 +573,13 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
           ORDER BY p.id
         `, [jornada10Id]);
 
+        console.log('Partidos J10:', partidosJ10.rows.map(p => ({ id: p.id, tipo: p.tipo_partido, local: p.nombre_local, visita: p.nombre_visita, goles: `${p.goles_local}-${p.goles_visita}`, penales: `${p.penales_local}-${p.penales_visita}` })));
+
         // Identificar semifinales (2 cruces = 4 partidos)
         const semis = [];
         const partidosVueltaSemis = partidosJ10.rows.filter(p => p.tipo_partido === 'VUELTA');
+        
+        console.log('Partidos VUELTA de semis:', partidosVueltaSemis.length);
         
         for (const vuelta of partidosVueltaSemis) {
           const ida = partidosJ10.rows.find(p => 
@@ -584,10 +588,16 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
             p.nombre_visita === vuelta.nombre_local
           );
           
+          console.log(`Procesando cruce: ${vuelta.nombre_local} vs ${vuelta.nombre_visita}`);
+          console.log('Partido IDA encontrado:', ida ? `${ida.nombre_local} ${ida.goles_local}-${ida.goles_visita} ${ida.nombre_visita}` : 'NO ENCONTRADO');
+          console.log('Partido VUELTA:', `${vuelta.nombre_local} ${vuelta.goles_local}-${vuelta.goles_visita} ${vuelta.nombre_visita}`);
+          
           if (ida && vuelta.goles_local !== null && vuelta.goles_visita !== null && ida.goles_local !== null && ida.goles_visita !== null) {
             // Calcular ganador
-            const golesLocalGlobal = ida.goles_visita + vuelta.goles_local;
-            const golesVisitaGlobal = ida.goles_local + vuelta.goles_visita;
+            const golesLocalGlobal = Number(ida.goles_visita) + Number(vuelta.goles_local);
+            const golesVisitaGlobal = Number(ida.goles_local) + Number(vuelta.goles_visita);
+            
+            console.log(`Marcador global: ${vuelta.nombre_local} ${golesLocalGlobal} - ${golesVisitaGlobal} ${vuelta.nombre_visita}`);
             
             let ganador;
             if (golesLocalGlobal > golesVisitaGlobal) {
@@ -596,10 +606,13 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
               ganador = vuelta.nombre_visita;
             } else {
               // Empate, revisar penales
+              console.log('Empate global, revisando penales:', vuelta.penales_local, vuelta.penales_visita);
               if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
-                ganador = vuelta.penales_local > vuelta.penales_visita ? vuelta.nombre_local : vuelta.nombre_visita;
+                ganador = Number(vuelta.penales_local) > Number(vuelta.penales_visita) ? vuelta.nombre_local : vuelta.nombre_visita;
               }
             }
+            
+            console.log('Ganador:', ganador);
             
             if (ganador) {
               semis.push(ganador);
@@ -607,16 +620,27 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
           }
         }
 
+        console.log('Ganadores de semifinales:', semis);
+
         // Si tenemos los 2 ganadores de semis, actualizar la FINAL
         if (semis.length === 2) {
           const partidoFinal = partidosJ10.rows.find(p => p.tipo_partido === 'FINAL');
+          console.log('Partido FINAL encontrado:', partidoFinal ? partidoFinal.id : 'NO ENCONTRADO');
+          
           if (partidoFinal) {
-            await pool.query(`
+            console.log(`Actualizando FINAL: ${semis[0]} vs ${semis[1]}`);
+            
+            const updateResult = await pool.query(`
               UPDATE libertadores_partidos
               SET nombre_local = $1, nombre_visita = $2
               WHERE id = $3
+              RETURNING *
             `, [semis[0], semis[1], partidoFinal.id]);
+            
+            console.log('FINAL actualizada:', updateResult.rows[0]);
           }
+        } else {
+          console.log('No se pudieron determinar los 2 ganadores de semifinales');
         }
       }
     }
