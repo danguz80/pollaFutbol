@@ -917,8 +917,17 @@ export default function ClasificacionLibertadores() {
                       // Tomar el primer pronóstico para obtener los datos de la FINAL virtual (son iguales para todos los partidos del usuario)
                       const primerPronostico = grupo.pronosticos[0];
                       
+                      // DEBUG: Mostrar en consola
+                      console.log('🔍 DEBUG FINAL - Usuario:', grupo.jugador);
+                      console.log('🔍 Primer pronóstico:', primerPronostico);
+                      console.log('🔍 final_virtual_local:', primerPronostico.final_virtual_local);
+                      console.log('🔍 final_virtual_visita:', primerPronostico.final_virtual_visita);
+                      
                       // Verificar que existan datos de FINAL virtual
-                      if (!primerPronostico.final_virtual_local || !primerPronostico.final_virtual_visita) return null;
+                      if (!primerPronostico.final_virtual_local || !primerPronostico.final_virtual_visita) {
+                        console.log('❌ No hay datos de FINAL virtual para', grupo.jugador);
+                        return null;
+                      }
                       
                       const equiposPronosticados = {
                         local: primerPronostico.final_virtual_local,
