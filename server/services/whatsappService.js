@@ -124,7 +124,6 @@ class WhatsAppService {
 
       const resend = new Resend(resendApiKey);
 
-      console.log(`📧 Enviando email a ${emailTo}...`);
       const { data, error } = await resend.emails.send({
         from: emailFrom,
         to: [emailTo],
@@ -138,8 +137,7 @@ class WhatsAppService {
         return { success: false, mensaje: `Error al enviar email: ${error.message}` };
       }
 
-      console.log('✅ Email enviado:', data.id);
-      return { success: true, mensaje: `Email enviado correctamente a ${emailTo}` };
+      return { success: true, mensaje: `Email con PDF enviado correctamente a ${emailTo}` };
       
     } catch (error) {
       console.error('Error enviando email:', error);
@@ -162,7 +160,6 @@ class WhatsAppService {
 
       const resend = new Resend(resendApiKey);
 
-      console.log(`📧 Enviando email con PDF a ${emailTo}...`);
       const { data, error } = await resend.emails.send({
         from: emailFrom,
         to: [emailTo],
@@ -190,7 +187,6 @@ class WhatsAppService {
         return { success: false, mensaje: `Error al enviar email: ${error.message}` };
       }
 
-      console.log('✅ Email con PDF enviado:', data.id);
       return { success: true, mensaje: `Email con PDF enviado correctamente a ${emailTo}` };
       
     } catch (error) {

@@ -65,7 +65,7 @@ export function getLogoBase64(nombreEquipo) {
   }
   
   if (!archivoLogo) {
-    console.warn(`⚠️ Logo no encontrado para equipo: ${nombreEquipo}`);
+    // Logo no encontrado
     return null;
   }
 

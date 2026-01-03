@@ -163,7 +163,6 @@ app.use(express.json());
         UNIQUE(jornada_numero, usuario_id)
       )
     `);
-    console.log('✅ Tabla libertadores_ganadores_jornada verificada');
   } catch (error) {
     console.error('❌ Error creando tabla libertadores_ganadores_jornada:', error.message);
   }
@@ -176,7 +175,6 @@ app.use(express.json());
       ALTER TABLE ganadores_jornada
       ADD COLUMN IF NOT EXISTS puntaje INTEGER
     `);
-    console.log('✅ Columna puntaje agregada a ganadores_jornada');
   } catch (error) {
     console.error('❌ Error agregando columna puntaje:', error.message);
   }

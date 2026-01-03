@@ -8,15 +8,17 @@ import { getLogoBase64 } from '../utils/logoHelper.js';
 
 const router = express.Router();
 
-// POST /api/libertadores-calcular/puntos - Calcular y asignar puntos a todos los pronósticos
+// POST /api/libertadores-calcular/puntos - Calcular y asignar puntos a todos los pronósticos (o de una jornada específica)
 router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
+    const { jornadaNumero } = req.body; // Jornada opcional
+    
     // Obtener reglas de puntuación
     const reglasResult = await pool.query('SELECT * FROM libertadores_puntuacion ORDER BY puntos DESC');
     const reglas = reglasResult.rows;
 
-    // Obtener todos los pronósticos con sus resultados reales
-    const pronosticosResult = await pool.query(`
+    // Construir consulta con filtro opcional de jornada
+    let query = `
       SELECT 
         lp.id,
         lp.usuario_id,
@@ -31,19 +33,25 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         p.penales_visita as penales_real_visita,
         p.nombre_local,
         p.nombre_visita,
+        p.bonus,
         lj.numero as jornada_numero
       FROM libertadores_pronosticos lp
       INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
       INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
       WHERE p.goles_local IS NOT NULL 
-        AND p.goles_visita IS NOT NULL
-    `);
+        AND p.goles_visita IS NOT NULL`;
+    
+    const params = [];
+    if (jornadaNumero) {
+      query += ` AND lj.numero = $1`;
+      params.push(jornadaNumero);
+    }
+    
+    const pronosticosResult = await pool.query(query, params);
 
     let pronosticosActualizados = 0;
     let puntosAsignados = 0;
     let puntosClasificacion = 0;
-
-    console.log(`📊 Total de pronósticos a procesar: ${pronosticosResult.rows.length}`);
 
     // Calcular puntos para cada pronóstico
     for (const pronostico of pronosticosResult.rows) {
@@ -61,8 +69,12 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         penales_real_visita,
         nombre_local,
         nombre_visita,
+        bonus,
         jornada_numero
       } = pronostico;
+
+      // Bonus del partido (x1, x2, x3, etc.)
+      const bonusMultiplicador = bonus || 1;
 
       // Determinar la fase según el número de jornada
       const fase = getFaseDeJornada(jornada_numero);
@@ -144,16 +156,18 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       }
       }
 
+      // Multiplicar puntos por el bonus del partido
+      const puntosFinales = puntosGanados * bonusMultiplicador;
+
       // Actualizar puntos en la base de datos
       await pool.query(
         'UPDATE libertadores_pronosticos SET puntos = $1 WHERE id = $2',
-        [puntosGanados, id]
+        [puntosFinales, id]
       );
 
-      if (puntosGanados > 0) {
+      if (puntosFinales > 0) {
         pronosticosActualizados++;
-        puntosAsignados += puntosGanados;
-        console.log(`✅ Pronóstico ${id} - Jornada ${jornada_numero}: ${puntosGanados} puntos`);
+        puntosAsignados += puntosFinales;
       }
 
       // CALCULAR PUNTOS POR EQUIPOS QUE AVANZAN
@@ -421,16 +435,111 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             WHERE usuario_id = $3
           `, [puntos_campeon_usuario, puntos_subcampeon_usuario, prediccion.usuario_id]);
         }
+      }
+    }
+
+    // CALCULAR PUNTOS DEL PARTIDO FINAL (id 456) para jornada 10
+    let puntosPartidoFinal = 0;
+    if (jornadaNumero === 10 || !jornadaNumero) {
+      // Verificar si el partido FINAL tiene resultado
+      const partidoFinalResult = await pool.query(`
+        SELECT id, nombre_local, nombre_visita, goles_local, goles_visita, bonus, jornada_id
+        FROM libertadores_partidos
+        WHERE id = 456
+      `);
+
+      if (partidoFinalResult.rows.length > 0) {
+        const partidoFinal = partidoFinalResult.rows[0];
         
-        console.log(`✅ Puntos de Cuadro Final calculados: Campeón: ${campeonReal}, Subcampeón: ${subcampeonReal}`);
+        if (partidoFinal.goles_local !== null && partidoFinal.goles_visita !== null) {
+          // Obtener todos los pronósticos virtuales del FINAL
+          const pronosticosFinalesResult = await pool.query(`
+            SELECT 
+              lpfv.usuario_id,
+              lpfv.equipo_local,
+              lpfv.equipo_visita,
+              lpfv.goles_local,
+              lpfv.goles_visita
+            FROM libertadores_pronosticos_final_virtual lpfv
+            JOIN libertadores_jornadas lj ON lpfv.jornada_id = lj.id
+            WHERE lj.numero = 10
+          `);
+
+          for (const pron of pronosticosFinalesResult.rows) {
+            // Verificar si los equipos coinciden
+            const equiposCoinciden = 
+              pron.equipo_local === partidoFinal.nombre_local && 
+              pron.equipo_visita === partidoFinal.nombre_visita;
+
+            let puntosFinales = 0;
+            
+            if (equiposCoinciden) {
+              const pronostico_local = pron.goles_local;
+              const pronostico_visita = pron.goles_visita;
+              const resultado_local = partidoFinal.goles_local;
+              const resultado_visita = partidoFinal.goles_visita;
+              const bonus = partidoFinal.bonus || 1;
+
+              // Determinar fase para puntos (FINAL es una fase especial)
+              const reglaPuntos = reglas.find(r => r.concepto.includes('Resultado exacto'));
+              const puntosExacto = reglaPuntos?.puntos || 10;
+              const puntosDiferencia = 7;
+              const puntosSigno = 4;
+
+              // Calcular puntos según reglas
+              if (pronostico_local === resultado_local && pronostico_visita === resultado_visita) {
+                puntosFinales = puntosExacto * bonus;
+              } else if (Math.abs(pronostico_local - pronostico_visita) === Math.abs(resultado_local - resultado_visita)) {
+                const signoPronostico = Math.sign(pronostico_local - pronostico_visita);
+                const signoResultado = Math.sign(resultado_local - resultado_visita);
+                if (signoPronostico === signoResultado) {
+                  puntosFinales = puntosDiferencia * bonus;
+                }
+              } else {
+                const signoPronostico = Math.sign(pronostico_local - pronostico_visita);
+                const signoResultado = Math.sign(resultado_local - resultado_visita);
+                if (signoPronostico === signoResultado) {
+                  puntosFinales = puntosSigno * bonus;
+                }
+              }
+
+              // Insertar o actualizar en libertadores_pronosticos
+              const existePronostico = await pool.query(`
+                SELECT id FROM libertadores_pronosticos
+                WHERE usuario_id = $1 AND partido_id = 456
+              `, [pron.usuario_id]);
+
+              if (existePronostico.rows.length > 0) {
+                // Actualizar
+                await pool.query(`
+                  UPDATE libertadores_pronosticos
+                  SET puntos = $1, goles_local = $2, goles_visita = $3
+                  WHERE usuario_id = $4 AND partido_id = 456
+                `, [puntosFinales, pronostico_local, pronostico_visita, pron.usuario_id]);
+              } else {
+                // Insertar
+                await pool.query(`
+                  INSERT INTO libertadores_pronosticos (usuario_id, partido_id, jornada_id, goles_local, goles_visita, puntos)
+                  VALUES ($1, 456, $2, $3, $4, $5)
+                `, [pron.usuario_id, partidoFinal.jornada_id, pronostico_local, pronostico_visita, puntosFinales]);
+              }
+
+              if (puntosFinales > 0) {
+                puntosPartidoFinal += puntosFinales;
+              }
+            }
+          }
+        }
       }
     }
 
     res.json({
-      mensaje: 'Puntos calculados exitosamente',
+      mensaje: jornadaNumero 
+        ? `✅ Puntajes de jornada ${jornadaNumero} calculados correctamente`
+        : '✅ Puntajes calculados correctamente',
       total_pronosticos: pronosticosResult.rows.length,
       pronosticos_con_puntos: pronosticosActualizados,
-      puntos_totales_asignados: puntosAsignados,
+      puntos_totales_asignados: puntosAsignados + puntosPartidoFinal,
       puntos_clasificacion_asignados: puntosClasificacion
     });
   } catch (error) {
@@ -666,8 +775,6 @@ async function generarPDFLibertadores() {
 
     const pronosticos = pronosticosQuery.rows;
     const ranking = rankingQuery.rows;
-
-    console.log(`📊 Datos obtenidos - Pronósticos: ${pronosticos.length}, Ranking: ${ranking.length}, Ranking Jornada: ${rankingJornada.length}`);
 
     // Agrupar pronósticos por usuario
     const pronosticosPorUsuario = {};
@@ -986,7 +1093,6 @@ async function generarPDFLibertadores() {
     `;
 
     // Generar PDF
-    console.log('📝 Generando PDF desde HTML...');
     const options = {
       format: 'A4',
       printBackground: true,
@@ -994,11 +1100,9 @@ async function generarPDFLibertadores() {
     };
     const file = { content: html };
     const pdfBuffer = await htmlPdf.generatePdf(file, options);
-    console.log(`✅ PDF generado, tamaño: ${pdfBuffer.length} bytes`);
 
     // Enviar por email
     const nombreArchivo = `Resultados_Libertadores_${new Date().toISOString().split('T')[0]}.pdf`;
-    console.log(`📧 Enviando PDF por email...`);
     const resultadoEmail = await whatsappService.enviarEmailConPDF(
       pdfBuffer,
       nombreArchivo,
@@ -1010,7 +1114,6 @@ async function generarPDFLibertadores() {
       throw new Error(resultadoEmail.mensaje);
     }
 
-    console.log(`✅ PDF de Libertadores generado y enviado exitosamente`);
     return true;
 
   } catch (error) {

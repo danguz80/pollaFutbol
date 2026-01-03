@@ -89,8 +89,7 @@ router.get("/", async (req, res) => {
         
         partidos.push(...sudamericanaResult.rows);
       } catch (sudErr) {
-        // Si no existe la tabla o estructura de Sudamericana, continuar sin error
-        console.log('ℹ️ Sudamericana no disponible o sin estructura de bonus');
+        // Sudamericana no está configurada aún - continuar sin error
       }
     }
 

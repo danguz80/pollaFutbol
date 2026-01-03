@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import FireworksEffect from '../components/FireworksEffect';
@@ -98,11 +98,8 @@ export default function ClasificacionLibertadores() {
       setJornadas(jornadasRes.data);
       setJugadores(jugadoresRes.data);
       
-      console.log('Jornadas cargadas:', jornadasRes.data.length);
-      console.log('Jornadas:', jornadasRes.data);
-      
       if (jornadasRes.data.length === 0) {
-        console.warn('⚠️ No hay jornadas disponibles en la base de datos');
+        // No hay jornadas disponibles
       }
     } catch (error) {
       console.error('Error cargando datos iniciales:', error);
@@ -179,31 +176,33 @@ export default function ClasificacionLibertadores() {
   };
 
   const calcularPuntos = async () => {
-    if (!window.confirm('¿Estás seguro de calcular los puntos? Esto actualizará todos los pronósticos que tengan resultado real.')) {
-      return;
-    }
-
+    const mensaje = filtroJornada 
+      ? `¿Calcular puntajes de la jornada ${filtroJornada}?`
+      : "¿Calcular puntajes de todas las jornadas de Libertadores?";
+    
+    if (!confirm(mensaje)) return;
+    
     try {
       setCalculando(true);
       const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/libertadores-calcular/puntos`, {
+        method: "POST",
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ jornadaNumero: filtroJornada || null })
+      });
+      const data = await res.json();
       
-      const response = await axios.post(
-        `${API_URL}/api/libertadores-calcular/puntos`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      alert(`✅ Puntos calculados exitosamente\n\n` +
-        `Total de pronósticos: ${response.data.total_pronosticos}\n` +
-        `Pronósticos con puntos: ${response.data.pronosticos_con_puntos}\n` +
-        `Puntos totales asignados: ${response.data.puntos_totales_asignados}`);
+      alert(data.mensaje || "✅ Puntajes calculados correctamente");
       
       // Recargar pronósticos y rankings
       cargarPronosticos();
       cargarRankings();
     } catch (error) {
-      console.error('Error calculando puntos:', error);
-      alert('❌ Error al calcular los puntos');
+      console.error("Error al calcular puntajes:", error);
+      alert("❌ Error al calcular puntajes");
     } finally {
       setCalculando(false);
     }
@@ -267,8 +266,6 @@ export default function ClasificacionLibertadores() {
         { headers }
       );
 
-      console.log('📊 Respuesta calcular ganadores:', response.data);
-
       setGanadores(response.data);
       setMostrarGanadores(true);
       
@@ -312,7 +309,7 @@ export default function ClasificacionLibertadores() {
   };
 
   const calcularGanadoresAcumulado = async () => {
-    if (!confirm('¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado (TODAS LAS JORNADAS)?')) {
+    if (!confirm('¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado (TODAS LAS JORNADAS)?\n\nSe generará un PDF con los resultados y se enviará por email.')) {
       return;
     }
 
@@ -481,6 +478,58 @@ export default function ClasificacionLibertadores() {
 
       {/* Botonera Principal */}
       <NavegacionLibertadores />
+
+      {/* Mostrar ganador acumulado guardado si existe */}
+      {ganadoresAcumulado && ganadoresAcumulado.ganadores && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
+        <div className="alert alert-warning text-center mb-4">
+          <h5 className="mb-3">
+            👑 {ganadoresAcumulado.ganadores.length === 1 ? 'Campeón' : 'Campeones'} del Ranking Acumulado
+          </h5>
+          <div className="d-flex justify-content-center gap-3 flex-wrap">
+            {ganadoresAcumulado.ganadores.map((ganador, index) => (
+              <div key={index} className="text-center">
+                {ganador.foto_perfil && (
+                  <img
+                    src={ganador.foto_perfil}
+                    alt={ganador.nombre}
+                    className="rounded-circle mb-2"
+                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                  />
+                )}
+                <p className="mb-0 fw-bold">{ganador.nombre}</p>
+                <span className="badge bg-warning text-dark">{ganador.puntaje} puntos</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Mostrar ganadores guardados si existen (sin modal) */}
+      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
+        <div className="alert alert-info text-center mb-4">
+          <h5 className="mb-3">
+            🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
+          </h5>
+          <div className="d-flex justify-content-center gap-3 flex-wrap">
+            {ganadores.ganadores.map((ganador, index) => (
+              <div key={index} className="text-center">
+                {ganador.foto_perfil && (
+                  <img
+                    src={ganador.foto_perfil}
+                    alt={ganador.nombre}
+                    className="rounded-circle mb-2"
+                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                  />
+                )}
+                <p className="mb-0 fw-bold">{ganador.nombre}</p>
+                <span className="badge bg-warning text-dark">{ganador.puntaje} puntos</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Botón Calcular Puntos (Solo Admin) */}
       {esAdmin && (
@@ -711,7 +760,7 @@ export default function ClasificacionLibertadores() {
               </thead>
               <tbody>
                 {agruparPronosticos().map((grupo, grupoIndex) => (
-                  <>
+                  <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
                     {/* Encabezado para cada grupo de usuario */}
                     {grupoIndex > 0 && (
                       <tr className="table-dark">
@@ -726,7 +775,7 @@ export default function ClasificacionLibertadores() {
                       </tr>
                     )}
                     {grupo.pronosticos.map((pronostico, index) => (
-                      <>
+                      <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
                         <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
                           <td className="fw-bold">{pronostico.usuario.nombre}</td>
                           <td className="text-center">
@@ -931,7 +980,7 @@ export default function ClasificacionLibertadores() {
                             </tr>
                           );
                         })()}
-                      </>
+                      </React.Fragment>
                     ))}
                     
                     {/* FILA 7: PARTIDO FINAL - Solo para Jornada 10 */}
@@ -958,7 +1007,6 @@ export default function ClasificacionLibertadores() {
                       
                       // Si no existe el partido FINAL en la BD, no mostrar
                       if (!partidoFinalReal) {
-                        console.log('❌ No se encontró partido FINAL, retornando null');
                         return null;
                       }
                       
@@ -1129,7 +1177,7 @@ export default function ClasificacionLibertadores() {
                         <tr className="table-info">
                           <td colSpan="4" className="text-center">
                             <div className="mb-2">
-                              <strong>🏆 Cuadro Final (Campeón + Subcampeón)</strong>
+                              <strong>🏆 Cuadro Final</strong>
                             </div>
                             {/* REAL arriba (grande) */}
                             {hayResultado && jornadaCerrada ? (
@@ -1265,7 +1313,7 @@ export default function ClasificacionLibertadores() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -1515,18 +1563,6 @@ export default function ClasificacionLibertadores() {
         </>
       )}
 
-      {/* Mostrar ganadores guardados si existen */}
-      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
-        <div className="alert alert-info text-center">
-          <h5 className="mb-2">
-            🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
-          </h5>
-          <p className="mb-0">
-            {ganadores.ganadores.map(g => g.nombre).join(', ')} - {ganadores.ganadores[0].puntaje} puntos
-          </p>
-        </div>
-      )}
-
       {/* Modal de Ganadores Acumulado con Confeti Intenso */}
       {mostrarGanadoresAcumulado && ganadoresAcumulado && (
         <>
@@ -1560,6 +1596,15 @@ export default function ClasificacionLibertadores() {
                   {ganadoresAcumulado.ganadores.map((ganador, index) => (
                     <div key={index} className="alert alert-warning mb-4 border-3 border-warning shadow-lg" style={{ backgroundColor: '#FFF8DC' }}>
                       <h1 className="mb-3" style={{ fontSize: '3rem' }}>👑</h1>
+                      {ganador.foto_perfil && (
+                        <img
+                          src={ganador.foto_perfil}
+                          alt={ganador.nombre}
+                          className="rounded-circle mb-3"
+                          style={{ width: '120px', height: '120px', objectFit: 'cover', border: '4px solid #FFD700' }}
+                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                        />
+                      )}
                       <h2 className="mb-2 fw-bold text-dark" style={{ fontSize: '2rem' }}>
                         {ganador.nombre.toUpperCase()}
                       </h2>

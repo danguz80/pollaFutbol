@@ -16,11 +16,4 @@ export const buildApiUrl = (endpoint) => {
   return `${API_CONFIG.BASE_URL}${endpoint}`;
 };
 
-// Log para debug en desarrollo
-if (import.meta.env.DEV) {
-  console.log('🔧 API Config:', {
-    baseUrl: API_CONFIG.BASE_URL,
-    env: import.meta.env.VITE_API_URL,
-    mode: import.meta.env.MODE
-  });
-}
+// API Config cargada silenciosamente
