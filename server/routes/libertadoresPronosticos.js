@@ -507,6 +507,26 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
           tr:hover {
             background-color: #f9f9f9;
           }
+          .partido-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .equipo-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .logo-equipo {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+          }
+          .vs {
+            color: #999;
+            font-weight: normal;
+            margin: 0 4px;
+          }
           .pronostico {
             font-weight: bold;
             color: #0066cc;
