@@ -32,6 +32,9 @@ function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
+      // Disparar evento personalizado para notificar que el usuario inició sesión
+      window.dispatchEvent(new Event('userLoggedIn'));
+
       alert("✅ Bienvenido " + data.usuario.nombre);
       navigate("/");
     } catch (err) {

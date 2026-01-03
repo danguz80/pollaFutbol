@@ -112,6 +112,37 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       );
     }
     
+    // Registrar notificación para usuarios
+    try {
+      const mensajeNotificacion = ganadores.length === 1 
+        ? `🏆 EL CAMPEÓN DEL RANKING ACUMULADO ES: ${ganadores[0].nombre.toUpperCase()}`
+        : `🏆 LOS CAMPEONES DEL RANKING ACUMULADO SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`;
+      
+      // Primero eliminar notificaciones anteriores del acumulado
+      await pool.query(
+        `DELETE FROM notificaciones_ganadores 
+         WHERE competencia = $1 AND tipo = $2`,
+        ['libertadores', 'acumulado']
+      );
+      
+      // Luego insertar la nueva notificación
+      const resultNotif = await pool.query(
+        `INSERT INTO notificaciones_ganadores (competencia, tipo, jornada_numero, ganadores, mensaje)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        ['libertadores', 'acumulado', 10, JSON.stringify(ganadores.map(g => ({
+          nombre: g.nombre,
+          puntaje: puntajeMaximo,
+          foto_perfil: g.foto_perfil
+        }))), mensajeNotificacion]
+      );
+      
+      console.log(`✅ Notificación acumulado creada con ID: ${resultNotif.rows[0].id}`);
+    } catch (errorNotif) {
+      console.error('❌ Error creando notificación acumulado:', errorNotif);
+      // No fallar la petición completa si la notificación falla
+    }
+    
     // Generar y enviar PDF de la jornada 10 con ganadores
     let pdfGenerado = false;
     let pdfError = null;
@@ -390,12 +421,45 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
     );
     
     // 6. Guardar los nuevos ganadores
+    console.log(`📝 Guardando ${ganadores.length} ganador(es) para jornada ${jornadaNumero}`);
     for (const ganador of ganadores) {
       await pool.query(
         `INSERT INTO libertadores_ganadores_jornada (jornada_numero, usuario_id, puntaje)
          VALUES ($1, $2, $3)`,
         [jornadaNumero, ganador.usuario_id, ganador.puntaje]
       );
+    }
+    
+    // 6.5. Registrar notificación para usuarios
+    console.log(`🔔 Creando notificación para jornada ${jornadaNumero}...`);
+    try {
+      const mensajeNotificacion = ganadores.length === 1 
+        ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}`
+        : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}`;
+      
+      // Primero eliminar notificaciones anteriores de esta jornada
+      await pool.query(
+        `DELETE FROM notificaciones_ganadores 
+         WHERE competencia = $1 AND tipo = $2 AND jornada_numero = $3`,
+        ['libertadores', 'jornada', jornadaNumero]
+      );
+      
+      // Luego insertar la nueva notificación
+      const resultNotif = await pool.query(
+        `INSERT INTO notificaciones_ganadores (competencia, tipo, jornada_numero, ganadores, mensaje)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        ['libertadores', 'jornada', jornadaNumero, JSON.stringify(ganadores.map(g => ({
+          nombre: g.nombre,
+          puntaje: g.puntaje,
+          foto_perfil: g.foto_perfil
+        }))), mensajeNotificacion]
+      );
+      
+      console.log(`✅ Notificación creada con ID: ${resultNotif.rows[0].id}`);
+    } catch (errorNotif) {
+      console.error('❌ Error creando notificación:', errorNotif);
+      // No fallar la petición completa si la notificación falla
     }
     
     // 7. Generar y enviar PDF con resultados completos (SOLO si NO es jornada 10)

@@ -27,11 +27,30 @@ import AdminTorneoResultados from "./pages/Admin/AdminTorneoResultados";
 import AdminLibertadoresGestion from "./pages/Admin/AdminLibertadoresGestion";
 import AdminLibertadoresResultados from "./pages/Admin/AdminLibertadoresResultados";
 import EstadisticasNacional from "./pages/EstadisticasNacional";
+import ModalNotificacionGanador from "./components/ModalNotificacionGanador";
+import { useNotificaciones } from "./hooks/useNotificaciones";
 
 export default function AppRouter() {
+  console.log('🔧 AppRouter montado');
+  const { notificacionActual, mostrandoModal, cerrarNotificacion } = useNotificaciones();
+  
+  console.log('📊 Estado notificaciones:', { 
+    tieneNotificacion: !!notificacionActual, 
+    mostrandoModal,
+    notificacion: notificacionActual 
+  });
+
   return (
     <BrowserRouter>
       <NavigationBar />
+      
+      {/* Modal de notificaciones de ganadores */}
+      <ModalNotificacionGanador 
+        notificacion={notificacionActual}
+        show={mostrandoModal}
+        onClose={cerrarNotificacion}
+      />
+      
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/clasificacion" element={<Clasificacion />} />

@@ -31,6 +31,7 @@ import adminTorneoRoutes from "./routes/adminTorneo.js";
 import adminLibertadoresRoutes from "./routes/adminLibertadores.js";
 import estadisticasNacionalRoutes from "./routes/estadisticas_nacional.js";
 import heroPartidosRoutes from "./routes/heroPartidos.js";
+import notificacionesRoutes from "./routes/notificaciones.js";
 
 dotenv.config();
 
@@ -235,6 +236,7 @@ app.use('/api/admin', adminTorneoRoutes);
 app.use('/api/admin', adminLibertadoresRoutes);
 app.use('/api/estadisticas-nacional', estadisticasNacionalRoutes);
 app.use('/api/hero-partidos-bonus', heroPartidosRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");
