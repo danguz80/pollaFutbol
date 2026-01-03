@@ -1,6 +1,7 @@
 // components/Navbar.jsx
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Container, Nav, Navbar } from "react-bootstrap";
+import NotificacionesCampana from "./NotificacionesCampana";
 
 export default function NavigationBar() {
   const navigate = useNavigate();
@@ -28,9 +29,10 @@ export default function NavigationBar() {
             )}
           </Nav>
 
-          <Nav>
+          <Nav className="align-items-center">
             {usuario ? (
               <>
+                <NotificacionesCampana />
                 <Nav.Link disabled>👤 {usuario.nombre}</Nav.Link>
                 <Nav.Link onClick={handleLogout}>Cerrar sesión</Nav.Link>
               </>

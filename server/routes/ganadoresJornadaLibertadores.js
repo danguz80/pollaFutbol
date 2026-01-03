@@ -120,21 +120,30 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       
       // Primero eliminar notificaciones anteriores del acumulado
       await pool.query(
-        `DELETE FROM notificaciones_ganadores 
+        `DELETE FROM notificaciones 
          WHERE competencia = $1 AND tipo = $2`,
         ['libertadores', 'acumulado']
       );
       
       // Luego insertar la nueva notificación
       const resultNotif = await pool.query(
-        `INSERT INTO notificaciones_ganadores (competencia, tipo, jornada_numero, ganadores, mensaje)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, jornada_numero, ganadores, mensaje, icono, url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
-        ['libertadores', 'acumulado', 10, JSON.stringify(ganadores.map(g => ({
-          nombre: g.nombre,
-          puntaje: puntajeMaximo,
-          foto_perfil: g.foto_perfil
-        }))), mensajeNotificacion]
+        [
+          'libertadores', 
+          'acumulado', 
+          'ganador_acumulado',
+          10, 
+          JSON.stringify(ganadores.map(g => ({
+            nombre: g.nombre,
+            puntaje: puntajeMaximo,
+            foto_perfil: g.foto_perfil
+          }))), 
+          mensajeNotificacion,
+          '👑',
+          '/libertadores/clasificacion'
+        ]
       );
       
       console.log(`✅ Notificación acumulado creada con ID: ${resultNotif.rows[0].id}`);
@@ -439,21 +448,30 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       
       // Primero eliminar notificaciones anteriores de esta jornada
       await pool.query(
-        `DELETE FROM notificaciones_ganadores 
+        `DELETE FROM notificaciones 
          WHERE competencia = $1 AND tipo = $2 AND jornada_numero = $3`,
         ['libertadores', 'jornada', jornadaNumero]
       );
       
       // Luego insertar la nueva notificación
       const resultNotif = await pool.query(
-        `INSERT INTO notificaciones_ganadores (competencia, tipo, jornada_numero, ganadores, mensaje)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, jornada_numero, ganadores, mensaje, icono, url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
-        ['libertadores', 'jornada', jornadaNumero, JSON.stringify(ganadores.map(g => ({
-          nombre: g.nombre,
-          puntaje: g.puntaje,
-          foto_perfil: g.foto_perfil
-        }))), mensajeNotificacion]
+        [
+          'libertadores', 
+          'jornada', 
+          'ganador_jornada',
+          jornadaNumero, 
+          JSON.stringify(ganadores.map(g => ({
+            nombre: g.nombre,
+            puntaje: g.puntaje,
+            foto_perfil: g.foto_perfil
+          }))), 
+          mensajeNotificacion,
+          '🏆',
+          `/libertadores/clasificacion?jornada=${jornadaNumero}`
+        ]
       );
       
       console.log(`✅ Notificación creada con ID: ${resultNotif.rows[0].id}`);

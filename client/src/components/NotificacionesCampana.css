@@ -1,0 +1,335 @@
+.notificaciones-campana {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-campana {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #fff;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+}
+
+.btn-campana:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.btn-campana:active {
+  transform: scale(0.95);
+}
+
+.icono-campana {
+  display: inline-block;
+  animation: balanceo 2s ease-in-out infinite;
+}
+
+@keyframes balanceo {
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30% { transform: rotate(15deg); }
+  20% { transform: rotate(-15deg); }
+}
+
+.badge-contador {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 0.65rem;
+  font-weight: bold;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 2px solid #fff;
+  animation: pulso 2s ease-in-out infinite;
+}
+
+@keyframes pulso {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+/* Dropdown */
+.dropdown-notificaciones {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  width: 380px;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  z-index: 1050;
+  animation: aparecer 0.2s ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Flecha del dropdown */
+.dropdown-notificaciones::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: 20px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid white;
+}
+
+.dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e9ecef;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px 12px 0 0;
+}
+
+.dropdown-header h6 {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.dropdown-header .badge {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+  color: white;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+}
+
+.dropdown-header .badge.bg-danger {
+  background-color: rgba(220, 53, 69, 0.9) !important;
+}
+
+.dropdown-header .badge.bg-secondary {
+  background-color: rgba(108, 117, 125, 0.8) !important;
+}
+
+.dropdown-body {
+  overflow-y: auto;
+  max-height: 380px;
+  padding: 8px 0;
+}
+
+.dropdown-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.dropdown-body::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.dropdown-body::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.notificacion-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  gap: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.notificacion-item:last-child {
+  border-bottom: none;
+}
+
+.notificacion-item:hover {
+  background-color: #f8f9fa;
+}
+
+.notificacion-item.no-leida {
+  background-color: #e8f4ff;
+}
+
+.notificacion-item.no-leida:hover {
+  background-color: #d6ebff;
+}
+
+.notificacion-icono {
+  font-size: 1.8rem;
+  min-width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.notificacion-contenido {
+  flex: 1;
+  min-width: 0;
+}
+
+.notificacion-mensaje {
+  margin: 0 0 4px 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: #333;
+  font-weight: 500;
+  word-wrap: break-word;
+}
+
+.notificacion-item.no-leida .notificacion-mensaje {
+  font-weight: 600;
+  color: #000;
+}
+
+.notificacion-fecha {
+  color: #6c757d;
+  font-size: 0.75rem;
+  display: block;
+}
+
+.punto-no-leido {
+  width: 8px;
+  height: 8px;
+  background: #007bff;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 6px;
+  animation: pulsoAzul 2s ease-in-out infinite;
+}
+
+@keyframes pulsoAzul {
+  0%, 100% { 
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+.dropdown-footer {
+  border-top: 1px solid #e9ecef;
+  padding: 8px;
+  background-color: #f8f9fa;
+  border-radius: 0 0 12px 12px;
+}
+
+.dropdown-footer .btn-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 8px;
+  transition: all 0.2s ease;
+}
+
+.dropdown-footer .btn-link:hover {
+  color: #764ba2;
+  background-color: rgba(102, 126, 234, 0.1);
+  border-radius: 6px;
+}
+
+/* Spinner de carga */
+.spinner-border-sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-width: 0.2em;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .dropdown-notificaciones {
+    width: calc(100vw - 32px);
+    max-width: 380px;
+    right: -80px;
+  }
+
+  .dropdown-notificaciones::before {
+    right: 95px;
+  }
+
+  .notificacion-mensaje {
+    font-size: 0.8rem;
+  }
+
+  .notificacion-icono {
+    font-size: 1.5rem;
+    min-width: 36px;
+    height: 36px;
+  }
+}
+
+/* Dark mode support (opcional) */
+@media (prefers-color-scheme: dark) {
+  .dropdown-notificaciones {
+    background: #2d3748;
+    color: #e2e8f0;
+  }
+
+  .dropdown-notificaciones::before {
+    border-bottom-color: #2d3748;
+  }
+
+  .notificacion-item {
+    border-bottom-color: #4a5568;
+  }
+
+  .notificacion-item:hover {
+    background-color: #374151;
+  }
+
+  .notificacion-item.no-leida {
+    background-color: #1e3a5f;
+  }
+
+  .notificacion-item.no-leida:hover {
+    background-color: #2c5282;
+  }
+
+  .notificacion-mensaje {
+    color: #e2e8f0;
+  }
+
+  .notificacion-item.no-leida .notificacion-mensaje {
+    color: #fff;
+  }
+
+  .dropdown-footer {
+    background-color: #374151;
+    border-top-color: #4a5568;
+  }
+}

@@ -82,6 +82,9 @@ export const useNotificaciones = () => {
       // Cerrar modal y preparar para mostrar la siguiente
       setMostrandoModal(false);
       setNotificacionActual(null);
+      
+      // Disparar evento para que otros componentes actualicen sus contadores
+      window.dispatchEvent(new Event('notificacionLeida'));
     } catch (error) {
       console.error('Error marcando notificación como vista:', error);
     }

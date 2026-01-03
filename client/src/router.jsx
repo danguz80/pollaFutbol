@@ -29,6 +29,7 @@ import AdminLibertadoresResultados from "./pages/Admin/AdminLibertadoresResultad
 import EstadisticasNacional from "./pages/EstadisticasNacional";
 import ModalNotificacionGanador from "./components/ModalNotificacionGanador";
 import { useNotificaciones } from "./hooks/useNotificaciones";
+import TodasNotificaciones from "./pages/TodasNotificaciones";
 
 export default function AppRouter() {
   console.log('🔧 AppRouter montado');
@@ -118,6 +119,7 @@ export default function AppRouter() {
         <Route path="/libertadores/puntuacion" element={<PuntuacionLibertadores />} />
         <Route path="/libertadores/ganadores-jornada" element={<GanadoresJornadaLibertadores />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
+        <Route path="/notificaciones" element={<TodasNotificaciones />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/cambiar-password" element={<CambiarPassword />} />
