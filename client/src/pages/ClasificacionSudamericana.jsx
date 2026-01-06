@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import FireworksEffect from '../components/FireworksEffect';
 import NavegacionSudamericana from '../components/NavegacionSudamericana';
 import { getLogoEquipo } from '../utils/sudamericanaLogos';
 
@@ -40,6 +41,11 @@ export default function ClasificacionSudamericana() {
   const [ganadoresAcumulado, setGanadoresAcumulado] = useState(null);
   const [mostrarGanadoresAcumulado, setMostrarGanadoresAcumulado] = useState(false);
   const [calculandoGanadoresAcumulado, setCalculandoGanadoresAcumulado] = useState(false);
+
+  // Modal
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState("success");
 
   useEffect(() => {
     // Verificar si es admin
@@ -241,7 +247,7 @@ export default function ClasificacionSudamericana() {
       return;
     }
 
-    if (!confirm(`¿Calcular los ganadores de la jornada ${filtroJornada}?\n\nEsto determinará los jugadores con mayor puntaje en esta jornada.`)) {
+    if (!confirm(`¿Calcular los ganadores de la jornada ${filtroJornada}?\n\nEsto determinará los jugadores con mayor puntaje en esta jornada y se añadirá a las notificaciones.`)) {
       return;
     }
 
@@ -258,13 +264,23 @@ export default function ClasificacionSudamericana() {
 
       setGanadores(response.data);
       setMostrarGanadores(true);
-      alert(`✅ ${response.data.mensaje || 'Ganadores calculados correctamente'}`);
+      
+      // Mostrar modal con resultado
+      const pdfInfo = response.data.pdfGenerado 
+        ? '\n\n📧 PDF enviado por email con:\n• Ganadores destacados con fotos\n• Ranking de la jornada\n• Ranking acumulado\n• Todos los pronósticos y resultados' 
+        : '';
+      
+      setModalType("success");
+      setModalMessage(`✅ ${response.data.mensaje}\n\n🔔 Notificación añadida para todos los usuarios\n• Ganadores de la jornada ${filtroJornada}\n• Visible en la página de inicio${pdfInfo}`);
+      setShowModal(true);
       
       // Recargar rankings
       cargarRankings();
     } catch (error) {
       console.error('Error calculando ganadores:', error);
-      alert("❌ Error al calcular los ganadores\n\n" + (error.response?.data?.error || error.message || "Error desconocido"));
+      setModalType("error");
+      setModalMessage("❌ Error al calcular los ganadores\n\n" + (error.response?.data?.error || error.message || "Error desconocido"));
+      setShowModal(true);
     } finally {
       setCalculandoGanadores(false);
     }
@@ -288,7 +304,7 @@ export default function ClasificacionSudamericana() {
   };
 
   const calcularGanadoresAcumulado = async () => {
-    if (!confirm('¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado (TODAS LAS JORNADAS)?')) {
+    if (!confirm('¿Calcular el/los CAMPEÓN/CAMPEONES del ranking acumulado (TODAS LAS JORNADAS)?\n\nSe añadirá una notificación para todos los usuarios.')) {
       return;
     }
 
@@ -305,13 +321,19 @@ export default function ClasificacionSudamericana() {
 
       setGanadoresAcumulado(response.data);
       setMostrarGanadoresAcumulado(true);
-      alert(`✅ ${response.data.mensaje || 'Campeón del ranking acumulado calculado correctamente'}`);
+      
+      // Mostrar modal con resultado
+      setModalType("success");
+      setModalMessage(`✅ ${response.data.mensaje}\n\n🔔 Notificación añadida para todos los usuarios\n• Campeón del ranking acumulado\n• Visible en la página de inicio`);
+      setShowModal(true);
       
       // Recargar rankings
       cargarRankings();
     } catch (error) {
       console.error('Error calculando ganadores acumulado:', error);
-      alert('❌ Error al calcular el campeón del ranking acumulado');
+      setModalType("error");
+      setModalMessage('❌ Error al calcular el campeón del ranking acumulado\n\n' + (error.response?.data?.error || error.message || "Error desconocido"));
+      setShowModal(true);
     } finally {
       setCalculandoGanadoresAcumulado(false);
     }
@@ -972,6 +994,186 @@ export default function ClasificacionSudamericana() {
           ← Volver a Sudamericana
         </button>
       </div>
+
+      {/* Modal de Ganadores con Confeti */}
+      {mostrarGanadores && ganadores && (
+        <>
+          <FireworksEffect />
+          <div 
+            className="modal show d-block" 
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setMostrarGanadores(false)}
+          >
+            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header bg-warning text-dark">
+                  <h5 className="modal-title">
+                    🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero} - Copa Sudamericana
+                  </h5>
+                  <button 
+                    type="button" 
+                    className="btn-close" 
+                    onClick={() => setMostrarGanadores(false)}
+                  ></button>
+                </div>
+                <div className="modal-body text-center py-4">
+                  <div className="mb-4">
+                    <h2 className="text-warning">🎉 ¡Felicitaciones! 🎉</h2>
+                  </div>
+                  {ganadores.ganadores.map((ganador, index) => (
+                    <div key={index} className="alert alert-success mb-3 d-flex flex-column align-items-center">
+                      {ganador.foto_perfil && (
+                        <img
+                          src={ganador.foto_perfil.startsWith('/') ? ganador.foto_perfil : `/perfil/${ganador.foto_perfil}`}
+                          alt={ganador.nombre}
+                          style={{
+                            width: '80px',
+                            height: '80px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '3px solid #28a745',
+                            marginBottom: '15px'
+                          }}
+                        />
+                      )}
+                      <h4 className="mb-0">
+                        🏆 {ganador.nombre}
+                      </h4>
+                      <p className="mb-0 fs-5 fw-bold text-success">
+                        {ganador.puntaje} puntos
+                      </p>
+                    </div>
+                  ))}
+                  <p className="text-muted mt-3">
+                    {ganadores.mensaje}
+                  </p>
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-primary" 
+                    onClick={() => setMostrarGanadores(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de Ganadores Acumulado con Confeti Intenso */}
+      {mostrarGanadoresAcumulado && ganadoresAcumulado && (
+        <>
+          <FireworksEffect />
+          <FireworksEffect />
+          <FireworksEffect />
+          <div 
+            className="modal show d-block" 
+            style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 2000 }}
+            onClick={() => setMostrarGanadoresAcumulado(false)}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content border-5 border-warning">
+                <div className="modal-header bg-gradient" style={{ background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }}>
+                  <h3 className="modal-title text-dark fw-bold w-100 text-center">
+                    👑 {ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} COPA SUDAMERICANA 👑
+                  </h3>
+                  <button 
+                    type="button" 
+                    className="btn-close" 
+                    onClick={() => setMostrarGanadoresAcumulado(false)}
+                  ></button>
+                </div>
+                <div className="modal-body text-center py-5" style={{ background: 'linear-gradient(to bottom, #fff 0%, #fffaf0 100%)' }}>
+                  <div className="mb-5">
+                    <h1 className="display-3 mb-3">🎊 🎉 🎊</h1>
+                    <h2 className="text-warning fw-bold" style={{ fontSize: '2.5rem', textShadow: '2px 2px 4px rgba(0,0,0,0.2)' }}>
+                      ¡FELICITACIONES!
+                    </h2>
+                  </div>
+                  {ganadoresAcumulado.ganadores.map((ganador, index) => (
+                    <div key={index} className="alert alert-warning mb-4 border-3 border-warning shadow-lg" style={{ backgroundColor: '#FFF8DC' }}>
+                      <h1 className="mb-3" style={{ fontSize: '3rem' }}>👑</h1>
+                      {ganador.foto_perfil && (
+                        <img
+                          src={ganador.foto_perfil}
+                          alt={ganador.nombre}
+                          className="rounded-circle mb-3"
+                          style={{ width: '120px', height: '120px', objectFit: 'cover', border: '4px solid #FFD700' }}
+                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                        />
+                      )}
+                      <h2 className="mb-2 fw-bold text-dark" style={{ fontSize: '2rem' }}>
+                        {ganador.nombre.toUpperCase()}
+                      </h2>
+                      <p className="mb-0 fw-bold text-warning" style={{ fontSize: '1.8rem' }}>
+                        {ganador.puntaje} PUNTOS
+                      </p>
+                    </div>
+                  ))}
+                  <p className="text-muted mt-4 fs-5">
+                    {ganadoresAcumulado.mensaje}
+                  </p>
+                </div>
+                <div className="modal-footer justify-content-center">
+                  <button 
+                    type="button" 
+                    className="btn btn-warning btn-lg fw-bold px-5" 
+                    onClick={() => setMostrarGanadoresAcumulado(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de confirmación para cálculo de ganadores */}
+      {showModal && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowModal(false)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content border-3 shadow-lg">
+              <div className={`modal-header ${
+                modalType === 'success' ? 'bg-success text-white' : 
+                modalType === 'warning' ? 'bg-warning text-dark' : 
+                'bg-danger text-white'
+              }`}>
+                <h5 className="modal-title fw-bold">
+                  {modalType === 'success' ? '✅ Éxito' : modalType === 'warning' ? '⚠️ Advertencia' : '❌ Error'}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowModal(false)}
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div style={{ whiteSpace: 'pre-line' }}>
+                  {modalMessage}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className={`btn ${
+                    modalType === 'success' ? 'btn-success' : 
+                    modalType === 'warning' ? 'btn-warning' : 
+                    'btn-danger'
+                  }`}
+                  onClick={() => setShowModal(false)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ import ClasificacionSudamericana from "./pages/ClasificacionSudamericana";
 import PuntuacionLibertadores from "./pages/PuntuacionLibertadores";
 import PuntuacionSudamericana from "./pages/PuntuacionSudamericana";
 import GanadoresJornadaLibertadores from "./pages/GanadoresJornadaLibertadores";
+import GanadoresJornadaSudamericana from "./pages/GanadoresJornadaSudamericana";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
 import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
@@ -142,6 +143,9 @@ export default function AppRouter() {
         <Route path="/sudamericana" element={<Sudamericana />} />
         <Route path="/sudamericana/jornada/:numero" element={<JornadaSudamericana />} />
         <Route path="/sudamericana/estadisticas" element={<EstadisticasSudamericana />} />
+        <Route path="/sudamericana/clasificacion" element={<ClasificacionSudamericana />} />
+        <Route path="/sudamericana/puntuacion" element={<PuntuacionSudamericana />} />
+        <Route path="/sudamericana/ganadores-jornada" element={<GanadoresJornadaSudamericana />} />
         <Route path="/sudamericana/clasificacion" element={<ClasificacionSudamericana />} />
         <Route path="/sudamericana/puntuacion" element={<PuntuacionSudamericana />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
