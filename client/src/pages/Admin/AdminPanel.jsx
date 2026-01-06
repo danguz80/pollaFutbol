@@ -614,6 +614,9 @@ export default function AdminPanel() {
         <button onClick={() => navigate("/admin/libertadores")} className="btn btn-warning">
           🏆 Copa Libertadores 2026
         </button>
+        <button onClick={() => navigate("/admin/sudamericana")} className="btn btn-info">
+          🏆 Copa Sudamericana 2026
+        </button>
       </div>
 
       {/* Fecha de cierre automático */}

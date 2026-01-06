@@ -8,6 +8,7 @@ import { getLogoBase64 } from '../utils/logoHelper.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { calcularTablaOficial, calcularTablaUsuario } from '../utils/calcularClasificadosLibertadores.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -255,19 +256,69 @@ router.post('/calcular/:numero', verifyToken, authorizeRoles('admin'), async (re
 // Ranking general
 router.get('/ranking', async (req, res) => {
   try {
+    // Obtener puntos de pronósticos
     const result = await pool.query(`
       SELECT 
         u.id, u.nombre, u.foto_perfil,
-        COALESCE(SUM(p.puntos), 0) as puntaje_total
+        COALESCE(SUM(p.puntos), 0) as puntaje_pronosticos
       FROM usuarios u
       LEFT JOIN libertadores_pronosticos p ON p.usuario_id = u.id
       LEFT JOIN libertadores_usuarios_activos lua ON lua.usuario_id = u.id
       WHERE lua.activo = true OR lua.usuario_id IS NULL
       GROUP BY u.id, u.nombre, u.foto_perfil
-      ORDER BY puntaje_total DESC, u.nombre
+      ORDER BY u.nombre
     `);
+    
+    // Para cada usuario, obtener puntos de clasificados
+    const jornadasNumeros = [1, 2, 3, 4, 5, 6];
+    const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    
+    // Calcular clasificados oficiales una sola vez
+    const clasificadosOficiales = [];
+    for (const grupo of grupos) {
+      const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
+      if (tabla.length >= 2) {
+        clasificadosOficiales.push(tabla[0].nombre);
+        clasificadosOficiales.push(tabla[1].nombre);
+      }
+    }
+    
+    // Para cada usuario, calcular puntos de clasificados
+    const ranking = await Promise.all(result.rows.map(async (usuario) => {
+      let puntosClasificados = 0;
+      
+      for (const grupo of grupos) {
+        try {
+          const tablaUsuario = await calcularTablaUsuario(usuario.id, grupo, jornadasNumeros);
+          
+          if (tablaUsuario.length >= 2) {
+            const equiposUsuario = [tablaUsuario[0].nombre, tablaUsuario[1].nombre];
+            equiposUsuario.forEach(equipo => {
+              if (clasificadosOficiales.includes(equipo)) {
+                puntosClasificados += 2;
+              }
+            });
+          }
+        } catch (error) {
+          // Si hay error en un grupo, continuar con los demás
+          console.error(`Error calculando grupo ${grupo} para usuario ${usuario.id}:`, error.message);
+        }
+      }
+      
+      return {
+        ...usuario,
+        puntaje_clasificados: puntosClasificados,
+        puntaje_total: parseInt(usuario.puntaje_pronosticos) + puntosClasificados
+      };
+    }));
+    
+    // Ordenar por puntaje total
+    ranking.sort((a, b) => {
+      if (b.puntaje_total !== a.puntaje_total) return b.puntaje_total - a.puntaje_total;
+      return a.nombre.localeCompare(b.nombre);
+    });
 
-    res.json(result.rows);
+    res.json(ranking);
   } catch (error) {
     console.error('Error obteniendo ranking:', error);
     res.status(500).json({ error: 'Error obteniendo ranking' });
@@ -282,15 +333,74 @@ router.get('/ranking/jornada/:numero', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         u.id, u.nombre, u.foto_perfil,
-        SUM(p.puntos) as puntaje_jornada
+        COALESCE(SUM(p.puntos), 0) as puntaje_jornada
       FROM usuarios u
-      JOIN libertadores_pronosticos p ON p.usuario_id = u.id
-      JOIN libertadores_jornadas j ON p.jornada_id = j.id
-      WHERE j.numero = $1
+      LEFT JOIN libertadores_pronosticos p ON p.usuario_id = u.id
+      LEFT JOIN libertadores_jornadas j ON p.jornada_id = j.id AND j.numero = $1
+      LEFT JOIN libertadores_usuarios_activos lua ON lua.usuario_id = u.id
+      WHERE (lua.activo = true OR lua.usuario_id IS NULL)
       GROUP BY u.id, u.nombre, u.foto_perfil
-      ORDER BY puntaje_jornada DESC, u.nombre
+      ORDER BY u.nombre
     `, [numero]);
+    
+    // Si es jornada 6, agregar puntos de clasificados
+    if (parseInt(numero) === 6) {
+      const jornadasNumeros = [1, 2, 3, 4, 5, 6];
+      const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      
+      // Calcular clasificados oficiales
+      const clasificadosOficiales = [];
+      for (const grupo of grupos) {
+        const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
+        if (tabla.length >= 2) {
+          clasificadosOficiales.push(tabla[0].nombre);
+          clasificadosOficiales.push(tabla[1].nombre);
+        }
+      }
+      
+      // Para cada usuario, calcular puntos de clasificados
+      const ranking = await Promise.all(result.rows.map(async (usuario) => {
+        let puntosClasificados = 0;
+        
+        for (const grupo of grupos) {
+          try {
+            const tablaUsuario = await calcularTablaUsuario(usuario.id, grupo, jornadasNumeros);
+            
+            if (tablaUsuario.length >= 2) {
+              const equiposUsuario = [tablaUsuario[0].nombre, tablaUsuario[1].nombre];
+              equiposUsuario.forEach(equipo => {
+                if (clasificadosOficiales.includes(equipo)) {
+                  puntosClasificados += 2;
+                }
+              });
+            }
+          } catch (error) {
+            console.error(`Error calculando grupo ${grupo} para usuario ${usuario.id}:`, error.message);
+          }
+        }
+        
+        return {
+          ...usuario,
+          puntaje_clasificados: puntosClasificados,
+          puntaje_jornada: parseInt(usuario.puntaje_jornada) + puntosClasificados
+        };
+      }));
+      
+      // Ordenar por puntaje total
+      ranking.sort((a, b) => {
+        if (b.puntaje_jornada !== a.puntaje_jornada) return b.puntaje_jornada - a.puntaje_jornada;
+        return a.nombre.localeCompare(b.nombre);
+      });
+      
+      return res.json(ranking);
+    }
 
+    // Para otras jornadas, ordenar normalmente
+    result.rows.sort((a, b) => {
+      if (b.puntaje_jornada !== a.puntaje_jornada) return b.puntaje_jornada - a.puntaje_jornada;
+      return a.nombre.localeCompare(b.nombre);
+    });
+    
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo ranking de jornada:', error);

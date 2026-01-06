@@ -31,20 +31,32 @@ const NotificacionesCampana = () => {
 
   // Cargar contador de notificaciones al montar
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    
+    // Solo cargar si hay usuario autenticado
+    if (!token) {
+      setContador(0);
+      return;
+    }
+    
     cargarContador();
     
     // Recargar cada 10 segundos (más frecuente para detectar cambios)
-    const interval = setInterval(cargarContador, 10000);
+    const interval = setInterval(() => {
+      // Verificar token antes de cada llamada
+      const currentToken = localStorage.getItem('token');
+      if (currentToken) {
+        cargarContador();
+      }
+    }, 10000);
     
     // Escuchar evento de notificación leída
     const handleNotificacionLeida = () => {
-      console.log('🔄 Notificación leída, actualizando contador...');
       cargarContador();
     };
     
     // Escuchar evento de nueva notificación creada
     const handleNuevaNotificacion = () => {
-      console.log('🆕 Nueva notificación detectada, actualizando...');
       cargarContador();
       if (mostrarDropdown) {
         cargarNotificaciones();
@@ -66,7 +78,10 @@ const NotificacionesCampana = () => {
   const cargarContador = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        setContador(0);
+        return;
+      }
 
       const response = await fetch(`${API_URL}/api/notificaciones/contador`, {
         headers: {
@@ -77,10 +92,13 @@ const NotificacionesCampana = () => {
       if (response.ok) {
         const data = await response.json();
         setContador(data.contador || 0);
-        console.log('📊 Contador de notificaciones:', data.contador);
+      } else if (response.status === 403 || response.status === 401) {
+        // Token inválido o expirado, limpiar
+        setContador(0);
       }
     } catch (error) {
-      console.error('❌ Error cargando contador:', error);
+      // Error de red o servidor, no mostrar en consola
+      setContador(0);
     }
   };
 
@@ -88,7 +106,10 @@ const NotificacionesCampana = () => {
     try {
       setCargando(true);
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        setNotificaciones([]);
+        return;
+      }
 
       // Cargar TODAS las notificaciones (leídas y no leídas) para el dropdown
       const response = await fetch(`${API_URL}/api/notificaciones/todas?limit=20`, {
@@ -101,13 +122,13 @@ const NotificacionesCampana = () => {
         const data = await response.json();
         const notifs = data.notificaciones || [];
         setNotificaciones(notifs);
-        console.log('📬 Notificaciones cargadas:', notifs.length, '- No leídas:', notifs.filter(n => !n.leida).length);
+      } else if (response.status === 403 || response.status === 401) {
+        setNotificaciones([]);
       } else {
-        console.error('❌ Error en respuesta:', response.status);
         setNotificaciones([]);
       }
     } catch (error) {
-      console.error('❌ Error cargando notificaciones:', error);
+      // Error de red, no mostrar en consola
       setNotificaciones([]);
     } finally {
       setCargando(false);
@@ -137,8 +158,6 @@ const NotificacionesCampana = () => {
         
         // Actualizar contador
         await cargarContador();
-        
-        console.log('✅ Notificación marcada como leída:', notificacionId);
       }
     } catch (error) {
       console.error('❌ Error marcando notificación:', error);

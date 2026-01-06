@@ -41,6 +41,10 @@ export default function ClasificacionLibertadores() {
   const [ganadoresAcumulado, setGanadoresAcumulado] = useState(null);
   const [mostrarGanadoresAcumulado, setMostrarGanadoresAcumulado] = useState(false);
   const [calculandoGanadoresAcumulado, setCalculandoGanadoresAcumulado] = useState(false);
+  
+  // Clasificados para jornada 6
+  const [clasificadosUsuarios, setClasificadosUsuarios] = useState({});
+  const [clasificadosOficiales, setClasificadosOficiales] = useState([]);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -60,6 +64,11 @@ export default function ClasificacionLibertadores() {
     if (filtroJornada && filtroJornada !== '') {
       cargarRankings();
       cargarGanadoresJornada(parseInt(filtroJornada));
+      
+      // Si es jornada 6, cargar clasificados
+      if (parseInt(filtroJornada) === 6) {
+        cargarClasificados();
+      }
     }
     // Cargar ganadores acumulado siempre (no depende de filtro)
     cargarGanadoresAcumulado();
@@ -169,6 +178,23 @@ export default function ClasificacionLibertadores() {
     }
   };
 
+  const cargarClasificados = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Cargar clasificados oficiales
+      const oficialesRes = await axios.get(
+        `${API_URL}/api/libertadores-clasificados/clasificados-oficiales`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setClasificadosOficiales(oficialesRes.data);
+      
+    } catch (error) {
+      console.error('Error cargando clasificados:', error);
+    }
+  };
+
   const limpiarFiltros = () => {
     setFiltroNombre('');
     setFiltroPartido('');
@@ -213,8 +239,8 @@ export default function ClasificacionLibertadores() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
+      // Usar backend para todas las jornadas
       if (mostrarActual) {
-        // Cargar ranking actual
         const actualRes = await axios.get(
           `${API_URL}/api/libertadores-rankings/actual`,
           { headers }
@@ -222,14 +248,12 @@ export default function ClasificacionLibertadores() {
         setJornadaActual(actualRes.data.jornada);
         setRankingAcumulado(actualRes.data.ranking);
         
-        // Cargar ranking de esa jornada
         const jornadaRes = await axios.get(
           `${API_URL}/api/libertadores-rankings/jornada/${actualRes.data.jornada}`,
           { headers }
         );
         setRankingJornada(jornadaRes.data);
       } else {
-        // Cargar ranking de jornada seleccionada
         const jornadaNum = filtroJornada || 1;
         const [jornadaRes, acumuladoRes] = await Promise.all([
           axios.get(`${API_URL}/api/libertadores-rankings/jornada/${jornadaNum}`, { headers }),
@@ -376,6 +400,69 @@ export default function ClasificacionLibertadores() {
     return pais ? `${nombre} (${pais})` : nombre;
   };
 
+  // Calcular tabla virtual de un grupo basado en los pronósticos del usuario
+  const calcularTablaVirtualUsuario = (pronosticos, grupoLetra) => {
+    // Filtrar partidos del grupo
+    const partidosGrupo = pronosticos.filter(p => 
+      p.partido?.grupo === grupoLetra && !p.esClasificado
+    );
+    
+    // Inicializar equipos
+    const equipos = {};
+    partidosGrupo.forEach(p => {
+      const local = p.partido.local.nombre;
+      const visita = p.partido.visita.nombre;
+      
+      if (!equipos[local]) {
+        equipos[local] = { nombre: local, puntos: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+      }
+      if (!equipos[visita]) {
+        equipos[visita] = { nombre: visita, puntos: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+      }
+      
+      // Procesar solo si hay pronóstico
+      if (p.goles_local !== null && p.goles_visita !== null) {
+        equipos[local].pj++;
+        equipos[visita].pj++;
+        equipos[local].gf += p.goles_local;
+        equipos[local].gc += p.goles_visita;
+        equipos[visita].gf += p.goles_visita;
+        equipos[visita].gc += p.goles_local;
+        
+        if (p.goles_local > p.goles_visita) {
+          // Gana local
+          equipos[local].puntos += 3;
+          equipos[local].pg++;
+          equipos[visita].pp++;
+        } else if (p.goles_local < p.goles_visita) {
+          // Gana visita
+          equipos[visita].puntos += 3;
+          equipos[visita].pg++;
+          equipos[local].pp++;
+        } else {
+          // Empate
+          equipos[local].puntos++;
+          equipos[visita].puntos++;
+          equipos[local].pe++;
+          equipos[visita].pe++;
+        }
+      }
+    });
+    
+    // Calcular diferencia de goles
+    Object.values(equipos).forEach(e => {
+      e.dif = e.gf - e.gc;
+    });
+    
+    // Ordenar: puntos DESC, dif DESC, gf DESC, nombre ASC
+    return Object.values(equipos).sort((a, b) => {
+      if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+      if (b.dif !== a.dif) return b.dif - a.dif;
+      if (b.gf !== a.gf) return b.gf - a.gf;
+      return a.nombre.localeCompare(b.nombre);
+    });
+  };
+
   // Agrupar pronósticos por jornada y jugador
   const agruparPronosticos = () => {
     if (filtroJornada) {
@@ -385,7 +472,9 @@ export default function ClasificacionLibertadores() {
         const key = `${p.usuario.id}`;
         if (!grupos[key]) {
           grupos[key] = {
+            usuario_id: p.usuario.id,
             jugador: p.usuario.nombre,
+            foto_perfil: p.usuario.foto_perfil,
             jornada: p.jornada.numero,
             pronosticos: []
           };
@@ -393,9 +482,86 @@ export default function ClasificacionLibertadores() {
         grupos[key].pronosticos.push(p);
       });
       
+      // Si es jornada 6, agregar pronósticos de clasificados
+      if (parseInt(filtroJornada) === 6 && clasificadosOficiales.length > 0) {
+        Object.values(grupos).forEach(grupo => {
+          // Para cada usuario, calcular tablas virtuales de TODOS los grupos (A-H)
+          const gruposLetras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+          
+          gruposLetras.forEach(grupoLetra => {
+            // Calcular tabla virtual del usuario para este grupo
+            const tablaVirtual = calcularTablaVirtualUsuario(grupo.pronosticos, grupoLetra);
+            
+            // Solo agregar si hay equipos en la tabla (el usuario hizo pronósticos para este grupo)
+            if (tablaVirtual.length >= 2) {
+              // Obtener clasificados oficiales del grupo (sin importar posición)
+              const clasificadosOficialesGrupo = clasificadosOficiales
+                .filter(c => c.grupo === grupoLetra)
+                .map(c => c.equipo_nombre);
+              
+              // Top 2 del usuario
+              const equiposUsuario = [tablaVirtual[0].nombre, tablaVirtual[1].nombre];
+              
+              // Separar aciertos y fallos
+              const aciertos = equiposUsuario.filter(e => clasificadosOficialesGrupo.includes(e));
+              const fallos = equiposUsuario.filter(e => !clasificadosOficialesGrupo.includes(e));
+              
+              // Ordenar equipos pronosticados: aciertos primero
+              const equiposOrdenados = [...aciertos, ...fallos];
+              
+              // Ordenar equipos oficiales para alinear con pronósticos
+              // Los que coinciden van primero (en el mismo orden que aciertos)
+              // Los que no coinciden van después
+              const oficialesOrdenados = [
+                ...aciertos, // Los mismos equipos que acertó (alineados)
+                ...clasificadosOficialesGrupo.filter(e => !equiposUsuario.includes(e)) // Los oficiales que no pronosticó
+              ];
+              
+              // Calcular puntos de cada línea
+              const puntosDetalle = equiposOrdenados.map(e => 
+                clasificadosOficialesGrupo.includes(e) ? 2 : 0
+              );
+              
+              // Calcular puntos totales
+              const totalPuntos = aciertos.length * 2;
+              
+              // Agregar UNA SOLA fila para este grupo con los 2 clasificados
+              grupo.pronosticos.push({
+                id: `clasif-${grupo.usuario_id}-${grupoLetra}`,
+                esClasificado: true,
+                usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                jornada: { numero: 6, cerrada: true },
+                partido: {
+                  grupo: grupoLetra,
+                  local: { nombre: `Clasificados Grupo ${grupoLetra}` },
+                  visita: { nombre: '' }
+                },
+                // Arrays con 2 equipos cada uno
+                equipos_pronosticados: equiposOrdenados, // Aciertos primero
+                equipos_oficiales: oficialesOrdenados, // Alineados con pronósticos
+                // Array con puntos de cada equipo
+                puntos_detalle: puntosDetalle,
+                puntos: totalPuntos
+              });
+            }
+          });
+        });
+      }
+      
       // Ordenar pronósticos dentro de cada grupo
       Object.values(grupos).forEach(grupo => {
         grupo.pronosticos.sort((a, b) => {
+          // Las filas de clasificados van siempre al final, ordenadas por grupo y posición
+          if (a.esClasificado && !b.esClasificado) return 1;
+          if (!a.esClasificado && b.esClasificado) return -1;
+          if (a.esClasificado && b.esClasificado) {
+            // Ordenar clasificados por grupo (A-H) y luego por posición (1, 2)
+            if (a.partido.grupo !== b.partido.grupo) {
+              return a.partido.grupo.localeCompare(b.partido.grupo);
+            }
+            return a.posicion - b.posicion;
+          }
+          
           // Para jornadas 7-10, ordenar por cruce (equipos) y luego IDA antes de VUELTA
           if (a.jornada.numero >= 7 && a.jornada.numero <= 10) {
             // Para J10: FINAL siempre al final
@@ -445,6 +611,69 @@ export default function ClasificacionLibertadores() {
           // Para otras jornadas, ordenar por fecha de partido
           return new Date(a.partido.fecha) - new Date(b.partido.fecha);
         });
+        
+        // CALCULAR Y GUARDAR EL PUNTAJE TOTAL DEL GRUPO (para usar en ranking)
+        const puntosPartidos = grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+        
+        const puntosClasificacion = grupo.pronosticos
+          .filter((p, index) => {
+            const jornada = p.jornada.numero;
+            if (jornada === 8) return true;
+            if (jornada === 9) return index % 2 === 1;
+            if (jornada === 10) return index === 1 || index === 3 || index === 4;
+            return false;
+          })
+          .reduce((sum, p) => sum + (p.puntos_clasificacion || 0), 0);
+        
+        let puntosCuadroFinal = 0;
+        let puntosPartidoFinal = 0;
+        
+        if (grupo.jornada === 10 && grupo.pronosticos.length > 0) {
+          const primerPronostico = grupo.pronosticos[0];
+          puntosCuadroFinal = (primerPronostico.puntos_campeon || 0) + (primerPronostico.puntos_subcampeon || 0);
+          
+          if (primerPronostico.final_virtual_local && primerPronostico.final_virtual_visita) {
+            const partidoFinalReal = partidos.find(p => p.id === 456);
+            
+            if (partidoFinalReal && partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null) {
+              const equiposPronosticados = {
+                local: primerPronostico.final_virtual_local,
+                visita: primerPronostico.final_virtual_visita,
+                goles_local: primerPronostico.final_virtual_goles_local,
+                goles_visita: primerPronostico.final_virtual_goles_visita
+              };
+              
+              const equiposReales = {
+                local: partidoFinalReal.nombre_local,
+                visita: partidoFinalReal.nombre_visita
+              };
+              
+              const coincidePartido = (
+                (equiposPronosticados.local === equiposReales.local && equiposPronosticados.visita === equiposReales.visita) ||
+                (equiposPronosticados.local === equiposReales.visita && equiposPronosticados.visita === equiposReales.local)
+              );
+              
+              if (coincidePartido) {
+                const difPronosticada = equiposPronosticados.goles_local - equiposPronosticados.goles_visita;
+                const difReal = partidoFinalReal.goles_local - partidoFinalReal.goles_visita;
+                const bonus = partidoFinalReal.bonus || 1;
+                
+                if (equiposPronosticados.goles_local === partidoFinalReal.goles_local && 
+                    equiposPronosticados.goles_visita === partidoFinalReal.goles_visita) {
+                  puntosPartidoFinal = 10 * bonus;
+                }
+                else if (difPronosticada === difReal) {
+                  puntosPartidoFinal = 7 * bonus;
+                }
+                else if ((difPronosticada > 0 && difReal > 0) || (difPronosticada < 0 && difReal < 0) || (difPronosticada === 0 && difReal === 0)) {
+                  puntosPartidoFinal = 4 * bonus;
+                }
+              }
+            }
+          }
+        }
+        
+        grupo.puntaje_total = puntosPartidos + puntosClasificacion + puntosCuadroFinal + puntosPartidoFinal;
       });
       
       return Object.values(grupos);
@@ -483,7 +712,7 @@ export default function ClasificacionLibertadores() {
       {ganadoresAcumulado && ganadoresAcumulado.ganadores && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
         <div className="alert alert-warning text-center mb-4">
           <h5 className="mb-3">
-            👑 {ganadoresAcumulado.ganadores.length === 1 ? 'Campeón' : 'Campeones'} del Ranking Acumulado
+            🏆 Top 3 Ranking Acumulado
           </h5>
           <div className="d-flex justify-content-center gap-3 flex-wrap">
             {ganadoresAcumulado.ganadores.map((ganador, index) => (
@@ -776,210 +1005,286 @@ export default function ClasificacionLibertadores() {
                     )}
                     {grupo.pronosticos.map((pronostico, index) => (
                       <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
-                        <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
-                          <td className="fw-bold">{pronostico.usuario.nombre}</td>
-                          <td className="text-center">
-                            <span className="badge bg-primary">
-                              Jornada {pronostico.jornada.numero}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            {pronostico.jornada.numero >= 7 && pronostico.jornada.numero <= 10 && pronostico.partido.tipo_partido ? (
-                              <span className={`badge ${
-                                pronostico.partido.tipo_partido === 'IDA' ? 'bg-info' : 
-                                pronostico.partido.tipo_partido === 'FINAL' ? 'bg-warning text-dark' : 
-                                'bg-success'
-                              }`}>
-                                {pronostico.partido.tipo_partido}
+                        {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
+                        {pronostico.esClasificado ? (
+                          <tr className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                            <td className="fw-bold">{pronostico.usuario.nombre}</td>
+                            <td className="text-center">
+                              <span className="badge bg-primary">
+                                Jornada {pronostico.jornada.numero}
                               </span>
-                            ) : pronostico.partido.grupo ? (
-                              <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
-                          </td>
-                          <td>
-                            <div className="d-flex flex-column align-items-center">
-                              <div className="d-flex justify-content-center align-items-center gap-2 w-100">
-                                <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
-                                  <small className="fw-bold text-end">
-                                    {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
-                                  </small>
-                                  {getLogoEquipo(pronostico.partido.local.nombre) && (
-                                    <img 
-                                      src={getLogoEquipo(pronostico.partido.local.nombre)} 
-                                      alt={pronostico.partido.local.nombre}
-                                      style={{ width: '24px', height: '24px', objectFit: 'contain' }}
-                                      onError={(e) => e.target.style.display = 'none'}
-                                    />
-                                  )}
-                                </div>
-                                <span className="text-muted">vs</span>
-                                <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
-                                  {getLogoEquipo(pronostico.partido.visita.nombre) && (
-                                    <img 
-                                      src={getLogoEquipo(pronostico.partido.visita.nombre)} 
-                                      alt={pronostico.partido.visita.nombre}
-                                      style={{ width: '24px', height: '24px', objectFit: 'contain' }}
-                                      onError={(e) => e.target.style.display = 'none'}
-                                    />
-                                  )}
-                                  <small className="fw-bold text-start">
-                                    {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
-                                  </small>
-                                </div>
+                            </td>
+                            <td className="text-center">
+                              <span className="badge bg-warning text-dark">Clasificados</span>
+                            </td>
+                            <td>
+                              <div className="fw-bold text-center">
+                                {pronostico.partido.local.nombre}
                               </div>
-                              {/* Si es FINAL en J10, mostrar equipos pronosticados debajo */}
-                              {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
-                                <div className="text-primary small mt-1 text-center" style={{fontSize: '0.75rem'}}>
-                                  Pronosticado: {pronostico.equipos_pronosticados_final.equipo_local} vs {pronostico.equipos_pronosticados_final.equipo_visita}
-                                  {' '}
-                                  {pronostico.equipos_pronosticados_final.equipo_local === pronostico.partido.local.nombre && 
-                                   pronostico.equipos_pronosticados_final.equipo_visita === pronostico.partido.visita.nombre 
-                                   ? <span className="text-success">✓ Coincide</span>
-                                   : <span className="text-danger">✗ No coincide</span>}
+                            </td>
+                            <td className="text-center">
+                              {/* Mostrar 2 equipos pronosticados (aciertos primero) */}
+                              {pronostico.equipos_pronosticados?.map((equipo, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className={`fw-bold ${pronostico.puntos_detalle[idx] > 0 ? 'text-success' : 'text-danger'}`}
+                                  style={{ 
+                                    borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                    padding: '4px 0'
+                                  }}
+                                >
+                                  {equipo}
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-center fw-bold fs-5">
-                            {/* Para FINAL en J10, mostrar pronóstico virtual */}
-                            {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final ? (
-                              <>
-                                {pronostico.equipos_pronosticados_final.goles_local} - {pronostico.equipos_pronosticados_final.goles_visita}
-                                {pronostico.equipos_pronosticados_final.penales_local !== null && 
-                                 pronostico.equipos_pronosticados_final.penales_visita !== null && (
-                                  <div className="text-muted small">
-                                    Pen: {pronostico.equipos_pronosticados_final.penales_local} - {pronostico.equipos_pronosticados_final.penales_visita}
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                {pronostico.pronostico.local} - {pronostico.pronostico.visita}
-                                {pronostico.partido.tipo_partido === 'VUELTA' && 
-                                 pronostico.pronostico.penales_local !== null && 
-                                 pronostico.pronostico.penales_visita !== null && (
-                                  <div className="text-muted small">
-                                    Pen: {pronostico.pronostico.penales_local} - {pronostico.pronostico.penales_visita}
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </td>
-                          <td className="text-center fw-bold fs-5">
-                            {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
-                              <>
-                                {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
-                                {pronostico.partido.tipo_partido === 'VUELTA' && 
-                                 pronostico.partido.resultado.penales_local !== null && 
-                                 pronostico.partido.resultado.penales_visita !== null && (
-                                  <div className="text-muted small">
-                                    Pen: {pronostico.partido.resultado.penales_local} - {pronostico.partido.resultado.penales_visita}
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-muted">Pendiente</span>
-                            )}
-                          </td>
-                          <td className="text-center fw-bold">
-                            <span className={pronostico.partido.bonus && pronostico.partido.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
-                              x{pronostico.partido.bonus || 1}
-                            </span>
-                          </td>
-                          <td className="text-center fw-bold">
-                            {pronostico.puntos !== null ? (
-                              <span className="badge bg-warning text-dark fs-6">
-                                {pronostico.puntos} pts
-                              </span>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
-                          </td>
-                        </tr>
-                        
-                        {/* Fila de "Equipo que avanza" - Solo en jornadas 8+ y solo en partidos de VUELTA */}
-                        {(() => {
-                          const jornada = pronostico.jornada.numero;
-                          // Usar el campo tipo_partido del backend para detectar si es VUELTA
-                          const esPartidoVuelta = pronostico.partido.tipo_partido === 'VUELTA';
-                          
-                          return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
-                            <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
-                              <td colSpan="4">
-                                <div className="fw-bold mb-2 text-center">⚡ Equipo que avanza</div>
-                                {(jornada === 8 || jornada === 9 || jornada === 10) && pronostico.partido_ida && (
-                                  <div className="d-flex justify-content-between small">
-                                    {/* PRONÓSTICO (Izquierda) */}
-                                    <div className="text-start" style={{flex: 1}}>
-                                      <div className="text-primary fw-bold mb-2">Pronosticado</div>
-                                      <div className="mb-1">
-                                        <strong>IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local !== null && pronostico.partido_ida.pronostico_ida_local !== undefined ? pronostico.partido_ida.pronostico_ida_local : '?'} - {pronostico.partido_ida.pronostico_ida_visita !== null && pronostico.partido_ida.pronostico_ida_visita !== undefined ? pronostico.partido_ida.pronostico_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
-                                      </div>
-                                      <div>
-                                        <strong>Global:</strong> {pronostico.partido.local.nombre} {
-                                          (pronostico.pronostico.local || 0) + (pronostico.partido_ida.pronostico_ida_visita || 0)
-                                        } - {
-                                          (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.pronostico_ida_local || 0)
-                                        } {pronostico.partido.visita.nombre}
-                                      </div>
-                                    </div>
-                                    
-                                    {/* REAL (Derecha) - Solo si la jornada está cerrada */}
-                                    {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null && (
-                                      <div className="text-end text-muted" style={{flex: 1}}>
-                                        <div className="text-success fw-bold mb-2">Real</div>
-                                        <div className="mb-1">
-                                          <strong>IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local !== null ? pronostico.partido_ida.resultado_ida_local : '?'} - {pronostico.partido_ida.resultado_ida_visita !== null ? pronostico.partido_ida.resultado_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
-                                        </div>
-                                        <div>
-                                          <strong>Global:</strong> {pronostico.partido.local.nombre} {
-                                            pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_visita || 0)
-                                          } {
-                                            pronostico.partido.resultado.penales_local !== null ? `(${pronostico.partido.resultado.penales_local} pen)` : ''
-                                          } - {
-                                            pronostico.partido.resultado.visita + (pronostico.partido_ida.resultado_ida_local || 0)
-                                          } {
-                                            pronostico.partido.resultado.penales_visita !== null ? `(${pronostico.partido.resultado.penales_visita} pen)` : ''
-                                          } {pronostico.partido.visita.nombre}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="text-center fw-bold">
-                                {pronostico.equipo_pronosticado_avanza}
+                              ))}
+                            </td>
+                            <td className="text-center">
+                              {/* Mostrar 2 equipos oficiales */}
+                              {pronostico.equipos_oficiales?.map((equipo, idx) => (
+                                <div 
+                                  key={idx}
+                                  className="fw-bold"
+                                  style={{ 
+                                    borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                    padding: '4px 0'
+                                  }}
+                                >
+                                  {equipo}
+                                </div>
+                              ))}
+                            </td>
+                            <td className="text-center">
+                              {/* Columna Bonus vacía */}
+                            </td>
+                            <td className="text-center">
+                              {/* Mostrar puntos de cada equipo */}
+                              {pronostico.puntos_detalle?.map((pts, idx) => (
+                                <div 
+                                  key={idx}
+                                  style={{ 
+                                    borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                    padding: '4px 0'
+                                  }}
+                                >
+                                  {pts > 0 ? (
+                                    <span className="badge bg-success">
+                                      +{pts} pts
+                                    </span>
+                                  ) : (
+                                    <span className="badge bg-secondary">0 pts</span>
+                                  )}
+                                </div>
+                              ))}
+                            </td>
+                          </tr>
+                        ) : (
+                          /* FILA NORMAL DE PARTIDO */
+                          <>
+                            <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
+                              <td className="fw-bold">{pronostico.usuario.nombre}</td>
+                              <td className="text-center">
+                                <span className="badge bg-primary">
+                                  Jornada {pronostico.jornada.numero}
+                                </span>
                               </td>
                               <td className="text-center">
-                                {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null ? (
-                                  <div className="fw-bold text-success">
-                                    {pronostico.equipo_real_avanza || '?'}
+                                {pronostico.jornada.numero >= 7 && pronostico.jornada.numero <= 10 && pronostico.partido.tipo_partido ? (
+                                  <span className={`badge ${
+                                    pronostico.partido.tipo_partido === 'IDA' ? 'bg-info' : 
+                                    pronostico.partido.tipo_partido === 'FINAL' ? 'bg-warning text-dark' : 
+                                    'bg-success'
+                                  }`}>
+                                    {pronostico.partido.tipo_partido}
+                                  </span>
+                                ) : pronostico.partido.grupo ? (
+                                  <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
+                                ) : (
+                                  <span className="text-muted">-</span>
+                                )}
+                              </td>
+                              <td>
+                                <div className="d-flex flex-column align-items-center">
+                                  <div className="d-flex justify-content-center align-items-center gap-2 w-100">
+                                    <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
+                                      <small className="fw-bold text-end">
+                                        {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                                      </small>
+                                      {getLogoEquipo(pronostico.partido.local.nombre) && (
+                                        <img 
+                                          src={getLogoEquipo(pronostico.partido.local.nombre)} 
+                                          alt={pronostico.partido.local.nombre}
+                                          style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                          onError={(e) => e.target.style.display = 'none'}
+                                        />
+                                      )}
+                                    </div>
+                                    <span className="text-muted">vs</span>
+                                    <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
+                                      {getLogoEquipo(pronostico.partido.visita.nombre) && (
+                                        <img 
+                                          src={getLogoEquipo(pronostico.partido.visita.nombre)} 
+                                          alt={pronostico.partido.visita.nombre}
+                                          style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                          onError={(e) => e.target.style.display = 'none'}
+                                        />
+                                      )}
+                                      <small className="fw-bold text-start">
+                                        {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                                      </small>
+                                    </div>
                                   </div>
+                                  {/* Si es FINAL en J10, mostrar equipos pronosticados debajo */}
+                                  {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final && (
+                                    <div className="text-primary small mt-1 text-center" style={{fontSize: '0.75rem'}}>
+                                      Pronosticado: {pronostico.equipos_pronosticados_final.equipo_local} vs {pronostico.equipos_pronosticados_final.equipo_visita}
+                                      {' '}
+                                      {pronostico.equipos_pronosticados_final.equipo_local === pronostico.partido.local.nombre && 
+                                       pronostico.equipos_pronosticados_final.equipo_visita === pronostico.partido.visita.nombre 
+                                       ? <span className="text-success">✓ Coincide</span>
+                                       : <span className="text-danger">✗ No coincide</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="text-center fw-bold fs-5">
+                                {/* Para FINAL en J10, mostrar pronóstico virtual */}
+                                {pronostico.partido.tipo_partido === 'FINAL' && pronostico.equipos_pronosticados_final ? (
+                                  <>
+                                    {pronostico.equipos_pronosticados_final.goles_local} - {pronostico.equipos_pronosticados_final.goles_visita}
+                                    {pronostico.equipos_pronosticados_final.penales_local !== null && 
+                                     pronostico.equipos_pronosticados_final.penales_visita !== null && (
+                                      <div className="text-muted small">
+                                        Pen: {pronostico.equipos_pronosticados_final.penales_local} - {pronostico.equipos_pronosticados_final.penales_visita}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {pronostico.pronostico.local} - {pronostico.pronostico.visita}
+                                    {pronostico.partido.tipo_partido === 'VUELTA' && 
+                                     pronostico.pronostico.penales_local !== null && 
+                                     pronostico.pronostico.penales_visita !== null && (
+                                      <div className="text-muted small">
+                                        Pen: {pronostico.pronostico.penales_local} - {pronostico.pronostico.penales_visita}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </td>
+                              <td className="text-center fw-bold fs-5">
+                                {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
+                                  <>
+                                    {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
+                                    {pronostico.partido.tipo_partido === 'VUELTA' && 
+                                     pronostico.partido.resultado.penales_local !== null && 
+                                     pronostico.partido.resultado.penales_visita !== null && (
+                                      <div className="text-muted small">
+                                        Pen: {pronostico.partido.resultado.penales_local} - {pronostico.partido.resultado.penales_visita}
+                                      </div>
+                                    )}
+                                  </>
                                 ) : (
                                   <span className="text-muted">Pendiente</span>
                                 )}
                               </td>
-                              <td className="text-center">
-                                {/* Columna Bonus vacía */}
+                              <td className="text-center fw-bold">
+                                <span className={pronostico.partido.bonus && pronostico.partido.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
+                                  x{pronostico.partido.bonus || 1}
+                                </span>
                               </td>
                               <td className="text-center fw-bold">
-                                {pronostico.puntos_clasificacion !== null && pronostico.puntos_clasificacion !== undefined ? (
-                                  pronostico.puntos_clasificacion > 0 ? (
-                                    <span className="badge bg-success fs-6">
-                                      +{pronostico.puntos_clasificacion} pts
-                                    </span>
-                                  ) : (
-                                    <span className="badge bg-secondary">0 pts</span>
-                                  )
+                                {pronostico.puntos !== null ? (
+                                  <span className="badge bg-warning text-dark fs-6">
+                                    {pronostico.puntos} pts
+                                  </span>
                                 ) : (
                                   <span className="text-muted">-</span>
                                 )}
                               </td>
                             </tr>
-                          );
-                        })()}
+                            
+                            {/* Fila de "Equipo que avanza" - Solo en jornadas 8+ y solo en partidos de VUELTA */}
+                            {(() => {
+                              const jornada = pronostico.jornada.numero;
+                              // Usar el campo tipo_partido del backend para detectar si es VUELTA
+                              const esPartidoVuelta = pronostico.partido.tipo_partido === 'VUELTA';
+                              
+                              return esPartidoVuelta && pronostico.equipo_pronosticado_avanza && (
+                                <tr className={pronostico.puntos_clasificacion > 0 ? 'table-success' : pronostico.partido.resultado.local !== null ? 'table-danger' : 'table-secondary'}>
+                                  <td colSpan="4">
+                                    <div className="fw-bold mb-2 text-center">⚡ Equipo que avanza</div>
+                                    {(jornada === 8 || jornada === 9 || jornada === 10) && pronostico.partido_ida && (
+                                      <div className="d-flex justify-content-between small">
+                                        {/* PRONÓSTICO (Izquierda) */}
+                                        <div className="text-start" style={{flex: 1}}>
+                                          <div className="text-primary fw-bold mb-2">Pronosticado</div>
+                                          <div className="mb-1">
+                                            <strong>IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local !== null && pronostico.partido_ida.pronostico_ida_local !== undefined ? pronostico.partido_ida.pronostico_ida_local : '?'} - {pronostico.partido_ida.pronostico_ida_visita !== null && pronostico.partido_ida.pronostico_ida_visita !== undefined ? pronostico.partido_ida.pronostico_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
+                                          </div>
+                                          <div>
+                                            <strong>Global:</strong> {pronostico.partido.local.nombre} {
+                                              (pronostico.pronostico.local || 0) + (pronostico.partido_ida.pronostico_ida_visita || 0)
+                                            } - {
+                                              (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.pronostico_ida_local || 0)
+                                            } {pronostico.partido.visita.nombre}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* REAL (Derecha) - Solo si la jornada está cerrada */}
+                                        {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null && (
+                                          <div className="text-end text-muted" style={{flex: 1}}>
+                                            <div className="text-success fw-bold mb-2">Real</div>
+                                            <div className="mb-1">
+                                              <strong>IDA:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.resultado_ida_local !== null ? pronostico.partido_ida.resultado_ida_local : '?'} - {pronostico.partido_ida.resultado_ida_visita !== null ? pronostico.partido_ida.resultado_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
+                                            </div>
+                                            <div>
+                                              <strong>Global:</strong> {pronostico.partido.local.nombre} {
+                                                pronostico.partido.resultado.local + (pronostico.partido_ida.resultado_ida_visita || 0)
+                                              } {
+                                                pronostico.partido.resultado.penales_local !== null ? `(${pronostico.partido.resultado.penales_local} pen)` : ''
+                                              } - {
+                                                pronostico.partido.resultado.visita + (pronostico.partido_ida.resultado_ida_local || 0)
+                                              } {
+                                                pronostico.partido.resultado.penales_visita !== null ? `(${pronostico.partido.resultado.penales_visita} pen)` : ''
+                                              } {pronostico.partido.visita.nombre}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="text-center fw-bold">
+                                    {pronostico.equipo_pronosticado_avanza}
+                                  </td>
+                                  <td className="text-center">
+                                    {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null ? (
+                                      <div className="fw-bold text-success">
+                                        {pronostico.equipo_real_avanza || '?'}
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted">Pendiente</span>
+                                    )}
+                                  </td>
+                                  <td className="text-center">
+                                    {/* Columna Bonus vacía */}
+                                  </td>
+                                  <td className="text-center fw-bold">
+                                    {pronostico.puntos_clasificacion !== null && pronostico.puntos_clasificacion !== undefined ? (
+                                      pronostico.puntos_clasificacion > 0 ? (
+                                        <span className="badge bg-success fs-6">
+                                          +{pronostico.puntos_clasificacion} pts
+                                        </span>
+                                      ) : (
+                                        <span className="badge bg-secondary">0 pts</span>
+                                      )
+                                    ) : (
+                                      <span className="text-muted">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })()}
+                          </>
+                        )}
                       </React.Fragment>
                     ))}
                     
@@ -1222,79 +1527,13 @@ export default function ClasificacionLibertadores() {
                       <td className="text-center">
                         <span className="badge bg-dark fs-5">
                           {(() => {
-                            // Sumar puntos de partidos
-                            const puntosPartidos = grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
-                            
-                            // Para puntos de clasificación, solo contar una vez por cruce (en partidos de VUELTA)
-                            const puntosClasificacion = grupo.pronosticos
-                              .filter((p, index) => {
-                                const jornada = p.jornada.numero;
-                                // Jornada 8: todos son VUELTA
-                                if (jornada === 8) return true;
-                                // Jornada 9: solo los de índice impar son VUELTA
-                                if (jornada === 9) return index % 2 === 1;
-                                // Jornada 10: índices 1, 3 son VUELTA, 4 es FINAL
-                                if (jornada === 10) return index === 1 || index === 3 || index === 4;
-                                return false;
-                              })
-                              .reduce((sum, p) => sum + (p.puntos_clasificacion || 0), 0);
-                            
-                            // Para jornada 10, sumar puntos de campeón y subcampeón (solo una vez)
-                            let puntosCuadroFinal = 0;
-                            let puntosPartidoFinal = 0;
-                            
-                            if (grupo.jornada === 10 && grupo.pronosticos.length > 0) {
-                              // Tomar los puntos del primer pronóstico ya que son los mismos para todos los partidos del usuario
-                              const primerPronostico = grupo.pronosticos[0];
-                              puntosCuadroFinal = (primerPronostico.puntos_campeon || 0) + (primerPronostico.puntos_subcampeon || 0);
-                              
-                              // Calcular puntos del partido FINAL si existen datos
-                              if (primerPronostico.final_virtual_local && primerPronostico.final_virtual_visita) {
-                                const partidoFinalReal = partidos.find(p => p.id === 456);
-                                
-                                if (partidoFinalReal && partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null) {
-                                  // Verificar si coinciden los equipos
-                                  const equiposPronosticados = {
-                                    local: primerPronostico.final_virtual_local,
-                                    visita: primerPronostico.final_virtual_visita,
-                                    goles_local: primerPronostico.final_virtual_goles_local,
-                                    goles_visita: primerPronostico.final_virtual_goles_visita
-                                  };
-                                  
-                                  const equiposReales = {
-                                    local: partidoFinalReal.nombre_local,
-                                    visita: partidoFinalReal.nombre_visita
-                                  };
-                                  
-                                  const coincidePartido = (
-                                    (equiposPronosticados.local === equiposReales.local && equiposPronosticados.visita === equiposReales.visita) ||
-                                    (equiposPronosticados.local === equiposReales.visita && equiposPronosticados.visita === equiposReales.local)
-                                  );
-                                  
-                                  if (coincidePartido) {
-                                    const difPronosticada = equiposPronosticados.goles_local - equiposPronosticados.goles_visita;
-                                    const difReal = partidoFinalReal.goles_local - partidoFinalReal.goles_visita;
-                                    const bonus = partidoFinalReal.bonus || 1;
-                                    
-                                    // 10 puntos resultado exacto
-                                    if (equiposPronosticados.goles_local === partidoFinalReal.goles_local && 
-                                        equiposPronosticados.goles_visita === partidoFinalReal.goles_visita) {
-                                      puntosPartidoFinal = 10 * bonus;
-                                    }
-                                    // 7 puntos diferencia de goles
-                                    else if (difPronosticada === difReal) {
-                                      puntosPartidoFinal = 7 * bonus;
-                                    }
-                                    // 4 puntos signo 1X2
-                                    else if ((difPronosticada > 0 && difReal > 0) || (difPronosticada < 0 && difReal < 0) || (difPronosticada === 0 && difReal === 0)) {
-                                      puntosPartidoFinal = 4 * bonus;
-                                    }
-                                  }
-                                }
-                              }
+                            // Para jornada 6, usar el puntaje del ranking (que viene de BD)
+                            if (grupo.jornada === 6 && rankingJornada.length > 0) {
+                              const jugadorRanking = rankingJornada.find(j => j.id === grupo.usuario_id);
+                              return jugadorRanking ? jugadorRanking.puntos_jornada : 0;
                             }
-                            
-                            return puntosPartidos + puntosClasificacion + puntosCuadroFinal + puntosPartidoFinal;
+                            // Para otras jornadas, usar el cálculo dinámico
+                            return grupo.puntaje_total || 0;
                           })()} pts
                         </span>
                       </td>
@@ -1637,17 +1876,7 @@ export default function ClasificacionLibertadores() {
         </>
       )}
 
-      {/* Mostrar ganadores acumulado guardados si existen */}
-      {ganadoresAcumulado && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
-        <div className="alert alert-warning text-center border-3 border-warning shadow">
-          <h4 className="mb-2">
-            👑 {ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} DEL RANKING ACUMULADO 👑
-          </h4>
-          <p className="mb-0 fw-bold fs-5">
-            {ganadoresAcumulado.ganadores.map(g => g.nombre.toUpperCase()).join(', ')} - {ganadoresAcumulado.ganadores[0].puntaje} PUNTOS
-          </p>
-        </div>
-      )}
+
 
       {/* Modal de confirmación para cálculo de ganadores */}
       {showModal && (

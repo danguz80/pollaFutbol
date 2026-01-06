@@ -15,10 +15,15 @@ import RutaProtegidaAdmin from "./components/RutaProtegidaAdmin";
 import CambiarPassword from "./pages/CambiarPassword";
 import AdminLibertadores from "./pages/AdminLibertadores";
 import Libertadores from "./pages/Libertadores";
+import Sudamericana from "./pages/Sudamericana";
 import JornadaLibertadores from "./pages/JornadaLibertadores";
+import JornadaSudamericana from "./pages/JornadaSudamericana";
 import EstadisticasLibertadores from "./pages/EstadisticasLibertadores";
+import EstadisticasSudamericana from "./pages/EstadisticasSudamericana";
 import ClasificacionLibertadores from "./pages/ClasificacionLibertadores";
+import ClasificacionSudamericana from "./pages/ClasificacionSudamericana";
 import PuntuacionLibertadores from "./pages/PuntuacionLibertadores";
+import PuntuacionSudamericana from "./pages/PuntuacionSudamericana";
 import GanadoresJornadaLibertadores from "./pages/GanadoresJornadaLibertadores";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
@@ -26,20 +31,16 @@ import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
 import AdminTorneoResultados from "./pages/Admin/AdminTorneoResultados";
 import AdminLibertadoresGestion from "./pages/Admin/AdminLibertadoresGestion";
 import AdminLibertadoresResultados from "./pages/Admin/AdminLibertadoresResultados";
+import AdminSudamericana from "./pages/AdminSudamericana";
+import AdminSudamericanaGestion from "./pages/Admin/AdminSudamericanaGestion";
+import AdminSudamericanaResultados from "./pages/Admin/AdminSudamericanaResultados";
 import EstadisticasNacional from "./pages/EstadisticasNacional";
 import ModalNotificacionGanador from "./components/ModalNotificacionGanador";
 import { useNotificaciones } from "./hooks/useNotificaciones";
 import TodasNotificaciones from "./pages/TodasNotificaciones";
 
 export default function AppRouter() {
-  console.log('🔧 AppRouter montado');
   const { notificacionActual, mostrandoModal, cerrarNotificacion } = useNotificaciones();
-  
-  console.log('📊 Estado notificaciones:', { 
-    tieneNotificacion: !!notificacionActual, 
-    mostrandoModal,
-    notificacion: notificacionActual 
-  });
 
   return (
     <BrowserRouter>
@@ -94,6 +95,26 @@ export default function AppRouter() {
             <AdminLibertadoresResultados />
           </RutaProtegidaAdmin>
         } />
+        <Route path="/admin/sudamericana" element={
+          <RutaProtegidaAdmin>
+            <AdminSudamericana />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/sudamericana/fixture" element={
+          <RutaProtegidaAdmin>
+            <AdminSudamericana />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/sudamericana/gestion" element={
+          <RutaProtegidaAdmin>
+            <AdminSudamericanaGestion />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/sudamericana/resultados" element={
+          <RutaProtegidaAdmin>
+            <AdminSudamericanaResultados />
+          </RutaProtegidaAdmin>
+        } />
         <Route path="/admin/torneo-nacional" element={
           <RutaProtegidaAdmin>
             <AdminTorneoNacional />
@@ -118,6 +139,11 @@ export default function AppRouter() {
         <Route path="/libertadores/clasificacion" element={<ClasificacionLibertadores />} />
         <Route path="/libertadores/puntuacion" element={<PuntuacionLibertadores />} />
         <Route path="/libertadores/ganadores-jornada" element={<GanadoresJornadaLibertadores />} />
+        <Route path="/sudamericana" element={<Sudamericana />} />
+        <Route path="/sudamericana/jornada/:numero" element={<JornadaSudamericana />} />
+        <Route path="/sudamericana/estadisticas" element={<EstadisticasSudamericana />} />
+        <Route path="/sudamericana/clasificacion" element={<ClasificacionSudamericana />} />
+        <Route path="/sudamericana/puntuacion" element={<PuntuacionSudamericana />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/notificaciones" element={<TodasNotificaciones />} />
         <Route path="/register" element={<Register />} />

@@ -5,6 +5,7 @@ import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import htmlPdf from 'html-pdf-node';
 import { getWhatsAppService } from '../services/whatsappService.js';
 import { getLogoBase64 } from '../utils/logoHelper.js';
+import { calcularTablaOficial, calcularTablaUsuario } from '../utils/calcularClasificadosLibertadores.js';
 
 const router = express.Router();
 
@@ -12,6 +13,7 @@ const router = express.Router();
 router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const { jornadaNumero } = req.body; // Jornada opcional
+    console.log(`🎯 INICIO calcular puntos - Jornada: ${jornadaNumero || 'TODAS'}`);
     
     // Obtener reglas de puntuación
     const reglasResult = await pool.query('SELECT * FROM libertadores_puntuacion ORDER BY puntos DESC');
@@ -531,6 +533,78 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           }
         }
       }
+    }
+
+    console.log(`🔍 Verificando J6: jornadaNumero = ${jornadaNumero}, tipo = ${typeof jornadaNumero}, === 6? ${jornadaNumero === 6}, == 6? ${jornadaNumero == 6}`);
+    
+    // Para jornada 6: calcular y guardar puntos de clasificación
+    if (jornadaNumero == 6) {  // Usar == en lugar de === por si viene como string
+      console.log('🔄 Calculando puntos de clasificación J6...');
+      
+      // Calcular clasificados oficiales (top 2 de cada grupo)
+      const jornadasNumeros = [1, 2, 3, 4, 5, 6];
+      const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const clasificadosOficiales = {};
+      
+      for (const grupo of grupos) {
+        const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
+        if (tabla.length >= 2) {
+          clasificadosOficiales[grupo] = [tabla[0].nombre, tabla[1].nombre];
+        }
+      }
+      console.log('✅ Clasificados oficiales:', clasificadosOficiales);
+      
+      // Para cada usuario, calcular sus aciertos
+      const usuariosRes = await pool.query(`
+        SELECT DISTINCT lp.usuario_id
+        FROM libertadores_pronosticos lp
+        INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+        INNER JOIN libertadores_jornadas j ON p.jornada_id = j.id
+        WHERE j.numero = 6
+      `);
+      console.log(`✅ Procesando ${usuariosRes.rows.length} usuarios`);
+      
+      for (const {usuario_id} of usuariosRes.rows) {
+        let totalPuntosUsuario = 0;
+        
+        // Primero eliminar registros existentes
+        await pool.query(
+          'DELETE FROM libertadores_puntos_clasificacion WHERE usuario_id = $1 AND jornada_numero = 6',
+          [usuario_id]
+        );
+        
+        for (const grupo of grupos) {
+          try {
+            const tablaUsuario = await calcularTablaUsuario(usuario_id, grupo);
+            const top2Usuario = tablaUsuario.slice(0, 2).map(e => e.nombre);
+            const top2Oficial = clasificadosOficiales[grupo] || [];
+            
+            // Contar aciertos
+            const aciertos = top2Usuario.filter(equipo => top2Oficial.includes(equipo));
+            const puntosClasif = aciertos.length * 2;
+            
+            if (puntosClasif > 0) {
+              // Insertar puntos
+              const insertResult = await pool.query(`
+                INSERT INTO libertadores_puntos_clasificacion 
+                (usuario_id, jornada_numero, grupo, puntos)
+                VALUES ($1, 6, $2, $3)
+                RETURNING id
+              `, [usuario_id, grupo, puntosClasif]);
+              
+              totalPuntosUsuario += puntosClasif;
+              console.log(`  ✅ Usuario ${usuario_id} Grupo ${grupo}: ${puntosClasif} pts (ID: ${insertResult.rows[0].id})`);
+            }
+          } catch (error) {
+            console.error(`  ❌ Error grupo ${grupo}:`, error.message);
+          }
+        }
+        
+        if (totalPuntosUsuario > 0) {
+          console.log(`✅ Usuario ${usuario_id}: TOTAL ${totalPuntosUsuario} pts clasificación`);
+        }
+      }
+      console.log('✅ Puntos de clasificación J6 guardados');
     }
 
     res.json({

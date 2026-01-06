@@ -13,13 +13,11 @@ export const useNotificaciones = () => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      console.log('🔔 Cargando notificaciones pendientes...');
       cargarNotificacionesPendientes();
     }
     
     // Escuchar evento de login para recargar notificaciones
     const handleLogin = () => {
-      console.log('🔔 Login detectado, recargando notificaciones...');
       cargarNotificacionesPendientes();
     };
     
@@ -34,7 +32,6 @@ export const useNotificaciones = () => {
   useEffect(() => {
     if (notificacionesPendientes.length > 0 && !mostrandoModal) {
       const siguiente = notificacionesPendientes[0];
-      console.log('📢 Mostrando notificación:', siguiente);
       setNotificacionActual(siguiente);
       setMostrandoModal(true);
     }
@@ -45,19 +42,21 @@ export const useNotificaciones = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       if (!token) {
-        console.log('❌ No hay token, no se pueden cargar notificaciones');
+        setNotificacionesPendientes([]);
         return;
       }
 
-      console.log('📡 Consultando API de notificaciones...');
       const response = await axios.get(`${API_URL}/api/notificaciones/pendientes`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      console.log(`✅ ${response.data.length} notificaciones pendientes encontradas`, response.data);
       setNotificacionesPendientes(response.data);
     } catch (error) {
-      console.error('❌ Error cargando notificaciones:', error);
+      // Si es error 401/403, el usuario no está autenticado
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        setNotificacionesPendientes([]);
+      }
+      // No mostrar otros errores en consola
     } finally {
       setLoading(false);
     }

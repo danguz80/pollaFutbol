@@ -63,10 +63,6 @@ async function crearReglasDefecto() {
     { fase: 'FASE DE GRUPOS', concepto: 'Signo 1X2 (local, empate, visitante)', puntos: 1 },
     { fase: 'FASE DE GRUPOS', concepto: 'Diferencia de goles', puntos: 3 },
     { fase: 'FASE DE GRUPOS', concepto: 'Resultado exacto', puntos: 5 },
-    { fase: 'FASE DE GRUPOS', concepto: 'Posición exacta (1º)', puntos: 3 },
-    { fase: 'FASE DE GRUPOS', concepto: 'Posición exacta (2º)', puntos: 2 },
-    { fase: 'FASE DE GRUPOS', concepto: 'Posición exacta (3º)', puntos: 2 },
-    { fase: 'FASE DE GRUPOS', concepto: 'Posición exacta (4º)', puntos: 2 },
     
     // OCTAVOS
     { fase: 'CLASIFICACIÓN', concepto: 'Equipo clasificado para OCTAVOS', puntos: 2 },

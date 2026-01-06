@@ -535,33 +535,111 @@ router.get('/:jornadaNumero', async (req, res) => {
   
   // Validar que jornadaNumero sea un número válido
   if (isNaN(jornadaNumero)) {
-    return res.status(400).json({ error: 'Número de jornada inválido' });
+    return res.status(400).json({ error: 'Número de jornada inválida' });
   }
   
   try {
-    const result = await pool.query(`
-      SELECT 
-        lgj.jornada_numero,
-        lgj.puntaje,
-        lgj.fecha_calculo,
-        u.id as usuario_id,
-        u.nombre,
-        u.foto_perfil
-      FROM libertadores_ganadores_jornada lgj
-      INNER JOIN usuarios u ON lgj.usuario_id = u.id
-      WHERE lgj.jornada_numero = $1
-      ORDER BY u.nombre
-    `, [jornadaNumero]);
+    // Calcular ganadores DIRECTAMENTE desde el ranking (siempre actualizado)
+    const incluirClasificacion = true;
     
-    if (result.rows.length === 0) {
+    const rankingQuery = jornadaNumero === 10 
+      ? `
+        SELECT 
+          u.id,
+          u.nombre,
+          u.foto_perfil,
+          COALESCE(puntos_partidos.total, 0) + 
+          COALESCE(puntos_clasificacion.total, 0) +
+          COALESCE(puntos_campeon.campeon, 0) + 
+          COALESCE(puntos_campeon.subcampeon, 0) +
+          COALESCE(puntos_final.puntos, 0) as puntos_jornada
+        FROM usuarios u
+        LEFT JOIN (
+          SELECT lp.usuario_id, SUM(lp.puntos) as total
+          FROM libertadores_pronosticos lp
+          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+          WHERE lj.numero = $1
+          GROUP BY lp.usuario_id
+        ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+        LEFT JOIN (
+          SELECT usuario_id, SUM(puntos) as total
+          FROM libertadores_puntos_clasificacion
+          WHERE jornada_numero = $1
+          GROUP BY usuario_id
+        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+        LEFT JOIN (
+          SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
+          FROM libertadores_predicciones_campeon
+        ) puntos_campeon ON u.id = puntos_campeon.usuario_id
+        LEFT JOIN (
+          SELECT 
+            lpfv.usuario_id,
+            CASE
+              WHEN lpfv.goles_local = lp.goles_local AND lpfv.goles_visita = lp.goles_visita 
+                THEN 10 * COALESCE(lp.bonus, 1)
+              WHEN ABS(lpfv.goles_local - lpfv.goles_visita) = ABS(lp.goles_local - lp.goles_visita)
+                   AND SIGN(lpfv.goles_local - lpfv.goles_visita) = SIGN(lp.goles_local - lp.goles_visita)
+                THEN 7 * COALESCE(lp.bonus, 1)
+              WHEN SIGN(lpfv.goles_local - lpfv.goles_visita) = SIGN(lp.goles_local - lp.goles_visita)
+                THEN 4 * COALESCE(lp.bonus, 1)
+              ELSE 0
+            END as puntos
+          FROM libertadores_pronosticos_final_virtual lpfv
+          INNER JOIN libertadores_jornadas lj ON lpfv.jornada_id = lj.id
+          INNER JOIN libertadores_partidos lp ON lp.id = 456
+          WHERE lj.numero = 10 
+            AND lpfv.equipo_local = lp.nombre_local 
+            AND lpfv.equipo_visita = lp.nombre_visita
+            AND lp.goles_local IS NOT NULL 
+            AND lp.goles_visita IS NOT NULL
+        ) puntos_final ON u.id = puntos_final.usuario_id
+        WHERE puntos_partidos.total IS NOT NULL 
+           OR puntos_clasificacion.total IS NOT NULL 
+           OR puntos_campeon.campeon IS NOT NULL
+           OR puntos_final.puntos IS NOT NULL
+        ORDER BY puntos_jornada DESC, u.nombre ASC
+      `
+      : `
+        SELECT 
+          u.id,
+          u.nombre,
+          u.foto_perfil,
+          COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada
+        FROM usuarios u
+        LEFT JOIN (
+          SELECT lp.usuario_id, SUM(lp.puntos) as total
+          FROM libertadores_pronosticos lp
+          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+          WHERE lj.numero = $1
+          GROUP BY lp.usuario_id
+        ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+        LEFT JOIN (
+          SELECT usuario_id, SUM(puntos) as total
+          FROM libertadores_puntos_clasificacion
+          WHERE jornada_numero = $1
+          GROUP BY usuario_id
+        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+        WHERE puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
+        ORDER BY puntos_jornada DESC, u.nombre ASC
+      `;
+
+    const ranking = await pool.query(rankingQuery, [jornadaNumero]);
+    
+    if (ranking.rows.length === 0) {
       return res.json({ ganadores: [], mensaje: null });
     }
     
-    const ganadores = result.rows.map(row => ({
-      nombre: row.nombre,
-      puntaje: row.puntaje,
-      foto_perfil: row.foto_perfil
-    }));
+    // Obtener el puntaje máximo
+    const maxPuntaje = parseInt(ranking.rows[0].puntos_jornada);
+    
+    // Filtrar todos los que tienen el puntaje máximo (pueden ser varios en empate)
+    const ganadores = ranking.rows
+      .filter(row => parseInt(row.puntos_jornada) === maxPuntaje)
+      .map(row => ({
+        nombre: row.nombre,
+        puntaje: maxPuntaje,
+        foto_perfil: row.foto_perfil
+      }));
     
     const mensaje = ganadores.length === 1 
       ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}`
@@ -571,7 +649,7 @@ router.get('/:jornadaNumero', async (req, res) => {
       jornadaNumero,
       ganadores,
       mensaje,
-      fechaCalculo: result.rows[0].fecha_calculo
+      fechaCalculo: new Date()
     });
     
   } catch (error) {

@@ -281,6 +281,12 @@ export default function Home() {
                 >
                     🔴 Copa Libertadores 2026
                 </button>
+                <button
+                    className="btn btn-success px-4 py-2"
+                    onClick={() => navigate("/sudamericana")}
+                >
+                    🟢 Copa Sudamericana 2026
+                </button>
             </div>
 
             {/* Hero Section con partidos destacados - DEBAJO DE BOTONES */}

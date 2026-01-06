@@ -10,6 +10,9 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
     const { numero } = req.params;
     const jornadaNum = parseInt(numero);
 
+    // Incluir clasificación para todas las jornadas
+    const incluirClasificacion = true;
+
     // Calcular puntos de jornada con subqueries para evitar duplicación
     const query = jornadaNum === 10 
       ? `
@@ -18,7 +21,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           u.nombre,
           u.foto_perfil,
           COALESCE(puntos_partidos.total, 0) + 
-          COALESCE(puntos_clasificacion.total, 0) +
+          ${incluirClasificacion ? 'COALESCE(puntos_clasificacion.total, 0) +' : ''}
           COALESCE(puntos_campeon.campeon, 0) + 
           COALESCE(puntos_campeon.subcampeon, 0) +
           COALESCE(puntos_final.puntos, 0) as puntos_jornada
@@ -30,12 +33,14 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           WHERE lj.numero = $1
           GROUP BY lp.usuario_id
         ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+        ${incluirClasificacion ? `
         LEFT JOIN (
           SELECT usuario_id, SUM(puntos) as total
           FROM libertadores_puntos_clasificacion
           WHERE jornada_numero = $1
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+        ` : ''}
         LEFT JOIN (
           SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
           FROM libertadores_predicciones_campeon
@@ -88,12 +93,45 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           WHERE jornada_numero = $1
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL 
-           OR puntos_clasificacion.total IS NOT NULL
+        WHERE puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
     const result = await pool.query(query, [jornadaNum]);
+    
+    // DEBUG: Log para jornada 6
+    if (jornadaNum === 6) {
+      console.log('🔍 DEBUG J6 - Ranking calculado:', result.rows);
+      
+      // Verificar puntos por separado
+      const debugQuery = `
+        SELECT 
+          u.id,
+          u.nombre,
+          pp.total as puntos_partidos,
+          pc.total as puntos_clasificacion,
+          COALESCE(pp.total, 0) + COALESCE(pc.total, 0) as total
+        FROM usuarios u
+        LEFT JOIN (
+          SELECT lp.usuario_id, SUM(lp.puntos) as total
+          FROM libertadores_pronosticos lp
+          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+          WHERE lj.numero = $1
+          GROUP BY lp.usuario_id
+        ) pp ON u.id = pp.usuario_id
+        LEFT JOIN (
+          SELECT usuario_id, SUM(puntos) as total
+          FROM libertadores_puntos_clasificacion
+          WHERE jornada_numero = $1
+          GROUP BY usuario_id
+        ) pc ON u.id = pc.usuario_id
+        WHERE pp.total IS NOT NULL OR pc.total IS NOT NULL
+        ORDER BY u.nombre
+      `;
+      const debugResult = await pool.query(debugQuery, [jornadaNum]);
+      console.log('🔍 DEBUG J6 - Desglose:', debugResult.rows);
+    }
+    
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo ranking de jornada:', error);
@@ -106,6 +144,9 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
   try {
     const { numero } = req.params;
     const jornadaNum = parseInt(numero);
+
+    // Incluir todos los puntos de clasificación
+    const filtroClasificacion = '';
 
     // Solo incluir puntos de campeón/subcampeón si la jornada es 10 o posterior
     const query = jornadaNum >= 10
@@ -130,7 +171,7 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
         LEFT JOIN (
           SELECT lpc.usuario_id, SUM(lpc.puntos) as total
           FROM libertadores_puntos_clasificacion lpc
-          WHERE lpc.jornada_numero <= $1
+          WHERE lpc.jornada_numero <= $1 ${filtroClasificacion}
           GROUP BY lpc.usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
         LEFT JOIN (
@@ -183,7 +224,7 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
         LEFT JOIN (
           SELECT lpc.usuario_id, SUM(lpc.puntos) as total
           FROM libertadores_puntos_clasificacion lpc
-          WHERE lpc.jornada_numero <= $1
+          WHERE lpc.jornada_numero <= $1 ${filtroClasificacion}
           GROUP BY lpc.usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
         WHERE puntos_partidos.total IS NOT NULL 

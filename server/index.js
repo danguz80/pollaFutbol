@@ -24,11 +24,21 @@ import clasificacionLibertadoresRoutes from "./routes/clasificacionLibertadores.
 import puntuacionLibertadoresRoutes from "./routes/puntuacionLibertadores.js";
 import calcularPuntosLibertadoresRoutes from "./routes/calcularPuntosLibertadores.js";
 import rankingsLibertadoresRoutes from "./routes/rankingsLibertadores.js";
+import libertadoresClasificadosRoutes from "./routes/libertadoresClasificados.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 import ganadoresJornadaLibertadoresRoutes from "./routes/ganadoresJornadaLibertadores.js";
+import ganadoresJornadaSudamericanaRoutes from "./routes/ganadoresJornadaSudamericana.js";
 import ganadoresJornadaRoutes from "./routes/ganadoresJornada.js";
 import adminTorneoRoutes from "./routes/adminTorneo.js";
 import adminLibertadoresRoutes from "./routes/adminLibertadores.js";
+import adminSudamericanaRoutes from "./routes/adminSudamericana.js";
+import sudamericanaRoutes from "./routes/sudamericana.js";
+import sudamericanaPronosticosRoutes from "./routes/sudamericanaPronosticos.js";
+import puntuacionSudamericanaRoutes from "./routes/puntuacionSudamericana.js";
+import estadisticasSudamericanaRoutes from "./routes/estadisticasSudamericana.js";
+import clasificacionSudamericanaRoutes from "./routes/clasificacionSudamericana.js";
+import rankingsSudamericanaRoutes from "./routes/rankingsSudamericana.js";
+import calcularPuntosSudamericanaRoutes from "./routes/calcularPuntosSudamericana.js";
 import estadisticasNacionalRoutes from "./routes/estadisticas_nacional.js";
 import heroPartidosRoutes from "./routes/heroPartidos.js";
 import notificacionesRoutes from "./routes/notificaciones.js";
@@ -117,7 +127,7 @@ app.use(express.json());
       CREATE TABLE IF NOT EXISTS libertadores_puntos_clasificacion (
         id SERIAL PRIMARY KEY,
         usuario_id INTEGER NOT NULL,
-        partido_id INTEGER NOT NULL,
+        partido_id INTEGER,
         jornada_numero INTEGER NOT NULL,
         equipo_clasificado VARCHAR(100) NOT NULL,
         fase_clasificado VARCHAR(50) NOT NULL,
@@ -126,6 +136,14 @@ app.use(express.json());
         UNIQUE(usuario_id, partido_id, jornada_numero)
       )
     `);
+    
+    // Migración: permitir partido_id NULL para clasificados de fase de grupos
+    await pool.query(`
+      ALTER TABLE libertadores_puntos_clasificacion 
+      ALTER COLUMN partido_id DROP NOT NULL
+    `).catch(() => {
+      // Si ya está modificado, ignorar error
+    });
   } catch (error) {
     console.error('❌ Error creando tabla libertadores_puntos_clasificacion:', error.message);
   }
@@ -229,11 +247,21 @@ app.use('/api/libertadores-clasificacion', clasificacionLibertadoresRoutes);
 app.use('/api/libertadores-puntuacion', puntuacionLibertadoresRoutes);
 app.use('/api/libertadores-calcular', calcularPuntosLibertadoresRoutes);
 app.use('/api/libertadores-rankings', rankingsLibertadoresRoutes);
+app.use('/api/libertadores-clasificados', libertadoresClasificadosRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 app.use('/api/libertadores-ganadores-jornada', ganadoresJornadaLibertadoresRoutes);
+app.use('/api/sudamericana-ganadores-jornada', ganadoresJornadaSudamericanaRoutes);
+app.use('/api/sudamericana', sudamericanaRoutes);
+app.use('/api/sudamericana/pronosticos', sudamericanaPronosticosRoutes);
+app.use('/api/sudamericana-puntuacion', puntuacionSudamericanaRoutes);
+app.use('/api/sudamericana-estadisticas', estadisticasSudamericanaRoutes);
+app.use('/api/sudamericana-clasificacion', clasificacionSudamericanaRoutes);
+app.use('/api/sudamericana-rankings', rankingsSudamericanaRoutes);
+app.use('/api/sudamericana-calcular', calcularPuntosSudamericanaRoutes);
 app.use('/api/ganadores-jornada', ganadoresJornadaRoutes);
 app.use('/api/admin', adminTorneoRoutes);
 app.use('/api/admin', adminLibertadoresRoutes);
+app.use('/api/admin', adminSudamericanaRoutes);
 app.use('/api/estadisticas-nacional', estadisticasNacionalRoutes);
 app.use('/api/hero-partidos-bonus', heroPartidosRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
