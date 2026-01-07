@@ -535,24 +535,24 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       }
     }
 
-    console.log(`🔍 Verificando J6: jornadaNumero = ${jornadaNumero}, tipo = ${typeof jornadaNumero}, === 6? ${jornadaNumero === 6}, == 6? ${jornadaNumero == 6}`);
-    
     // Para jornada 6: calcular y guardar puntos de clasificación
     if (jornadaNumero == 6) {  // Usar == en lugar de === por si viene como string
-      console.log('🔄 Calculando puntos de clasificación J6...');
       
-      // Calcular clasificados oficiales (top 2 de cada grupo)
+      // Calcular clasificados oficiales (top 2 y 3er lugar de cada grupo)
       const jornadasNumeros = [1, 2, 3, 4, 5, 6];
       const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
       const clasificadosOficiales = {};
+      const tercerosOficiales = {};
       
       for (const grupo of grupos) {
         const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
         if (tabla.length >= 2) {
           clasificadosOficiales[grupo] = [tabla[0].nombre, tabla[1].nombre];
         }
+        if (tabla.length >= 3) {
+          tercerosOficiales[grupo] = tabla[2].nombre;
+        }
       }
-      console.log('✅ Clasificados oficiales:', clasificadosOficiales);
       
       // Para cada usuario, calcular sus aciertos
       const usuariosRes = await pool.query(`
@@ -562,49 +562,68 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         INNER JOIN libertadores_jornadas j ON p.jornada_id = j.id
         WHERE j.numero = 6
       `);
-      console.log(`✅ Procesando ${usuariosRes.rows.length} usuarios`);
       
       for (const {usuario_id} of usuariosRes.rows) {
         let totalPuntosUsuario = 0;
         
-        // Primero eliminar registros existentes
+        // Primero eliminar TODOS los registros existentes de clasificación J6
         await pool.query(
-          'DELETE FROM libertadores_puntos_clasificacion WHERE usuario_id = $1 AND jornada_numero = 6',
+          `DELETE FROM libertadores_puntos_clasificacion 
+           WHERE usuario_id = $1 
+           AND jornada_numero = 6`,
           [usuario_id]
         );
         
         for (const grupo of grupos) {
           try {
-            const tablaUsuario = await calcularTablaUsuario(usuario_id, grupo);
+            const tablaUsuario = await calcularTablaUsuario(usuario_id, grupo, jornadasNumeros);
+            
             const top2Usuario = tablaUsuario.slice(0, 2).map(e => e.nombre);
             const top2Oficial = clasificadosOficiales[grupo] || [];
             
-            // Contar aciertos
+            // Contar aciertos para octavos (top 2)
             const aciertos = top2Usuario.filter(equipo => top2Oficial.includes(equipo));
-            const puntosClasif = aciertos.length * 2;
             
-            if (puntosClasif > 0) {
-              // Insertar puntos
-              const insertResult = await pool.query(`
-                INSERT INTO libertadores_puntos_clasificacion 
-                (usuario_id, jornada_numero, grupo, puntos)
-                VALUES ($1, 6, $2, $3)
-                RETURNING id
-              `, [usuario_id, grupo, puntosClasif]);
+            // Insertar puntos para cada equipo acertado (octavos)
+            for (let i = 0; i < aciertos.length; i++) {
+              const equipoAcertado = aciertos[i];
+              // Usar un ID ficticio para partido_id basado en grupo y posición
+              const partidoIdFicticio = -(1000 + grupo.charCodeAt(0) * 10 + i); // Negativo para no chocar con partidos reales
               
-              totalPuntosUsuario += puntosClasif;
-              console.log(`  ✅ Usuario ${usuario_id} Grupo ${grupo}: ${puntosClasif} pts (ID: ${insertResult.rows[0].id})`);
+              await pool.query(`
+                INSERT INTO libertadores_puntos_clasificacion 
+                (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
+                VALUES ($1, $2, 6, $3, $4, 2)
+              `, [usuario_id, partidoIdFicticio, equipoAcertado, `OCTAVOS_GRUPO_${grupo}`]);
+              
+              totalPuntosUsuario += 2;
+            }
+            
+            // Calcular aciertos para Playoffs Sudamericana (3er lugar)
+            if (tablaUsuario.length >= 3) {
+              const terceroUsuario = tablaUsuario[2].nombre;
+              const terceroOficial = tercerosOficiales[grupo];
+              
+              if (terceroOficial && terceroUsuario === terceroOficial) {
+                const puntosPlayoffs = 2;
+                // Usar un ID ficticio para playoffs (2000 + código de grupo)
+                const partidoIdFicticioPlayoffs = -(2000 + grupo.charCodeAt(0));
+                
+                // Insertar puntos para playoffs
+                await pool.query(`
+                  INSERT INTO libertadores_puntos_clasificacion 
+                  (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
+                  VALUES ($1, $2, 6, $3, $4, $5)
+                `, [usuario_id, partidoIdFicticioPlayoffs, terceroOficial, `PLAYOFFS_GRUPO_${grupo}`, puntosPlayoffs]);
+                
+                totalPuntosUsuario += puntosPlayoffs;
+              }
             }
           } catch (error) {
             console.error(`  ❌ Error grupo ${grupo}:`, error.message);
           }
         }
-        
-        if (totalPuntosUsuario > 0) {
-          console.log(`✅ Usuario ${usuario_id}: TOTAL ${totalPuntosUsuario} pts clasificación`);
-        }
       }
-      console.log('✅ Puntos de clasificación J6 guardados');
     }
 
     res.json({

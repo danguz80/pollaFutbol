@@ -99,39 +99,6 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
 
     const result = await pool.query(query, [jornadaNum]);
     
-    // DEBUG: Log para jornada 6
-    if (jornadaNum === 6) {
-      console.log('🔍 DEBUG J6 - Ranking calculado:', result.rows);
-      
-      // Verificar puntos por separado
-      const debugQuery = `
-        SELECT 
-          u.id,
-          u.nombre,
-          pp.total as puntos_partidos,
-          pc.total as puntos_clasificacion,
-          COALESCE(pp.total, 0) + COALESCE(pc.total, 0) as total
-        FROM usuarios u
-        LEFT JOIN (
-          SELECT lp.usuario_id, SUM(lp.puntos) as total
-          FROM libertadores_pronosticos lp
-          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-          WHERE lj.numero = $1
-          GROUP BY lp.usuario_id
-        ) pp ON u.id = pp.usuario_id
-        LEFT JOIN (
-          SELECT usuario_id, SUM(puntos) as total
-          FROM libertadores_puntos_clasificacion
-          WHERE jornada_numero = $1
-          GROUP BY usuario_id
-        ) pc ON u.id = pc.usuario_id
-        WHERE pp.total IS NOT NULL OR pc.total IS NOT NULL
-        ORDER BY u.nombre
-      `;
-      const debugResult = await pool.query(debugQuery, [jornadaNum]);
-      console.log('🔍 DEBUG J6 - Desglose:', debugResult.rows);
-    }
-    
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo ranking de jornada:', error);

@@ -468,4 +468,40 @@ router.get('/jugadores', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/libertadores-clasificacion/puntos-clasificados-j6 - Obtener puntos de clasificados J6 por usuario
+router.get('/puntos-clasificados-j6', verifyToken, async (req, res) => {
+  try {
+    const { usuario_id } = req.query;
+    
+    let query = `
+      SELECT 
+        usuario_id,
+        SUM(puntos) as puntos_total_j6
+      FROM libertadores_puntos_clasificacion
+      WHERE jornada_numero = 6
+    `;
+    
+    const params = [];
+    if (usuario_id) {
+      query += ` AND usuario_id = $1`;
+      params.push(parseInt(usuario_id));
+    }
+    
+    query += ` GROUP BY usuario_id`;
+    
+    const result = await pool.query(query, params);
+    
+    // Convertir a objeto {usuario_id: puntos}
+    const puntosMap = {};
+    result.rows.forEach(row => {
+      puntosMap[row.usuario_id] = parseInt(row.puntos_total_j6) || 0;
+    });
+    
+    res.json(puntosMap);
+  } catch (error) {
+    console.error('Error obteniendo puntos clasificados J6:', error);
+    res.status(500).json({ error: 'Error obteniendo puntos clasificados J6' });
+  }
+});
+
 export default router;

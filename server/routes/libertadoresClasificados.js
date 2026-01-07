@@ -59,7 +59,7 @@ router.get('/clasificados-oficiales', verifyToken, async (req, res) => {
     for (const grupo of grupos) {
       const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
       
-      // Top 2 clasifican
+      // Top 2 clasifican a Octavos
       if (tabla.length >= 2) {
         clasificados.push({
           grupo,
@@ -70,6 +70,15 @@ router.get('/clasificados-oficiales', verifyToken, async (req, res) => {
           grupo,
           posicion: 2,
           equipo_nombre: tabla[1].nombre
+        });
+      }
+      
+      // 3er lugar clasifica a Playoffs Sudamericana
+      if (tabla.length >= 3) {
+        clasificados.push({
+          grupo,
+          posicion: 3,
+          equipo_nombre: tabla[2].nombre
         });
       }
     }

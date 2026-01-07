@@ -45,6 +45,7 @@ export default function ClasificacionLibertadores() {
   // Clasificados para jornada 6
   const [clasificadosUsuarios, setClasificadosUsuarios] = useState({});
   const [clasificadosOficiales, setClasificadosOficiales] = useState([]);
+  const [puntosClasificadosJ6, setPuntosClasificadosJ6] = useState({});
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -130,7 +131,9 @@ export default function ClasificacionLibertadores() {
       const params = new URLSearchParams();
       if (filtroNombre) params.append('usuario_id', filtroNombre);
       if (filtroPartido) params.append('partido_id', filtroPartido);
-      if (filtroJornada) params.append('jornada_numero', filtroJornada);
+      // Si es jornada 6, NO filtrar por jornada para obtener todas las jornadas 1-6
+      // (necesarias para calcular tablas de clasificación)
+      if (filtroJornada && parseInt(filtroJornada) !== 6) params.append('jornada_numero', filtroJornada);
 
       const response = await axios.get(
         `${API_URL}/api/libertadores-clasificacion/pronosticos?${params.toString()}`,
@@ -189,6 +192,14 @@ export default function ClasificacionLibertadores() {
       );
       
       setClasificadosOficiales(oficialesRes.data);
+      
+      // Cargar puntos de clasificados J6 desde la base de datos
+      const puntosJ6Res = await axios.get(
+        `${API_URL}/api/libertadores-clasificacion/puntos-clasificados-j6`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setPuntosClasificadosJ6(puntosJ6Res.data);
       
     } catch (error) {
       console.error('Error cargando clasificados:', error);
@@ -421,20 +432,20 @@ export default function ClasificacionLibertadores() {
       }
       
       // Procesar solo si hay pronóstico
-      if (p.goles_local !== null && p.goles_visita !== null) {
+      if (p.pronostico?.local !== null && p.pronostico?.visita !== null) {
         equipos[local].pj++;
         equipos[visita].pj++;
-        equipos[local].gf += p.goles_local;
-        equipos[local].gc += p.goles_visita;
-        equipos[visita].gf += p.goles_visita;
-        equipos[visita].gc += p.goles_local;
+        equipos[local].gf += p.pronostico.local;
+        equipos[local].gc += p.pronostico.visita;
+        equipos[visita].gf += p.pronostico.visita;
+        equipos[visita].gc += p.pronostico.local;
         
-        if (p.goles_local > p.goles_visita) {
+        if (p.pronostico.local > p.pronostico.visita) {
           // Gana local
           equipos[local].puntos += 3;
           equipos[local].pg++;
           equipos[visita].pp++;
-        } else if (p.goles_local < p.goles_visita) {
+        } else if (p.pronostico.local < p.pronostico.visita) {
           // Gana visita
           equipos[visita].puntos += 3;
           equipos[visita].pg++;
@@ -468,7 +479,15 @@ export default function ClasificacionLibertadores() {
     if (filtroJornada) {
       // Si hay jornada seleccionada, agrupar solo por jugador
       const grupos = {};
-      pronosticos.forEach(p => {
+      
+      // Para jornada 6, separar pronósticos de jornada 6 vs jornadas 1-5
+      const pronosticosParaMostrar = parseInt(filtroJornada) === 6 
+        ? pronosticos.filter(p => p.jornada.numero === 6)
+        : pronosticos;
+      
+      const pronosticosParaTablas = pronosticos; // Todos los pronósticos para calcular tablas
+      
+      pronosticosParaMostrar.forEach(p => {
         const key = `${p.usuario.id}`;
         if (!grupos[key]) {
           grupos[key] = {
@@ -476,10 +495,19 @@ export default function ClasificacionLibertadores() {
             jugador: p.usuario.nombre,
             foto_perfil: p.usuario.foto_perfil,
             jornada: p.jornada.numero,
-            pronosticos: []
+            pronosticos: [],
+            pronosticosTotales: [] // Todos los pronósticos incluyendo jornadas anteriores
           };
         }
         grupos[key].pronosticos.push(p);
+      });
+      
+      // Agregar pronosticosTotales a cada grupo
+      pronosticosParaTablas.forEach(p => {
+        const key = `${p.usuario.id}`;
+        if (grupos[key]) {
+          grupos[key].pronosticosTotales.push(p);
+        }
       });
       
       // Si es jornada 6, agregar pronósticos de clasificados
@@ -489,14 +517,14 @@ export default function ClasificacionLibertadores() {
           const gruposLetras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
           
           gruposLetras.forEach(grupoLetra => {
-            // Calcular tabla virtual del usuario para este grupo
-            const tablaVirtual = calcularTablaVirtualUsuario(grupo.pronosticos, grupoLetra);
+            // Calcular tabla virtual del usuario para este grupo usando TODOS los pronósticos
+            const tablaVirtual = calcularTablaVirtualUsuario(grupo.pronosticosTotales, grupoLetra);
             
             // Solo agregar si hay equipos en la tabla (el usuario hizo pronósticos para este grupo)
             if (tablaVirtual.length >= 2) {
-              // Obtener clasificados oficiales del grupo (sin importar posición)
+              // Obtener clasificados oficiales del grupo (solo top 2 para octavos, sin 3ero)
               const clasificadosOficialesGrupo = clasificadosOficiales
-                .filter(c => c.grupo === grupoLetra)
+                .filter(c => c.grupo === grupoLetra && c.posicion <= 2)
                 .map(c => c.equipo_nombre);
               
               // Top 2 del usuario
@@ -525,15 +553,16 @@ export default function ClasificacionLibertadores() {
               // Calcular puntos totales
               const totalPuntos = aciertos.length * 2;
               
-              // Agregar UNA SOLA fila para este grupo con los 2 clasificados
+              // Agregar UNA SOLA fila para este grupo con los 2 clasificados a OCTAVOS
               grupo.pronosticos.push({
-                id: `clasif-${grupo.usuario_id}-${grupoLetra}`,
+                id: `clasif-octavos-${grupo.usuario_id}-${grupoLetra}`,
                 esClasificado: true,
+                tipoClasificado: 'octavos',
                 usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
                 jornada: { numero: 6, cerrada: true },
                 partido: {
                   grupo: grupoLetra,
-                  local: { nombre: `Clasificados Grupo ${grupoLetra}` },
+                  local: { nombre: `Clasificados a Octavos de Libertadores Grupo ${grupoLetra}` },
                   visita: { nombre: '' }
                 },
                 // Arrays con 2 equipos cada uno
@@ -543,6 +572,33 @@ export default function ClasificacionLibertadores() {
                 puntos_detalle: puntosDetalle,
                 puntos: totalPuntos
               });
+              
+              // Agregar fila para 3er lugar (Play-offs Sudamericana)
+              if (tablaVirtual.length >= 3) {
+                const terceroUsuario = tablaVirtual[2].nombre;
+                const clasificadosOficialesTerceros = clasificadosOficiales
+                  .filter(c => c.grupo === grupoLetra && c.posicion === 3)
+                  .map(c => c.equipo_nombre);
+                
+                const terceroOficial = clasificadosOficialesTerceros.length > 0 ? clasificadosOficialesTerceros[0] : null;
+                const puntosPlayoffs = (terceroOficial && terceroUsuario === terceroOficial) ? 2 : 0;
+                
+                grupo.pronosticos.push({
+                  id: `clasif-playoffs-${grupo.usuario_id}-${grupoLetra}`,
+                  esClasificado: true,
+                  tipoClasificado: 'playoffs',
+                  usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                  jornada: { numero: 6, cerrada: true },
+                  partido: {
+                    grupo: grupoLetra,
+                    local: { nombre: `Clasificados a Playoffs Sudamericana Grupo ${grupoLetra}` },
+                    visita: { nombre: '' }
+                  },
+                  equipo_pronosticado: terceroUsuario,
+                  equipo_oficial: terceroOficial,
+                  puntos: puntosPlayoffs
+                });
+              }
             }
           });
         });
@@ -555,11 +611,15 @@ export default function ClasificacionLibertadores() {
           if (a.esClasificado && !b.esClasificado) return 1;
           if (!a.esClasificado && b.esClasificado) return -1;
           if (a.esClasificado && b.esClasificado) {
-            // Ordenar clasificados por grupo (A-H) y luego por posición (1, 2)
+            // Ordenar clasificados por grupo (A-H)
             if (a.partido.grupo !== b.partido.grupo) {
               return a.partido.grupo.localeCompare(b.partido.grupo);
             }
-            return a.posicion - b.posicion;
+            // Dentro del mismo grupo: octavos primero, luego playoffs
+            const tipoOrden = { 'octavos': 1, 'playoffs': 2 };
+            const ordenA = tipoOrden[a.tipoClasificado] || 999;
+            const ordenB = tipoOrden[b.tipoClasificado] || 999;
+            return ordenA - ordenB;
           }
           
           // Para jornadas 7-10, ordenar por cruce (equipos) y luego IDA antes de VUELTA
@@ -613,8 +673,15 @@ export default function ClasificacionLibertadores() {
         });
         
         // CALCULAR Y GUARDAR EL PUNTAJE TOTAL DEL GRUPO (para usar en ranking)
-        const puntosPartidos = grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+        // Sumar puntos de partidos normales
+        const puntosPartidos = grupo.pronosticos
+          .filter(p => !p.esClasificado)
+          .reduce((sum, p) => sum + (p.puntos || 0), 0);
         
+        // Sumar puntos reales de clasificados J6 desde la base de datos (octavos y playoffs)
+        const puntosClasificadosJ6Real = puntosClasificadosJ6[grupo.usuario_id] || 0;
+        
+        // Sumar puntos de clasificación de otras jornadas (7-10)
         const puntosClasificacion = grupo.pronosticos
           .filter((p, index) => {
             const jornada = p.jornada.numero;
@@ -673,7 +740,7 @@ export default function ClasificacionLibertadores() {
           }
         }
         
-        grupo.puntaje_total = puntosPartidos + puntosClasificacion + puntosCuadroFinal + puntosPartidoFinal;
+        grupo.puntaje_total = puntosPartidos + puntosClasificadosJ6Real + puntosClasificacion + puntosCuadroFinal + puntosPartidoFinal;
       });
       
       return Object.values(grupos);
@@ -1023,57 +1090,85 @@ export default function ClasificacionLibertadores() {
                               </div>
                             </td>
                             <td className="text-center">
-                              {/* Mostrar 2 equipos pronosticados (aciertos primero) */}
-                              {pronostico.equipos_pronosticados?.map((equipo, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className={`fw-bold ${pronostico.puntos_detalle[idx] > 0 ? 'text-success' : 'text-danger'}`}
-                                  style={{ 
-                                    borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
-                                    padding: '4px 0'
-                                  }}
-                                >
-                                  {equipo}
+                              {/* Renderizado condicional según tipo de clasificado */}
+                              {pronostico.tipoClasificado === 'playoffs' ? (
+                                // Para playoffs: mostrar 1 solo equipo
+                                <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                  {pronostico.equipo_pronosticado}
                                 </div>
-                              ))}
+                              ) : (
+                                // Para octavos: mostrar 2 equipos pronosticados (aciertos primero)
+                                pronostico.equipos_pronosticados?.map((equipo, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className={`fw-bold ${pronostico.puntos_detalle[idx] > 0 ? 'text-success' : 'text-danger'}`}
+                                    style={{ 
+                                      borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                      padding: '4px 0'
+                                    }}
+                                  >
+                                    {equipo}
+                                  </div>
+                                ))
+                              )}
                             </td>
                             <td className="text-center">
-                              {/* Mostrar 2 equipos oficiales */}
-                              {pronostico.equipos_oficiales?.map((equipo, idx) => (
-                                <div 
-                                  key={idx}
-                                  className="fw-bold"
-                                  style={{ 
-                                    borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
-                                    padding: '4px 0'
-                                  }}
-                                >
-                                  {equipo}
+                              {/* Renderizado condicional según tipo de clasificado */}
+                              {pronostico.tipoClasificado === 'playoffs' ? (
+                                // Para playoffs: mostrar 1 solo equipo
+                                <div className="fw-bold">
+                                  {pronostico.equipo_oficial || '-'}
                                 </div>
-                              ))}
+                              ) : (
+                                // Para octavos: mostrar 2 equipos oficiales
+                                pronostico.equipos_oficiales?.map((equipo, idx) => (
+                                  <div 
+                                    key={idx}
+                                    className="fw-bold"
+                                    style={{ 
+                                      borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                      padding: '4px 0'
+                                    }}
+                                  >
+                                    {equipo}
+                                  </div>
+                                ))
+                              )}
                             </td>
                             <td className="text-center">
                               {/* Columna Bonus vacía */}
                             </td>
                             <td className="text-center">
-                              {/* Mostrar puntos de cada equipo */}
-                              {pronostico.puntos_detalle?.map((pts, idx) => (
-                                <div 
-                                  key={idx}
-                                  style={{ 
-                                    borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
-                                    padding: '4px 0'
-                                  }}
-                                >
-                                  {pts > 0 ? (
-                                    <span className="badge bg-success">
-                                      +{pts} pts
-                                    </span>
-                                  ) : (
-                                    <span className="badge bg-secondary">0 pts</span>
-                                  )}
-                                </div>
-                              ))}
+                              {/* Renderizado condicional según tipo de clasificado */}
+                              {pronostico.tipoClasificado === 'playoffs' ? (
+                                // Para playoffs: mostrar puntos totales
+                                pronostico.puntos > 0 ? (
+                                  <span className="badge bg-success">
+                                    +{pronostico.puntos} pts
+                                  </span>
+                                ) : (
+                                  <span className="badge bg-secondary">0 pts</span>
+                                )
+                              ) : (
+                                // Para octavos: mostrar puntos de cada equipo
+                                pronostico.puntos_detalle?.map((pts, idx) => (
+                                  <div 
+                                    key={idx}
+                                    style={{ 
+                                      borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                      padding: '4px 0'
+                                    }}
+                                  >
+                                    {pts > 0 ? (
+                                      <span className="badge bg-success">
+                                        +{pts} pts
+                                      </span>
+                                    ) : (
+                                      <span className="badge bg-secondary">0 pts</span>
+                                    )}
+                                  </div>
+                                ))
+                              )}
                             </td>
                           </tr>
                         ) : (

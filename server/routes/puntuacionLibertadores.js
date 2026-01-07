@@ -66,6 +66,7 @@ async function crearReglasDefecto() {
     
     // OCTAVOS
     { fase: 'CLASIFICACIÓN', concepto: 'Equipo clasificado para OCTAVOS', puntos: 2 },
+    { fase: 'CLASIFICACIÓN', concepto: 'Clasificado a Play-offs Sudamericana', puntos: 2 },
     { fase: 'OCTAVOS', concepto: 'Signo 1X2 (local, empate, visitante)', puntos: 1 },
     { fase: 'OCTAVOS', concepto: 'Diferencia de goles', puntos: 3 },
     { fase: 'OCTAVOS', concepto: 'Resultado exacto', puntos: 5 },
