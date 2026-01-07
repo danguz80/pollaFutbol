@@ -323,7 +323,7 @@ export default function AdminSudamericanaResultados() {
         // Generar y enviar PDF
         try {
           const pdfResponse = await fetch(
-            `${API_BASE_URL}/api/sudamericana-pronosticos/generar-pdf/${jornadaSeleccionada}`,
+            `${API_BASE_URL}/api/sudamericana/pronosticos/generar-pdf/${jornadaSeleccionada}`,
             {
               method: 'POST',
               headers: { 

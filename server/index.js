@@ -39,6 +39,7 @@ import estadisticasSudamericanaRoutes from "./routes/estadisticasSudamericana.js
 import clasificacionSudamericanaRoutes from "./routes/clasificacionSudamericana.js";
 import rankingsSudamericanaRoutes from "./routes/rankingsSudamericana.js";
 import calcularPuntosSudamericanaRoutes from "./routes/calcularPuntosSudamericana.js";
+import sudamericanaClasificadosRoutes from "./routes/sudamericanaClasificados.js";
 import estadisticasNacionalRoutes from "./routes/estadisticas_nacional.js";
 import heroPartidosRoutes from "./routes/heroPartidos.js";
 import notificacionesRoutes from "./routes/notificaciones.js";
@@ -258,6 +259,7 @@ app.use('/api/sudamericana-estadisticas', estadisticasSudamericanaRoutes);
 app.use('/api/sudamericana-clasificacion', clasificacionSudamericanaRoutes);
 app.use('/api/sudamericana-rankings', rankingsSudamericanaRoutes);
 app.use('/api/sudamericana-calcular', calcularPuntosSudamericanaRoutes);
+app.use('/api/sudamericana-clasificados', sudamericanaClasificadosRoutes);
 app.use('/api/ganadores-jornada', ganadoresJornadaRoutes);
 app.use('/api/admin', adminTorneoRoutes);
 app.use('/api/admin', adminLibertadoresRoutes);

@@ -115,8 +115,8 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
     // Registrar notificación para usuarios
     try {
       const mensajeNotificacion = ganadores.length === 1 
-        ? `🏆 EL CAMPEÓN DEL RANKING ACUMULADO ES: ${ganadores[0].nombre.toUpperCase()}`
-        : `🏆 LOS CAMPEONES DEL RANKING ACUMULADO SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`;
+        ? `🏆 EL CAMPEÓN DEL RANKING ACUMULADO DE LIBERTADORES ES: ${ganadores[0].nombre.toUpperCase()}`
+        : `🏆 LOS CAMPEONES DEL RANKING ACUMULADO DE LIBERTADORES SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`;
       
       // Primero eliminar notificaciones anteriores del acumulado
       await pool.query(
@@ -443,8 +443,8 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
     console.log(`🔔 Creando notificación para jornada ${jornadaNumero}...`);
     try {
       const mensajeNotificacion = ganadores.length === 1 
-        ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}`
-        : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}`;
+        ? `El ganador de la jornada ${jornadaNumero} de Libertadores es: ${ganadores[0].nombre}`
+        : `Los ganadores de la jornada ${jornadaNumero} de Libertadores son: ${ganadores.map(g => g.nombre).join(', ')}`;
       
       // Primero eliminar notificaciones anteriores de esta jornada
       await pool.query(

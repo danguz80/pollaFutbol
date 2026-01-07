@@ -71,11 +71,10 @@ export default function GanadoresJornadaSudamericana() {
         const jornadasRes = await fetch(`${API_BASE_URL}/api/sudamericana/jornadas`, { headers });
         const jornadasData = await jornadasRes.json();
 
-        // Verificar si hay alguna jornada cerrada (última)
-        const jornadasCerradas = jornadasData.filter(j => j.cerrada);
-        if (jornadasCerradas.length > 0) {
-          const ultimaJornada = Math.max(...jornadasCerradas.map(j => j.numero));
-          setUltimaJornadaCerrada(ultimaJornada);
+        // Verificar si la jornada 10 está cerrada
+        const jornada10Cerrada = jornadasData.find(j => j.numero === 10 && j.cerrada);
+        if (jornada10Cerrada) {
+          setUltimaJornadaCerrada(true);
         }
 
         // Obtener ganadores del acumulado
@@ -298,7 +297,7 @@ export default function GanadoresJornadaSudamericana() {
         </table>
       </div>
 
-      {/* Tabla de la Deshonra y la Vergüenza - Solo se muestra después de completadas las jornadas */}
+      {/* Tabla de la Deshonra y la Vergüenza - Solo se muestra después de cerrar la jornada 10 */}
       {ultimaJornadaCerrada && (
         <>
           <h4 className="mt-5 text-center" style={{...headerStyle, background: '#444', color: '#aaa'}}>

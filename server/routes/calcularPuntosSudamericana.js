@@ -130,12 +130,115 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       }
     }
 
+    // Para jornada 6: calcular y guardar puntos de clasificación
+    let puntosClasificacion = 0;
+    if (jornadaNumero == 6) {  // Usar == en lugar de === por si viene como string
+      
+      // Verificar/crear tabla sudamericana_puntos_clasificacion
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS sudamericana_puntos_clasificacion (
+          id SERIAL PRIMARY KEY,
+          usuario_id INTEGER NOT NULL,
+          partido_id INTEGER,
+          jornada_numero INTEGER NOT NULL,
+          equipo_clasificado VARCHAR(100) NOT NULL,
+          fase_clasificado VARCHAR(50) NOT NULL,
+          puntos INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(usuario_id, partido_id, jornada_numero)
+        )
+      `);
+      
+      // Calcular clasificados oficiales (1ero y 2do de cada grupo)
+      const jornadasNumeros = [1, 2, 3, 4, 5, 6];
+      const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const primerosOficiales = {};
+      const segundosOficiales = {};
+      
+      for (const grupo of grupos) {
+        const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
+        if (tabla.length >= 1) {
+          primerosOficiales[grupo] = tabla[0].nombre;
+        }
+        if (tabla.length >= 2) {
+          segundosOficiales[grupo] = tabla[1].nombre;
+        }
+      }
+      
+      // Para cada usuario, calcular sus aciertos
+      const usuariosRes = await pool.query(`
+        SELECT DISTINCT sp.usuario_id
+        FROM sudamericana_pronosticos sp
+        INNER JOIN sudamericana_partidos p ON sp.partido_id = p.id
+        INNER JOIN sudamericana_jornadas j ON p.jornada_id = j.id
+        WHERE j.numero = 6
+      `);
+      
+      for (const {usuario_id} of usuariosRes.rows) {
+        // Primero eliminar TODOS los registros existentes de clasificación J6
+        await pool.query(
+          `DELETE FROM sudamericana_puntos_clasificacion 
+           WHERE usuario_id = $1 
+           AND jornada_numero = 6`,
+          [usuario_id]
+        );
+        
+        for (const grupo of grupos) {
+          try {
+            const tablaUsuario = await calcularTablaUsuario(usuario_id, grupo, jornadasNumeros);
+            
+            // Verificar 1er lugar (Octavos)
+            if (tablaUsuario.length >= 1) {
+              const primeroUsuario = tablaUsuario[0].nombre;
+              const primeroOficial = primerosOficiales[grupo];
+              
+              if (primeroOficial && primeroUsuario === primeroOficial) {
+                const partidoIdFicticio = -(1000 + grupo.charCodeAt(0) * 10);
+                
+                await pool.query(`
+                  INSERT INTO sudamericana_puntos_clasificacion 
+                  (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
+                  VALUES ($1, $2, 6, $3, $4, 2)
+                `, [usuario_id, partidoIdFicticio, primeroOficial, `OCTAVOS_GRUPO_${grupo}`]);
+                
+                puntosClasificacion += 2;
+              }
+            }
+            
+            // Verificar 2do lugar (Playoffs)
+            if (tablaUsuario.length >= 2) {
+              const segundoUsuario = tablaUsuario[1].nombre;
+              const segundoOficial = segundosOficiales[grupo];
+              
+              if (segundoOficial && segundoUsuario === segundoOficial) {
+                const partidoIdFicticioPlayoffs = -(2000 + grupo.charCodeAt(0));
+                
+                await pool.query(`
+                  INSERT INTO sudamericana_puntos_clasificacion 
+                  (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
+                  VALUES ($1, $2, 6, $3, $4, 2)
+                `, [usuario_id, partidoIdFicticioPlayoffs, segundoOficial, `PLAYOFFS_GRUPO_${grupo}`]);
+                
+                puntosClasificacion += 2;
+              }
+            }
+          } catch (error) {
+            console.error(`  ❌ Error grupo ${grupo}:`, error.message);
+          }
+        }
+      }
+    }
+
     console.log(`✅ Puntos calculados: ${pronosticosActualizados} pronósticos actualizados, ${puntosAsignados} puntos totales asignados`);
 
     res.json({
-      mensaje: `✅ Puntajes calculados correctamente. ${pronosticosActualizados} pronósticos actualizados con un total de ${puntosAsignados} puntos asignados.`,
-      pronosticosActualizados,
-      puntosAsignados
+      mensaje: jornadaNumero 
+        ? `✅ Puntajes de jornada ${jornadaNumero} calculados correctamente`
+        : '✅ Puntajes calculados correctamente',
+      total_pronosticos: pronosticosResult.rows.length,
+      pronosticos_con_puntos: pronosticosActualizados,
+      puntos_totales_asignados: puntosAsignados,
+      puntos_clasificacion_asignados: puntosClasificacion
     });
 
   } catch (error) {
@@ -146,5 +249,137 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
     });
   }
 });
+
+// Función auxiliar para calcular tabla oficial de un grupo
+async function calcularTablaOficial(grupo, jornadas) {
+  const partidosResult = await pool.query(`
+    SELECT 
+      p.nombre_local,
+      p.nombre_visita,
+      p.goles_local,
+      p.goles_visita,
+      p.grupo
+    FROM sudamericana_partidos p
+    INNER JOIN sudamericana_jornadas j ON p.jornada_id = j.id
+    WHERE p.grupo = $1
+      AND j.numero = ANY($2)
+      AND p.goles_local IS NOT NULL
+      AND p.goles_visita IS NOT NULL
+    ORDER BY j.numero, p.id
+  `, [grupo, jornadas]);
+
+  const equipos = {};
+
+  for (const partido of partidosResult.rows) {
+    const { nombre_local, nombre_visita, goles_local, goles_visita } = partido;
+
+    if (!equipos[nombre_local]) {
+      equipos[nombre_local] = { nombre: nombre_local, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+    }
+    if (!equipos[nombre_visita]) {
+      equipos[nombre_visita] = { nombre: nombre_visita, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+    }
+
+    equipos[nombre_local].pj++;
+    equipos[nombre_visita].pj++;
+    equipos[nombre_local].gf += goles_local;
+    equipos[nombre_local].gc += goles_visita;
+    equipos[nombre_visita].gf += goles_visita;
+    equipos[nombre_visita].gc += goles_local;
+
+    if (goles_local > goles_visita) {
+      equipos[nombre_local].pts += 3;
+      equipos[nombre_local].pg++;
+      equipos[nombre_visita].pp++;
+    } else if (goles_local < goles_visita) {
+      equipos[nombre_visita].pts += 3;
+      equipos[nombre_visita].pg++;
+      equipos[nombre_local].pp++;
+    } else {
+      equipos[nombre_local].pts += 1;
+      equipos[nombre_visita].pts += 1;
+      equipos[nombre_local].pe++;
+      equipos[nombre_visita].pe++;
+    }
+  }
+
+  const tabla = Object.values(equipos);
+  tabla.forEach(e => e.dif = e.gf - e.gc);
+  tabla.sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    if (b.dif !== a.dif) return b.dif - a.dif;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return a.nombre.localeCompare(b.nombre);
+  });
+
+  return tabla;
+}
+
+// Función auxiliar para calcular tabla de un usuario
+async function calcularTablaUsuario(usuario_id, grupo, jornadas) {
+  const pronosticosResult = await pool.query(`
+    SELECT 
+      p.nombre_local,
+      p.nombre_visita,
+      sp.goles_local as pronostico_local,
+      sp.goles_visita as pronostico_visita,
+      p.grupo
+    FROM sudamericana_pronosticos sp
+    INNER JOIN sudamericana_partidos p ON sp.partido_id = p.id
+    INNER JOIN sudamericana_jornadas j ON p.jornada_id = j.id
+    WHERE sp.usuario_id = $1
+      AND p.grupo = $2
+      AND j.numero = ANY($3)
+      AND sp.goles_local IS NOT NULL
+      AND sp.goles_visita IS NOT NULL
+    ORDER BY j.numero, p.id
+  `, [usuario_id, grupo, jornadas]);
+
+  const equipos = {};
+
+  for (const pronostico of pronosticosResult.rows) {
+    const { nombre_local, nombre_visita, pronostico_local, pronostico_visita } = pronostico;
+
+    if (!equipos[nombre_local]) {
+      equipos[nombre_local] = { nombre: nombre_local, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+    }
+    if (!equipos[nombre_visita]) {
+      equipos[nombre_visita] = { nombre: nombre_visita, pts: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+    }
+
+    equipos[nombre_local].pj++;
+    equipos[nombre_visita].pj++;
+    equipos[nombre_local].gf += pronostico_local;
+    equipos[nombre_local].gc += pronostico_visita;
+    equipos[nombre_visita].gf += pronostico_visita;
+    equipos[nombre_visita].gc += pronostico_local;
+
+    if (pronostico_local > pronostico_visita) {
+      equipos[nombre_local].pts += 3;
+      equipos[nombre_local].pg++;
+      equipos[nombre_visita].pp++;
+    } else if (pronostico_local < pronostico_visita) {
+      equipos[nombre_visita].pts += 3;
+      equipos[nombre_visita].pg++;
+      equipos[nombre_local].pp++;
+    } else {
+      equipos[nombre_local].pts += 1;
+      equipos[nombre_visita].pts += 1;
+      equipos[nombre_local].pe++;
+      equipos[nombre_visita].pe++;
+    }
+  }
+
+  const tabla = Object.values(equipos);
+  tabla.forEach(e => e.dif = e.gf - e.gc);
+  tabla.sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    if (b.dif !== a.dif) return b.dif - a.dif;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return a.nombre.localeCompare(b.nombre);
+  });
+
+  return tabla;
+}
 
 export default router;

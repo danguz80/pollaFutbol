@@ -32,10 +32,11 @@ router.get('/verificar-respaldo-sudamericana', verifyToken, authorizeRoles('admi
 // GET - Obtener estadísticas de Sudamericana actual
 router.get('/estadisticas-sudamericana', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    const [jornadas, partidos, pronosticos, equipos] = await Promise.all([
+    const [jornadas, partidos, pronosticos, ganadores, equipos] = await Promise.all([
       pool.query('SELECT COUNT(*) as count FROM sudamericana_jornadas'),
       pool.query('SELECT COUNT(*) as count FROM sudamericana_partidos'),
       pool.query('SELECT COUNT(*) as count FROM sudamericana_pronosticos'),
+      pool.query('SELECT COUNT(*) as count FROM sudamericana_ganadores_jornada'),
       pool.query('SELECT COUNT(*) as count FROM sudamericana_equipos')
     ]);
 
@@ -43,6 +44,7 @@ router.get('/estadisticas-sudamericana', verifyToken, authorizeRoles('admin'), a
       jornadas: parseInt(jornadas.rows[0].count),
       partidos: parseInt(partidos.rows[0].count),
       pronosticos: parseInt(pronosticos.rows[0].count),
+      ganadores: parseInt(ganadores.rows[0].count),
       equipos: parseInt(equipos.rows[0].count)
     });
   } catch (error) {
@@ -175,8 +177,9 @@ router.post('/crear-respaldo-sudamericana', verifyToken, authorizeRoles('admin')
       FROM usuarios u
       LEFT JOIN sudamericana_pronosticos p ON p.usuario_id = u.id
       LEFT JOIN sudamericana_puntos_clasificacion pc ON pc.usuario_id = u.id
-      WHERE u.activo = true
+      WHERE u.activo_sudamericana = true
       GROUP BY u.id, u.nombre, u.foto_perfil
+      HAVING COALESCE(SUM(p.puntos), 0) + COALESCE(SUM(pc.puntos), 0) > 0
       ORDER BY puntaje_total DESC
     `);
 

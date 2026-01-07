@@ -359,6 +359,78 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
       nuevosRegistros.push(...ganadorAcumuladoLibertadores.rows);
     }
 
+    // ============================================
+    // 5. SUDAMERICANA - Ganadores de Jornadas (Estándar)
+    // ============================================
+    if (competenciaParam === 'todas' || competenciaParam === 'sudamericana') {
+      const ganadoresJornadasSudamericana = await pool.query(`
+        SELECT
+          $1::integer as anio,
+          'Copa Sudamericana' as competencia,
+          'estandar' as tipo,
+          sgj.jornada_numero::text as categoria,
+          u.id as usuario_id,
+          NULL as nombre_manual,
+          ROW_NUMBER() OVER (PARTITION BY sgj.jornada_numero ORDER BY sgj.puntaje DESC, u.nombre) as posicion,
+          sgj.puntaje as puntos
+        FROM sudamericana_ganadores_jornada sgj
+        JOIN usuarios u ON sgj.usuario_id = u.id
+        WHERE NOT EXISTS (
+          SELECT 1 FROM rankings_historicos rh
+          WHERE rh.anio = $1::integer
+            AND rh.competencia = 'Copa Sudamericana'
+            AND rh.tipo = 'estandar'
+            AND rh.categoria = sgj.jornada_numero::text
+            AND rh.usuario_id = u.id
+        )
+      `, [temporada]);
+      
+      nuevosRegistros.push(...ganadoresJornadasSudamericana.rows);
+    }
+
+    // ============================================
+    // 6. SUDAMERICANA - Ganador Acumulado (Mayor)
+    // ============================================
+    if (competenciaParam === 'todas' || competenciaParam === 'sudamericana') {
+      // Verificar si existe la tabla sudamericana_ganadores_acumulado
+      const tablaExiste = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'sudamericana_ganadores_acumulado'
+        )
+      `);
+      
+      if (tablaExiste.rows[0].exists) {
+        const ganadorAcumuladoSudamericana = await pool.query(`
+          SELECT * FROM (
+            SELECT
+              $1::integer as anio,
+              'Copa Sudamericana' as competencia,
+              'mayor' as tipo,
+              NULL as categoria,
+              sga.usuario_id,
+              NULL as nombre_manual,
+              ROW_NUMBER() OVER (ORDER BY sga.puntaje DESC, u.nombre) as posicion,
+              sga.puntaje as puntos
+            FROM sudamericana_ganadores_acumulado sga
+            JOIN usuarios u ON sga.usuario_id = u.id
+            ORDER BY sga.puntaje DESC, u.nombre
+            LIMIT 3
+          ) ranking
+          WHERE NOT EXISTS (
+            SELECT 1 FROM rankings_historicos rh
+            WHERE rh.anio = $1::integer
+              AND rh.competencia = 'Copa Sudamericana'
+              AND rh.tipo = 'mayor'
+              AND rh.usuario_id = ranking.usuario_id
+          )
+        `, [temporada]);
+        
+        nuevosRegistros.push(...ganadorAcumuladoSudamericana.rows);
+      }
+    }
+
     // Insertar los nuevos registros
     const registrosInsertados = [];
     for (const registro of nuevosRegistros) {
@@ -386,7 +458,12 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
     }
 
     res.json({
-      mensaje: `Se detectaron y agregaron ${registrosInsertados.length} nuevos registros para ${competenciaParam === 'libertadores' ? 'Copa Libertadores' : competenciaParam === 'nacional' ? 'Torneo Nacional' : 'todas las competencias'}`,
+      mensaje: `Se detectaron y agregaron ${registrosInsertados.length} nuevos registros para ${
+        competenciaParam === 'libertadores' ? 'Copa Libertadores' : 
+        competenciaParam === 'sudamericana' ? 'Copa Sudamericana' :
+        competenciaParam === 'nacional' ? 'Torneo Nacional' : 
+        'todas las competencias'
+      }`,
       total: registrosInsertados.length,
       temporada: temporada,
       registros: registrosInsertados.map(r => ({

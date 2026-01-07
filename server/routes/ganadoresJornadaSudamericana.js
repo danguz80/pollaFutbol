@@ -941,8 +941,9 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
           <thead>
             <tr>
               <th>Partido</th>
-              <th style="width: 20%; text-align: center;">Pronóstico</th>
-              <th style="width: 20%; text-align: center;">Resultado</th>
+              <th style="width: 18%; text-align: center;">Pronóstico</th>
+              <th style="width: 18%; text-align: center;">Resultado</th>
+              <th style="width: 10%; text-align: center;">Bonus</th>
               <th style="width: 15%; text-align: center;">Puntos</th>
             </tr>
           </thead>
@@ -950,14 +951,17 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       `;
 
       data.pronosticos.forEach((p) => {
-        const bonusText = p.bonus && p.bonus > 1 ? ` (x${p.bonus})` : '';
         const puntosClass = p.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
+        const predLocal = p.pred_local !== null && p.pred_local !== undefined ? p.pred_local : '-';
+        const predVisita = p.pred_visita !== null && p.pred_visita !== undefined ? p.pred_visita : '-';
+        const bonusValue = p.bonus && p.bonus > 1 ? `x${p.bonus}` : 'x1';
 
         html += `
             <tr>
-              <td>${p.nombre_local} vs ${p.nombre_visita}${bonusText}</td>
-              <td style="text-align: center;" class="resultado">${p.pred_local || '-'} - ${p.pred_visita || '-'}</td>
+              <td>${p.nombre_local} vs ${p.nombre_visita}</td>
+              <td style="text-align: center;" class="resultado">${predLocal} - ${predVisita}</td>
               <td style="text-align: center;" class="resultado">${p.real_local} - ${p.real_visita}</td>
+              <td style="text-align: center; font-weight: bold; color: ${p.bonus > 1 ? '#17a2b8' : '#666'};">${bonusValue}</td>
               <td style="text-align: center;" class="puntos-cell ${puntosClass}">${p.puntos || 0}</td>
             </tr>
         `;

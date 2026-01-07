@@ -65,31 +65,33 @@ router.get("/", async (req, res) => {
       partidos.push(...libertadoresResult.rows);
     }
 
-    // 3. SUDAMERICANA - Partidos con bonus >= 2 de rondas activas
+    // 3. SUDAMERICANA - Partidos con bonus >= 2 de jornadas activas y no cerradas
     if (!competencia || competencia === 'sudamericana') {
-      // Nota: La estructura de Sudamericana puede ser diferente según tu implementación
-      // Ajusta según la estructura de tu tabla sudamericana_fixtures o similar
       try {
         const sudamericanaResult = await pool.query(`
           SELECT 
             'sudamericana' as competencia,
             'Copa Sudamericana 2025' as nombre_competencia,
-            sf.ronda as jornada_numero,
-            sf.ronda as jornada_nombre,
-            sf.fixture_id as id,
-            sf.equipo_local as local,
-            sf.equipo_visita as visita,
-            sf.fecha,
-            COALESCE(sf.bonus, 1) as bonus
-          FROM sudamericana_fixtures sf
-          WHERE sf.clasificado = false 
-            AND COALESCE(sf.bonus, 1) >= 2
-          ORDER BY sf.fecha ASC, COALESCE(sf.bonus, 1) DESC
+            sj.numero as jornada_numero,
+            sj.nombre as jornada_nombre,
+            sp.id,
+            sp.nombre_local as local,
+            sp.nombre_visita as visita,
+            sp.fecha,
+            sp.bonus,
+            sj.id as jornada_id
+          FROM sudamericana_partidos sp
+          INNER JOIN sudamericana_jornadas sj ON sp.jornada_id = sj.id
+          WHERE sj.activa = true 
+            AND sj.cerrada = false 
+            AND sp.bonus >= 2
+          ORDER BY sp.fecha ASC, sp.bonus DESC
         `);
         
         partidos.push(...sudamericanaResult.rows);
       } catch (sudErr) {
-        // Sudamericana no está configurada aún - continuar sin error
+        console.error('Error obteniendo partidos hero de Sudamericana:', sudErr);
+        // Continuar sin error si Sudamericana no está disponible
       }
     }
 

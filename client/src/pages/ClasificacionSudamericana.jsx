@@ -42,6 +42,10 @@ export default function ClasificacionSudamericana() {
   const [mostrarGanadoresAcumulado, setMostrarGanadoresAcumulado] = useState(false);
   const [calculandoGanadoresAcumulado, setCalculandoGanadoresAcumulado] = useState(false);
 
+  // Clasificados J6
+  const [clasificadosOficiales, setClasificadosOficiales] = useState([]);
+  const [puntosClasificadosJ6, setPuntosClasificadosJ6] = useState([]);
+
   // Modal
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
@@ -63,6 +67,11 @@ export default function ClasificacionSudamericana() {
       if (filtroJornada && filtroJornada !== '') {
         cargarRankings();
         cargarGanadoresJornada(parseInt(filtroJornada));
+        
+        // Si es jornada 6, cargar clasificados
+        if (parseInt(filtroJornada) === 6) {
+          cargarClasificados();
+        }
       }
     }
     // Cargar ganadores acumulado siempre (no depende de filtro)
@@ -200,6 +209,23 @@ export default function ClasificacionSudamericana() {
       }
     } catch (error) {
       console.error('Error cargando rankings:', error);
+    }
+  };
+
+  const cargarClasificados = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Cargar clasificados oficiales desde backend
+      const oficialesRes = await axios.get(
+        `${API_URL}/api/sudamericana-clasificados/clasificados-oficiales`,
+        { headers }
+      );
+      setClasificadosOficiales(oficialesRes.data);
+    } catch (error) {
+      console.error('Error cargando clasificados:', error);
+      setClasificadosOficiales([]);
     }
   };
 
@@ -382,6 +408,69 @@ export default function ClasificacionSudamericana() {
     return pais ? `${nombre} (${pais})` : nombre;
   };
 
+  // Calcular tabla virtual de un grupo basado en los pronósticos del usuario
+  const calcularTablaVirtualUsuario = (pronosticos, grupoLetra) => {
+    // Filtrar partidos del grupo
+    const partidosGrupo = pronosticos.filter(p => 
+      p.partido?.grupo === grupoLetra && !p.esClasificado
+    );
+    
+    // Inicializar equipos
+    const equipos = {};
+    partidosGrupo.forEach(p => {
+      const local = p.partido.local.nombre;
+      const visita = p.partido.visita.nombre;
+      
+      if (!equipos[local]) {
+        equipos[local] = { nombre: local, puntos: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+      }
+      if (!equipos[visita]) {
+        equipos[visita] = { nombre: visita, puntos: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+      }
+      
+      // Procesar solo si hay pronóstico
+      if (p.pronostico?.local !== null && p.pronostico?.visita !== null) {
+        equipos[local].pj++;
+        equipos[visita].pj++;
+        equipos[local].gf += p.pronostico.local;
+        equipos[local].gc += p.pronostico.visita;
+        equipos[visita].gf += p.pronostico.visita;
+        equipos[visita].gc += p.pronostico.local;
+        
+        if (p.pronostico.local > p.pronostico.visita) {
+          // Gana local
+          equipos[local].puntos += 3;
+          equipos[local].pg++;
+          equipos[visita].pp++;
+        } else if (p.pronostico.local < p.pronostico.visita) {
+          // Gana visita
+          equipos[visita].puntos += 3;
+          equipos[visita].pg++;
+          equipos[local].pp++;
+        } else {
+          // Empate
+          equipos[local].puntos++;
+          equipos[visita].puntos++;
+          equipos[local].pe++;
+          equipos[visita].pe++;
+        }
+      }
+    });
+    
+    // Calcular diferencia de goles
+    Object.values(equipos).forEach(e => {
+      e.dif = e.gf - e.gc;
+    });
+    
+    // Ordenar: puntos DESC, dif DESC, gf DESC, nombre ASC
+    return Object.values(equipos).sort((a, b) => {
+      if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+      if (b.dif !== a.dif) return b.dif - a.dif;
+      if (b.gf !== a.gf) return b.gf - a.gf;
+      return a.nombre.localeCompare(b.nombre);
+    });
+  };
+
   // Agrupar pronósticos por jornada y jugador
   const agruparPronosticos = () => {
     if (filtroJornada) {
@@ -395,20 +484,108 @@ export default function ClasificacionSudamericana() {
             jugador: p.usuario.nombre,
             foto_perfil: p.usuario.foto_perfil,
             jornada: p.jornada.numero,
-            pronosticos: []
+            pronosticos: [],
+            pronosticosTotales: [] // Para calcular tablas virtuales J6
           };
         }
         grupos[key].pronosticos.push(p);
       });
       
+      // Agregar pronosticosTotales a cada grupo (todos los pronósticos del usuario en esta jornada)
+      pronosticos.forEach(p => {
+        const key = `${p.usuario.id}`;
+        if (grupos[key]) {
+          grupos[key].pronosticosTotales.push(p);
+        }
+      });
+      
+      // Si es jornada 6, agregar pronósticos de clasificados
+      if (parseInt(filtroJornada) === 6 && clasificadosOficiales.length > 0) {
+        Object.values(grupos).forEach(grupo => {
+          // Para cada usuario, calcular tablas virtuales de TODOS los grupos (A-H)
+          const gruposLetras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+          
+          gruposLetras.forEach(grupoLetra => {
+            // Calcular tabla virtual del usuario para este grupo usando TODOS los pronósticos
+            const tablaVirtual = calcularTablaVirtualUsuario(grupo.pronosticosTotales, grupoLetra);
+            
+            // Solo agregar si hay equipos en la tabla (el usuario hizo pronósticos para este grupo)
+            if (tablaVirtual.length >= 2) {
+              // Obtener clasificados oficiales del grupo (1ero y 2do)
+              const primerOficial = clasificadosOficiales.find(c => c.grupo === grupoLetra && c.posicion === 1);
+              const segundoOficial = clasificadosOficiales.find(c => c.grupo === grupoLetra && c.posicion === 2);
+              
+              // Top 2 del usuario
+              const primeroUsuario = tablaVirtual[0].nombre;
+              const segundoUsuario = tablaVirtual.length >= 2 ? tablaVirtual[1].nombre : null;
+              
+              // Calcular puntos para 1er lugar (Octavos)
+              const puntosOctavos = (primerOficial && primeroUsuario === primerOficial.equipo_nombre) ? 2 : 0;
+              
+              // Agregar fila para 1er lugar (Octavos)
+              grupo.pronosticos.push({
+                id: `clasif-octavos-${grupo.usuario_id}-${grupoLetra}`,
+                esClasificado: true,
+                tipoClasificado: 'octavos',
+                usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                jornada: { numero: 6, cerrada: true },
+                partido: {
+                  grupo: grupoLetra,
+                  local: { nombre: `Clasificado a Octavos de Sudamericana del Grupo ${grupoLetra}` },
+                  visita: { nombre: '' }
+                },
+                equipo_pronosticado: primeroUsuario,
+                equipo_oficial: primerOficial?.equipo_nombre || null,
+                puntos: puntosOctavos
+              });
+              
+              // Calcular puntos para 2do lugar (Playoffs)
+              const puntosPlayoffs = (segundoOficial && segundoUsuario === segundoOficial.equipo_nombre) ? 2 : 0;
+              
+              // Agregar fila para 2do lugar (Playoffs)
+              grupo.pronosticos.push({
+                id: `clasif-playoffs-${grupo.usuario_id}-${grupoLetra}`,
+                esClasificado: true,
+                tipoClasificado: 'playoffs',
+                usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                jornada: { numero: 6, cerrada: true },
+                partido: {
+                  grupo: grupoLetra,
+                  local: { nombre: `Clasificado a Playoffs Sudamericana del Grupo ${grupoLetra}` },
+                  visita: { nombre: '' }
+                },
+                equipo_pronosticado: segundoUsuario,
+                equipo_oficial: segundoOficial?.equipo_nombre || null,
+                puntos: puntosPlayoffs
+              });
+            }
+          });
+        });
+      }
+      
       // Ordenar pronósticos dentro de cada grupo
       Object.values(grupos).forEach(grupo => {
         grupo.pronosticos.sort((a, b) => {
+          // Las filas de clasificados van siempre al final, ordenadas por grupo
+          if (a.esClasificado && !b.esClasificado) return 1;
+          if (!a.esClasificado && b.esClasificado) return -1;
+          if (a.esClasificado && b.esClasificado) {
+            // Ordenar clasificados por grupo (A-H)
+            if (a.partido.grupo !== b.partido.grupo) {
+              return a.partido.grupo.localeCompare(b.partido.grupo);
+            }
+            // Dentro del mismo grupo: octavos primero, luego playoffs
+            const tipoOrden = { 'octavos': 1, 'playoffs': 2 };
+            const ordenA = tipoOrden[a.tipoClasificado] || 999;
+            const ordenB = tipoOrden[b.tipoClasificado] || 999;
+            return ordenA - ordenB;
+          }
+          
           // Para otras jornadas, ordenar por fecha de partido
           return new Date(a.partido.fecha) - new Date(b.partido.fecha);
         });
         
-        // CALCULAR Y GUARDAR EL PUNTAJE TOTAL DEL GRUPO
+        // CALCULAR Y GUARDAR EL PUNTAJE TOTAL DEL GRUPO (incluyendo clasificados)
         grupo.puntaje_total = grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
       });
       
@@ -443,6 +620,58 @@ export default function ClasificacionSudamericana() {
 
       {/* Botonera Principal */}
       <NavegacionSudamericana />
+
+      {/* Mostrar ganador acumulado guardado si existe */}
+      {ganadoresAcumulado && ganadoresAcumulado.ganadores && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
+        <div className="alert alert-warning text-center mb-4">
+          <h5 className="mb-3">
+            🏆 Top 3 Ranking Acumulado
+          </h5>
+          <div className="d-flex justify-content-center gap-3 flex-wrap">
+            {ganadoresAcumulado.ganadores.map((ganador, index) => (
+              <div key={index} className="text-center">
+                {ganador.foto_perfil && (
+                  <img
+                    src={ganador.foto_perfil}
+                    alt={ganador.nombre}
+                    className="rounded-circle mb-2"
+                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                  />
+                )}
+                <p className="mb-0 fw-bold">{ganador.nombre}</p>
+                <span className="badge bg-warning text-dark">{ganador.puntaje} puntos</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Mostrar ganadores guardados si existen (sin modal) */}
+      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
+        <div className="alert alert-info text-center mb-4">
+          <h5 className="mb-3">
+            🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
+          </h5>
+          <div className="d-flex justify-content-center gap-3 flex-wrap">
+            {ganadores.ganadores.map((ganador, index) => (
+              <div key={index} className="text-center">
+                {ganador.foto_perfil && (
+                  <img
+                    src={ganador.foto_perfil}
+                    alt={ganador.nombre}
+                    className="rounded-circle mb-2"
+                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                  />
+                )}
+                <p className="mb-0 fw-bold">{ganador.nombre}</p>
+                <span className="badge bg-warning text-dark">{ganador.puntaje} puntos</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Botón Calcular Puntos (Solo Admin) */}
       {esAdmin && (
@@ -685,97 +914,155 @@ export default function ClasificacionSudamericana() {
                       </tr>
                     )}
                     {grupo.pronosticos.map((pronostico, index) => (
-                      <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
-                        <td className="fw-bold">
-                          <div className="d-flex align-items-center gap-2">
-                            <img
-                              src={grupo.foto_perfil || '/perfil/default.png'}
-                              alt={pronostico.usuario?.nombre || 'Usuario'}
-                              className="rounded-circle"
-                              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                              onError={(e) => {
-                                e.target.src = '/perfil/default.png';
-                              }}
-                            />
-                            <span>{pronostico.usuario?.nombre || '-'}</span>
-                          </div>
-                        </td>
-                        <td className="text-center">
-                          <span className="badge bg-success">
-                            Jornada {pronostico.jornada?.numero || '-'}
-                          </span>
-                        </td>
-                        <td className="text-center">
-                          {pronostico.partido?.grupo ? (
-                            <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="d-flex flex-column align-items-center">
-                            <div className="d-flex justify-content-center align-items-center gap-2 w-100">
-                              <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
-                                <small className="fw-bold text-end">
-                                  {formatearNombreEquipo(pronostico.partido?.local?.nombre, pronostico.partido?.local?.pais)}
-                                </small>
-                                {pronostico.partido?.local?.nombre && getLogoEquipo(pronostico.partido.local.nombre) && (
-                                  <img 
-                                    src={getLogoEquipo(pronostico.partido.local.nombre)} 
-                                    alt={pronostico.partido.local.nombre}
-                                    style={{ width: '24px', height: '24px', objectFit: 'contain' }}
-                                    onError={(e) => e.target.style.display = 'none'}
-                                  />
-                                )}
+                      <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
+                        {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
+                        {pronostico.esClasificado ? (
+                          <tr className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                            <td className="fw-bold">
+                              <div className="d-flex align-items-center gap-2">
+                                <img
+                                  src={grupo.foto_perfil || '/perfil/default.png'}
+                                  alt={pronostico.usuario?.nombre || 'Usuario'}
+                                  className="rounded-circle"
+                                  style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    e.target.src = '/perfil/default.png';
+                                  }}
+                                />
+                                <span>{pronostico.usuario.nombre}</span>
                               </div>
-                              <span className="text-muted">vs</span>
-                              <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
-                                {pronostico.partido?.visita?.nombre && getLogoEquipo(pronostico.partido.visita.nombre) && (
-                                  <img 
-                                    src={getLogoEquipo(pronostico.partido.visita.nombre)} 
-                                    alt={pronostico.partido.visita.nombre}
-                                    style={{ width: '24px', height: '24px', objectFit: 'contain' }}
-                                    onError={(e) => e.target.style.display = 'none'}
-                                  />
-                                )}
-                                <small className="fw-bold text-start">
-                                  {formatearNombreEquipo(pronostico.partido?.visita?.nombre, pronostico.partido?.visita?.pais)}
-                                </small>
+                            </td>
+                            <td className="text-center">
+                              <span className="badge bg-primary">
+                                Jornada {pronostico.jornada.numero}
+                              </span>
+                            </td>
+                            <td className="text-center">
+                              <span className="badge bg-warning text-dark">Clasificados</span>
+                            </td>
+                            <td>
+                              <div className="fw-bold text-center">
+                                {pronostico.partido.local.nombre}
                               </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="text-center fw-bold fs-5">
-                          {pronostico.pronostico?.local !== undefined && pronostico.pronostico?.visita !== undefined ? (
-                            <>{pronostico.pronostico.local} - {pronostico.pronostico.visita}</>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                        <td className="text-center fw-bold fs-5">
-                          {pronostico.partido?.resultado?.local !== null && pronostico.partido?.resultado?.visita !== null ? (
-                            <>
-                              {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
-                            </>
-                          ) : (
-                            <span className="text-muted">Pendiente</span>
-                          )}
-                        </td>
-                        <td className="text-center fw-bold">
-                          <span className={pronostico.partido?.bonus && pronostico.partido.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
-                            x{pronostico.partido?.bonus || 1}
-                          </span>
-                        </td>
-                        <td className="text-center fw-bold">
-                          {pronostico.puntos !== null && pronostico.puntos !== undefined ? (
-                            <span className="badge bg-warning text-dark fs-6">
-                              {pronostico.puntos} pts
-                            </span>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                      </tr>
+                            </td>
+                            <td className="text-center">
+                              <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                {pronostico.equipo_pronosticado || '-'}
+                              </div>
+                            </td>
+                            <td className="text-center">
+                              <div className="fw-bold">
+                                {pronostico.equipo_oficial || '-'}
+                              </div>
+                            </td>
+                            <td className="text-center">
+                              {/* Columna Bonus vacía */}
+                            </td>
+                            <td className="text-center">
+                              {pronostico.puntos > 0 ? (
+                                <span className="badge bg-success">
+                                  +{pronostico.puntos} pts
+                                </span>
+                              ) : (
+                                <span className="badge bg-secondary">0 pts</span>
+                              )}
+                            </td>
+                          </tr>
+                        ) : (
+                          /* FILA NORMAL DE PARTIDO */
+                          <tr className={getResultadoClase(pronostico)}>
+                            <td className="fw-bold">
+                              <div className="d-flex align-items-center gap-2">
+                                <img
+                                  src={grupo.foto_perfil || '/perfil/default.png'}
+                                  alt={pronostico.usuario?.nombre || 'Usuario'}
+                                  className="rounded-circle"
+                                  style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    e.target.src = '/perfil/default.png';
+                                  }}
+                                />
+                                <span>{pronostico.usuario?.nombre || '-'}</span>
+                              </div>
+                            </td>
+                            <td className="text-center">
+                              <span className="badge bg-success">
+                                Jornada {pronostico.jornada?.numero || '-'}
+                              </span>
+                            </td>
+                            <td className="text-center">
+                              {pronostico.partido?.grupo ? (
+                                <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="d-flex flex-column align-items-center">
+                                <div className="d-flex justify-content-center align-items-center gap-2 w-100">
+                                  <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
+                                    <small className="fw-bold text-end">
+                                      {formatearNombreEquipo(pronostico.partido?.local?.nombre, pronostico.partido?.local?.pais)}
+                                    </small>
+                                    {pronostico.partido?.local?.nombre && getLogoEquipo(pronostico.partido.local.nombre) && (
+                                      <img 
+                                        src={getLogoEquipo(pronostico.partido.local.nombre)} 
+                                        alt={pronostico.partido.local.nombre}
+                                        style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                        onError={(e) => e.target.style.display = 'none'}
+                                      />
+                                    )}
+                                  </div>
+                                  <span className="text-muted">vs</span>
+                                  <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
+                                    {pronostico.partido?.visita?.nombre && getLogoEquipo(pronostico.partido.visita.nombre) && (
+                                      <img 
+                                        src={getLogoEquipo(pronostico.partido.visita.nombre)} 
+                                        alt={pronostico.partido.visita.nombre}
+                                        style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                        onError={(e) => e.target.style.display = 'none'}
+                                      />
+                                    )}
+                                    <small className="fw-bold text-start">
+                                      {formatearNombreEquipo(pronostico.partido?.visita?.nombre, pronostico.partido?.visita?.pais)}
+                                    </small>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-center fw-bold fs-5">
+                              {pronostico.pronostico?.local !== undefined && pronostico.pronostico?.visita !== undefined ? (
+                                <>{pronostico.pronostico.local} - {pronostico.pronostico.visita}</>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </td>
+                            <td className="text-center fw-bold fs-5">
+                              {pronostico.partido?.resultado?.local !== null && pronostico.partido?.resultado?.visita !== null ? (
+                                <>
+                                  {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
+                                </>
+                              ) : (
+                                <span className="text-muted">Pendiente</span>
+                              )}
+                            </td>
+                            <td className="text-center fw-bold">
+                              <span className={pronostico.partido?.bonus && pronostico.partido.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
+                                x{pronostico.partido?.bonus || 1}
+                              </span>
+                            </td>
+                            <td className="text-center fw-bold">
+                              {pronostico.puntos !== null && pronostico.puntos !== undefined ? (
+                                <span className="badge bg-warning text-dark fs-6">
+                                  {pronostico.puntos} pts
+                                </span>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                     
                     {/* FILA TOTAL */}
