@@ -15,6 +15,8 @@ const LOGOS_EQUIPOS = {
   'Deportes Iquique': 'iquique.png',
   'Deportes La Serena': 'laserena.png',
   'Deportes Limache': 'limache.webp',
+  'Deportes Concepción': 'concepcion.png',
+  'U. de Concepción': 'udeconce.png',
   'Everton': 'everton.png',
   'Huachipato': 'huachipato.png',
   'Ñublense': 'ñublense.png',
@@ -49,18 +51,21 @@ const logoCache = {};
  * @returns {string|null} - Logo en base64/URL o null si no existe
  */
 export function getLogoBase64(nombreEquipo) {
+  // Normalizar apóstrofes: \u2019 (tipográfico) → ' (normal)
+  const nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  
   // Si ya está en cache, retornar
-  if (logoCache[nombreEquipo]) {
-    return logoCache[nombreEquipo];
+  if (logoCache[nombreNormalizado]) {
+    return logoCache[nombreNormalizado];
   }
 
   // Buscar primero en logos nacionales
-  let archivoLogo = LOGOS_EQUIPOS[nombreEquipo];
+  let archivoLogo = LOGOS_EQUIPOS[nombreNormalizado];
   let carpeta = 'logos_torneo_nacional';
   
   // Si no está en nacionales, buscar en libertadores
   if (!archivoLogo) {
-    archivoLogo = LOGOS_LIBERTADORES[nombreEquipo];
+    archivoLogo = LOGOS_LIBERTADORES[nombreNormalizado];
     carpeta = 'copa_libertadores_logos_equipos';
   }
   

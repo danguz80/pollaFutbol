@@ -21,6 +21,14 @@ const LOGOS_EQUIPOS = {
   "Deportes La Serena": "/logos_torneo_nacional/laserena.png",
   "Deportes Limache": "/logos_torneo_nacional/limache.webp",
   "Universidad de Concepción": "/logos_torneo_nacional/udeconce.png",
+  "U. de Concepción": "/logos_torneo_nacional/udeconce.png",
+  "Deportes Concepción": "/logos_torneo_nacional/concepcion.png",
+};
+
+const getLogoEquipo = (nombreEquipo) => {
+  // Normalizar apóstrofes: \u2019 (tipográfico) → ' (normal)
+  const nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  return LOGOS_EQUIPOS[nombreNormalizado] || null;
 };
 
 const LastMatchsNacional = ({ ordenEquipos = [] }) => {
@@ -170,7 +178,7 @@ const LastMatchsNacional = ({ ordenEquipos = [] }) => {
                   <td className="align-middle">
                     <div className="d-flex align-items-center">
                       <img
-                        src={LOGOS_EQUIPOS[historial.equipo]}
+                        src={getLogoEquipo(historial.equipo)}
                         alt={historial.equipo}
                         style={{
                           width: "32px",

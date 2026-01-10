@@ -19,6 +19,8 @@ const LOGOS_EQUIPOS = {
   'Huachipato': '/logos_torneo_nacional/huachipato.png',
   'Deportes La Serena': '/logos_torneo_nacional/laserena.png',
   'Deportes Limache': '/logos_torneo_nacional/limache.webp',
+  'Deportes Concepción': '/logos_torneo_nacional/concepcion.png',
+  'U. de Concepción': '/logos_torneo_nacional/udeconce.png',
   "O'Higgins": '/logos_torneo_nacional/ohiggins.webp',
   'Palestino': '/logos_torneo_nacional/palestino.png',
   'U. Católica': '/logos_torneo_nacional/uc.png',
@@ -29,7 +31,9 @@ const LOGOS_EQUIPOS = {
 
 // Función para obtener el logo de un equipo
 const getLogoEquipo = (nombreEquipo) => {
-  return LOGOS_EQUIPOS[nombreEquipo] || null;
+  // Normalizar apóstrofes: \u2019 (tipográfico) → ' (normal)
+  const nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  return LOGOS_EQUIPOS[nombreNormalizado] || null;
 };
 
 // Hook local para obtener usuario desde localStorage

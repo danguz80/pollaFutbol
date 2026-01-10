@@ -10,13 +10,17 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
     const { numero } = req.params;
     const jornadaNum = parseInt(numero);
 
-    // Calcular puntos de jornada - INCLUIR TODOS LOS USUARIOS CON PRONÓSTICOS
+    console.log(`\n🔍 DEBUG RANKING SUDAMERICANA J${jornadaNum}`);
+
+    // Calcular puntos de jornada - INCLUIR PARTIDOS Y CLASIFICACIÓN
     const query = `
       SELECT 
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(puntos_partidos.total, 0) as puntos_jornada
+        COALESCE(puntos_partidos.total, 0) as puntos_partidos,
+        COALESCE(puntos_clasificacion.total, 0) as puntos_clasificacion,
+        COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada
       FROM usuarios u
       LEFT JOIN (
         SELECT sp.usuario_id, SUM(sp.puntos) as total
@@ -26,6 +30,12 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
         WHERE sj.numero = $1
         GROUP BY sp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT pc.usuario_id, SUM(pc.puntos) as total
+        FROM sudamericana_puntos_clasificacion pc
+        WHERE pc.jornada_numero = $1
+        GROUP BY pc.usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
       WHERE u.rol != 'admin'
         AND EXISTS (
           SELECT 1 FROM sudamericana_pronosticos sp2
@@ -38,6 +48,13 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
 
     const result = await pool.query(query, [jornadaNum]);
     
+    console.log(`🔍 DEBUG RANKING J${jornadaNum} - Primeros 5:`, result.rows.slice(0, 5).map(r => ({
+      nombre: r.nombre,
+      puntos_partidos: r.puntos_partidos,
+      puntos_clasificacion: r.puntos_clasificacion,
+      puntos_jornada: r.puntos_jornada
+    })));
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo ranking de jornada:', error);
@@ -56,7 +73,7 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(puntos_partidos.total, 0) as puntos_acumulados
+        COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_acumulados
       FROM usuarios u
       LEFT JOIN (
         SELECT sp.usuario_id, SUM(sp.puntos) as total
@@ -66,6 +83,12 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
         WHERE sj.numero <= $1
         GROUP BY sp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT pc.usuario_id, SUM(pc.puntos) as total
+        FROM sudamericana_puntos_clasificacion pc
+        WHERE pc.jornada_numero <= $1
+        GROUP BY pc.usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
       WHERE u.rol != 'admin'
         AND EXISTS (
           SELECT 1 FROM sudamericana_pronosticos sp2

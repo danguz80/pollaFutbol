@@ -5,6 +5,7 @@ import { checkRole } from '../middleware/checkRole.js';
 import htmlPdf from 'html-pdf-node';
 import { getWhatsAppService } from '../services/whatsappService.js';
 import { getLogoBase64 } from '../utils/logoHelper.js';
+import { calcularTablaOficial } from '../utils/calcularClasificadosSudamericana.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -29,18 +30,19 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       )
     `);
     
-    // Obtener el ranking acumulado TOTAL (todas las jornadas)
+    // Obtener el ranking acumulado TOTAL (todas las jornadas) - INCLUIR CLASIFICACIÓN
     const rankingResult = await pool.query(`
       SELECT 
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(sp.puntos), 0) as puntos_acumulados
+        COALESCE(SUM(sp.puntos), 0) + COALESCE(SUM(pc.puntos), 0) as puntos_acumulados
       FROM usuarios u
       LEFT JOIN sudamericana_pronosticos sp ON u.id = sp.usuario_id
+      LEFT JOIN sudamericana_puntos_clasificacion pc ON u.id = pc.usuario_id
       WHERE u.activo_sudamericana = true
       GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING COALESCE(SUM(sp.puntos), 0) > 0
+      HAVING COALESCE(SUM(sp.puntos), 0) + COALESCE(SUM(pc.puntos), 0) > 0
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `);
     
@@ -263,11 +265,14 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       'SELECT id, nombre, foto_perfil FROM usuarios WHERE activo_sudamericana = true ORDER BY nombre'
     );
     
+    console.log(`\n🔍 DEBUG GANADORES SUDAMERICANA J${jornadaNumero}`);
+    console.log(`Total usuarios activos: ${usuariosResult.rows.length}`);
+    
     if (usuariosResult.rows.length === 0) {
       return res.status(404).json({ error: 'No hay usuarios activos en Sudamericana' });
     }
     
-    // 2. Calcular puntos de cada usuario para la jornada
+    // 2. Calcular puntos de cada usuario para la jornada - INCLUIR PARTIDOS Y CLASIFICACIÓN
     const puntosUsuarios = [];
     
     for (const usuario of usuariosResult.rows) {
@@ -282,11 +287,26 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       
       const puntosPartidos = parseInt(puntosPartidosResult.rows[0].puntos_partidos || 0, 10);
       
+      // Puntos de clasificación (solo para J6)
+      const puntosClasificacionResult = await pool.query(`
+        SELECT COALESCE(SUM(pc.puntos), 0) as puntos_clasificacion
+        FROM sudamericana_puntos_clasificacion pc
+        WHERE pc.usuario_id = $1 AND pc.jornada_numero = $2
+      `, [usuario.id, jornadaNumero]);
+      
+      const puntosClasificacion = parseInt(puntosClasificacionResult.rows[0].puntos_clasificacion || 0, 10);
+      
+      const puntajeTotal = puntosPartidos + puntosClasificacion;
+      
+      if (puntosUsuarios.length < 3 || puntosClasificacion > 0) {
+        console.log(`🔍 Usuario ${usuario.nombre}: partidos=${puntosPartidos}, clasificación=${puntosClasificacion}, total=${puntajeTotal}`);
+      }
+      
       puntosUsuarios.push({
         usuario_id: usuario.id,
         nombre: usuario.nombre,
         foto_perfil: usuario.foto_perfil,
-        puntaje: puntosPartidos
+        puntaje: puntajeTotal
       });
     }
     
@@ -410,20 +430,21 @@ router.get('/:jornadaNumero', async (req, res) => {
   }
   
   try {
-    // Calcular ganadores DIRECTAMENTE desde el ranking (siempre actualizado)
+    // Calcular ganadores DIRECTAMENTE desde el ranking (siempre actualizado) - INCLUIR CLASIFICACIÓN
     const rankingQuery = `
       SELECT 
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(sp.puntos), 0) as puntos_jornada
+        COALESCE(SUM(sp.puntos), 0) + COALESCE(SUM(pc.puntos), 0) as puntos_jornada
       FROM usuarios u
       LEFT JOIN sudamericana_pronosticos sp ON u.id = sp.usuario_id
       LEFT JOIN sudamericana_partidos p ON sp.partido_id = p.id
       LEFT JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      LEFT JOIN sudamericana_puntos_clasificacion pc ON u.id = pc.usuario_id AND pc.jornada_numero = $1
       WHERE sj.numero = $1 AND u.activo_sudamericana = true
       GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING COALESCE(SUM(sp.puntos), 0) > 0
+      HAVING COALESCE(SUM(sp.puntos), 0) + COALESCE(SUM(pc.puntos), 0) > 0
       ORDER BY puntos_jornada DESC, u.nombre ASC
     `;
 
@@ -492,42 +513,58 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       [jornadaNumero]
     );
 
-    // 2. Obtener ranking acumulado hasta la jornada (excluyendo admins)
+    // 2. Obtener ranking acumulado hasta la jornada (excluyendo admins) - INCLUIR CLASIFICACIÓN
     const rankingQuery = await pool.query(
       `SELECT 
         u.nombre AS usuario,
         u.foto_perfil,
-        COALESCE(SUM(sp.puntos), 0) AS puntaje_total,
-        ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(sp.puntos), 0) DESC, u.nombre ASC) AS posicion
+        (COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0)) AS puntaje_total,
+        ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0)) DESC, u.nombre ASC) AS posicion
       FROM usuarios u
-      LEFT JOIN sudamericana_pronosticos sp ON u.id = sp.usuario_id
-      LEFT JOIN sudamericana_partidos p ON sp.partido_id = p.id
-      LEFT JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      LEFT JOIN (
+        SELECT sp.usuario_id, SUM(sp.puntos) as total
+        FROM sudamericana_pronosticos sp
+        JOIN sudamericana_jornadas sj ON sp.jornada_id = sj.id
+        WHERE sj.numero <= $1
+        GROUP BY sp.usuario_id
+      ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total
+        FROM sudamericana_puntos_clasificacion
+        WHERE jornada_numero <= $1
+        GROUP BY usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
       WHERE u.activo_sudamericana = true
         AND u.rol != 'admin'
-        AND sj.numero <= $1
-      GROUP BY u.id, u.nombre, u.foto_perfil
       ORDER BY puntaje_total DESC
       LIMIT 10`,
       [jornadaNumero]
     );
 
-    // 3. Obtener ranking de la jornada específica (excluyendo admins)
+    // 3. Obtener ranking de la jornada específica (excluyendo admins) - INCLUIR CLASIFICACIÓN
     const rankingJornadaQuery = await pool.query(
       `SELECT 
         u.nombre AS usuario,
         u.foto_perfil,
-        COALESCE(SUM(sp.puntos), 0) AS puntos_jornada,
-        ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(sp.puntos), 0) DESC, u.nombre ASC) AS posicion
+        (COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0)) AS puntos_jornada,
+        ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0)) DESC, u.nombre ASC) AS posicion
       FROM usuarios u
-      LEFT JOIN sudamericana_pronosticos sp ON u.id = sp.usuario_id
-      LEFT JOIN sudamericana_partidos p ON sp.partido_id = p.id
-      LEFT JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      LEFT JOIN (
+        SELECT sp.usuario_id, SUM(sp.puntos) as total
+        FROM sudamericana_pronosticos sp
+        JOIN sudamericana_jornadas sj ON sp.jornada_id = sj.id
+        WHERE sj.numero = $1
+        GROUP BY sp.usuario_id
+      ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total
+        FROM sudamericana_puntos_clasificacion
+        WHERE jornada_numero = $1
+        GROUP BY usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
       WHERE u.activo_sudamericana = true
         AND u.rol != 'admin'
-        AND sj.numero = $1
-      GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING COALESCE(SUM(sp.puntos), 0) > 0
+        AND (puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL)
       ORDER BY puntos_jornada DESC
       LIMIT 10`,
       [jornadaNumero]
@@ -536,6 +573,49 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
     const pronosticos = pronosticosQuery.rows;
     const ranking = rankingQuery.rows;
     const rankingJornada = rankingJornadaQuery.rows;
+
+    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADA 6 (igual que Libertadores jornadas 8-10)
+    let clasificacionPorUsuario = {};
+    if (jornadaNumero === 6) {
+      // 1. Calcular las tablas OFICIALES primero (ya importado arriba)
+      const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const jornadasNumeros = [1, 2, 3, 4, 5, 6];
+      
+      const primerosOficiales = {};
+      const segundosOficiales = {};
+      
+      for (const grupo of grupos) {
+        const tablaOficial = await calcularTablaOficial(grupo, jornadasNumeros);
+        if (tablaOficial.length >= 1) {
+          primerosOficiales[grupo] = tablaOficial[0].nombre;
+        }
+        if (tablaOficial.length >= 2) {
+          segundosOficiales[grupo] = tablaOficial[1].nombre;
+        }
+      }
+
+      // 2. Obtener TODOS los pronósticos de clasificación (ahora incluye aciertos y fallos)
+      const clasificacionQuery = await pool.query(`
+        SELECT 
+          u.nombre AS usuario,
+          spc.equipo_clasificado,
+          spc.equipo_oficial,
+          spc.fase_clasificado,
+          spc.puntos
+        FROM sudamericana_puntos_clasificacion spc
+        JOIN usuarios u ON spc.usuario_id = u.id
+        WHERE spc.jornada_numero = $1
+        ORDER BY u.nombre, spc.fase_clasificado
+      `, [jornadaNumero]);
+
+      clasificacionQuery.rows.forEach(row => {
+        if (!clasificacionPorUsuario[row.usuario]) {
+          clasificacionPorUsuario[row.usuario] = [];
+        }
+        row.equipo_real_avanza = row.equipo_oficial || '?';
+        clasificacionPorUsuario[row.usuario].push(row);
+      });
+    }
 
     // Agrupar pronósticos por usuario
     const pronosticosPorUsuario = {};
@@ -926,7 +1006,13 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         ? `<img src="${fotoBase64}" class="usuario-foto" alt="${usuario}">` 
         : '';
 
-      const puntosTotal = data.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+      // Calcular puntaje TOTAL de la jornada (partidos + clasificación)
+      let puntosTotal = data.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+      
+      // Agregar puntos de clasificación para jornada 6
+      if (jornadaNumero === 6 && clasificacionPorUsuario[usuario]) {
+        puntosTotal += clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0);
+      }
 
       html += `
       <div class="usuario-section">
@@ -967,11 +1053,69 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         `;
       });
 
-      html += `
+      // AGREGAR FILAS DE CLASIFICACIÓN para jornada 6 (exactamente igual que Libertadores)
+      if (jornadaNumero === 6 && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {
+        // Agregar encabezado de sección de clasificación
+        html += `
+          </tbody>
+        </table>
+        
+        <h4 style="margin-top: 20px; margin-bottom: 10px; color: #28a745;">⚡ Equipo que avanza</h4>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50%;">Equipo Pronosticado</th>
+              <th style="width: 35%;">Equipo Real</th>
+              <th style="width: 15%; text-align: center;">Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+
+        clasificacionPorUsuario[usuario].forEach((c) => {
+          const puntosClass = c.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
+          
+          // Extraer el grupo de la fase_clasificado (ej: "OCTAVOS_GRUPO_C")
+          const grupoMatch = c.fase_clasificado.match(/GRUPO_([A-H])/);
+          const grupoLetra = grupoMatch ? grupoMatch[1] : '';
+          const iconoFase = c.fase_clasificado.includes('OCTAVOS') ? '🏆' : '🎯';
+          const textoFase = c.fase_clasificado.includes('OCTAVOS') ? '1° Clasificado a Octavos' : '2° Clasificado a Playoffs';
+          
+          // El equipo_clasificado ES el equipo pronosticado
+          const equipoPronosticado = c.equipo_clasificado || 'Sin pronóstico';
+          
+          // El equipo_real_avanza viene de equipo_oficial en la DB
+          const equipoReal = c.equipo_real_avanza || '?';
+          
+          // Fondo verde si acertó, blanco si falló
+          const backgroundColor = c.puntos > 0 ? '#d4edda' : '#ffffff';
+          
+          html += `
+            <tr style="background-color: ${backgroundColor};">
+              <td>
+                <div style="display: flex; flex-direction: column;">
+                  <strong>${iconoFase} ${textoFase} - Grupo ${grupoLetra}</strong>
+                  <span style="margin-top: 5px; font-style: italic;">${equipoPronosticado}</span>
+                </div>
+              </td>
+              <td style="font-style: italic; color: #666;">${equipoReal}</td>
+              <td style="text-align: center;" class="puntos-cell ${puntosClass}"><strong>${c.puntos}</strong></td>
+            </tr>
+          `;
+        });
+
+        html += `
           </tbody>
         </table>
       </div>
       `;
+      } else {
+        html += `
+          </tbody>
+        </table>
+      </div>
+      `;
+      }
     }
 
     html += `

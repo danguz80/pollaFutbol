@@ -138,6 +138,22 @@ export default function ClasificacionSudamericana() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
+      // Si es J6, también cargar TODOS los pronósticos de J1-J6 para calcular tablas
+      let pronosticosParaTablas = response.data;
+      if (parseInt(filtroJornada) === 6) {
+        const paramsTablas = new URLSearchParams();
+        if (filtroNombre) paramsTablas.append('usuario_id', filtroNombre);
+        // NO filtrar por jornada - queremos todas las jornadas 1-6
+        
+        const responseTablas = await axios.get(
+          `${API_URL}/api/sudamericana-clasificacion/pronosticos?${paramsTablas.toString()}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        // Filtrar solo jornadas 1-6 para las tablas
+        pronosticosParaTablas = responseTablas.data.filter(p => p.jornada.numero >= 1 && p.jornada.numero <= 6);
+      }
+
       // Verificar si la jornada seleccionada está abierta (no cerrada)
       const jornadaSeleccionada = jornadas.find(j => j.numero === parseInt(filtroJornada));
       const estaAbierta = jornadaSeleccionada && !jornadaSeleccionada.cerrada;
@@ -171,6 +187,12 @@ export default function ClasificacionSudamericana() {
           setPronosticos(response.data);
         }
         setParticipantes([]);
+      }
+      
+      // Guardar pronósticos para tablas en el estado si es J6
+      if (parseInt(filtroJornada) === 6) {
+        // Crear un estado temporal para pasar a agruparPronosticos
+        window.pronosticosParaTablas = pronosticosParaTablas;
       }
     } catch (error) {
       console.error('Error cargando pronósticos:', error);
@@ -251,14 +273,15 @@ export default function ClasificacionSudamericana() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ jornadaNumero: filtroJornada || null })
+        body: JSON.stringify({ jornadaNumero: filtroJornada ? parseInt(filtroJornada) : null })
       });
       const data = await res.json();
       
       alert(data.mensaje || "✅ Puntajes calculados correctamente");
       
-      // Recargar pronósticos
-      cargarPronosticos();
+      // Recargar pronósticos y rankings
+      await cargarPronosticos();
+      await cargarRankings();
     } catch (error) {
       console.error("Error al calcular puntajes:", error);
       alert("❌ Error al calcular puntajes");
@@ -491,13 +514,23 @@ export default function ClasificacionSudamericana() {
         grupos[key].pronosticos.push(p);
       });
       
-      // Agregar pronosticosTotales a cada grupo (todos los pronósticos del usuario en esta jornada)
-      pronosticos.forEach(p => {
-        const key = `${p.usuario.id}`;
-        if (grupos[key]) {
-          grupos[key].pronosticosTotales.push(p);
-        }
-      });
+      // Para J6: Agregar pronosticosTotales (TODAS las jornadas 1-6)
+      if (parseInt(filtroJornada) === 6 && window.pronosticosParaTablas) {
+        window.pronosticosParaTablas.forEach(p => {
+          const key = `${p.usuario.id}`;
+          if (grupos[key]) {
+            grupos[key].pronosticosTotales.push(p);
+          }
+        });
+      } else {
+        // Para otras jornadas, usar los pronósticos de la jornada actual
+        pronosticos.forEach(p => {
+          const key = `${p.usuario.id}`;
+          if (grupos[key]) {
+            grupos[key].pronosticosTotales.push(p);
+          }
+        });
+      }
       
       // Si es jornada 6, agregar pronósticos de clasificados
       if (parseInt(filtroJornada) === 6 && clasificadosOficiales.length > 0) {
