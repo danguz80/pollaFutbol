@@ -47,6 +47,7 @@ export default function ClasificacionSudamericana() {
   const [puntosClasificadosJ6, setPuntosClasificadosJ6] = useState([]);
   const [puntosClasificadosJ7, setPuntosClasificadosJ7] = useState([]);
   const [puntosClasificadosJ8, setPuntosClasificadosJ8] = useState([]);
+  const [puntosClasificadosJ9, setPuntosClasificadosJ9] = useState([]);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -70,8 +71,8 @@ export default function ClasificacionSudamericana() {
         cargarRankings();
         cargarGanadoresJornada(parseInt(filtroJornada));
         
-        // Si es jornada 6, 7 u 8, cargar clasificados
-        if (parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8) {
+        // Si es jornada 6, 7, 8 o 9, cargar clasificados
+        if (parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8 || parseInt(filtroJornada) === 9) {
           cargarClasificados();
         }
       }
@@ -258,7 +259,6 @@ export default function ClasificacionSudamericana() {
         { headers }
       );
       setPuntosClasificadosJ6(puntosRes6.data);
-      console.log('✅ Puntos clasificación J6 cargados:', puntosRes6.data);
       
       // Cargar puntos de clasificación de jornada 7 (Play-Offs)
       const params7 = new URLSearchParams();
@@ -270,7 +270,6 @@ export default function ClasificacionSudamericana() {
         { headers }
       );
       setPuntosClasificadosJ7(puntosRes7.data);
-      console.log('✅ Puntos clasificación J7 cargados:', puntosRes7.data);
       
       // Cargar puntos de clasificación de jornada 8 (Octavos)
       const params8 = new URLSearchParams();
@@ -282,13 +281,24 @@ export default function ClasificacionSudamericana() {
         { headers }
       );
       setPuntosClasificadosJ8(puntosRes8.data);
-      console.log('✅ Puntos clasificación J8 cargados:', puntosRes8.data);
+      
+      // Cargar puntos de clasificación de jornada 9 (Cuartos)
+      const params9 = new URLSearchParams();
+      params9.append('jornada_numero', '9');
+      if (filtroNombre) params9.append('usuario_id', filtroNombre);
+
+      const puntosRes9 = await axios.get(
+        `${API_URL}/api/sudamericana-clasificacion/puntos-clasificacion?${params9.toString()}`,
+        { headers }
+      );
+      setPuntosClasificadosJ9(puntosRes9.data);
     } catch (error) {
       console.error('Error cargando clasificados:', error);
       setClasificadosOficiales([]);
       setPuntosClasificadosJ6([]);
       setPuntosClasificadosJ7([]);
       setPuntosClasificadosJ8([]);
+      setPuntosClasificadosJ9([]);
     }
   };
 
@@ -396,6 +406,41 @@ export default function ClasificacionSudamericana() {
     } catch (error) {
       console.error('Error calculando clasificados J8:', error);
       alert('❌ Error al calcular clasificados de Octavos');
+    } finally {
+      setCalculando(false);
+    }
+  };
+
+  const calcularClasificadosJ9 = async () => {
+    if (!confirm('¿Calcular equipos clasificados de Cuartos (J9)?\n\nSe determinarán los ganadores de cada cruce IDA/VUELTA y se asignarán puntos por clasificados acertados.')) {
+      return;
+    }
+
+    try {
+      setCalculando(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/sudamericana-calcular/clasificados-j9`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        alert(`✅ ${data.mensaje}\n\n🏆 Clasificados oficiales: ${data.clasificados_oficiales}\n📊 Registros insertados: ${data.registros_insertados}`);
+        
+        // Recargar todo
+        await cargarPronosticos();
+        await cargarRankings();
+        await cargarClasificados();
+      } else {
+        alert('❌ Error: ' + (data.error || 'No se pudo calcular'));
+      }
+    } catch (error) {
+      console.error('Error calculando clasificados J9:', error);
+      alert('❌ Error al calcular clasificados de Cuartos');
     } finally {
       setCalculando(false);
     }
@@ -664,16 +709,10 @@ export default function ClasificacionSudamericana() {
               const segundoUsuario = tablaVirtual.length >= 2 ? tablaVirtual[1].nombre : null;
               
               // Obtener puntos REALES desde la base de datos
-              console.log(`🔍 Buscando puntos para usuario_id: ${grupo.usuario_id}, grupo: ${grupoLetra}`);
-              console.log('Datos disponibles:', puntosClasificadosJ6.filter(p => p.usuario_id === grupo.usuario_id));
-              
               const puntoOctavosDB = puntosClasificadosJ6.find(p => {
                 const coincide = p.usuario_id === grupo.usuario_id && 
                   p.fase_clasificado.includes('OCTAVOS') && 
                   p.fase_clasificado.includes(`GRUPO_${grupoLetra}`);
-                if (p.usuario_id === grupo.usuario_id && p.fase_clasificado.includes(`GRUPO_${grupoLetra}`)) {
-                  console.log(`Fase: ${p.fase_clasificado}, coincide octavos:`, coincide);
-                }
                 return coincide;
               });
               
@@ -681,17 +720,12 @@ export default function ClasificacionSudamericana() {
                 const coincide = p.usuario_id === grupo.usuario_id && 
                   p.fase_clasificado.includes('PLAYOFFS') && 
                   p.fase_clasificado.includes(`GRUPO_${grupoLetra}`);
-                if (p.usuario_id === grupo.usuario_id && p.fase_clasificado.includes(`GRUPO_${grupoLetra}`)) {
-                  console.log(`Fase: ${p.fase_clasificado}, coincide playoffs:`, coincide);
-                }
                 return coincide;
               });
               
               // Usar puntos de BD si existen, sino 0
               const puntosOctavos = puntoOctavosDB?.puntos || 0;
               const puntosPlayoffs = puntoPlayoffsDB?.puntos || 0;
-              
-              console.log(`✅ Puntos encontrados - Octavos: ${puntosOctavos}, Playoffs: ${puntosPlayoffs}`);
               
               // Agregar fila para 1er lugar (Octavos)
               grupo.pronosticos.push({
@@ -733,13 +767,9 @@ export default function ClasificacionSudamericana() {
       
       // Si es jornada 7 (Play-Offs), agregar pronósticos de clasificados a Octavos
       if (parseInt(filtroJornada) === 7 && puntosClasificadosJ7.length > 0) {
-        console.log('🎯 Procesando clasificados J7, total registros:', puntosClasificadosJ7.length);
-        
         Object.values(grupos).forEach(grupo => {
           // Para cada usuario, obtener los puntos por equipos clasificados desde la BD
           const puntosUsuario = puntosClasificadosJ7.filter(p => p.usuario_id === grupo.usuario_id);
-          
-          console.log(`🔍 Usuario ${grupo.jugador} - puntos clasificados J7:`, puntosUsuario);
           
           // Agregar una fila por cada clasificado (solo los que están en BD)
           puntosUsuario.forEach(punto => {
@@ -760,19 +790,13 @@ export default function ClasificacionSudamericana() {
             });
           });
         });
-      } else if (parseInt(filtroJornada) === 7) {
-        console.log('⚠️ Jornada 7 seleccionada pero sin datos de clasificados. Registros disponibles:', puntosClasificadosJ7.length);
       }
       
       // Si es jornada 8 (Octavos), agregar pronósticos de clasificados a Cuartos
       if (parseInt(filtroJornada) === 8 && puntosClasificadosJ8.length > 0) {
-        console.log('🎯 Procesando clasificados J8, total registros:', puntosClasificadosJ8.length);
-        
         Object.values(grupos).forEach(grupo => {
           // Para cada usuario, obtener los puntos por equipos clasificados desde la BD
           const puntosUsuario = puntosClasificadosJ8.filter(p => p.usuario_id === grupo.usuario_id);
-          
-          console.log(`🔍 Usuario ${grupo.jugador} - puntos clasificados J8:`, puntosUsuario);
           
           // Agregar una fila por cada clasificado (solo los que están en BD)
           puntosUsuario.forEach(punto => {
@@ -793,8 +817,33 @@ export default function ClasificacionSudamericana() {
             });
           });
         });
-      } else if (parseInt(filtroJornada) === 8) {
-        console.log('⚠️ Jornada 8 seleccionada pero sin datos de clasificados. Registros disponibles:', puntosClasificadosJ8.length);
+      }
+      
+      // Si es jornada 9 (Cuartos), agregar pronósticos de clasificados a Semifinales
+      if (parseInt(filtroJornada) === 9 && puntosClasificadosJ9.length > 0) {
+        Object.values(grupos).forEach(grupo => {
+          // Para cada usuario, obtener los puntos por equipos clasificados desde la BD
+          const puntosUsuario = puntosClasificadosJ9.filter(p => p.usuario_id === grupo.usuario_id);
+          
+          // Agregar una fila por cada clasificado (solo los que están en BD)
+          puntosUsuario.forEach(punto => {
+            grupo.pronosticos.push({
+              id: `clasif-semifinales-j9-${punto.id}`,
+              esClasificado: true,
+              tipoClasificado: 'semifinales',
+              usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+              jornada: { numero: 9, cerrada: true },
+              partido: {
+                grupo: 'Clasificados',
+                local: { nombre: `Equipo clasificado a Semifinales desde Cuartos` },
+                visita: { nombre: '' }
+              },
+              equipo_pronosticado: punto.equipo_clasificado || 'N/A',
+              equipo_oficial: punto.equipo_oficial || null,
+              puntos: punto.puntos || 0
+            });
+          });
+        });
       }
       
       // Ordenar pronósticos dentro de cada grupo
@@ -940,8 +989,19 @@ export default function ClasificacionSudamericana() {
             </button>
           )}
           
+          {/* Botón específico para calcular clasificados de J9 */}
+          {parseInt(filtroJornada) === 9 && (
+            <button 
+              className="btn btn-success btn-lg px-5"
+              onClick={calcularClasificadosJ9}
+              disabled={calculando}
+            >
+              {calculando ? '⏳ Calculando...' : '🏆 Calcular Clasificados J9'}
+            </button>
+          )}
+          
           <p className="text-muted mt-2 mb-0">
-            <small>Calcula puntos por partidos{parseInt(filtroJornada) === 7 ? ' y equipos clasificados desde Play-Offs' : parseInt(filtroJornada) === 8 ? ' y equipos clasificados desde Octavos' : ''}</small>
+            <small>Calcula puntos por partidos{parseInt(filtroJornada) === 7 ? ' y equipos clasificados desde Play-Offs' : parseInt(filtroJornada) === 8 ? ' y equipos clasificados desde Octavos' : parseInt(filtroJornada) === 9 ? ' y equipos clasificados desde Cuartos' : ''}</small>
           </p>
         </div>
       )}
@@ -1142,7 +1202,7 @@ export default function ClasificacionSudamericana() {
 
           <div className="table-responsive">
             {/* Para Jornada 6, 7 y 8: separar en dos tablas */}
-            {(parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8) ? (
+            {(parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8 || parseInt(filtroJornada) === 9) ? (
               <>
                 {agruparPronosticos().map((grupo, grupoIndex) => {
                   // Separar pronósticos en partidos y clasificados
@@ -1195,6 +1255,8 @@ export default function ClasificacionSudamericana() {
                                   <span className="badge bg-warning text-dark">Play-Offs</span>
                                 ) : parseInt(filtroJornada) === 8 ? (
                                   <span className="badge bg-primary">Octavos</span>
+                                ) : parseInt(filtroJornada) === 9 ? (
+                                  <span className="badge bg-success">Cuartos</span>
                                 ) : (
                                   <span className="text-muted">-</span>
                                 )}

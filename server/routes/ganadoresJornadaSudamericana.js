@@ -489,8 +489,13 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         p.id as partido_id,
         sp.goles_local AS pred_local,
         sp.goles_visita AS pred_visita,
+        sp.penales_local AS pred_pen_local,
+        sp.penales_visita AS pred_pen_visita,
         p.goles_local AS real_local,
         p.goles_visita AS real_visita,
+        p.penales_local AS real_pen_local,
+        p.penales_visita AS real_pen_visita,
+        p.tipo_partido,
         sp.puntos,
         sj.numero AS jornada_numero,
         sj.nombre AS jornada_nombre
@@ -639,6 +644,28 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       });
     } else if (jornadaNumero === 8) {
       // JORNADA 8: Octavos - Clasificación a Cuartos
+      const clasificacionQuery = await pool.query(`
+        SELECT 
+          u.nombre AS usuario,
+          spc.equipo_clasificado,
+          spc.equipo_oficial,
+          spc.fase_clasificado,
+          spc.puntos
+        FROM sudamericana_puntos_clasificacion spc
+        JOIN usuarios u ON spc.usuario_id = u.id
+        WHERE spc.jornada_numero = $1
+        ORDER BY u.nombre, spc.fase_clasificado
+      `, [jornadaNumero]);
+
+      clasificacionQuery.rows.forEach(row => {
+        if (!clasificacionPorUsuario[row.usuario]) {
+          clasificacionPorUsuario[row.usuario] = [];
+        }
+        row.equipo_real_avanza = row.equipo_oficial || '?';
+        clasificacionPorUsuario[row.usuario].push(row);
+      });
+    } else if (jornadaNumero === 9) {
+      // JORNADA 9: Cuartos - Clasificación a Semifinales
       const clasificacionQuery = await pool.query(`
         SELECT 
           u.nombre AS usuario,
@@ -1054,7 +1081,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       const puntosPartidos = data.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
       
       // Calcular puntos de CLASIFICACIÓN (separados, no suman al total de jornada)
-      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8) && clasificacionPorUsuario[usuario]) 
+      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9) && clasificacionPorUsuario[usuario]) 
         ? clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0)
         : 0;
       
@@ -1093,11 +1120,29 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         const predVisita = p.pred_visita !== null && p.pred_visita !== undefined ? p.pred_visita : '-';
         const bonusValue = p.bonus && p.bonus > 1 ? `x${p.bonus}` : 'x1';
 
+        // Debug para verificar datos
+        if (p.tipo_partido === 'VUELTA') {
+          console.log(`🔍 Partido VUELTA: ${p.nombre_local} vs ${p.nombre_visita}`);
+          console.log(`   Penales pred: ${p.pred_pen_local}-${p.pred_pen_visita}, Penales real: ${p.real_pen_local}-${p.real_pen_visita}`);
+        }
+
+        // Construir string de pronóstico con penales si existen (solo para VUELTA)
+        let pronosticoHTML = `${predLocal} - ${predVisita}`;
+        if (p.tipo_partido === 'VUELTA' && p.pred_pen_local !== null && p.pred_pen_visita !== null) {
+          pronosticoHTML += ` <span style="font-size: 12px; font-style: italic; color: #6c757d;">(${p.pred_pen_local}-${p.pred_pen_visita} pen.)</span>`;
+        }
+
+        // Construir string de resultado con penales si existen (solo para VUELTA)
+        let resultadoHTML = `${p.real_local} - ${p.real_visita}`;
+        if (p.tipo_partido === 'VUELTA' && p.real_pen_local !== null && p.real_pen_visita !== null) {
+          resultadoHTML += ` <span style="font-size: 12px; font-style: italic; color: #6c757d;">(${p.real_pen_local}-${p.real_pen_visita} pen.)</span>`;
+        }
+
         html += `
             <tr>
               <td>${p.nombre_local} vs ${p.nombre_visita}</td>
-              <td style="text-align: center;" class="resultado">${predLocal} - ${predVisita}</td>
-              <td style="text-align: center;" class="resultado">${p.real_local} - ${p.real_visita}</td>
+              <td style="text-align: center;" class="resultado">${pronosticoHTML}</td>
+              <td style="text-align: center;" class="resultado">${resultadoHTML}</td>
               <td style="text-align: center; font-weight: bold; color: ${p.bonus > 1 ? '#17a2b8' : '#666'};">${bonusValue}</td>
               <td style="text-align: center;" class="puntos-cell ${puntosClass}">${p.puntos || 0}</td>
             </tr>
@@ -1113,7 +1158,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       `;
 
       // AGREGAR FILAS DE CLASIFICACIÓN para jornada 6, 7 y 8
-      if ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8) && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {
+      if ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9) && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {
         // Agregar encabezado de sección de clasificación
         html += `
           </tbody>
@@ -1151,6 +1196,10 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
             // Para Jornada 8 (Octavos), mostrar "Clasificado a Cuartos"
             iconoFase = '🏆';
             textoFase = 'Clasificado a Cuartos';
+          } else if (jornadaNumero === 9) {
+            // Para Jornada 9 (Cuartos), mostrar "Clasificado a Semifinales"
+            iconoFase = '🏆';
+            textoFase = 'Clasificado a Semifinales';
           }
           
           // El equipo_clasificado ES el equipo pronosticado

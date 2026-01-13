@@ -12,8 +12,8 @@ export default function AdminSudamericana() {
   // Estados para cada fase
   const [textFaseGrupos, setTextFaseGrupos] = useState('');
   const [textOctavos, setTextOctavos] = useState(''); // Play-Offs J7
-  const [textCuartos, setTextCuartos] = useState(''); // Octavos J8
-  const [textSemiFinal, setTextSemiFinal] = useState(''); // Cuartos J9
+  const [textCuartos, setTextCuartos] = useState(''); // Cuartos J9
+  const [textSemiFinal, setTextSemiFinal] = useState(''); // Semifinales J10
   const [textFinal, setTextFinal] = useState(''); // Semifinales + Final J10
 
   const showMessage = (type, text) => {
@@ -268,7 +268,7 @@ export default function AdminSudamericana() {
   // ==================== OCTAVOS IDA/VUELTA (JORNADA 8) ====================
   const generarCuartos = async () => {
     if (!textCuartos.trim()) {
-      showMessage('danger', 'Por favor ingresa los cruces de octavos');
+      showMessage('danger', 'Por favor ingresa los cruces de cuartos de final');
       return;
     }
 
@@ -280,12 +280,12 @@ export default function AdminSudamericana() {
         return { local, visita };
       });
 
-      if (cruces.length !== 8) {
-        showMessage('danger', 'Debes ingresar exactamente 8 cruces (uno por línea)');
+      if (cruces.length !== 4) {
+        showMessage('danger', 'Debes ingresar exactamente 4 cruces de cuartos (uno por línea)');
         return;
       }
 
-      // Generar partidos IDA y VUELTA en la misma jornada 8
+      // Generar partidos IDA y VUELTA en la jornada 9
       const partidos = [];
       cruces.forEach(cruce => {
         // IDA
@@ -309,16 +309,16 @@ export default function AdminSudamericana() {
       const token = localStorage.getItem('token');
 
       await axios.post(
-        `${API_URL}/api/sudamericana/jornadas/8/partidos`,
+        `${API_URL}/api/sudamericana/jornadas/9/partidos`,
         { partidos },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      showMessage('success', `✅ Octavos generados: 16 partidos en Jornada 8 (8 IDA + 8 VUELTA)`);
-      alert(`✅ Octavos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 8: 16 partidos (8 IDA + 8 VUELTA)\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
+      showMessage('success', `✅ Cuartos generados: 8 partidos en Jornada 9 (4 IDA + 4 VUELTA)`);
+      alert(`✅ Cuartos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 9: 8 partidos (4 IDA + 4 VUELTA)\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
       setTextCuartos('');
     } catch (error) {
-      console.error('Error generando octavos:', error);
+      console.error('Error generando cuartos:', error);
       showMessage('danger', `Error: ${error.response?.data?.error || error.message}`);
     } finally {
       setLoading(false);
@@ -542,14 +542,14 @@ export default function AdminSudamericana() {
               className="form-control font-monospace"
               rows="4"
               placeholder="Ejemplo:&#10;Flamengo vs River Plate&#10;Boca Juniors vs Palmeiras&#10;..."
-              value={textSemiFinal}
-              onChange={(e) => setTextSemiFinal(e.target.value)}
+              value={textCuartos}
+              onChange={(e) => setTextCuartos(e.target.value)}
             />
           </div>
           <button
             className="btn btn-info"
-            onClick={generarSemiFinales}
-            disabled={loading || !textSemiFinal.trim()}
+            onClick={generarCuartos}
+            disabled={loading || !textCuartos.trim()}
           >
             {loading ? '⏳ Generando...' : '🚀 Generar Cuartos (J9 IDA + VUELTA)'}
           </button>

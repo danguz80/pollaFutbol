@@ -221,8 +221,11 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
         pa.nombre_local,
         pa.nombre_visita,
         pa.fecha,
+        pa.tipo_partido,
         p.goles_local,
         p.goles_visita,
+        p.penales_local,
+        p.penales_visita,
         pa.goles_local as real_local,
         pa.goles_visita as real_visita,
         p.puntos
@@ -463,6 +466,12 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
                   
                   const pronostico = `${p.goles_local}-${p.goles_visita}`;
                   
+                  // Agregar penales si es VUELTA y tiene penales pronosticados
+                  let pronosticoHTML = pronostico;
+                  if (p.tipo_partido === 'VUELTA' && p.penales_local !== null && p.penales_visita !== null) {
+                    pronosticoHTML += ` <span style="font-size: 11px; font-style: italic; color: #6c757d;">(${p.penales_local}-${p.penales_visita} pen.)</span>`;
+                  }
+                  
                   return `
                     <tr>
                       <td>
@@ -474,7 +483,7 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
                           <span>${p.nombre_visita}</span>
                         </div>
                       </td>
-                      <td class="pronostico">${pronostico}</td>
+                      <td class="pronostico">${pronosticoHTML}</td>
                     </tr>
                   `;
                 }).join('')}
