@@ -12,7 +12,8 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
 
     console.log(`\n🔍 DEBUG RANKING SUDAMERICANA J${jornadaNum}`);
 
-    // Calcular puntos de jornada - INCLUIR PARTIDOS Y CLASIFICACIÓN
+    // Para JORNADA 6: puntos_jornada = SOLO puntos_partidos (clasificación NO suma)
+    // Para OTRAS JORNADAS: puntos_jornada = partidos (no hay clasificación)
     const query = `
       SELECT 
         u.id,
@@ -20,7 +21,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
         u.foto_perfil,
         COALESCE(puntos_partidos.total, 0) as puntos_partidos,
         COALESCE(puntos_clasificacion.total, 0) as puntos_clasificacion,
-        COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada
+        COALESCE(puntos_partidos.total, 0) as puntos_jornada
       FROM usuarios u
       LEFT JOIN (
         SELECT sp.usuario_id, SUM(sp.puntos) as total

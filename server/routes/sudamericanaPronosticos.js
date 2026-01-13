@@ -25,6 +25,8 @@ router.get('/jornada/:jornadaNumero/usuario/:usuarioId', verifyToken, async (req
         p.partido_id,
         p.goles_local,
         p.goles_visita,
+        p.penales_local,
+        p.penales_visita,
         p.puntos
       FROM sudamericana_pronosticos p
       INNER JOIN sudamericana_partidos pa ON pa.id = p.partido_id
@@ -43,7 +45,7 @@ router.get('/jornada/:jornadaNumero/usuario/:usuarioId', verifyToken, async (req
 router.post('/', verifyToken, async (req, res) => {
   try {
     const usuario_id = req.usuario.id;
-    const { partido_id, jornada_id, goles_local, goles_visita } = req.body;
+    const { partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita } = req.body;
 
     // Verificar si el usuario está activo en Sudamericana
     const usuarioCheck = await pool.query(
@@ -82,17 +84,17 @@ router.post('/', verifyToken, async (req, res) => {
       // Actualizar
       await pool.query(
         `UPDATE sudamericana_pronosticos 
-         SET goles_local = $1, goles_visita = $2
-         WHERE usuario_id = $3 AND partido_id = $4`,
-        [goles_local, goles_visita, usuario_id, partido_id]
+         SET goles_local = $1, goles_visita = $2, penales_local = $3, penales_visita = $4
+         WHERE usuario_id = $5 AND partido_id = $6`,
+        [goles_local, goles_visita, penales_local, penales_visita, usuario_id, partido_id]
       );
     } else {
       // Insertar
       await pool.query(
         `INSERT INTO sudamericana_pronosticos 
-         (usuario_id, partido_id, goles_local, goles_visita, puntos)
-         VALUES ($1, $2, $3, $4, 0)`,
-        [usuario_id, partido_id, goles_local, goles_visita]
+         (usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita, puntos)
+         VALUES ($1, $2, $3, $4, $5, $6, 0)`,
+        [usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita]
       );
     }
 
@@ -149,7 +151,7 @@ router.post('/guardar', verifyToken, async (req, res) => {
 
     // Guardar/actualizar cada pronóstico
     for (const pronostico of pronosticos) {
-      const { partido_id, goles_local, goles_visita } = pronostico;
+      const { partido_id, goles_local, goles_visita, penales_local, penales_visita } = pronostico;
 
       if (!partido_id) continue;
 
@@ -163,17 +165,17 @@ router.post('/guardar', verifyToken, async (req, res) => {
         // Actualizar
         await client.query(
           `UPDATE sudamericana_pronosticos 
-           SET goles_local = $1, goles_visita = $2
-           WHERE usuario_id = $3 AND partido_id = $4`,
-          [goles_local, goles_visita, usuario_id, partido_id]
+           SET goles_local = $1, goles_visita = $2, penales_local = $3, penales_visita = $4
+           WHERE usuario_id = $5 AND partido_id = $6`,
+          [goles_local, goles_visita, penales_local, penales_visita, usuario_id, partido_id]
         );
       } else {
         // Insertar
         await client.query(
           `INSERT INTO sudamericana_pronosticos 
-           (usuario_id, partido_id, goles_local, goles_visita, puntos)
-           VALUES ($1, $2, $3, $4, 0)`,
-          [usuario_id, partido_id, goles_local, goles_visita]
+           (usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita, puntos)
+           VALUES ($1, $2, $3, $4, $5, $6, 0)`,
+          [usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita]
         );
       }
     }
@@ -191,21 +193,23 @@ router.post('/guardar', verifyToken, async (req, res) => {
 });
 
 // Generar PDF con pronósticos de una jornada y enviarlo por email
-router.post('/generar-pdf/:jornadaId', verifyToken, authorizeRoles('admin'), async (req, res) => {
+router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    const { jornadaId } = req.params;
+    const { jornadaNumero } = req.params;
 
-    console.log(`📄 Generando PDF para jornada Sudamericana ${jornadaId}...`);
+    console.log(`📄 Generando PDF para jornada Sudamericana ${jornadaNumero}...`);
 
-    // Obtener información de la jornada
+    // Obtener información de la jornada por número
     const jornadaInfo = await pool.query(
-      'SELECT numero, nombre FROM sudamericana_jornadas WHERE id = $1',
-      [jornadaId]
+      'SELECT id, numero, nombre FROM sudamericana_jornadas WHERE numero = $1',
+      [jornadaNumero]
     );
 
     if (jornadaInfo.rows.length === 0) {
       return res.status(404).json({ error: 'Jornada no encontrada' });
     }
+    
+    const jornadaId = jornadaInfo.rows[0].id;
 
     const { numero, nombre } = jornadaInfo.rows[0];
 

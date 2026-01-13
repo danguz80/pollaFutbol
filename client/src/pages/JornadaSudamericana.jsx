@@ -73,7 +73,9 @@ export default function JornadaSudamericana() {
           pronosticosRes.data.forEach(p => {
             pronosticosMap[p.partido_id] = {
               goles_local: p.goles_local,
-              goles_visita: p.goles_visita
+              goles_visita: p.goles_visita,
+              penales_local: p.penales_local,
+              penales_visita: p.penales_visita
             };
           });
           setPronosticos(pronosticosMap);
@@ -98,6 +100,38 @@ export default function JornadaSudamericana() {
         [campo]: valor
       }
     }));
+  };
+
+  // Calcular si hay empate global en un partido de VUELTA
+  const calcularEmpateGlobal = (partidoVuelta) => {
+    if (!partidoVuelta.tipo_partido || partidoVuelta.tipo_partido !== 'VUELTA') return false;
+    
+    const pronosticoVuelta = pronosticos[partidoVuelta.id];
+    if (!pronosticoVuelta || pronosticoVuelta.goles_local === "" || pronosticoVuelta.goles_visita === "" ||
+        pronosticoVuelta.goles_local === undefined || pronosticoVuelta.goles_visita === undefined) {
+      return false;
+    }
+
+    // Buscar partido IDA (equipos invertidos)
+    const partidoIda = partidos.find(p => 
+      p.tipo_partido === 'IDA' && 
+      p.nombre_local === partidoVuelta.nombre_visita && 
+      p.nombre_visita === partidoVuelta.nombre_local
+    );
+
+    if (!partidoIda) return false;
+    
+    const pronosticoIda = pronosticos[partidoIda.id];
+    if (!pronosticoIda || pronosticoIda.goles_local === "" || pronosticoIda.goles_visita === "" ||
+        pronosticoIda.goles_local === undefined || pronosticoIda.goles_visita === undefined) {
+      return false;
+    }
+
+    // Calcular marcador global
+    const golesLocalGlobal = Number(pronosticoIda.goles_visita) + Number(pronosticoVuelta.goles_local);
+    const golesVisitaGlobal = Number(pronosticoIda.goles_local) + Number(pronosticoVuelta.goles_visita);
+
+    return golesLocalGlobal === golesVisitaGlobal;
   };
 
   const generarAleatorioTodos = () => {
@@ -186,7 +220,9 @@ export default function JornadaSudamericana() {
       const pronosticosArray = Object.entries(pronosticos).map(([partidoId, datos]) => ({
         partido_id: parseInt(partidoId),
         goles_local: datos.goles_local !== undefined ? parseInt(datos.goles_local) : null,
-        goles_visita: datos.goles_visita !== undefined ? parseInt(datos.goles_visita) : null
+        goles_visita: datos.goles_visita !== undefined ? parseInt(datos.goles_visita) : null,
+        penales_local: datos.penales_local !== undefined ? parseInt(datos.penales_local) : null,
+        penales_visita: datos.penales_visita !== undefined ? parseInt(datos.penales_visita) : null
       }));
 
       await axios.post(
@@ -350,6 +386,44 @@ export default function JornadaSudamericana() {
                             />
                           </div>
                         </div>
+
+                        {/* Inputs de penales - Solo si es VUELTA y hay empate global */}
+                        {!jornada.cerrada && partido.tipo_partido === 'VUELTA' && calcularEmpateGlobal(partido) && (
+                          <div className="mt-3 p-3 border border-warning rounded bg-light">
+                            <div className="text-center mb-2">
+                              <small className="text-danger fw-bold">⚠️ Empate global - Definir por penales</small>
+                            </div>
+                            <div className="row align-items-center text-center">
+                              <div className="col-5">
+                                <label className="form-label small mb-1">Penales {partido.nombre_local}</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="10"
+                                  className="form-control text-center border-warning"
+                                  value={pronosticos[partido.id]?.penales_local ?? ""}
+                                  onChange={(e) => handleChange(partido.id, "penales_local", e.target.value)}
+                                  placeholder="0"
+                                />
+                              </div>
+                              <div className="col-2">
+                                <span className="fw-bold text-warning">PEN</span>
+                              </div>
+                              <div className="col-5">
+                                <label className="form-label small mb-1">Penales {partido.nombre_visita}</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="10"
+                                  className="form-control text-center border-warning"
+                                  value={pronosticos[partido.id]?.penales_visita ?? ""}
+                                  onChange={(e) => handleChange(partido.id, "penales_visita", e.target.value)}
+                                  placeholder="0"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {jornada.cerrada && (
                           <div className="mt-3 pt-3 border-top">

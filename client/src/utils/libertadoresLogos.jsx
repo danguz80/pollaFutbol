@@ -7,6 +7,7 @@ export const getLogoEquipo = (nombreEquipo) => {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // Eliminar tildes
+    .replace(/[\u2018\u2019]/g, "'") // Normalizar apóstrofes tipográficos → normal
     .replace(/\s+/g, ''); // Eliminar espacios
   
   // Mapeo de nombres de equipos a nombres de archivos
@@ -38,15 +39,33 @@ export const getLogoEquipo = (nombreEquipo) => {
     'alwaysready': 'Always_Ready.png',
     'nacionalpotosi': 'Nacional_Potosí.png',
     
-    // Chile
+    // Chile (todos los equipos del torneo nacional)
     'colo-colo': 'colo-colo.png',
     'colocolo': 'colo-colo.png',
     'universidaddechile': 'udechile.png',
     'udechile': 'udechile.png',
+    'u.dechile': 'udechile.png',
     'universidadcatolica': 'uc.png',
+    'u.catolica': 'uc.png',
     'coquimbounido': 'coquimbo.png',
     'ohiggins': 'ohiggins.webp',
+    "o'higgins": 'ohiggins.webp',
     'huachipato': 'huachipato.png',
+    'palestino': 'palestino.png',
+    'cobresal': 'cobresal.png',
+    'everton': 'everton.png',
+    'audaxitaliano': 'audax.png',
+    'unionlacalera': 'calera.png',
+    'unionespanola': 'union-espanola.png',
+    'u.espanola': 'union-espanola.png',
+    'deportesiquique': 'iquique.png',
+    'deporteslaserena': 'laserena.png',
+    'nublense': 'ñublense.png',
+    'ñublense': 'ñublense.png',
+    'deporteslimache': 'limache.webp',
+    'deportesconcepcion': 'concepcion.png',
+    'universidaddeconcepcion': 'udeconce.png',
+    'u.deconcepcion': 'udeconce.png',
     
     // Colombia
     'atleticobucaramanga': 'AtléticoBucaramanga.png',
@@ -98,6 +117,15 @@ export const getLogoEquipo = (nombreEquipo) => {
   const nombreArchivo = mapeoLogos[nombreNormalizado];
   
   if (nombreArchivo) {
+    // Detectar si es equipo chileno del torneo nacional
+    const equiposNacionales = ['colo-colo.png', 'udechile.png', 'uc.png', 'coquimbo.png', 'ohiggins.webp', 
+      'huachipato.png', 'palestino.png', 'cobresal.png', 'everton.png', 'audax.png', 'calera.png', 
+      'union-espanola.png', 'iquique.png', 'laserena.png', 'ñublense.png', 'limache.webp', 
+      'concepcion.png', 'udeconce.png'];
+    
+    if (equiposNacionales.includes(nombreArchivo)) {
+      return `/logos_torneo_nacional/${nombreArchivo}`;
+    }
     return `/copa_libertadores_logos_equipos/${nombreArchivo}`;
   }
   

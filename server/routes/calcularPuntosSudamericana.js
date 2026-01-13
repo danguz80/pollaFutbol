@@ -269,4 +269,365 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
   }
 });
 
+// Función auxiliar para calcular ganador de un cruce (IDA + VUELTA + penales)
+function calcularGanadorCruce(partidoIda, partidoVuelta) {
+  // Validar que ambos partidos tengan resultados
+  if (!partidoIda || !partidoVuelta || 
+      partidoIda.goles_local === null || partidoIda.goles_visita === null ||
+      partidoVuelta.goles_local === null || partidoVuelta.goles_visita === null) {
+    return null;
+  }
+
+  // Calcular marcador global
+  // En IDA: Local vs Visita
+  // En VUELTA: Visita vs Local (equipos invertidos)
+  const golesLocalGlobal = partidoIda.goles_visita + partidoVuelta.goles_local;
+  const golesVisitaGlobal = partidoIda.goles_local + partidoVuelta.goles_visita;
+
+  // Si no hay empate, gana quien tenga más goles
+  if (golesLocalGlobal > golesVisitaGlobal) {
+    return partidoVuelta.nombre_local;
+  } else if (golesLocalGlobal < golesVisitaGlobal) {
+    return partidoVuelta.nombre_visita;
+  }
+
+  // Empate global - revisar penales
+  if (partidoVuelta.penales_local !== null && partidoVuelta.penales_visita !== null) {
+    if (partidoVuelta.penales_local > partidoVuelta.penales_visita) {
+      return partidoVuelta.nombre_local;
+    } else if (partidoVuelta.penales_local < partidoVuelta.penales_visita) {
+      return partidoVuelta.nombre_visita;
+    }
+  }
+
+  return null;
+}
+
+// POST /api/sudamericana-calcular/clasificados-j7 - Calcular clasificados de Play-Offs
+router.post('/clasificados-j7', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    console.log('🚀 Calculando clasificados J7 (Play-Offs)...');
+
+    // 1. Obtener partidos de J7 con tipo
+    const partidosResult = await pool.query(`
+      SELECT 
+        p.id, p.nombre_local, p.nombre_visita,
+        p.goles_local, p.goles_visita,
+        p.penales_local, p.penales_visita,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM sudamericana_partidos p2
+            WHERE p2.jornada_id = p.jornada_id
+            AND p2.nombre_local = p.nombre_visita
+            AND p2.nombre_visita = p.nombre_local
+            AND p2.id > p.id
+          ) THEN 'IDA'
+          ELSE 'VUELTA'
+        END as tipo_partido
+      FROM sudamericana_partidos p
+      JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      WHERE sj.numero = 7
+      ORDER BY p.id
+    `);
+
+    const partidos = partidosResult.rows;
+    const partidosIda = partidos.filter(p => p.tipo_partido === 'IDA');
+    const partidosVuelta = partidos.filter(p => p.tipo_partido === 'VUELTA');
+
+    // 2. Calcular clasificados oficiales
+    const clasificadosOficiales = [];
+    for (const vuelta of partidosVuelta) {
+      const ida = partidosIda.find(p => 
+        p.nombre_local === vuelta.nombre_visita && 
+        p.nombre_visita === vuelta.nombre_local
+      );
+      if (ida) {
+        const ganador = calcularGanadorCruce(ida, vuelta);
+        if (ganador) clasificadosOficiales.push(ganador);
+      }
+    }
+
+    console.log(`🏆 Clasificados oficiales: ${clasificadosOficiales.length}`);
+
+    // 3. Obtener pronósticos
+    const pronosticosResult = await pool.query(`
+      SELECT 
+        sp.usuario_id, u.nombre as usuario_nombre,
+        p.id as partido_id, p.nombre_local, p.nombre_visita,
+        sp.goles_local as pron_goles_local,
+        sp.goles_visita as pron_goles_visita,
+        sp.penales_local as pron_penales_local,
+        sp.penales_visita as pron_penales_visita,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM sudamericana_partidos p2
+            WHERE p2.jornada_id = p.jornada_id
+            AND p2.nombre_local = p.nombre_visita
+            AND p2.nombre_visita = p.nombre_local
+            AND p2.id > p.id
+          ) THEN 'IDA'
+          ELSE 'VUELTA'
+        END as tipo_partido
+      FROM sudamericana_pronosticos sp
+      JOIN usuarios u ON sp.usuario_id = u.id
+      JOIN sudamericana_partidos p ON sp.partido_id = p.id
+      JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      WHERE sj.numero = 7
+      ORDER BY sp.usuario_id, p.id
+    `);
+
+    // 4. Agrupar por usuario y calcular puntos
+    const usuariosMap = {};
+    pronosticosResult.rows.forEach(p => {
+      if (!usuariosMap[p.usuario_id]) {
+        usuariosMap[p.usuario_id] = { id: p.usuario_id, nombre: p.usuario_nombre, pronosticos: [] };
+      }
+      usuariosMap[p.usuario_id].pronosticos.push(p);
+    });
+
+    const puntosAInsertar = [];
+    for (const usuario of Object.values(usuariosMap)) {
+      const pronosticosIda = usuario.pronosticos.filter(p => p.tipo_partido === 'IDA');
+      const pronosticosVuelta = usuario.pronosticos.filter(p => p.tipo_partido === 'VUELTA');
+
+      for (const pronVuelta of pronosticosVuelta) {
+        if (pronVuelta.pron_goles_local === null || pronVuelta.pron_goles_visita === null) continue;
+
+        const pronIda = pronosticosIda.find(p => 
+          p.nombre_local === pronVuelta.nombre_visita && 
+          p.nombre_visita === pronVuelta.nombre_local
+        );
+
+        if (pronIda && pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
+          const ganadorPronosticado = calcularGanadorCruce(
+            {
+              nombre_local: pronIda.nombre_local,
+              nombre_visita: pronIda.nombre_visita,
+              goles_local: pronIda.pron_goles_local,
+              goles_visita: pronIda.pron_goles_visita,
+              penales_local: pronIda.pron_penales_local,
+              penales_visita: pronIda.pron_penales_visita
+            },
+            {
+              nombre_local: pronVuelta.nombre_local,
+              nombre_visita: pronVuelta.nombre_visita,
+              goles_local: pronVuelta.pron_goles_local,
+              goles_visita: pronVuelta.pron_goles_visita,
+              penales_local: pronVuelta.pron_penales_local,
+              penales_visita: pronVuelta.pron_penales_visita
+            }
+          );
+
+          if (ganadorPronosticado) {
+            // Buscar el clasificado oficial real de este cruce
+            const clasificadoOficialCruce = clasificadosOficiales.find(c => 
+              c === pronVuelta.nombre_local || c === pronVuelta.nombre_visita
+            );
+            
+            const acerto = clasificadoOficialCruce === ganadorPronosticado;
+            const puntos = acerto ? 2 : 0;
+
+            puntosAInsertar.push({
+              usuario_id: usuario.id,
+              jornada_numero: 7,
+              equipo_clasificado: ganadorPronosticado,
+              equipo_oficial: clasificadoOficialCruce || null, // Siempre guarda el clasificado real
+              fase_clasificado: 'OCTAVOS_PLAYOFFS',
+              puntos: puntos
+            });
+          }
+        }
+      }
+    }
+
+    // 5. Guardar en BD
+    await pool.query('DELETE FROM sudamericana_puntos_clasificacion WHERE jornada_numero = 7');
+
+    for (const punto of puntosAInsertar) {
+      await pool.query(`
+        INSERT INTO sudamericana_puntos_clasificacion 
+        (usuario_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        punto.usuario_id, punto.jornada_numero, punto.equipo_clasificado,
+        punto.equipo_oficial, punto.fase_clasificado, punto.puntos
+      ]);
+    }
+
+    res.json({
+      success: true,
+      mensaje: 'Clasificados J7 calculados exitosamente',
+      clasificados_oficiales: clasificadosOficiales.length,
+      registros_insertados: puntosAInsertar.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error calculando clasificados J7:', error);
+    res.status(500).json({ error: 'Error calculando clasificados', detalles: error.message });
+  }
+});
+
+// POST /clasificados-j8 - Calcular clasificados de Octavos (J8 IDA/VUELTA)
+router.post('/clasificados-j8', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    console.log('🎯 Calculando clasificados de Octavos (J8)...');
+
+    // 1. Obtener todos los partidos de jornada 8 con tipo_partido
+    const partidosResult = await pool.query(`
+      SELECT 
+        p.id, p.nombre_local, p.nombre_visita,
+        p.goles_local, p.goles_visita,
+        p.penales_local, p.penales_visita,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM sudamericana_partidos p2
+            WHERE p2.jornada_id = p.jornada_id
+            AND p2.nombre_local = p.nombre_visita
+            AND p2.nombre_visita = p.nombre_local
+            AND p2.id > p.id
+          ) THEN 'IDA'
+          ELSE 'VUELTA'
+        END as tipo_partido
+      FROM sudamericana_partidos p
+      JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      WHERE sj.numero = 8
+      ORDER BY p.id
+    `);
+
+    const partidos = partidosResult.rows;
+    const partidosIda = partidos.filter(p => p.tipo_partido === 'IDA');
+    const partidosVuelta = partidos.filter(p => p.tipo_partido === 'VUELTA');
+
+    // 2. Calcular clasificados oficiales
+    const clasificadosOficiales = [];
+    for (const vuelta of partidosVuelta) {
+      const ida = partidosIda.find(p => 
+        p.nombre_local === vuelta.nombre_visita && 
+        p.nombre_visita === vuelta.nombre_local
+      );
+      if (ida) {
+        const ganador = calcularGanadorCruce(ida, vuelta);
+        if (ganador) clasificadosOficiales.push(ganador);
+      }
+    }
+
+    console.log(`🏆 Clasificados oficiales J8: ${clasificadosOficiales.length}`);
+
+    // 3. Obtener pronósticos
+    const pronosticosResult = await pool.query(`
+      SELECT 
+        sp.usuario_id, u.nombre as usuario_nombre,
+        p.id as partido_id, p.nombre_local, p.nombre_visita,
+        sp.goles_local as pron_goles_local,
+        sp.goles_visita as pron_goles_visita,
+        sp.penales_local as pron_penales_local,
+        sp.penales_visita as pron_penales_visita,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM sudamericana_partidos p2
+            WHERE p2.jornada_id = p.jornada_id
+            AND p2.nombre_local = p.nombre_visita
+            AND p2.nombre_visita = p.nombre_local
+            AND p2.id > p.id
+          ) THEN 'IDA'
+          ELSE 'VUELTA'
+        END as tipo_partido
+      FROM sudamericana_pronosticos sp
+      JOIN usuarios u ON sp.usuario_id = u.id
+      JOIN sudamericana_partidos p ON sp.partido_id = p.id
+      JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      WHERE sj.numero = 8
+      ORDER BY sp.usuario_id, p.id
+    `);
+
+    // 4. Agrupar por usuario y calcular puntos
+    const usuariosMap = {};
+    pronosticosResult.rows.forEach(p => {
+      if (!usuariosMap[p.usuario_id]) {
+        usuariosMap[p.usuario_id] = { id: p.usuario_id, nombre: p.usuario_nombre, pronosticos: [] };
+      }
+      usuariosMap[p.usuario_id].pronosticos.push(p);
+    });
+
+    const puntosAInsertar = [];
+    for (const usuario of Object.values(usuariosMap)) {
+      const pronosticosIda = usuario.pronosticos.filter(p => p.tipo_partido === 'IDA');
+      const pronosticosVuelta = usuario.pronosticos.filter(p => p.tipo_partido === 'VUELTA');
+
+      for (const pronVuelta of pronosticosVuelta) {
+        if (pronVuelta.pron_goles_local === null || pronVuelta.pron_goles_visita === null) continue;
+
+        const pronIda = pronosticosIda.find(p => 
+          p.nombre_local === pronVuelta.nombre_visita && 
+          p.nombre_visita === pronVuelta.nombre_local
+        );
+
+        if (pronIda && pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
+          const ganadorPronosticado = calcularGanadorCruce(
+            {
+              nombre_local: pronIda.nombre_local,
+              nombre_visita: pronIda.nombre_visita,
+              goles_local: pronIda.pron_goles_local,
+              goles_visita: pronIda.pron_goles_visita,
+              penales_local: pronIda.pron_penales_local,
+              penales_visita: pronIda.pron_penales_visita
+            },
+            {
+              nombre_local: pronVuelta.nombre_local,
+              nombre_visita: pronVuelta.nombre_visita,
+              goles_local: pronVuelta.pron_goles_local,
+              goles_visita: pronVuelta.pron_goles_visita,
+              penales_local: pronVuelta.pron_penales_local,
+              penales_visita: pronVuelta.pron_penales_visita
+            }
+          );
+
+          if (ganadorPronosticado) {
+            const clasificadoOficialCruce = clasificadosOficiales.find(c => 
+              c === pronVuelta.nombre_local || c === pronVuelta.nombre_visita
+            );
+            
+            const acerto = clasificadoOficialCruce === ganadorPronosticado;
+            const puntos = acerto ? 2 : 0;
+
+            puntosAInsertar.push({
+              usuario_id: usuario.id,
+              jornada_numero: 8,
+              equipo_clasificado: ganadorPronosticado,
+              equipo_oficial: clasificadoOficialCruce || null,
+              fase_clasificado: 'CUARTOS_OCTAVOS',
+              puntos: puntos
+            });
+          }
+        }
+      }
+    }
+
+    // 5. Guardar en BD
+    await pool.query('DELETE FROM sudamericana_puntos_clasificacion WHERE jornada_numero = 8');
+
+    for (const punto of puntosAInsertar) {
+      await pool.query(`
+        INSERT INTO sudamericana_puntos_clasificacion 
+        (usuario_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        punto.usuario_id, punto.jornada_numero, punto.equipo_clasificado,
+        punto.equipo_oficial, punto.fase_clasificado, punto.puntos
+      ]);
+    }
+
+    res.json({
+      success: true,
+      mensaje: 'Clasificados J8 calculados exitosamente',
+      clasificados_oficiales: clasificadosOficiales.length,
+      registros_insertados: puntosAInsertar.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error calculando clasificados J8:', error);
+    res.status(500).json({ error: 'Error calculando clasificados', detalles: error.message });
+  }
+});
+
 export default router;

@@ -4,6 +4,34 @@ import AccesosDirectos from "../../components/AccesosDirectos";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+// Mapeo de logos
+const LOGOS_EQUIPOS = {
+  'Audax Italiano': '/logos_torneo_nacional/audax.png',
+  'Unión La Calera': '/logos_torneo_nacional/calera.png',
+  'Cobresal': '/logos_torneo_nacional/cobresal.png',
+  'Colo-Colo': '/logos_torneo_nacional/colo-colo.png',
+  'Deportes Iquique': '/logos_torneo_nacional/iquique.png',
+  'Coquimbo Unido': '/logos_torneo_nacional/coquimbo.png',
+  'Everton': '/logos_torneo_nacional/everton.png',
+  'Huachipato': '/logos_torneo_nacional/huachipato.png',
+  'Deportes La Serena': '/logos_torneo_nacional/laserena.png',
+  'Deportes Limache': '/logos_torneo_nacional/limache.webp',
+  'Deportes Concepción': '/logos_torneo_nacional/concepcion.png',
+  'U. de Concepción': '/logos_torneo_nacional/udeconce.png',
+  "O'Higgins": '/logos_torneo_nacional/ohiggins.webp',
+  'Palestino': '/logos_torneo_nacional/palestino.png',
+  'U. Católica': '/logos_torneo_nacional/uc.png',
+  'U. de Chile': '/logos_torneo_nacional/udechile.png',
+  'Unión Española': '/logos_torneo_nacional/union-espanola.png',
+  'Ñublense': '/logos_torneo_nacional/ñublense.png'
+};
+
+const getLogoEquipo = (nombreEquipo) => {
+  // Normalizar apóstrofes: \u2019 (tipográfico) → ' (normal)
+  const nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  return LOGOS_EQUIPOS[nombreNormalizado] || null;
+};
+
 export default function AdminTorneoResultados() {
   const navigate = useNavigate();
   const [jornadas, setJornadas] = useState([]);
@@ -262,7 +290,19 @@ export default function AdminTorneoResultados() {
                 <tbody>
                   {partidos.map((p) => (
                     <tr key={p.id}>
-                      <td className="fw-bold">{p.local}</td>
+                      <td className="fw-bold">
+                        <div className="d-flex align-items-center gap-2">
+                          {getLogoEquipo(p.local) && (
+                            <img 
+                              src={getLogoEquipo(p.local)} 
+                              alt={p.local}
+                              style={{ width: '28px', height: '28px', objectFit: 'contain' }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          )}
+                          <span>{p.local}</span>
+                        </div>
+                      </td>
                       <td>
                         <div className="d-flex justify-content-center align-items-center gap-2">
                           <input
@@ -284,7 +324,19 @@ export default function AdminTorneoResultados() {
                           />
                         </div>
                       </td>
-                      <td className="fw-bold">{p.visita}</td>
+                      <td className="fw-bold">
+                        <div className="d-flex align-items-center gap-2 justify-content-end">
+                          <span>{p.visita}</span>
+                          {getLogoEquipo(p.visita) && (
+                            <img 
+                              src={getLogoEquipo(p.visita)} 
+                              alt={p.visita}
+                              style={{ width: '28px', height: '28px', objectFit: 'contain' }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          )}
+                        </div>
+                      </td>
                       <td>
                         <select
                           className="form-select form-select-sm"

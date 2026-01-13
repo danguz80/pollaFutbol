@@ -14,6 +14,8 @@ export default function Home() {
     const [mostrarAdmin, setMostrarAdmin] = useState(false);
     const [usuarioEditando, setUsuarioEditando] = useState(null);
     const [formNuevo, setFormNuevo] = useState({ nombre: '', email: '', password: '', rol: 'jugador' });
+    const [modoEdicionMasiva, setModoEdicionMasiva] = useState(false);
+    const [usuariosEditandoMasivo, setUsuariosEditandoMasivo] = useState([]);
 
     // Chequeo rápido si hay usuario logueado en localStorage
     const getUsuario = () => {
@@ -220,6 +222,90 @@ export default function Home() {
         }
     };
 
+    // Activar modo edición masiva
+    const handleActivarEdicionMasiva = () => {
+        setModoEdicionMasiva(true);
+        setUsuariosEditandoMasivo([...usuarios]); // Clonar array de usuarios
+        setUsuarioEditando(null); // Desactivar edición individual
+    };
+
+    // Cancelar modo edición masiva
+    const handleCancelarEdicionMasiva = () => {
+        if (confirm('¿Cancelar todos los cambios pendientes?')) {
+            setModoEdicionMasiva(false);
+            setUsuariosEditandoMasivo([]);
+        }
+    };
+
+    // Actualizar un campo de un usuario específico en modo masivo
+    const handleCambioMasivo = (index, campo, valor) => {
+        const nuevosUsuarios = [...usuariosEditandoMasivo];
+        nuevosUsuarios[index] = {
+            ...nuevosUsuarios[index],
+            [campo]: valor
+        };
+        setUsuariosEditandoMasivo(nuevosUsuarios);
+    };
+
+    // Guardar todos los usuarios editados
+    const handleGuardarTodosMasivo = async () => {
+        if (!confirm(`¿Guardar cambios de ${usuariosEditandoMasivo.length} usuarios?`)) return;
+
+        const token = localStorage.getItem('token');
+        let exitosos = 0;
+        let fallidos = 0;
+
+        for (let i = 0; i < usuariosEditandoMasivo.length; i++) {
+            const u = usuariosEditandoMasivo[i];
+            
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/admin/actualizar-usuario/${u.id}`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        nombre: u.nombre,
+                        email: u.email,
+                        rol: u.rol,
+                        activo: u.activo,
+                        foto_perfil: u.foto_perfil || null,
+                        activo_torneo_nacional: u.activo_torneo_nacional,
+                        activo_libertadores: u.activo_libertadores,
+                        activo_sudamericana: u.activo_sudamericana,
+                        activo_copa_mundo: u.activo_copa_mundo
+                    })
+                });
+                
+                if (res.ok) {
+                    exitosos++;
+                } else {
+                    fallidos++;
+                    console.error(`Error al actualizar usuario ${u.nombre}`);
+                }
+            } catch (error) {
+                fallidos++;
+                console.error(`Error al actualizar usuario ${u.nombre}:`, error);
+            }
+        }
+
+        alert(`✅ Guardados: ${exitosos}\n❌ Errores: ${fallidos}`);
+        
+        // Actualizar localStorage si el usuario logueado fue editado
+        const usuarioActual = getUsuario();
+        if (usuarioActual) {
+            const usuarioEditado = usuariosEditandoMasivo.find(u => u.id === usuarioActual.id);
+            if (usuarioEditado) {
+                localStorage.setItem('usuario', JSON.stringify(usuarioEditado));
+            }
+        }
+
+        setModoEdicionMasiva(false);
+        setUsuariosEditandoMasivo([]);
+        cargarUsuarios();
+    };
+
     // Componente de Top 3
     const Top3Component = ({ title, ranking, emoji }) => {
         const top3 = ranking.slice(0, 3);
@@ -337,6 +423,34 @@ export default function Home() {
                                             <br/>
                                             <strong>Competiciones:</strong> 🏆 Nacional | 🔴 Libertadores | 🟢 Sudamericana | 🌍 Copa del Mundo
                                         </div>
+
+                                        {/* Botones de modo edición masiva */}
+                                        <div className="mb-3 d-flex gap-2 justify-content-end">
+                                            {!modoEdicionMasiva ? (
+                                                <button 
+                                                    className="btn btn-warning"
+                                                    onClick={handleActivarEdicionMasiva}
+                                                    disabled={usuarios.length === 0}
+                                                >
+                                                    📝 Modo Edición General
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <button 
+                                                        className="btn btn-success"
+                                                        onClick={handleGuardarTodosMasivo}
+                                                    >
+                                                        💾 Guardar Todos ({usuariosEditandoMasivo.length})
+                                                    </button>
+                                                    <button 
+                                                        className="btn btn-secondary"
+                                                        onClick={handleCancelarEdicionMasiva}
+                                                    >
+                                                        ❌ Cancelar
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                         
                                         {/* Formulario para crear nuevo usuario */}
                                         <div className="mb-4 p-3 border rounded bg-light">
@@ -409,7 +523,111 @@ export default function Home() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {usuarios.map(u => (
+                                                    {modoEdicionMasiva ? (
+                                                        // Modo edición masiva - todos los usuarios editables
+                                                        usuariosEditandoMasivo.map((u, index) => (
+                                                            <tr key={u.id} className="table-info">
+                                                                <td>{u.id}</td>
+                                                                <td>
+                                                                    <div>
+                                                                        {u.foto_perfil && (
+                                                                            <img
+                                                                                src={u.foto_perfil.startsWith('/') ? u.foto_perfil : `/perfil/${u.foto_perfil}`}
+                                                                                alt="Perfil"
+                                                                                style={{
+                                                                                    width: 40,
+                                                                                    height: 40,
+                                                                                    borderRadius: '50%',
+                                                                                    objectFit: 'cover',
+                                                                                    border: '2px solid #ddd',
+                                                                                    objectPosition: 'center 30%',
+                                                                                    marginBottom: 5
+                                                                                }}
+                                                                            />
+                                                                        )}
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-control form-control-sm"
+                                                                            placeholder="nombre_foto.jpg"
+                                                                            value={u.foto_perfil || ''}
+                                                                            onChange={(e) => handleCambioMasivo(index, 'foto_perfil', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="text"
+                                                                        className="form-control form-control-sm"
+                                                                        value={u.nombre}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'nombre', e.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="email"
+                                                                        className="form-control form-control-sm"
+                                                                        value={u.email}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'email', e.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <select
+                                                                        className="form-select form-select-sm"
+                                                                        value={u.rol}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'rol', e.target.value)}
+                                                                    >
+                                                                        <option value="jugador">Jugador</option>
+                                                                        <option value="admin">Admin</option>
+                                                                    </select>
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={u.activo}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'activo', e.target.checked)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={u.activo_torneo_nacional || false}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'activo_torneo_nacional', e.target.checked)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={u.activo_libertadores || false}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'activo_libertadores', e.target.checked)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={u.activo_sudamericana || false}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'activo_sudamericana', e.target.checked)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={u.activo_copa_mundo || false}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'activo_copa_mundo', e.target.checked)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <span className="text-muted small">Edición masiva</span>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    ) : (
+                                                        // Modo normal - edición individual
+                                                        usuarios.map(u => (
                                                         usuarioEditando?.id === u.id ? (
                                                             // Modo edición
                                                             <tr key={u.id} className="table-warning">
@@ -581,20 +799,22 @@ export default function Home() {
                                                                     <button 
                                                                         className="btn btn-sm btn-warning me-1"
                                                                         onClick={() => setUsuarioEditando({...u})}
+                                                                        disabled={modoEdicionMasiva}
                                                                     >
                                                                         ✏️
                                                                     </button>
                                                                     <button 
                                                                         className="btn btn-sm btn-danger"
                                                                         onClick={() => handleEliminarUsuario(u.id, u.nombre)}
-                                                                        disabled={u.id === usuario.id}
+                                                                        disabled={u.id === usuario.id || modoEdicionMasiva}
                                                                     >
                                                                         🗑️
                                                                     </button>
                                                                 </td>
                                                             </tr>
                                                         )
-                                                    ))}
+                                                    ))
+                                                    )}
                                                 </tbody>
                                             </table>
                                         </div>

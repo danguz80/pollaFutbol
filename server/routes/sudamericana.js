@@ -155,44 +155,44 @@ router.get('/jornadas/:numero', async (req, res) => {
         ev.grupo as grupo_visita,
         el.pais as pais_local,
         ev.pais as pais_visita,
-        CASE 
-          WHEN $2 >= 7 AND $2 <= 10 THEN 
-            CASE 
-              WHEN $2 = 7 THEN 'IDA'
-              WHEN $2 = 8 THEN 'VUELTA'
-              WHEN $2 = 9 THEN 
-                CASE 
-                  -- Para J9: IDA si este partido se jugó antes que su partido de vuelta (equipos invertidos)
-                  WHEN EXISTS (
-                    SELECT 1 FROM sudamericana_partidos p2
-                    WHERE p2.jornada_id = p.jornada_id
-                    AND p2.nombre_local = p.nombre_visita
-                    AND p2.nombre_visita = p.nombre_local
-                    AND p2.id > p.id
-                  ) THEN 'IDA'
-                  ELSE 'VUELTA'
-                END
-              WHEN $2 = 10 THEN 
-                CASE 
-                  -- Para J10: Similar pero distinguiendo FINAL
-                  WHEN NOT EXISTS (
-                    SELECT 1 FROM sudamericana_partidos p2
-                    WHERE p2.jornada_id = p.jornada_id
-                    AND p2.nombre_local = p.nombre_visita
-                    AND p2.nombre_visita = p.nombre_local
-                  ) THEN 'FINAL'
-                  WHEN EXISTS (
-                    SELECT 1 FROM sudamericana_partidos p2
-                    WHERE p2.jornada_id = p.jornada_id
-                    AND p2.nombre_local = p.nombre_visita
-                    AND p2.nombre_visita = p.nombre_local
-                    AND p2.id > p.id
-                  ) THEN 'IDA'
-                  ELSE 'VUELTA'
-                END
-            END
-          ELSE el.grupo
-        END as tipo_partido
+        COALESCE(
+          p.tipo_partido,
+          CASE 
+            WHEN $2 >= 7 AND $2 <= 10 THEN 
+              CASE 
+                WHEN $2 = 7 OR $2 = 8 OR $2 = 9 THEN 
+                  CASE 
+                    WHEN EXISTS (
+                      SELECT 1 FROM sudamericana_partidos p2
+                      WHERE p2.jornada_id = p.jornada_id
+                      AND p2.nombre_local = p.nombre_visita
+                      AND p2.nombre_visita = p.nombre_local
+                      AND p2.id > p.id
+                    ) THEN 'IDA'
+                    ELSE 'VUELTA'
+                  END
+                WHEN $2 = 10 THEN 
+                  CASE 
+                    WHEN NOT EXISTS (
+                      SELECT 1 FROM sudamericana_partidos p2
+                      WHERE p2.jornada_id = p.jornada_id
+                      AND p2.nombre_local = p.nombre_visita
+                      AND p2.nombre_visita = p.nombre_local
+                    ) THEN 'FINAL'
+                    WHEN EXISTS (
+                      SELECT 1 FROM sudamericana_partidos p2
+                      WHERE p2.jornada_id = p.jornada_id
+                      AND p2.nombre_local = p.nombre_visita
+                      AND p2.nombre_visita = p.nombre_local
+                      AND p2.id > p.id
+                    ) THEN 'IDA'
+                    ELSE 'VUELTA'
+                  END
+                ELSE NULL
+              END
+            ELSE el.grupo
+          END
+        ) as tipo_partido
       FROM sudamericana_partidos p
       LEFT JOIN sudamericana_equipos el ON el.nombre = p.nombre_local
       LEFT JOIN sudamericana_equipos ev ON ev.nombre = p.nombre_visita
@@ -375,14 +375,15 @@ router.post('/jornadas/:numero/partidos', verifyToken, authorizeRoles('admin'), 
       for (const partido of partidos) {
         await pool.query(`
           INSERT INTO sudamericana_partidos 
-          (jornada_id, nombre_local, nombre_visita, fecha, bonus)
-          VALUES ($1, $2, $3, $4, $5)
+          (jornada_id, nombre_local, nombre_visita, fecha, bonus, tipo_partido)
+          VALUES ($1, $2, $3, $4, $5, $6)
         `, [
           jornadaId,
           partido.equipo_local,
           partido.equipo_visitante,
           partido.fecha_hora || new Date(),
-          partido.bonus || 1
+          partido.bonus || 1,
+          partido.tipo_partido || null
         ]);
       }
 
@@ -454,11 +455,14 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
     const { partidos } = req.body;
     const jornadaNumero = parseInt(req.params.numero);
 
-    // VALIDACIÓN ESPECIAL PARA JORNADAS 8, 9, 10 (VUELTA en eliminatorias)
-    if (jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) {
+    // VALIDACIÓN ESPECIAL PARA JORNADAS 7, 8, 9, 10 (VUELTA en eliminatorias)
+    if (jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) {
       // Determinar jornadas IDA y VUELTA según el número
       let jornadaIdaNum, jornadaVueltaNum;
-      if (jornadaNumero === 8) {
+      if (jornadaNumero === 7) {
+        jornadaIdaNum = 7; // J7 tiene IDA y VUELTA en la misma jornada (Play-Offs)
+        jornadaVueltaNum = 7;
+      } else if (jornadaNumero === 8) {
         jornadaIdaNum = 7;
         jornadaVueltaNum = 8;
       } else if (jornadaNumero === 9) {
@@ -483,7 +487,18 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
           SELECT 
             p.id, p.nombre_local, p.nombre_visita, p.goles_local, p.goles_visita,
             CASE 
-              WHEN $2 = 7 THEN 'IDA'
+              WHEN $2 = 7 THEN 
+                CASE 
+                  -- Para J7 (Play-Offs): Detectar IDA/VUELTA
+                  WHEN EXISTS (
+                    SELECT 1 FROM sudamericana_partidos p2
+                    WHERE p2.jornada_id = p.jornada_id
+                    AND p2.nombre_local = p.nombre_visita
+                    AND p2.nombre_visita = p.nombre_local
+                    AND p2.id > p.id
+                  ) THEN 'IDA'
+                  ELSE 'VUELTA'
+                END
               WHEN $2 = 8 THEN 'VUELTA'
               WHEN $2 = 9 THEN 
                 CASE 
@@ -560,12 +575,14 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
     for (const partido of partidos) {
       await pool.query(`
         UPDATE sudamericana_partidos
-        SET goles_local = $1, goles_visita = $2, bonus = $3
-        WHERE id = $4
+        SET goles_local = $1, goles_visita = $2, bonus = $3, penales_local = $4, penales_visita = $5
+        WHERE id = $6
       `, [
         partido.goles_local, 
         partido.goles_visita, 
-        partido.bonus || 1, 
+        partido.bonus || 1,
+        partido.penales_local,
+        partido.penales_visita,
         partido.id
       ]);
     }

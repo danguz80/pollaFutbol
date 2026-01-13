@@ -225,40 +225,37 @@ export default function AdminSudamericana() {
         return;
       }
 
-      // Generar partidos IDA (Jornada 7)
-      const partidosIda = cruces.map(cruce => ({
-        equipo_local: cruce.local,
-        equipo_visitante: cruce.visita,
-        fecha_hora: new Date().toISOString(),
-        bonus: 1
-      }));
-
-      // Generar partidos VUELTA (Jornada 8)
-      const partidosVuelta = cruces.map(cruce => ({
-        equipo_local: cruce.visita,
-        equipo_visitante: cruce.local,
-        fecha_hora: new Date().toISOString(),
-        bonus: 1
-      }));
+      // Generar TODOS los partidos en la Jornada 7 (IDA + VUELTA)
+      const todosPartidos = [];
+      
+      cruces.forEach(cruce => {
+        // Partido IDA
+        todosPartidos.push({
+          equipo_local: cruce.local,
+          equipo_visitante: cruce.visita,
+          fecha_hora: new Date().toISOString(),
+          bonus: 1
+        });
+        // Partido VUELTA
+        todosPartidos.push({
+          equipo_local: cruce.visita,
+          equipo_visitante: cruce.local,
+          fecha_hora: new Date().toISOString(),
+          bonus: 1
+        });
+      });
 
       const token = localStorage.getItem('token');
 
-      // Crear partidos de jornada 7
+      // Crear TODOS los partidos en jornada 7 (16 partidos: 8 IDA + 8 VUELTA)
       await axios.post(
         `${API_URL}/api/sudamericana/jornadas/7/partidos`,
-        { partidos: partidosIda },
+        { partidos: todosPartidos },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Crear partidos de jornada 8
-      await axios.post(
-        `${API_URL}/api/sudamericana/jornadas/8/partidos`,
-        { partidos: partidosVuelta },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      showMessage('success', `✅ Octavos generados: 8 partidos en Jornada 7 (IDA) y 8 en Jornada 8 (VUELTA)`);
-      alert(`✅ Octavos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 7 (IDA): 8 partidos\n- Jornada 8 (VUELTA): 8 partidos\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
+      showMessage('success', `✅ Play-Offs generados: 16 partidos en Jornada 7 (8 IDA + 8 VUELTA)`);
+      alert(`✅ Play-Offs generados exitosamente\n\n📊 Resumen:\n- Jornada 7: 16 partidos (8 IDA + 8 VUELTA)\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
       setTextOctavos('');
     } catch (error) {
       console.error('Error generando octavos:', error);
@@ -268,10 +265,10 @@ export default function AdminSudamericana() {
     }
   };
 
-  // ==================== CUARTOS IDA/VUELTA ====================
+  // ==================== OCTAVOS IDA/VUELTA (JORNADA 8) ====================
   const generarCuartos = async () => {
     if (!textCuartos.trim()) {
-      showMessage('danger', 'Por favor ingresa los cruces de cuartos');
+      showMessage('danger', 'Por favor ingresa los cruces de octavos');
       return;
     }
 
@@ -283,12 +280,12 @@ export default function AdminSudamericana() {
         return { local, visita };
       });
 
-      if (cruces.length !== 4) {
-        showMessage('danger', 'Debes ingresar exactamente 4 cruces (uno por línea)');
+      if (cruces.length !== 8) {
+        showMessage('danger', 'Debes ingresar exactamente 8 cruces (uno por línea)');
         return;
       }
 
-      // Generar partidos IDA y VUELTA en la misma jornada 9
+      // Generar partidos IDA y VUELTA en la misma jornada 8
       const partidos = [];
       cruces.forEach(cruce => {
         // IDA
@@ -296,30 +293,32 @@ export default function AdminSudamericana() {
           equipo_local: cruce.local,
           equipo_visitante: cruce.visita,
           fecha_hora: new Date().toISOString(),
-          bonus: 1
+          bonus: 1,
+          tipo_partido: 'IDA'
         });
         // VUELTA
         partidos.push({
           equipo_local: cruce.visita,
           equipo_visitante: cruce.local,
           fecha_hora: new Date().toISOString(),
-          bonus: 1
+          bonus: 1,
+          tipo_partido: 'VUELTA'
         });
       });
 
       const token = localStorage.getItem('token');
 
       await axios.post(
-        `${API_URL}/api/sudamericana/jornadas/9/partidos`,
+        `${API_URL}/api/sudamericana/jornadas/8/partidos`,
         { partidos },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      showMessage('success', `✅ Cuartos generados: 8 partidos en Jornada 9 (4 IDA + 4 VUELTA)`);
-      alert(`✅ Cuartos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 9: 8 partidos (4 IDA + 4 VUELTA)\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
+      showMessage('success', `✅ Octavos generados: 16 partidos en Jornada 8 (8 IDA + 8 VUELTA)`);
+      alert(`✅ Octavos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 8: 16 partidos (8 IDA + 8 VUELTA)\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas`);
       setTextCuartos('');
     } catch (error) {
-      console.error('Error generando cuartos:', error);
+      console.error('Error generando octavos:', error);
       showMessage('danger', `Error: ${error.response?.data?.error || error.message}`);
     } finally {
       setLoading(false);
@@ -471,9 +470,9 @@ export default function AdminSudamericana() {
         </div>
         <div className="card-body">
           <p className="text-muted">
-            Ingresa los cruces de Play-Offs (uno por línea). Formato: <code>Equipo Local vs Equipo Visitante</code>
+            Ingresa los 8 cruces de Play-Offs (uno por línea). Formato: <code>Equipo Local vs Equipo Visitante</code>
             <br />
-            Se generarán automáticamente los partidos IDA y VUELTA en la jornada 7.
+            Se generarán automáticamente 16 partidos (8 IDA + 8 VUELTA) todos en la jornada 7.
           </p>
           <div className="mb-3">
             <label className="form-label">Cruces de Play-Offs:</label>
@@ -593,7 +592,7 @@ export default function AdminSudamericana() {
         <h6>ℹ️ Información Importante - Copa Sudamericana:</h6>
         <ul className="mb-0">
           <li><strong>Fase de Grupos (J1-J6):</strong> Copia el texto del PDF. Formato: "Jornada X" seguido de "Equipo1 vs Equipo2" (uno por línea)</li>
-          <li><strong>Play-Offs (J7):</strong> Cruces generan partidos IDA y VUELTA en jornada 7</li>
+          <li><strong>Play-Offs (J7):</strong> 8 cruces generan 16 partidos (8 IDA + 8 VUELTA) en jornada 7</li>
           <li><strong>Octavos de Final (J8):</strong> Cruces generan partidos IDA y VUELTA en jornada 8</li>
           <li><strong>Cuartos de Final (J9):</strong> Cruces generan partidos IDA y VUELTA en jornada 9</li>
           <li><strong>Semifinales + Final (J10):</strong> 2 cruces generan SF IDA + SF VUELTA + 1 FINAL</li>

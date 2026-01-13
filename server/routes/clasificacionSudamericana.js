@@ -180,4 +180,49 @@ router.get('/jugadores', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/sudamericana-clasificacion/puntos-clasificacion - Obtener puntos de clasificación
+router.get('/puntos-clasificacion', verifyToken, async (req, res) => {
+  try {
+    const { jornada_numero, usuario_id } = req.query;
+
+    let query = `
+      SELECT 
+        pc.id,
+        pc.usuario_id,
+        u.nombre as usuario_nombre,
+        pc.jornada_numero,
+        pc.equipo_clasificado,
+        pc.equipo_oficial,
+        pc.fase_clasificado,
+        pc.puntos
+      FROM sudamericana_puntos_clasificacion pc
+      INNER JOIN usuarios u ON pc.usuario_id = u.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (jornada_numero && !isNaN(jornada_numero)) {
+      query += ` AND pc.jornada_numero = $${paramIndex}`;
+      params.push(parseInt(jornada_numero));
+      paramIndex++;
+    }
+
+    if (usuario_id && !isNaN(usuario_id)) {
+      query += ` AND pc.usuario_id = $${paramIndex}`;
+      params.push(parseInt(usuario_id));
+      paramIndex++;
+    }
+
+    query += ` ORDER BY pc.usuario_id, pc.fase_clasificado`;
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo puntos clasificación:', error);
+    res.status(500).json({ error: 'Error al obtener puntos de clasificación' });
+  }
+});
+
 export default router;
