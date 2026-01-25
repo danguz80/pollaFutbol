@@ -185,6 +185,44 @@ export default function AdminTorneoResultados() {
     setPartidos(partidosAzar);
   };
 
+  const generarPDFTestigo = async () => {
+    if (!jornadaSeleccionada) return;
+    
+    if (!confirm(`¿Generar PDF testigo con los pronósticos de la Jornada ${jornadaSeleccionada}?\n\nEl PDF se enviará automáticamente por email.`)) {
+      return;
+    }
+
+    try {
+      setModalMessage("⏳ Generando PDF testigo...");
+      setModalType("success");
+      setShowModal(true);
+
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/pronosticos/generar-pdf/${jornadaSeleccionada}`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error al generar PDF');
+      }
+
+      const data = await res.json();
+      
+      setModalType("success");
+      setModalMessage(`✅ PDF testigo generado exitosamente\n\n📧 ${data.mensaje}\n\n📄 El PDF contiene todos los pronósticos de los participantes para la Jornada ${jornadaSeleccionada}`);
+      setShowModal(true);
+    } catch (error) {
+      console.error("Error al generar PDF testigo:", error);
+      setModalType("error");
+      setModalMessage(`❌ Error al generar PDF testigo\n\n${error.message}`);
+      setShowModal(true);
+    }
+  };
+
   const toggleCierreJornada = async () => {
     if (!jornadaSeleccionada) return;
     try {
@@ -357,6 +395,9 @@ export default function AdminTorneoResultados() {
               <div className="d-flex gap-2 justify-content-center flex-wrap">
                 <button className="btn btn-outline-info btn-lg" onClick={generarAzar}>
                   🎲 Azar
+                </button>
+                <button className="btn btn-warning btn-lg" onClick={generarPDFTestigo}>
+                  📄 PDF Testigo
                 </button>
                 <button className="btn btn-primary btn-lg" onClick={guardarResultados}>
                   💾 Guardar Resultados

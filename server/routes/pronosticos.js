@@ -847,50 +847,53 @@ router.post('/generar-pdf/:jornada', verifyToken, authorizeRoles('admin'), async
           .header {
             text-align: center;
             color: #0066cc;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             border-bottom: 3px solid #0066cc;
-            padding-bottom: 20px;
+            padding-bottom: 10px;
           }
           .header h1 {
             margin: 0;
-            font-size: 28px;
+            font-size: 34px;
           }
           .header p {
             margin: 5px 0;
             color: #666;
-            font-size: 16px;
+            font-size: 19px;
           }
           .usuario-section {
             background: white;
-            padding: 15px;
-            margin-bottom: 20px;
+            padding: 10px;
+            margin-bottom: 12px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             page-break-inside: avoid;
           }
           .usuario-nombre {
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
             color: #0066cc;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 8px;
+            padding-bottom: 6px;
           }
           table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 15px;
           }
           th {
             background-color: #0066cc;
             color: white;
-            padding: 10px;
+            padding: 8px;
             text-align: left;
+            font-size: 18px;
             font-weight: bold;
           }
           td {
-            padding: 8px;
+            padding: 6px;
             border-bottom: 1px solid #e0e0e0;
+            font-size: 17px;
+            font-weight: bold;
           }
           tr:hover {
             background-color: #f9f9f9;
@@ -898,6 +901,7 @@ router.post('/generar-pdf/:jornada', verifyToken, authorizeRoles('admin'), async
           .pronostico {
             font-weight: bold;
             color: #0066cc;
+            font-size: 22px;
           }
           .partido-cell {
             display: flex;
@@ -910,8 +914,8 @@ router.post('/generar-pdf/:jornada', verifyToken, authorizeRoles('admin'), async
             gap: 6px;
           }
           .logo-equipo {
-            width: 24px;
-            height: 24px;
+            width: 30px;
+            height: 30px;
             object-fit: contain;
             vertical-align: middle;
           }
@@ -924,7 +928,7 @@ router.post('/generar-pdf/:jornada', verifyToken, authorizeRoles('admin'), async
             text-align: center;
             margin-top: 40px;
             color: #999;
-            font-size: 12px;
+            font-size: 15px;
             border-top: 1px solid #e0e0e0;
             padding-top: 20px;
           }

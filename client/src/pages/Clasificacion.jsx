@@ -830,7 +830,7 @@ export default function Clasificacion() {
                           <div className="card-body text-center p-2">
                             {p.foto_perfil ? (
                               <img 
-                                src={p.foto_perfil} 
+                                src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
                                 alt={p.nombre}
                                 className="rounded-circle mb-2"
                                 style={{ width: '60px', height: '60px', objectFit: 'cover' }}
