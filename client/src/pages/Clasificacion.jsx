@@ -20,6 +20,7 @@ export default function Clasificacion() {
   const [showFireworks, setShowFireworks] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [participantes, setParticipantes] = useState([]); // Usuarios que han subido pronósticos
+  const [noParticipantes, setNoParticipantes] = useState([]); // Usuarios que NO han subido pronósticos
   const [calculandoGanadores, setCalculandoGanadores] = useState(false);
   const [ganadores, setGanadores] = useState(null);
   const [mostrarGanadores, setMostrarGanadores] = useState(false);
@@ -122,29 +123,62 @@ export default function Clasificacion() {
         .then(res => res.json())
         .then(setDetallePuntos);
       setParticipantes([]); // Limpiar participantes
+      setNoParticipantes([]); // Limpiar no participantes
     } else {
-      // Si no es admin y la jornada está abierta, cargar solo participantes
-      fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`)
-        .then(res => res.json())
-        .then(data => {
-          // Extraer usuarios únicos que tienen pronósticos
-          const usuariosUnicos = [];
-          const idsVistos = new Set();
+      // Si no es admin y la jornada está abierta, cargar participantes y no participantes
+      Promise.all([
+        fetch(`${API_BASE_URL}/api/pronosticos/jornada/${jornadaActual}`).then(res => res.json()),
+        fetch(`${API_BASE_URL}/api/usuarios`).then(res => res.json())
+      ])
+        .then(([pronosticos, todosUsuarios]) => {
+          console.log('📊 Pronósticos:', pronosticos.length);
+          console.log('👥 Todos usuarios:', todosUsuarios.length);
           
-          data.forEach(p => {
-            if (!idsVistos.has(p.usuario_id)) {
-              idsVistos.add(p.usuario_id);
-              usuariosUnicos.push({
-                id: p.usuario_id,
-                nombre: p.usuario || 'Usuario',
-                foto_perfil: p.usuario_foto_perfil || null
-              });
+          // Extraer usuarios únicos que SÍ tienen pronósticos (excluyendo admins)
+          const usuariosConPronosticos = [];
+          const idsConPronosticos = new Set();
+          
+          pronosticos.forEach(p => {
+            if (!idsConPronosticos.has(p.usuario_id)) {
+              idsConPronosticos.add(p.usuario_id);
+              // Buscar el usuario en todosUsuarios para verificar su rol
+              const usuario = todosUsuarios.find(u => u.id === p.usuario_id);
+              if (usuario && usuario.rol !== 'admin') {
+                usuariosConPronosticos.push({
+                  id: p.usuario_id,
+                  nombre: p.usuario || 'Usuario',
+                  foto_perfil: p.usuario_foto_perfil || null
+                });
+              }
             }
           });
           
-          setParticipantes(usuariosUnicos);
+          console.log('✅ Con pronósticos:', usuariosConPronosticos.length, idsConPronosticos);
+          setParticipantes(usuariosConPronosticos);
+          
+          // Filtrar usuarios activos en torneo nacional que NO tienen pronósticos (excluyendo admins)
+          const usuariosSinPronosticos = todosUsuarios
+            .filter(u => {
+              const esActivoTorneo = u.activo_torneo_nacional === true;
+              const noTienePronosticos = !idsConPronosticos.has(u.id);
+              const noEsAdmin = u.rol !== 'admin';
+              console.log(`Usuario ${u.nombre} (${u.id}): activo_torneo=${esActivoTorneo}, sin pronósticos=${noTienePronosticos}, no admin=${noEsAdmin}`);
+              return esActivoTorneo && noTienePronosticos && noEsAdmin;
+            })
+            .map(u => ({
+              id: u.id,
+              nombre: u.nombre || 'Usuario',
+              foto_perfil: u.foto_perfil || null
+            }));
+          
+          console.log('⏳ Sin pronósticos:', usuariosSinPronosticos.length, usuariosSinPronosticos);
+          setNoParticipantes(usuariosSinPronosticos);
         })
-        .catch(() => setParticipantes([]));
+        .catch((error) => {
+          console.error('❌ Error cargando usuarios:', error);
+          setParticipantes([]);
+          setNoParticipantes([]);
+        });
       setDetallePuntos([]);
     }
   }, [jornadaActual, isAdmin, jornadaCerrada]);
@@ -818,7 +852,7 @@ export default function Clasificacion() {
             </div>
             
             {participantes.length > 0 && (
-              <div className="card">
+              <div className="card mb-3">
                 <div className="card-header bg-primary text-white">
                   <h5 className="mb-0">✅ Participantes que ya subieron sus pronósticos ({participantes.length})</h5>
                 </div>
@@ -844,6 +878,42 @@ export default function Clasificacion() {
                               </div>
                             )}
                             <p className="mb-0 small fw-bold">{p.nombre || 'Usuario'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {noParticipantes.length > 0 && (
+              <div className="card">
+                <div className="card-header bg-warning text-dark">
+                  <h5 className="mb-0">⏳ Participantes que AÚN NO han ingresado pronósticos ({noParticipantes.length})</h5>
+                </div>
+                <div className="card-body">
+                  <div className="row g-3">
+                    {noParticipantes.map(p => (
+                      <div key={p.id} className="col-6 col-md-4 col-lg-3">
+                        <div className="card h-100 shadow-sm border-warning">
+                          <div className="card-body text-center p-2">
+                            {p.foto_perfil ? (
+                              <img 
+                                src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
+                                alt={p.nombre}
+                                className="rounded-circle mb-2 opacity-50"
+                                style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div 
+                                className="rounded-circle bg-warning d-flex align-items-center justify-content-center mb-2 mx-auto opacity-50"
+                                style={{ width: '60px', height: '60px' }}
+                              >
+                                <span className="text-dark fs-4">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                              </div>
+                            )}
+                            <p className="mb-0 small fw-bold text-muted">{p.nombre || 'Usuario'}</p>
                           </div>
                         </div>
                       </div>

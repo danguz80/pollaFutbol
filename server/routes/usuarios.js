@@ -84,7 +84,12 @@ router.get("/pendientes", verifyToken, authorizeRoles("admin"), async (req, res)
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, nombre, foto_perfil, rol FROM usuarios WHERE activo = true ORDER BY nombre ASC"
+      `SELECT id, nombre, foto_perfil, rol, 
+              activo_torneo_nacional, activo_libertadores, 
+              activo_sudamericana, activo_copa_mundo
+       FROM usuarios 
+       WHERE activo = true 
+       ORDER BY nombre ASC`
     );
     res.json(result.rows);
   } catch (error) {
