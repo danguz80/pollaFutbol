@@ -314,6 +314,95 @@ export default function Jornada() {
     setPronosticos(nuevosPronosticos);
   };
 
+  const generarAzarTodasJornadas = async () => {
+    if (!confirm('¿Completar con pronósticos aleatorios TODAS las jornadas vacías (1-30)?\n\n✅ Solo se rellenarán las jornadas que NO tengan pronósticos.')) {
+      return;
+    }
+
+    try {
+      setMensaje("⏳ Generando pronósticos aleatorios...");
+      const token = localStorage.getItem("token");
+      let jornadasCompletadas = 0;
+      let jornadasOmitidas = 0;
+      
+      // Iterar sobre todas las jornadas (1 a 30)
+      for (let numeroJornada = 1; numeroJornada <= 30; numeroJornada++) {
+        // Obtener el ID de la jornada
+        const jornadaObj = jornadas.find(j => j.numero === numeroJornada);
+        if (!jornadaObj) {
+          console.warn(`⚠️ No se encontró jornada ${numeroJornada}`);
+          continue;
+        }
+
+        // Verificar si ya tiene pronósticos
+        const responsePronosticosExistentes = await fetch(`${API_BASE_URL}/api/pronosticos/${numeroJornada}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const pronosticosExistentes = await responsePronosticosExistentes.json();
+        
+        if (pronosticosExistentes && pronosticosExistentes.length > 0) {
+          console.log(`⏭️ Jornada ${numeroJornada} ya tiene pronósticos, omitiendo...`);
+          jornadasOmitidas++;
+          continue;
+        }
+
+        // Cargar partidos de esta jornada
+        const responsePartidos = await fetch(`${API_BASE_URL}/api/jornadas/${numeroJornada}/partidos`);
+        const partidosJornada = await responsePartidos.json();
+        
+        if (!partidosJornada || partidosJornada.length === 0) {
+          console.warn(`⚠️ No hay partidos en jornada ${numeroJornada}`);
+          continue;
+        }
+
+        // Generar y guardar pronósticos individualmente para cada partido
+        for (const partido of partidosJornada) {
+          const response = await fetch(`${API_BASE_URL}/api/pronosticos`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              partido_id: partido.id,
+              jornada_id: jornadaObj.id,
+              goles_local: Math.floor(Math.random() * 5),
+              goles_visita: Math.floor(Math.random() * 5)
+            }),
+          });
+
+          if (!response.ok) {
+            console.error(`❌ Error al guardar partido ${partido.id} de jornada ${numeroJornada}`);
+          }
+        }
+
+        jornadasCompletadas++;
+        console.log(`✅ Jornada ${numeroJornada} completada`);
+      }
+
+      setMensaje(`✅ Completadas ${jornadasCompletadas} jornadas con pronósticos aleatorios${jornadasOmitidas > 0 ? ` (${jornadasOmitidas} omitidas por tener pronósticos previos)` : ''}`);
+      
+      // Recargar pronósticos de la jornada actual
+      if (jornadaSeleccionada) {
+        const responsePronosticos = await fetch(`${API_BASE_URL}/api/pronosticos/${jornadaSeleccionada}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const pronosticosDb = await responsePronosticos.json();
+        const map = {};
+        pronosticosDb.forEach(pr => {
+          map[pr.partido_id] = {
+            goles_local: pr.goles_local,
+            goles_visita: pr.goles_visita,
+          };
+        });
+        setPronosticos(map);
+      }
+    } catch (error) {
+      console.error('Error al generar azar todas las jornadas:', error);
+      setMensaje("❌ Error al generar pronósticos aleatorios");
+    }
+  };
+
   const resetearTodos = () => {
     const nuevosPronosticos = {};
     partidos.forEach(partido => {
@@ -650,8 +739,11 @@ export default function Jornada() {
 
           {partidos.length > 0 && !cerrada && (
             <div className="text-center d-flex gap-3 justify-content-center flex-wrap mt-4">
+              <button className="btn btn-outline-warning btn-lg px-4" onClick={generarAzarTodasJornadas}>
+                🎲✨ Azar 30 Jornadas
+              </button>
               <button className="btn btn-outline-info btn-lg px-4" onClick={generarAleatorioTodos}>
-                🎲 Azar
+                🎲 Azar Jornada {jornadaSeleccionada}
               </button>
               <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
                 🔄 Resetear
