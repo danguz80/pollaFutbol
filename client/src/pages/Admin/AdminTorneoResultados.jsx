@@ -223,6 +223,44 @@ export default function AdminTorneoResultados() {
     }
   };
 
+  const generarPDFCompleto = async () => {
+    if (!jornadaSeleccionada) return;
+    
+    if (!confirm(`¿Generar PDF completo con resultados de la Jornada ${jornadaSeleccionada}?\n\nIncluirá: pronósticos, resultados reales, puntos, rankings y ganadores.\n\nEl PDF se enviará automáticamente por email.`)) {
+      return;
+    }
+
+    try {
+      setModalMessage("⏳ Generando PDF completo...");
+      setModalType("success");
+      setShowModal(true);
+
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/ganadores/jornada/${jornadaSeleccionada}/pdf-final`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error al generar PDF');
+      }
+
+      const data = await res.json();
+      
+      setModalType("success");
+      setModalMessage(`✅ PDF completo generado exitosamente\n\n📧 ${data.mensaje}\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario`);
+      setShowModal(true);
+    } catch (error) {
+      console.error("Error al generar PDF completo:", error);
+      setModalType("error");
+      setModalMessage(`❌ Error al generar PDF completo\n\n${error.message}`);
+      setShowModal(true);
+    }
+  };
+
   const toggleCierreJornada = async () => {
     if (!jornadaSeleccionada) return;
     try {
@@ -398,6 +436,9 @@ export default function AdminTorneoResultados() {
                 </button>
                 <button className="btn btn-warning btn-lg" onClick={generarPDFTestigo}>
                   📄 PDF Testigo
+                </button>
+                <button className="btn btn-info btn-lg" onClick={generarPDFCompleto}>
+                  📊 PDF Final
                 </button>
                 <button className="btn btn-primary btn-lg" onClick={guardarResultados}>
                   💾 Guardar Resultados
