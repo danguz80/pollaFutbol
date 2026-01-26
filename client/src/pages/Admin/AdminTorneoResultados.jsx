@@ -114,9 +114,29 @@ export default function AdminTorneoResultados() {
       setJornadaCerrada(!!data.cerrada);
       setJornadaId(data.id);
       
-      // NO intentar mostrar la fecha guardada para evitar problemas de timezone
-      // El usuario sabrá qué configuró
-      setFechaCierre("");
+      if (data.fecha_cierre) {
+        // Convertir la fecha UTC de BD a hora de Chile GMT-3 para mostrar
+        const fechaUTC = new Date(data.fecha_cierre);
+        
+        // Formatear en zona horaria de Chile usando Intl
+        const formatter = new Intl.DateTimeFormat('sv-SE', {
+          timeZone: 'America/Santiago',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        
+        const parts = formatter.formatToParts(fechaUTC);
+        const getValue = (type) => parts.find(p => p.type === type)?.value || '';
+        
+        const fechaChile = `${getValue('year')}-${getValue('month')}-${getValue('day')}T${getValue('hour')}:${getValue('minute')}`;
+        setFechaCierre(fechaChile);
+      } else {
+        setFechaCierre("");
+      }
     } catch (err) {
       setJornadaCerrada(false);
       setJornadaId(null);
@@ -301,6 +321,9 @@ export default function AdminTorneoResultados() {
 
     try {
       const token = localStorage.getItem("token");
+      
+      // El input datetime-local da "2026-01-30T19:00"
+      // Lo interpretamos como hora de Chile (GMT-3) y lo enviamos con ese timezone
       const fechaConTimezone = fechaCierre + ':00-03:00';
       
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaId}/fecha-cierre`, {
@@ -313,14 +336,14 @@ export default function AdminTorneoResultados() {
       });
       
       if (res.ok) {
+        // Recargar para mostrar la fecha guardada
+        await fetchJornadaInfo(jornadaSeleccionada);
+        
         const [fecha, hora] = fechaCierre.split('T');
         const [year, month, day] = fecha.split('-');
         
-        // Limpiar el campo después de guardar
-        setFechaCierre("");
-        
         setModalType("success");
-        setModalMessage(`✅ Fecha configurada: ${day}/${month}/${year} a las ${hora} hrs\n\nLa jornada ${jornadaSeleccionada} se cerrará automáticamente a esa hora (Chile GMT-3).\n\nPuedes configurar una nueva fecha cuando quieras.`);
+        setModalMessage(`✅ Fecha configurada: ${day}/${month}/${year} a las ${hora} hrs (Chile GMT-3)\n\nLa jornada ${jornadaSeleccionada} se cerrará automáticamente a esa hora.\n\nEl sistema revisa cada minuto.`);
         setShowModal(true);
       } else {
         alert(`❌ Error al guardar`);
