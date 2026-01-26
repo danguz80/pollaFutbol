@@ -113,13 +113,15 @@ export default function AdminTorneoResultados() {
       const data = await res.json();
       setJornadaCerrada(!!data.cerrada);
       setJornadaId(data.id);
-      // Cargar fecha de cierre si existe
+      
       if (data.fecha_cierre) {
         console.log('Fecha de BD:', data.fecha_cierre);
         
-        // La fecha viene con timezone, usamos toLocaleString con timezone de Chile
+        // Usar Date con toLocaleString forzando zona horaria Chile
         const fecha = new Date(data.fecha_cierre);
-        const opciones = {
+        
+        // Obtener componentes en hora de Chile
+        const partes = fecha.toLocaleString('en-US', {
           timeZone: 'America/Santiago',
           year: 'numeric',
           month: '2-digit',
@@ -127,17 +129,21 @@ export default function AdminTorneoResultados() {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false
-        };
+        }).match(/(\d+)\/(\d+)\/(\d+),\s*(\d+):(\d+)/);
         
-        const partes = new Intl.DateTimeFormat('sv-SE', opciones).format(fecha);
-        const fechaChile = partes.replace(' ', 'T');
-        
-        console.log('Fecha mostrada (Chile):', fechaChile);
-        setFechaCierre(fechaChile);
+        if (partes) {
+          const [, month, day, year, hour, minute] = partes;
+          const fechaChile = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+          console.log('Fecha mostrada:', fechaChile);
+          setFechaCierre(fechaChile);
+        } else {
+          setFechaCierre("");
+        }
       } else {
         setFechaCierre("");
       }
     } catch (err) {
+      console.error('Error cargando jornada:', err);
       setJornadaCerrada(false);
       setJornadaId(null);
       setFechaCierre("");
@@ -322,13 +328,8 @@ export default function AdminTorneoResultados() {
     try {
       const token = localStorage.getItem("token");
       
-      // Guardar directamente la hora de Chile sin conversión
-      // El formato es "2026-01-30T19:00"
-      // Lo enviamos como ISO agregando segundos y el timezone de Chile
-      const fechaISO = fechaCierre + ':00-03:00';
-      
-      console.log('Fecha seleccionada (Chile):', fechaCierre);
-      console.log('Fecha a guardar (con timezone Chile):', fechaISO);
+      // Enviar exactamente como está, con timezone Chile
+      const fechaConTimezone = fechaCierre + ':00-03:00';
       
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaId}/fecha-cierre`, {
         method: "PATCH",
@@ -336,26 +337,21 @@ export default function AdminTorneoResultados() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ fecha_cierre: fechaISO })
+        body: JSON.stringify({ fecha_cierre: fechaConTimezone })
       });
       
-      const data = await res.json();
-      
       if (res.ok) {
-        // Recargar información de la jornada para confirmar
-        await fetchJornadaInfo(jornadaSeleccionada);
-        
+        // NO recargar, simplemente confiar en lo que ingresó el usuario
         const [fecha, hora] = fechaCierre.split('T');
         const [year, month, day] = fecha.split('-');
         
         setModalType("success");
-        setModalMessage(`✅ Fecha de cierre configurada correctamente\n\nLa jornada ${jornadaSeleccionada} se cerrará automáticamente el:\n\n${day}/${month}/${year} a las ${hora} hrs (Hora de Chile)\n\nEl sistema revisa cada minuto y cerrará la jornada automáticamente.`);
+        setModalMessage(`✅ Fecha de cierre configurada: ${day}/${month}/${year} a las ${hora} hrs (Chile GMT-3)`);
         setShowModal(true);
       } else {
-        alert(`❌ Error: ${data.error || 'Error desconocido'}`);
+        alert(`❌ Error al configurar`);
       }
     } catch (error) {
-      console.error("Error configurando fecha de cierre:", error);
       alert("❌ Error al configurar fecha de cierre");
     }
   };
@@ -466,7 +462,7 @@ export default function AdminTorneoResultados() {
               
               <div className="row align-items-end">
                 <div className="col-md-6">
-                  <label className="form-label fw-bold">Fecha y Hora de Cierre (Hora de Chile)</label>
+                  <label className="form-label fw-bold">Fecha y Hora de Cierre (Hora de Chile GMT-3)</label>
                   <input
                     type="datetime-local"
                     className="form-control form-control-lg"
@@ -475,7 +471,9 @@ export default function AdminTorneoResultados() {
                   />
                   {fechaCierre && (
                     <div className="alert alert-success mt-2 mb-0">
-                      <strong>✅ Configurado:</strong> Se cerrará el {fechaCierre.split('T')[0].split('-').reverse().join('/')} a las {fechaCierre.split('T')[1]} hrs (Chile)
+                      <strong>✅ Configurado:</strong> Se cerrará el {fechaCierre.split('T')[0].split('-').reverse().join('/')} a las {fechaCierre.split('T')[1]} hrs (Chile GMT-3)
+                      <br/>
+                      <small className="text-muted">La jornada se cerrará automáticamente a esta hora, sin importar dónde estés ubicado.</small>
                     </div>
                   )}
                 </div>
