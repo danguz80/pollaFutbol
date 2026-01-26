@@ -44,9 +44,26 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
     return null;
   }
 
+  // Formatear fecha y hora real de cierre en zona horaria de Chile
+  const fechaCierreReal = new Date(fechaCierre).toLocaleString('es-CL', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Santiago'
+  });
+
   return (
     <div className="alert alert-info text-center" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
-      Tiempo restante antes de cerrar {numeroJornada || 'la jornada'}: {tiempo.dias}d {tiempo.horas}h {tiempo.minutos}m {tiempo.segundos}s
+      <div>Tiempo restante antes de cerrar {numeroJornada || 'la jornada'} de Torneo Nacional:</div>
+      <div className="mt-2" style={{ fontSize: '1.2em', color: '#0d6efd' }}>
+        {tiempo.dias}d {tiempo.horas}h {tiempo.minutos}m {tiempo.segundos}s
+      </div>
+      <div className="mt-2" style={{ fontSize: '0.9em', fontWeight: 'normal' }}>
+        📅 {fechaCierreReal}
+      </div>
     </div>
   );
 }

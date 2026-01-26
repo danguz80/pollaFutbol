@@ -98,8 +98,9 @@ router.patch("/:id/fecha-cierre", verifyToken, authorizeRoles('admin'), async (r
   const { id } = req.params;
   const { fecha_cierre } = req.body;
   
-  if (!fecha_cierre) {
-    return res.status(400).json({ error: "Se requiere fecha_cierre" });
+  // Permitir null para eliminar la fecha de cierre
+  if (fecha_cierre === undefined) {
+    return res.status(400).json({ error: "Se requiere el campo fecha_cierre (puede ser null)" });
   }
   
   try {
