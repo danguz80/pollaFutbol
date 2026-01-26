@@ -200,6 +200,34 @@ app.use(express.json());
   }
 })();
 
+// Migración automática: agregar columnas copa_chile y copa_liga a predicciones_finales
+(async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE predicciones_finales
+      ADD COLUMN IF NOT EXISTS copa_chile VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS copa_liga VARCHAR(100)
+    `);
+    console.log('✅ Columnas copa_chile y copa_liga agregadas a predicciones_finales');
+  } catch (error) {
+    console.error('❌ Error agregando columnas copa_chile y copa_liga:', error.message);
+  }
+})();
+
+// Migración automática: agregar columnas copa_chile y copa_liga a prediccion_final_admin
+(async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE prediccion_final_admin
+      ADD COLUMN IF NOT EXISTS copa_chile VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS copa_liga VARCHAR(100)
+    `);
+    console.log('✅ Columnas copa_chile y copa_liga agregadas a prediccion_final_admin');
+  } catch (error) {
+    console.error('❌ Error agregando columnas copa_chile y copa_liga a admin:', error.message);
+  }
+})();
+
 // Actualizar nombres de jornadas existentes
 (async () => {
   try {

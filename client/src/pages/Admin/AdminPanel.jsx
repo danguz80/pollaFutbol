@@ -37,13 +37,13 @@ export default function AdminPanel() {
     campeon: "",
     subcampeon: "",
     tercero: "",
-    chile_4_lib: "",
     cuarto: "",
     quinto: "",
     sexto: "",
-    septimo: "",
     quinceto: "",
     dieciseisavo: "",
+    copa_chile: "",
+    copa_liga: "",
     goleador: ""
   });
   const [prediccionesUsuarios, setPrediccionesUsuarios] = useState([]);
@@ -366,9 +366,21 @@ export default function AdminPanel() {
   };
 
   const getEquiposParaCampo = (campo) => {
-    const equiposSeleccionados = Object.entries(prediccionesReales)
-      .filter(([key, value]) => key !== campo && key !== 'goleador' && value !== "")
-      .map(([key, value]) => value);
+    // Los campeones de copas pueden repetirse con posiciones de tabla
+    const camposPosiciones = ['campeon', 'subcampeon', 'tercero', 'cuarto', 'quinto', 'sexto', 'quinceto', 'dieciseisavo'];
+    const camposCopas = ['copa_chile', 'copa_liga'];
+    
+    let equiposSeleccionados = [];
+    
+    if (camposPosiciones.includes(campo)) {
+      // Si es una posición de tabla, excluir solo otras posiciones (no las copas)
+      equiposSeleccionados = Object.entries(prediccionesReales)
+        .filter(([key, value]) => key !== campo && camposPosiciones.includes(key) && value !== "")
+        .map(([key, value]) => value);
+    } else if (camposCopas.includes(campo)) {
+      // Si es una copa, NO excluir nada (pueden repetirse con posiciones y entre ellas)
+      equiposSeleccionados = [];
+    }
     
     return equipos.filter(equipo => !equiposSeleccionados.includes(equipo));
   };
@@ -424,13 +436,13 @@ export default function AdminPanel() {
         campeon: "",
         subcampeon: "",
         tercero: "",
-        chile_4_lib: "",
         cuarto: "",
         quinto: "",
         sexto: "",
-        septimo: "",
         quinceto: "",
         dieciseisavo: "",
+        copa_chile: "",
+        copa_liga: "",
         goleador: ""
       });
       setMessage("✅ Datos limpiados exitosamente");
@@ -817,25 +829,6 @@ export default function AdminPanel() {
                   </div>
 
                   <div className="col-md-6 col-lg-4 mb-3">
-                    <label htmlFor="chile_4_lib" className="form-label">
-                      <strong>Chile 4 (Libertadores) (5 pts)</strong>
-                    </label>
-                    <select
-                      id="chile_4_lib"
-                      className="form-select"
-                      value={prediccionesReales.chile_4_lib}
-                      onChange={(e) => handleChangeCuadroFinal("chile_4_lib", e.target.value)}
-                    >
-                      <option value="">Selecciona equipo</option>
-                      {getEquiposParaCampo("chile_4_lib").map((equipo) => (
-                        <option key={equipo} value={equipo}>
-                          {equipo}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="col-md-6 col-lg-4 mb-3">
                     <label htmlFor="cuarto" className="form-label">
                       <strong>4º Lugar (5 pts)</strong>
                     </label>
@@ -893,25 +886,6 @@ export default function AdminPanel() {
                   </div>
 
                   <div className="col-md-6 col-lg-4 mb-3">
-                    <label htmlFor="septimo" className="form-label">
-                      <strong>7º Lugar (5 pts)</strong>
-                    </label>
-                    <select
-                      id="septimo"
-                      className="form-select"
-                      value={prediccionesReales.septimo}
-                      onChange={(e) => handleChangeCuadroFinal("septimo", e.target.value)}
-                    >
-                      <option value="">Selecciona equipo</option>
-                      {getEquiposParaCampo("septimo").map((equipo) => (
-                        <option key={equipo} value={equipo}>
-                          {equipo}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="col-md-6 col-lg-4 mb-3">
                     <label htmlFor="quinceto" className="form-label">
                       <strong>15º Lugar (5 pts)</strong>
                     </label>
@@ -942,6 +916,44 @@ export default function AdminPanel() {
                     >
                       <option value="">Selecciona equipo</option>
                       {getEquiposParaCampo("dieciseisavo").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="copa_chile" className="form-label">
+                      <strong>🏆 Campeón Copa Chile (5 pts)</strong>
+                    </label>
+                    <select
+                      id="copa_chile"
+                      className="form-select"
+                      value={prediccionesReales.copa_chile}
+                      onChange={(e) => handleChangeCuadroFinal("copa_chile", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("copa_chile").map((equipo) => (
+                        <option key={equipo} value={equipo}>
+                          {equipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 col-lg-4 mb-3">
+                    <label htmlFor="copa_liga" className="form-label">
+                      <strong>🏆 Campeón Copa de la Liga (5 pts)</strong>
+                    </label>
+                    <select
+                      id="copa_liga"
+                      className="form-select"
+                      value={prediccionesReales.copa_liga}
+                      onChange={(e) => handleChangeCuadroFinal("copa_liga", e.target.value)}
+                    >
+                      <option value="">Selecciona equipo</option>
+                      {getEquiposParaCampo("copa_liga").map((equipo) => (
                         <option key={equipo} value={equipo}>
                           {equipo}
                         </option>

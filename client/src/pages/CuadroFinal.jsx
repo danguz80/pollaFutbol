@@ -9,19 +9,17 @@ export default function CuadroFinal() {
   const user = useAuth();
   
   const [predicciones, setPredicciones] = useState({
-    campeon: "",
-    subcampeon: "",
-    tercero: "",
-    chile_4_lib: "",
-    cuarto: "",
-    quinto: "",
-    sexto: "",
-    septimo: "",
-    quinceto: "",
-    dieciseisavo: "",
-    campeon_ascenso: "",
-    ganador_liguilla: "",
-    goleador: ""
+    campeon: "",      // 1° lugar
+    subcampeon: "",  // 2° lugar
+    tercero: "",     // 3° lugar
+    cuarto: "",      // 4° lugar
+    quinto: "",      // 5° lugar
+    sexto: "",       // 6° lugar
+    quinceto: "",    // 15° lugar - Desciende
+    dieciseisavo: "", // 16° lugar - Desciende
+    copa_chile: "",  // Campeón Copa Chile
+    copa_liga: "",   // Campeón Copa de la Liga
+    goleador: ""     // Goleador del torneo
   });
 
   const [equiposDisponibles, setEquiposDisponibles] = useState([]);
@@ -140,15 +138,13 @@ export default function CuadroFinal() {
             campeon: data.campeon || "",
             subcampeon: data.subcampeon || "",
             tercero: data.tercero || "",
-            chile_4_lib: data.chile_4_lib || "",
             cuarto: data.cuarto || "",
             quinto: data.quinto || "",
             sexto: data.sexto || "",
-            septimo: data.septimo || "",
             quinceto: data.quinceto || "",
             dieciseisavo: data.dieciseisavo || "",
-            campeon_ascenso: data.campeon_ascenso || "",
-            ganador_liguilla: data.ganador_liguilla || "",
+            copa_chile: data.copa_chile || "",
+            copa_liga: data.copa_liga || "",
             goleador: data.goleador || ""
           });
         }
@@ -171,9 +167,21 @@ export default function CuadroFinal() {
   };
 
   const getEquiposParaCampo = (campo) => {
-    const equiposSeleccionados = Object.entries(predicciones)
-      .filter(([key, value]) => key !== campo && key !== 'goleador' && value !== "")
-      .map(([key, value]) => value);
+    // Los campeones de copas pueden repetirse con posiciones de tabla
+    const camposPosiciones = ['campeon', 'subcampeon', 'tercero', 'cuarto', 'quinto', 'sexto', 'quinceto', 'dieciseisavo'];
+    const camposCopas = ['copa_chile', 'copa_liga'];
+    
+    let equiposSeleccionados = [];
+    
+    if (camposPosiciones.includes(campo)) {
+      // Si es una posición de tabla, excluir solo otras posiciones (no las copas)
+      equiposSeleccionados = Object.entries(predicciones)
+        .filter(([key, value]) => key !== campo && camposPosiciones.includes(key) && value !== "")
+        .map(([key, value]) => value);
+    } else if (camposCopas.includes(campo)) {
+      // Si es una copa, NO excluir nada (pueden repetirse con posiciones y entre ellas)
+      equiposSeleccionados = [];
+    }
     
     return equipos.filter(equipo => !equiposSeleccionados.includes(equipo));
   };
@@ -236,15 +244,13 @@ export default function CuadroFinal() {
         campeon: "",
         subcampeon: "",
         tercero: "",
-        chile_4_lib: "",
         cuarto: "",
         quinto: "",
         sexto: "",
-        septimo: "",
         quinceto: "",
         dieciseisavo: "",
-        campeon_ascenso: "",
-        ganador_liguilla: "",
+        copa_chile: "",
+        copa_liga: "",
         goleador: ""
       });
       setMessage("Datos limpiados exitosamente");
@@ -273,62 +279,54 @@ export default function CuadroFinal() {
               </thead>
               <tbody>
                 <tr>
-                  <td><strong>Campeón</strong></td>
+                  <td><strong>🥇 1° Lugar (Campeón)</strong></td>
                   <td className="text-center"><span className="badge bg-success">15 pts</span></td>
                 </tr>
                 <tr>
-                  <td><strong>Sub-Campeón</strong></td>
+                  <td><strong>🥈 2° Lugar</strong></td>
                   <td className="text-center"><span className="badge bg-info">10 pts</span></td>
                 </tr>
                 <tr>
-                  <td><strong>Goleador</strong></td>
+                  <td><strong>⚽ Goleador</strong></td>
                   <td className="text-center"><span className="badge bg-warning text-dark">6 pts</span></td>
                 </tr>
                 <tr>
-                  <td>3º Lugar</td>
+                  <td>🥉 3° Lugar</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
                 <tr>
-                  <td>Chile 4 (Libertadores)</td>
+                  <td>4° Lugar</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
                 <tr>
-                  <td>4º Lugar</td>
+                  <td>5° Lugar</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
                 <tr>
-                  <td>5º Lugar</td>
+                  <td>6° Lugar</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
                 <tr>
-                  <td>6º Lugar</td>
+                  <td>🔻 15° Lugar (Desciende)</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
                 <tr>
-                  <td>7º Lugar</td>
+                  <td>🔻 16° Lugar (Desciende)</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
                 <tr>
-                  <td>15º Lugar</td>
+                  <td>🏆 Campeón Copa Chile</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
                 <tr>
-                  <td>16º Lugar</td>
-                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
-                </tr>
-                <tr>
-                  <td>Campeón Ascenso (1ª B)</td>
-                  <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
-                </tr>
-                <tr>
-                  <td>Ganador Liguilla (1ª B)</td>
+                  <td>🏆 Campeón Copa de la Liga</td>
                   <td className="text-center"><span className="badge bg-secondary">5 pts</span></td>
                 </tr>
               </tbody>
               <tfoot className="table-light">
                 <tr>
                   <td><strong>Total Máximo</strong></td>
-                  <td className="text-center"><strong>81 puntos</strong></td>
+                  <td className="text-center"><strong>66 puntos</strong></td>
                 </tr>
               </tfoot>
             </table>
@@ -372,18 +370,16 @@ export default function CuadroFinal() {
                   <div className="table-responsive">
                     <table className="table table-sm">
                       <tbody>
-                        <tr><td className="fw-bold">🥇 Campeón (Chile 1 Lib):</td><td>{pronostico.campeon}</td></tr>
-                        <tr><td className="fw-bold">🥈 2° Tabla (Chile 2 Lib):</td><td>{pronostico.subcampeon}</td></tr>
-                        <tr><td className="fw-bold">🏆 Campeón Copa Liga (Chile 3 Lib):</td><td>{pronostico.tercero}</td></tr>
-                        <tr><td className="fw-bold">⚔️ Ganador 3°Tabla vs Cpa.Chile (Chile 4 Lib):</td><td>{pronostico.chile_4_lib}</td></tr>
-                        <tr><td className="fw-bold">4️⃣ 4° Tabla (Chile 1 Sud):</td><td>{pronostico.cuarto}</td></tr>
-                        <tr><td className="fw-bold">5️⃣ 5° Tabla (Chile 2 Sud):</td><td>{pronostico.quinto}</td></tr>
-                        <tr><td className="fw-bold">6️⃣ 6° Tabla (Chile 3 Sud):</td><td>{pronostico.sexto}</td></tr>
-                        <tr><td className="fw-bold">7️⃣ Perdedor 3°Tabla vs Cpa.Chile (Chile 4 Sud):</td><td>{pronostico.septimo}</td></tr>
-                        <tr><td className="fw-bold">🔻 15° (Descenso):</td><td>{pronostico.quinceto}</td></tr>
-                        <tr><td className="fw-bold">🔻 16° (Descenso):</td><td>{pronostico.dieciseisavo}</td></tr>
-                        <tr><td className="fw-bold">🔼 Campeón Ascenso (1ª B):</td><td>{pronostico.campeon_ascenso}</td></tr>
-                        <tr><td className="fw-bold">🔼 Ganador Liguilla (1ª B):</td><td>{pronostico.ganador_liguilla}</td></tr>
+                        <tr><td className="fw-bold">🥇 1° Lugar:</td><td>{pronostico.campeon}</td></tr>
+                        <tr><td className="fw-bold">🥈 2° Lugar:</td><td>{pronostico.subcampeon}</td></tr>
+                        <tr><td className="fw-bold">🥉 3° Lugar:</td><td>{pronostico.tercero}</td></tr>
+                        <tr><td className="fw-bold">4️⃣ 4° Lugar:</td><td>{pronostico.cuarto}</td></tr>
+                        <tr><td className="fw-bold">5️⃣ 5° Lugar:</td><td>{pronostico.quinto}</td></tr>
+                        <tr><td className="fw-bold">6️⃣ 6° Lugar:</td><td>{pronostico.sexto}</td></tr>
+                        <tr><td className="fw-bold">🔻 15° (Desciende):</td><td>{pronostico.quinceto}</td></tr>
+                        <tr><td className="fw-bold">🔻 16° (Desciende):</td><td>{pronostico.dieciseisavo}</td></tr>
+                        <tr><td className="fw-bold">🏆 Campeón Copa Chile:</td><td>{pronostico.copa_chile}</td></tr>
+                        <tr><td className="fw-bold">🏆 Campeón Copa Liga:</td><td>{pronostico.copa_liga}</td></tr>
                         <tr><td className="fw-bold">⚽ Goleador:</td><td>{pronostico.goleador}</td></tr>
                       </tbody>
                     </table>
@@ -401,26 +397,23 @@ export default function CuadroFinal() {
         <table className="table table-bordered align-middle text-center">
           <thead className="table-dark">
             <tr>
-              <th colSpan="4" style={{backgroundColor: "#28a745"}}>COPA LIBERTADORES</th>
-              <th colSpan="4" style={{backgroundColor: "#17a2b8"}}>COPA SUDAMERICANA</th>
+              <th colSpan="6" style={{backgroundColor: "#0066cc"}}>TABLA DE POSICIONES</th>
               <th colSpan="2" style={{backgroundColor: "#dc3545"}}>DESCIENDEN</th>
-              <th colSpan="2" style={{backgroundColor: "#6f42c1", color: "#fff"}}>ASCIENDEN</th>
-              <th style={{backgroundColor: "#ffc107", color: "#000"}}>Goleador</th>
+              <th colSpan="2" style={{backgroundColor: "#28a745"}}>COPAS</th>
+              <th style={{backgroundColor: "#ffc107", color: "#000"}}>GOLEADOR</th>
             </tr>
             <tr>
-              <th>CAMPEÓN<br/>Chile 1</th>
-              <th>2° TABLA<br/>Chile 2</th>
-              <th>CAMPEÓN<br/>COPA LIGA<br/>Chile 3</th>
-              <th>GANADOR<br/>3°Tabla vs<br/>Cpa.Chile<br/>Chile 4</th>
-              <th>4° TABLA<br/>Chile 1</th>
-              <th>5° TABLA<br/>Chile 2</th>
-              <th>6° TABLA<br/>Chile 3</th>
-              <th>PERDEDOR<br/>3°Tabla vs<br/>Cpa.Chile<br/>Chile 4</th>
-              <th>15vo</th>
-              <th>16vo</th>
-              <th>CAMPEÓN<br/>1ª B</th>
-              <th>GANADOR<br/>LIGUILLA</th>
-              <th></th>
+              <th>1° LUGAR<br/>🥇</th>
+              <th>2° LUGAR<br/>🥈</th>
+              <th>3° LUGAR<br/>🥉</th>
+              <th>4° LUGAR</th>
+              <th>5° LUGAR</th>
+              <th>6° LUGAR</th>
+              <th>15° LUGAR<br/>🔻</th>
+              <th>16° LUGAR<br/>🔻</th>
+              <th>COPA<br/>CHILE<br/>🏆</th>
+              <th>COPA<br/>LIGA<br/>🏆</th>
+              <th>⚽</th>
             </tr>
           </thead>
           <tbody>
@@ -470,20 +463,6 @@ export default function CuadroFinal() {
               <td>
                 <select 
                   className="form-select"
-                  value={predicciones.chile_4_lib}
-                  onChange={(e) => handleChange('chile_4_lib', e.target.value)}
-                  disabled={jornadaCerrada}
-                >
-                  <option value="">Seleccionar...</option>
-                  {predicciones.chile_4_lib && <option value={predicciones.chile_4_lib}>{predicciones.chile_4_lib}</option>}
-                  {getEquiposParaCampo('chile_4_lib').map(equipo => (
-                    <option key={equipo} value={equipo}>{equipo}</option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <select 
-                  className="form-select"
                   value={predicciones.cuarto}
                   onChange={(e) => handleChange('cuarto', e.target.value)}
                   disabled={jornadaCerrada}
@@ -526,20 +505,6 @@ export default function CuadroFinal() {
               <td>
                 <select 
                   className="form-select"
-                  value={predicciones.septimo}
-                  onChange={(e) => handleChange('septimo', e.target.value)}
-                  disabled={jornadaCerrada}
-                >
-                  <option value="">Seleccionar...</option>
-                  {predicciones.septimo && <option value={predicciones.septimo}>{predicciones.septimo}</option>}
-                  {getEquiposParaCampo('septimo').map(equipo => (
-                    <option key={equipo} value={equipo}>{equipo}</option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <select 
-                  className="form-select"
                   value={predicciones.quinceto}
                   onChange={(e) => handleChange('quinceto', e.target.value)}
                   disabled={jornadaCerrada}
@@ -568,12 +533,13 @@ export default function CuadroFinal() {
               <td>
                 <select 
                   className="form-select"
-                  value={predicciones.campeon_ascenso}
-                  onChange={(e) => handleChange('campeon_ascenso', e.target.value)}
+                  value={predicciones.copa_chile}
+                  onChange={(e) => handleChange('copa_chile', e.target.value)}
                   disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
-                  {equiposPrimeraB.map(equipo => (
+                  {predicciones.copa_chile && <option value={predicciones.copa_chile}>{predicciones.copa_chile}</option>}
+                  {getEquiposParaCampo('copa_chile').map(equipo => (
                     <option key={equipo} value={equipo}>{equipo}</option>
                   ))}
                 </select>
@@ -581,12 +547,13 @@ export default function CuadroFinal() {
               <td>
                 <select 
                   className="form-select"
-                  value={predicciones.ganador_liguilla}
-                  onChange={(e) => handleChange('ganador_liguilla', e.target.value)}
+                  value={predicciones.copa_liga}
+                  onChange={(e) => handleChange('copa_liga', e.target.value)}
                   disabled={jornadaCerrada}
                 >
                   <option value="">Seleccionar...</option>
-                  {equiposPrimeraB.filter(e => e !== predicciones.campeon_ascenso).map(equipo => (
+                  {predicciones.copa_liga && <option value={predicciones.copa_liga}>{predicciones.copa_liga}</option>}
+                  {getEquiposParaCampo('copa_liga').map(equipo => (
                     <option key={equipo} value={equipo}>{equipo}</option>
                   ))}
                 </select>

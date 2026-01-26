@@ -124,6 +124,12 @@ export default function AdminTorneoNacional() {
             📊 Resultados y Jornadas
           </button>
           <button 
+            className="btn btn-warning"
+            onClick={() => navigate('/admin/torneo-nacional/cuadro-final')}
+          >
+            🏆 Cuadro Final
+          </button>
+          <button 
             className="btn btn-primary"
             onClick={() => navigate('/admin/torneo-nacional/fixture')}
           >

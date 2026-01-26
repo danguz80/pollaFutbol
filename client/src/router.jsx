@@ -30,6 +30,7 @@ import RankingsHistoricos from "./pages/RankingsHistoricos";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
 import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
 import AdminTorneoResultados from "./pages/Admin/AdminTorneoResultados";
+import AdminCuadroFinal from "./pages/Admin/AdminCuadroFinal";
 import AdminLibertadoresGestion from "./pages/Admin/AdminLibertadoresGestion";
 import AdminLibertadoresResultados from "./pages/Admin/AdminLibertadoresResultados";
 import AdminSudamericana from "./pages/AdminSudamericana";
@@ -129,6 +130,11 @@ export default function AppRouter() {
         <Route path="/admin/torneo-nacional/resultados" element={
           <RutaProtegidaAdmin>
             <AdminTorneoResultados />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/torneo-nacional/cuadro-final" element={
+          <RutaProtegidaAdmin>
+            <AdminCuadroFinal />
           </RutaProtegidaAdmin>
         } />
 

@@ -67,7 +67,7 @@ router.delete('/eliminar-datos-torneo', verifyToken, authorizeRoles('admin'), as
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
-      AND table_name IN ('pronosticos', 'ganadores_jornada', 'ganadores_acumulado', 'predicciones_final', 'partidos', 'jornadas')
+      AND table_name IN ('pronosticos', 'ganadores_jornada', 'ganadores_acumulado', 'predicciones_finales', 'prediccion_final_admin', 'partidos', 'jornadas')
     `);
     
     const tablas = new Set(tablasExistentes.rows.map(r => r.table_name));
@@ -93,23 +93,32 @@ router.delete('/eliminar-datos-torneo', verifyToken, authorizeRoles('admin'), as
       console.log(`✅ Eliminados ${ganadoresAcumuladoResult.rowCount} ganadores acumulados`);
     }
 
-    // 4. Eliminar predicciones de cuadro final
+    // 4. Eliminar predicciones de cuadro final (usuarios)
     let prediccionesResult = { rowCount: 0 };
-    if (tablas.has('predicciones_final')) {
-      prediccionesResult = await client.query('DELETE FROM predicciones_final RETURNING id');
-      console.log(`✅ Eliminadas ${prediccionesResult.rowCount} predicciones finales`);
+    if (tablas.has('predicciones_finales')) {
+      prediccionesResult = await client.query('DELETE FROM predicciones_finales RETURNING id');
+      console.log(`✅ Eliminadas ${prediccionesResult.rowCount} predicciones finales de usuarios`);
     } else {
-      console.log('⚠️ Tabla predicciones_final no existe');
+      console.log('⚠️ Tabla predicciones_finales no existe');
     }
 
-    // 5. Eliminar partidos
+    // 5. Eliminar resultados reales del cuadro final (admin)
+    let prediccionAdminResult = { rowCount: 0 };
+    if (tablas.has('prediccion_final_admin')) {
+      prediccionAdminResult = await client.query('DELETE FROM prediccion_final_admin RETURNING id');
+      console.log(`✅ Eliminados ${prediccionAdminResult.rowCount} resultados reales del cuadro final`);
+    } else {
+      console.log('⚠️ Tabla prediccion_final_admin no existe');
+    }
+
+    // 6. Eliminar partidos
     let partidosResult = { rowCount: 0 };
     if (tablas.has('partidos')) {
       partidosResult = await client.query('DELETE FROM partidos RETURNING id');
       console.log(`✅ Eliminados ${partidosResult.rowCount} partidos`);
     }
 
-    // 6. Eliminar jornadas
+    // 7. Eliminar jornadas
     let jornadasResult = { rowCount: 0 };
     if (tablas.has('jornadas')) {
       jornadasResult = await client.query('DELETE FROM jornadas RETURNING id');
@@ -124,7 +133,8 @@ router.delete('/eliminar-datos-torneo', verifyToken, authorizeRoles('admin'), as
       `- Pronósticos: ${pronosticosResult.rowCount}\n` +
       `- Ganadores de jornada: ${ganadoresResult.rowCount}\n` +
       `- Ganadores acumulados: ${ganadoresAcumuladoResult.rowCount}\n` +
-      `- Predicciones finales: ${prediccionesResult.rowCount}`;
+      `- Predicciones finales (usuarios): ${prediccionesResult.rowCount}\n` +
+      `- Resultados reales cuadro final: ${prediccionAdminResult.rowCount}`;
 
     console.log('✅ Eliminación completada exitosamente');
 
@@ -135,9 +145,10 @@ router.delete('/eliminar-datos-torneo', verifyToken, authorizeRoles('admin'), as
         jornadas: jornadasResult.rowCount,
         partidos: partidosResult.rowCount,
         pronosticos: pronosticosResult.rowCount,
-        ganadores_jornada: ganadoresResult.rowCount,
-        ganadores_acumulado: ganadoresAcumuladoResult.rowCount,
-        predicciones: prediccionesResult.rowCount
+        ganadoresJornada: ganadoresResult.rowCount,
+        ganadoresAcumulado: ganadoresAcumuladoResult.rowCount,
+        prediccionesFinales: prediccionesResult.rowCount,
+        prediccionAdminCuadroFinal: prediccionAdminResult.rowCount
       }
     });
 

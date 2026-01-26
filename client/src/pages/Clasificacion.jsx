@@ -344,10 +344,6 @@ export default function Clasificacion() {
       aciertos.tercero = 5;
       puntosTotales += 5;
     }
-    if (prediccionUsuario.chile_4_lib === prediccionesReales.chile_4_lib && prediccionesReales.chile_4_lib) {
-      aciertos.chile_4_lib = 5;
-      puntosTotales += 5;
-    }
     if (prediccionUsuario.cuarto === prediccionesReales.cuarto && prediccionesReales.cuarto) {
       aciertos.cuarto = 5;
       puntosTotales += 5;
@@ -360,16 +356,20 @@ export default function Clasificacion() {
       aciertos.sexto = 5;
       puntosTotales += 5;
     }
-    if (prediccionUsuario.septimo === prediccionesReales.septimo && prediccionesReales.septimo) {
-      aciertos.septimo = 5;
-      puntosTotales += 5;
-    }
     if (prediccionUsuario.quinceto === prediccionesReales.quinceto && prediccionesReales.quinceto) {
       aciertos.quinceto = 5;
       puntosTotales += 5;
     }
     if (prediccionUsuario.dieciseisavo === prediccionesReales.dieciseisavo && prediccionesReales.dieciseisavo) {
       aciertos.dieciseisavo = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.copa_chile === prediccionesReales.copa_chile && prediccionesReales.copa_chile) {
+      aciertos.copa_chile = 5;
+      puntosTotales += 5;
+    }
+    if (prediccionUsuario.copa_liga === prediccionesReales.copa_liga && prediccionesReales.copa_liga) {
+      aciertos.copa_liga = 5;
       puntosTotales += 5;
     }
     if (prediccionUsuario.goleador === prediccionesReales.goleador && prediccionesReales.goleador) {
@@ -964,44 +964,44 @@ export default function Clasificacion() {
                   <div className="card-body bg-light">
                     <div className="row text-center">
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>🥇 Campeón</strong><br />
+                        <strong>🥇 1° Lugar</strong><br />
                         <span className="badge bg-warning text-dark">{prediccionesReales.campeon || "-"}</span>
                       </div>
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>🥈 Sub-Campeón</strong><br />
+                        <strong>🥈 2° Lugar</strong><br />
                         <span className="badge bg-secondary">{prediccionesReales.subcampeon || "-"}</span>
                       </div>
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>🥉 3º Lugar</strong><br />
+                        <strong>🥉 3° Lugar</strong><br />
                         <span className="badge bg-info">{prediccionesReales.tercero || "-"}</span>
                       </div>
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>🇨🇱 Chile 4</strong><br />
-                        <span className="badge bg-danger">{prediccionesReales.chile_4_lib || "-"}</span>
-                      </div>
-                      <div className="col-md-2 col-6 mb-2">
-                        <strong>4º Lugar</strong><br />
+                        <strong>4° Lugar</strong><br />
                         <span className="badge bg-dark">{prediccionesReales.cuarto || "-"}</span>
                       </div>
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>5º Lugar</strong><br />
+                        <strong>5° Lugar</strong><br />
                         <span className="badge bg-dark">{prediccionesReales.quinto || "-"}</span>
                       </div>
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>6º Lugar</strong><br />
+                        <strong>6° Lugar</strong><br />
                         <span className="badge bg-dark">{prediccionesReales.sexto || "-"}</span>
                       </div>
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>7º Lugar</strong><br />
-                        <span className="badge bg-dark">{prediccionesReales.septimo || "-"}</span>
-                      </div>
-                      <div className="col-md-2 col-6 mb-2">
-                        <strong>15º Lugar</strong><br />
+                        <strong>🔻 15° Lugar</strong><br />
                         <span className="badge bg-danger">{prediccionesReales.quinceto || "-"}</span>
                       </div>
                       <div className="col-md-2 col-6 mb-2">
-                        <strong>16º Lugar</strong><br />
+                        <strong>🔻 16° Lugar</strong><br />
                         <span className="badge bg-danger">{prediccionesReales.dieciseisavo || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>🏆 Copa Chile</strong><br />
+                        <span className="badge bg-primary">{prediccionesReales.copa_chile || "-"}</span>
+                      </div>
+                      <div className="col-md-2 col-6 mb-2">
+                        <strong>🏆 Copa Liga</strong><br />
+                        <span className="badge bg-primary">{prediccionesReales.copa_liga || "-"}</span>
                       </div>
                       <div className="col-md-4 col-12 mb-2">
                         <strong>⚽ Goleador</strong><br />
@@ -1024,16 +1024,16 @@ export default function Clasificacion() {
                         <thead className="table-dark">
                           <tr className="text-center">
                             <th>Usuario</th>
-                            <th>Campeón<br /><small>(15 pts)</small></th>
-                            <th>Sub-Campeón<br /><small>(10 pts)</small></th>
-                            <th>3º Lugar<br /><small>(5 pts)</small></th>
-                            <th>Chile 4<br /><small>(5 pts)</small></th>
-                            <th>4º Lugar<br /><small>(5 pts)</small></th>
-                            <th>5º Lugar<br /><small>(5 pts)</small></th>
-                            <th>6º Lugar<br /><small>(5 pts)</small></th>
-                            <th>7º Lugar<br /><small>(5 pts)</small></th>
-                            <th>15º Lugar<br /><small>(5 pts)</small></th>
-                            <th>16º Lugar<br /><small>(5 pts)</small></th>
+                            <th>1° Lugar<br /><small>(15 pts)</small></th>
+                            <th>2° Lugar<br /><small>(10 pts)</small></th>
+                            <th>3° Lugar<br /><small>(5 pts)</small></th>
+                            <th>4° Lugar<br /><small>(5 pts)</small></th>
+                            <th>5° Lugar<br /><small>(5 pts)</small></th>
+                            <th>6° Lugar<br /><small>(5 pts)</small></th>
+                            <th>15° Lugar<br /><small>(5 pts)</small></th>
+                            <th>16° Lugar<br /><small>(5 pts)</small></th>
+                            <th>Copa Chile<br /><small>(5 pts)</small></th>
+                            <th>Copa Liga<br /><small>(5 pts)</small></th>
                             <th>Goleador<br /><small>(6 pts)</small></th>
                             <th>Total Puntos</th>
                           </tr>
@@ -1070,14 +1070,6 @@ export default function Clasificacion() {
                                     </div>
                                   )}
                                 </td>
-                                <td className={aciertos.chile_4_lib ? "bg-success text-white" : ""}>
-                                  {prediccion.chile_4_lib}
-                                  {aciertos.chile_4_lib && (
-                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
-                                      +{aciertos.chile_4_lib} pts
-                                    </div>
-                                  )}
-                                </td>
                                 <td className={aciertos.cuarto ? "bg-success text-white" : ""}>
                                   {prediccion.cuarto}
                                   {aciertos.cuarto && (
@@ -1102,14 +1094,6 @@ export default function Clasificacion() {
                                     </div>
                                   )}
                                 </td>
-                                <td className={aciertos.septimo ? "bg-success text-white" : ""}>
-                                  {prediccion.septimo}
-                                  {aciertos.septimo && (
-                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
-                                      +{aciertos.septimo} pts
-                                    </div>
-                                  )}
-                                </td>
                                 <td className={aciertos.quinceto ? "bg-success text-white" : ""}>
                                   {prediccion.quinceto}
                                   {aciertos.quinceto && (
@@ -1123,6 +1107,22 @@ export default function Clasificacion() {
                                   {aciertos.dieciseisavo && (
                                     <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
                                       +{aciertos.dieciseisavo} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.copa_chile ? "bg-success text-white" : ""}>
+                                  {prediccion.copa_chile}
+                                  {aciertos.copa_chile && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.copa_chile} pts
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={aciertos.copa_liga ? "bg-success text-white" : ""}>
+                                  {prediccion.copa_liga}
+                                  {aciertos.copa_liga && (
+                                    <div style={{ fontSize: '0.75em', marginTop: '2px' }}>
+                                      +{aciertos.copa_liga} pts
                                     </div>
                                   )}
                                 </td>

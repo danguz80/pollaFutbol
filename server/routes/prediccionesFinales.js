@@ -54,13 +54,13 @@ router.post('/', verifyToken, async (req, res) => {
       campeon,
       subcampeon,
       tercero,
-      chile_4_lib,
       cuarto,
       quinto,
       sexto,
-      septimo,
       quinceto,
       dieciseisavo,
+      copa_chile,
+      copa_liga,
       goleador
     } = req.body;
 
@@ -83,14 +83,16 @@ router.post('/', verifyToken, async (req, res) => {
       // Actualizar predicciones existentes
       const updateResult = await pool.query(`
         UPDATE predicciones_finales 
-        SET campeon = $2, subcampeon = $3, tercero = $4, chile_4_lib = $5,
-            cuarto = $6, quinto = $7, sexto = $8, septimo = $9,
-            quinceto = $10, dieciseisavo = $11, goleador = $12
+        SET campeon = $2, subcampeon = $3, tercero = $4,
+            cuarto = $5, quinto = $6, sexto = $7,
+            quinceto = $8, dieciseisavo = $9,
+            copa_chile = $10, copa_liga = $11, goleador = $12
         WHERE jugador_id = $1
         RETURNING *
       `, [
-        jugador_id, campeon, subcampeon, tercero, chile_4_lib,
-        cuarto, quinto, sexto, septimo, quinceto, dieciseisavo, goleador
+        jugador_id, campeon, subcampeon, tercero,
+        cuarto, quinto, sexto, quinceto, dieciseisavo,
+        copa_chile, copa_liga, goleador
       ]);
       
       res.json({ 
@@ -101,13 +103,15 @@ router.post('/', verifyToken, async (req, res) => {
       // Crear nuevas predicciones
       const insertResult = await pool.query(`
         INSERT INTO predicciones_finales (
-          jugador_id, campeon, subcampeon, tercero, chile_4_lib,
-          cuarto, quinto, sexto, septimo, quinceto, dieciseisavo, goleador
+          jugador_id, campeon, subcampeon, tercero,
+          cuarto, quinto, sexto, quinceto, dieciseisavo,
+          copa_chile, copa_liga, goleador
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
       `, [
-        jugador_id, campeon, subcampeon, tercero, chile_4_lib,
-        cuarto, quinto, sexto, septimo, quinceto, dieciseisavo, goleador
+        jugador_id, campeon, subcampeon, tercero,
+        cuarto, quinto, sexto, quinceto, dieciseisavo,
+        copa_chile, copa_liga, goleador
       ]);
       
       res.status(201).json({ 
@@ -155,39 +159,39 @@ router.post('/calcular-puntos', verifyToken, async (req, res) => {
     for (const prediccion of result.rows) {
       let puntos = 0;
       
-      // Calcular puntos según aciertos
+      // Calcular puntos según aciertos con nueva tabla de puntaje
       if (prediccion.campeon === prediccionesReales.campeon && prediccionesReales.campeon) {
-        puntos += 15;
+        puntos += 15; // 1° Lugar
       }
       if (prediccion.subcampeon === prediccionesReales.subcampeon && prediccionesReales.subcampeon) {
-        puntos += 10;
+        puntos += 10; // 2° Lugar
       }
       if (prediccion.tercero === prediccionesReales.tercero && prediccionesReales.tercero) {
-        puntos += 5;
-      }
-      if (prediccion.chile_4_lib === prediccionesReales.chile_4_lib && prediccionesReales.chile_4_lib) {
-        puntos += 5;
+        puntos += 5; // 3° Lugar
       }
       if (prediccion.cuarto === prediccionesReales.cuarto && prediccionesReales.cuarto) {
-        puntos += 5;
+        puntos += 5; // 4° Lugar
       }
       if (prediccion.quinto === prediccionesReales.quinto && prediccionesReales.quinto) {
-        puntos += 5;
+        puntos += 5; // 5° Lugar
       }
       if (prediccion.sexto === prediccionesReales.sexto && prediccionesReales.sexto) {
-        puntos += 5;
-      }
-      if (prediccion.septimo === prediccionesReales.septimo && prediccionesReales.septimo) {
-        puntos += 5;
+        puntos += 5; // 6° Lugar
       }
       if (prediccion.quinceto === prediccionesReales.quinceto && prediccionesReales.quinceto) {
-        puntos += 5;
+        puntos += 5; // 15° Lugar (Desciende)
       }
       if (prediccion.dieciseisavo === prediccionesReales.dieciseisavo && prediccionesReales.dieciseisavo) {
-        puntos += 5;
+        puntos += 5; // 16° Lugar (Desciende)
+      }
+      if (prediccion.copa_chile === prediccionesReales.copa_chile && prediccionesReales.copa_chile) {
+        puntos += 5; // Campeón Copa Chile
+      }
+      if (prediccion.copa_liga === prediccionesReales.copa_liga && prediccionesReales.copa_liga) {
+        puntos += 5; // Campeón Copa de la Liga
       }
       if (prediccion.goleador === prediccionesReales.goleador && prediccionesReales.goleador) {
-        puntos += 6;
+        puntos += 6; // Goleador
       }
       
       // Actualizar puntos en la tabla
