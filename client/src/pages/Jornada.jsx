@@ -526,11 +526,35 @@ export default function Jornada() {
               <div className="row g-3">
                 {partidos
                   .filter((p, index) => jornadaSeleccionada !== 10 || index < 4) // En J10 solo mostrar semifinales
-                  .map((p) => (
-                    <div key={p.id} className="col-12">
-                      <div className="card shadow-sm h-100">
-                        <div className="card-body">
-                          <div className="row align-items-center text-center">
+                  .map((p) => {
+                    const esBonus2 = p.bonus === 2;
+                    const esBonus3 = p.bonus === 3;
+                    const tieneBonus = esBonus2 || esBonus3;
+                    
+                    return (
+                      <div key={p.id} className="col-12">
+                        <div 
+                          className={`card shadow-sm h-100 ${esBonus2 ? 'border-warning border-3' : ''} ${esBonus3 ? 'border-danger border-3' : ''}`}
+                          style={esBonus2 ? { backgroundColor: '#fff9e6' } : esBonus3 ? { backgroundColor: '#ffe6e6' } : {}}
+                        >
+                          <div className="card-body">
+                            {/* Badge de Bonus */}
+                            {esBonus2 && (
+                              <div className="text-center mb-3">
+                                <span className="badge bg-warning text-dark fs-5 px-4 py-2">
+                                  ⚡ PARTIDO BONUS x2 ⚡
+                                </span>
+                              </div>
+                            )}
+                            {esBonus3 && (
+                              <div className="text-center mb-3">
+                                <span className="badge bg-danger text-white fs-5 px-4 py-2">
+                                  🔥 PARTIDO BONUS x3 🔥
+                                </span>
+                              </div>
+                            )}
+                            
+                            <div className="row align-items-center text-center">
                             <div className="col-5">
                               {getLogoEquipo(p.local) && (
                                 <img 
@@ -591,7 +615,8 @@ export default function Jornada() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
               </div>
 
               {/* Sección especial para Jornada 10 - Botón Calcular y Finalistas */}
