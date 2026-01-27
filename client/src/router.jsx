@@ -40,6 +40,7 @@ import EstadisticasNacional from "./pages/EstadisticasNacional";
 import ModalNotificacionGanador from "./components/ModalNotificacionGanador";
 import { useNotificaciones } from "./hooks/useNotificaciones";
 import TodasNotificaciones from "./pages/TodasNotificaciones";
+import SimuladorResultados from "./pages/SimuladorResultados";
 
 export default function AppRouter() {
   const { notificacionActual, mostrandoModal, cerrarNotificacion } = useNotificaciones();
@@ -140,6 +141,7 @@ export default function AppRouter() {
 
         <Route path="/campeonato" element={<Campeonato />} />
         <Route path="/estadisticas-nacional" element={<EstadisticasNacional />} />
+        <Route path="/simulador-resultados" element={<SimuladorResultados />} />
         <Route path="/libertadores" element={<Libertadores />} />
         <Route path="/libertadores/jornada/:numero" element={<JornadaLibertadores />} />
         <Route path="/libertadores/estadisticas" element={<EstadisticasLibertadores />} />

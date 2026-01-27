@@ -523,6 +523,7 @@ export default function Clasificacion() {
         <a href="#detalle-pronosticos" className="btn btn-outline-primary btn-sm">Detalle de Pronósticos</a>
         <a href="#ranking-jornada" className="btn btn-outline-primary btn-sm">Ranking Jornada</a>
         <a href="#ranking-acumulado" className="btn btn-outline-primary btn-sm">Ranking Acumulado</a>
+        <a href="/simulador-resultados" className="btn btn-outline-success btn-sm">🎮 Simulador de Resultados</a>
       </div>
 
       {/* --- SELECTOR DE JORNADA --- */}
