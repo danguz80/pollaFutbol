@@ -119,27 +119,10 @@ router.post("/calcular/:jornada", async (req, res) => {
       actualizados++;
     }
 
-    // Generar y enviar PDF con resultados completos
-    let pdfGenerado = false;
-    let pdfError = null;
-    try {
-      await generarPDFConResultados(jornada);
-      pdfGenerado = true;
-    } catch (error) {
-      console.error('❌ Error generando PDF con resultados:', error);
-      pdfError = error.message;
-      // No fallar la petición completa si el PDF falla
-    }
-
-    const mensaje = pdfGenerado 
-      ? `✅ Puntajes calculados correctamente (con bonus) y PDF enviado por email`
-      : `⚠️ Puntajes calculados correctamente pero el PDF falló: ${pdfError}`;
-
     res.json({
-      mensaje,
+      mensaje: '✅ Puntajes calculados correctamente (con bonus)',
       pronosticos: pronosticos.rowCount,
-      actualizados,
-      pdfGenerado
+      actualizados
     });
 
   } catch (error) {
@@ -250,6 +233,20 @@ router.get("/jornada/:jornada", async (req, res) => {
 router.get("/ranking/jornada/:jornada", async (req, res) => {
   const { jornada } = req.params;
   try {
+    // Primero obtener el ID de la jornada
+    const jornadaResult = await pool.query(
+      'SELECT id FROM jornadas WHERE numero = $1',
+      [jornada]
+    );
+    
+    if (jornadaResult.rows.length === 0) {
+      return res.status(404).json({ error: "Jornada no encontrada" });
+    }
+    
+    const jornadaId = jornadaResult.rows[0].id;
+    
+    console.log(`📊 Consultando ranking para jornada ${jornada} (ID: ${jornadaId})`);
+    
     const result = await pool.query(
       `SELECT 
         u.id as usuario_id,
@@ -257,15 +254,18 @@ router.get("/ranking/jornada/:jornada", async (req, res) => {
         u.foto_perfil,
         COALESCE(SUM(p.puntos), 0) as puntos_jornada
       FROM usuarios u
-      LEFT JOIN pronosticos p ON p.usuario_id = u.id
+      LEFT JOIN pronosticos p ON u.id = p.usuario_id
       LEFT JOIN partidos pa ON p.partido_id = pa.id
-      LEFT JOIN jornadas j ON pa.jornada_id = j.id AND j.numero = $1
-      WHERE u.activo_torneo_nacional = true
+      WHERE (pa.jornada_id = $1 OR pa.jornada_id IS NULL)
+        AND u.activo_torneo_nacional = true
         AND u.rol != 'admin'
       GROUP BY u.id, u.nombre, u.foto_perfil
       ORDER BY puntos_jornada DESC, usuario ASC`,
-      [jornada]
+      [jornadaId]
     );
+    
+    console.log(`✅ Ranking calculado: ${result.rows.length} usuarios, máximo ${result.rows[0]?.puntos_jornada || 0} pts`);
+    
     res.json(result.rows);
   } catch (error) {
     console.error("Error en ranking de jornada:", error);

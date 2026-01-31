@@ -1275,7 +1275,7 @@ export default function Clasificacion() {
                       {p.usuario}
                     </span>
                   </td>
-                  <td style={getJornadaCellStyle(i)}>{p.puntaje_jornada ?? 0}</td>
+                  <td style={getJornadaCellStyle(i)}>{p.puntos_jornada ?? 0}</td>
                 </tr>
               );
             })}
