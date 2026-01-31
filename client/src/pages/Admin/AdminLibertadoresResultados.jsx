@@ -163,13 +163,17 @@ export default function AdminLibertadoresResultados() {
 
   const calcularPuntajes = async () => {
     if (!jornadaSeleccionada) return;
-    if (!confirm("¿Calcular puntajes de todos los pronósticos de Libertadores?")) return;
+    if (!confirm(`¿Calcular puntajes de la jornada ${jornadaSeleccionada} de Libertadores?`)) return;
     
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/api/libertadores-calcular/puntos`, {
         method: "POST",
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ jornadaNumero: parseInt(jornadaSeleccionada) })
       });
       const data = await res.json();
       

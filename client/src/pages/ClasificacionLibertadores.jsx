@@ -1040,40 +1040,299 @@ export default function ClasificacionLibertadores() {
             </div>
           </div>
 
-          <div className="table-responsive">
-            <table className="table table-bordered table-hover">
-              <thead className="table-dark">
-                <tr>
-                  <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                  <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                  <th className="text-center" style={{ width: '80px' }}>Grupo</th>
-                  <th className="text-center">Partido</th>
-                  <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
-                  <th className="text-center" style={{ width: '100px' }}>Resultado</th>
-                  <th className="text-center" style={{ width: '60px' }}>Bonus</th>
-                  <th className="text-center" style={{ width: '80px' }}>Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agruparPronosticos().map((grupo, grupoIndex) => (
-                  <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
-                    {/* Encabezado para cada grupo de usuario */}
-                    {grupoIndex > 0 && (
-                      <tr className="table-dark">
-                        <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                        <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                        <th className="text-center" style={{ width: '80px' }}>Grupo</th>
-                        <th className="text-center">Partido</th>
-                        <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
-                        <th className="text-center" style={{ width: '100px' }}>Resultado</th>
-                        <th className="text-center" style={{ width: '60px' }}>Bonus</th>
-                        <th className="text-center" style={{ width: '80px' }}>Puntos</th>
-                      </tr>
-                    )}
-                    {grupo.pronosticos.map((pronostico, index) => (
-                      <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
-                        {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
-                        {pronostico.esClasificado ? (
+          {/* Para jornada 6: SEPARAR TABLAS DE PARTIDOS Y CLASIFICACIÓN */}
+          {parseInt(filtroJornada) === 6 ? (
+            agruparPronosticos().map((grupo, grupoIndex) => {
+              // Separar partidos de clasificados
+              const pronosticosPartidos = grupo.pronosticos.filter(p => !p.esClasificado);
+              const pronosticosClasificados = grupo.pronosticos.filter(p => p.esClasificado);
+              
+              // Calcular totales separados
+              const puntosPartidos = pronosticosPartidos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+              const puntosClasificados = pronosticosClasificados.reduce((sum, p) => sum + (p.puntos || 0), 0);
+              
+              return (
+                <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
+                  {/* TABLA 1: PARTIDOS */}
+                  <h5 className="mt-4 mb-3 text-primary">🏟️ Partidos - {grupo.jugador}</h5>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-hover">
+                      <thead className="table-dark">
+                        <tr>
+                          <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                          <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                          <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                          <th className="text-center">Partido</th>
+                          <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
+                          <th className="text-center" style={{ width: '100px' }}>Resultado</th>
+                          <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                          <th className="text-center" style={{ width: '80px' }}>Puntos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pronosticosPartidos.map((pronostico, index) => (
+                          <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
+                            <td className="fw-bold">{pronostico.usuario.nombre}</td>
+                            <td className="text-center">
+                              <span className="badge bg-primary">
+                                Jornada {pronostico.jornada.numero}
+                              </span>
+                            </td>
+                            <td className="text-center">
+                              {pronostico.partido.grupo ? (
+                                <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="d-flex flex-column align-items-center">
+                                <div className="d-flex justify-content-center align-items-center gap-2 w-100">
+                                  <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
+                                    <small className="fw-bold text-end">
+                                      {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                                    </small>
+                                    {getLogoEquipo(pronostico.partido.local.nombre) && (
+                                      <img 
+                                        src={getLogoEquipo(pronostico.partido.local.nombre)} 
+                                        alt={pronostico.partido.local.nombre}
+                                        style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                        onError={(e) => e.target.style.display = 'none'}
+                                      />
+                                    )}
+                                  </div>
+                                  <span className="text-muted">vs</span>
+                                  <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
+                                    {getLogoEquipo(pronostico.partido.visita.nombre) && (
+                                      <img 
+                                        src={getLogoEquipo(pronostico.partido.visita.nombre)} 
+                                        alt={pronostico.partido.visita.nombre}
+                                        style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                        onError={(e) => e.target.style.display = 'none'}
+                                      />
+                                    )}
+                                    <small className="fw-bold text-start">
+                                      {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                                    </small>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-center fw-bold fs-5">
+                              {pronostico.pronostico.local} - {pronostico.pronostico.visita}
+                            </td>
+                            <td className="text-center fw-bold fs-5">
+                              {pronostico.jornada.cerrada && pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
+                                <>{pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}</>
+                              ) : (
+                                <span className="text-muted">Pendiente</span>
+                              )}
+                            </td>
+                            <td className="text-center fw-bold">
+                              <span className={pronostico.partido.bonus && pronostico.partido.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
+                                x{pronostico.partido.bonus || 1}
+                              </span>
+                            </td>
+                            <td className="text-center fw-bold">
+                              {pronostico.puntos !== null ? (
+                                <span className="badge bg-warning text-dark fs-6">
+                                  {pronostico.puntos} pts
+                                </span>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {/* TOTAL PARTIDOS */}
+                        <tr className="table-dark fw-bold">
+                          <td colSpan="7" className="text-end">TOTAL PARTIDOS:</td>
+                          <td className="text-center">
+                            <span className="badge bg-dark fs-5">{puntosPartidos} pts</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* TABLA 2: CLASIFICACIÓN */}
+                  {pronosticosClasificados.length > 0 && (
+                    <>
+                      <h5 className="mt-4 mb-3 text-success">⚡ Equipos Clasificados - {grupo.jugador}</h5>
+                      <div className="table-responsive">
+                        <table className="table table-bordered table-hover">
+                          <thead className="table-success">
+                            <tr>
+                              <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                              <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                              <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                              <th className="text-center">Clasificación</th>
+                              <th className="text-center" style={{ width: '150px' }}>Equipo Pronosticado</th>
+                              <th className="text-center" style={{ width: '150px' }}>Equipo Real</th>
+                              <th className="text-center" style={{ width: '80px' }}>Puntos</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pronosticosClasificados.map((pronostico, index) => (
+                              <tr key={`clasif-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                                <td className="fw-bold">
+                                  <div className="d-flex align-items-center gap-2">
+                                    <img
+                                      src={grupo.foto_perfil || '/perfil/default.png'}
+                                      alt={grupo.jugador}
+                                      className="rounded-circle"
+                                      style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                      onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                                    />
+                                    <span>{pronostico.usuario.nombre}</span>
+                                  </div>
+                                </td>
+                                <td className="text-center">
+                                  <span className="badge bg-primary">
+                                    Jornada {pronostico.jornada.numero}
+                                  </span>
+                                </td>
+                                <td className="text-center">
+                                  <span className="badge bg-warning text-dark">Grupo {pronostico.partido.grupo}</span>
+                                </td>
+                                <td className="text-center fw-bold">
+                                  {pronostico.partido.local.nombre}
+                                </td>
+                                <td className="text-center">
+                                  {pronostico.tipoClasificado === 'playoffs' ? (
+                                    <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                      {pronostico.equipo_pronosticado}
+                                    </div>
+                                  ) : (
+                                    pronostico.equipos_pronosticados?.map((equipo, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        className={`fw-bold ${pronostico.puntos_detalle[idx] > 0 ? 'text-success' : 'text-danger'}`}
+                                        style={{ 
+                                          borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                          padding: '4px 0'
+                                        }}
+                                      >
+                                        {equipo}
+                                      </div>
+                                    ))
+                                  )}
+                                </td>
+                                <td className="text-center">
+                                  {pronostico.tipoClasificado === 'playoffs' ? (
+                                    <div className="fw-bold">
+                                      {pronostico.equipo_oficial || '-'}
+                                    </div>
+                                  ) : (
+                                    pronostico.equipos_oficiales?.map((equipo, idx) => (
+                                      <div 
+                                        key={idx}
+                                        className="fw-bold"
+                                        style={{ 
+                                          borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                          padding: '4px 0'
+                                        }}
+                                      >
+                                        {equipo}
+                                      </div>
+                                    ))
+                                  )}
+                                </td>
+                                <td className="text-center">
+                                  {pronostico.tipoClasificado === 'playoffs' ? (
+                                    pronostico.puntos > 0 ? (
+                                      <span className="badge bg-success">
+                                        +{pronostico.puntos} pts
+                                      </span>
+                                    ) : (
+                                      <span className="badge bg-secondary">0 pts</span>
+                                    )
+                                  ) : (
+                                    pronostico.puntos_detalle?.map((pts, idx) => (
+                                      <div 
+                                        key={idx}
+                                        style={{ 
+                                          borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
+                                          padding: '4px 0'
+                                        }}
+                                      >
+                                        {pts > 0 ? (
+                                          <span className="badge bg-success">
+                                            +{pts} pts
+                                          </span>
+                                        ) : (
+                                          <span className="badge bg-secondary">0 pts</span>
+                                        )}
+                                      </div>
+                                    ))
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            {/* TOTAL CLASIFICACIÓN */}
+                            <tr className="table-dark fw-bold">
+                              <td colSpan="6" className="text-end">TOTAL CLASIFICACIÓN:</td>
+                              <td className="text-center">
+                                <span className="badge bg-dark fs-5">{puntosClasificados} pts</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      {/* NOTA EXPLICATIVA */}
+                      <div className="alert alert-warning d-flex align-items-center mb-4" role="alert">
+                        <div>
+                          <strong>ℹ️ Nota:</strong> Los puntos de clasificación NO suman al ranking de esta jornada, 
+                          solo se agregan al ranking acumulado total.
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Separador entre usuarios */}
+                  {grupoIndex < agruparPronosticos().length - 1 && (
+                    <hr className="my-4" style={{ borderTop: '3px solid #007bff' }} />
+                  )}
+                </React.Fragment>
+              );
+            })
+          ) : (
+            /* Para otras jornadas: tabla única como antes */
+            <div className="table-responsive">
+              <table className="table table-bordered table-hover">
+                <thead className="table-dark">
+                  <tr>
+                    <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                    <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                    <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                    <th className="text-center">Partido</th>
+                    <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
+                    <th className="text-center" style={{ width: '100px' }}>Resultado</th>
+                    <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                    <th className="text-center" style={{ width: '80px' }}>Puntos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agruparPronosticos().map((grupo, grupoIndex) => (
+                    <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
+                      {/* Encabezado para cada grupo de usuario */}
+                      {grupoIndex > 0 && (
+                        <tr className="table-dark">
+                          <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                          <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                          <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                          <th className="text-center">Partido</th>
+                          <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
+                          <th className="text-center" style={{ width: '100px' }}>Resultado</th>
+                          <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                          <th className="text-center" style={{ width: '80px' }}>Puntos</th>
+                        </tr>
+                      )}
+                      {grupo.pronosticos.map((pronostico, index) => (
+                        <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
+                          {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
+                          {pronostico.esClasificado ? (
                           <tr className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
                             <td className="fw-bold">{pronostico.usuario.nombre}</td>
                             <td className="text-center">
@@ -1647,11 +1906,12 @@ export default function ClasificacionLibertadores() {
                         </td>
                       </tr>
                     )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 

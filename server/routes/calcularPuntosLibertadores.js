@@ -172,6 +172,12 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         puntosAsignados += puntosFinales;
       }
 
+      // CALCULAR PUNTOS DE CLASIFICACIÓN PARA JORNADA 6 (Fase de Grupos)
+      if (jornada_numero === 6) {
+        // Esta lógica se ejecutará una sola vez después del bucle principal
+        // Ver más abajo donde se procesa la clasificación de J6
+      }
+
       // CALCULAR PUNTOS POR EQUIPOS QUE AVANZAN
       // Guardar solo UNA VEZ por cruce para evitar duplicados
       // J8: Guardar todos (todos son VUELTA)

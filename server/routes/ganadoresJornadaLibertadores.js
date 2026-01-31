@@ -5,6 +5,7 @@ import { checkRole } from '../middleware/checkRole.js';
 import htmlPdf from 'html-pdf-node';
 import { getWhatsAppService } from '../services/whatsappService.js';
 import { getLogoBase64 } from '../utils/logoHelper.js';
+import { calcularTablaOficial } from '../utils/calcularClasificadosLibertadores.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -398,7 +399,12 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       const puntosPartidos = parseInt(puntosPartidosResult.rows[0].puntos_partidos || 0, 10);
       const puntosClasificacion = parseInt(puntosClasificacionResult.rows[0].puntos_clasificacion || 0, 10);
       const puntosCampeonSubcampeonNum = parseInt(puntosCampeonSubcampeon || 0, 10);
-      const puntosTotal = puntosPartidos + puntosClasificacion + puntosCampeonSubcampeonNum + puntosPartidoFinal;
+      
+      // Para jornada 6: NO incluir puntos de clasificación en el ranking de jornada
+      // Los puntos de clasificación solo suman al acumulado
+      const puntosTotal = jornadaNumero === 6 
+        ? puntosPartidos 
+        : puntosPartidos + puntosClasificacion + puntosCampeonSubcampeonNum + puntosPartidoFinal;
       
       puntosUsuarios.push({
         usuario_id: usuario.id,
@@ -604,7 +610,9 @@ router.get('/:jornadaNumero', async (req, res) => {
           u.id,
           u.nombre,
           u.foto_perfil,
-          COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada
+          ${jornadaNumero === 6 
+            ? 'COALESCE(puntos_partidos.total, 0) as puntos_jornada' 
+            : 'COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada'}
         FROM usuarios u
         LEFT JOIN (
           SELECT lp.usuario_id, SUM(lp.puntos) as total
@@ -613,13 +621,15 @@ router.get('/:jornadaNumero', async (req, res) => {
           WHERE lj.numero = $1
           GROUP BY lp.usuario_id
         ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+        ${jornadaNumero === 6 ? '' : `
         LEFT JOIN (
           SELECT usuario_id, SUM(puntos) as total
           FROM libertadores_puntos_clasificacion
           WHERE jornada_numero = $1
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
+        `}
+        WHERE puntos_partidos.total IS NOT NULL ${jornadaNumero === 6 ? '' : 'OR puntos_clasificacion.total IS NOT NULL'}
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
@@ -734,11 +744,11 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         u.nombre AS usuario,
         u.foto_perfil,
         (COALESCE(puntos_partidos.total, 0) + 
-         COALESCE(puntos_clasificacion.total, 0) +
+         ${jornadaNumero === 6 ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
          COALESCE(puntos_finales.campeon, 0) +
          COALESCE(puntos_finales.subcampeon, 0)) AS puntos_jornada,
         ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total, 0) + 
-                                      COALESCE(puntos_clasificacion.total, 0) +
+                                      ${jornadaNumero === 6 ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
                                       COALESCE(puntos_finales.campeon, 0) +
                                       COALESCE(puntos_finales.subcampeon, 0)) DESC, u.nombre ASC) AS posicion
       FROM usuarios u
@@ -749,12 +759,14 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         WHERE lj.numero = $1
         GROUP BY lp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      ${jornadaNumero === 6 ? '' : `
       LEFT JOIN (
         SELECT usuario_id, SUM(puntos) as total
         FROM libertadores_puntos_clasificacion
         WHERE jornada_numero = $1
         GROUP BY usuario_id
       ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+      `}
       LEFT JOIN (
         SELECT usuario_id, 
                CASE WHEN $1 = 10 THEN COALESCE(puntos_campeon, 0) ELSE 0 END as campeon,
@@ -763,8 +775,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       ) puntos_finales ON u.id = puntos_finales.usuario_id
       WHERE u.activo_libertadores = true
         AND u.rol != 'admin'
-        AND (puntos_partidos.total IS NOT NULL OR 
-             puntos_clasificacion.total IS NOT NULL OR 
+        AND (puntos_partidos.total IS NOT NULL ${jornadaNumero === 6 ? '' : 'OR puntos_clasificacion.total IS NOT NULL'} OR 
              puntos_finales.campeon IS NOT NULL OR 
              puntos_finales.subcampeon IS NOT NULL)
       ORDER BY puntos_jornada DESC
@@ -1263,13 +1274,48 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       `;
     }
 
-    // PREPARAR DATOS ADICIONALES PARA JORNADA 10
+    // PREPARAR DATOS ADICIONALES
     let clasificacionPorUsuario = {};
     let partidoFinalPorUsuario = {};
     let cuadroFinalPorUsuario = {};
+    let clasificadosOficialesJ6 = {}; // Para almacenar clasificados oficiales de J6
 
-    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADAS 8, 9 Y 10
-    if (jornadaNumero >= 8 && jornadaNumero <= 10) {
+    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADA 6 (Fase de Grupos - Clasificación)
+    if (jornadaNumero === 6) {
+      // Calcular clasificados oficiales de cada grupo
+      const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const jornadasNumeros = [1, 2, 3, 4, 5, 6];
+      
+      for (const grupo of grupos) {
+        const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
+        clasificadosOficialesJ6[grupo] = {
+          octavos: tabla.length >= 2 ? [tabla[0].nombre, tabla[1].nombre] : [],
+          playoffs: tabla.length >= 3 ? tabla[2].nombre : null
+        };
+      }
+      
+      // Para jornada 6, obtener los pronósticos de clasificación de fase de grupos
+      const clasificacionQuery = await pool.query(`
+        SELECT 
+          u.nombre AS usuario,
+          lpc.equipo_clasificado,
+          lpc.fase_clasificado,
+          lpc.puntos
+        FROM libertadores_puntos_clasificacion lpc
+        JOIN usuarios u ON lpc.usuario_id = u.id
+        WHERE lpc.jornada_numero = $1
+        ORDER BY u.nombre, lpc.fase_clasificado
+      `, [jornadaNumero]);
+
+      clasificacionQuery.rows.forEach(row => {
+        if (!clasificacionPorUsuario[row.usuario]) {
+          clasificacionPorUsuario[row.usuario] = [];
+        }
+        clasificacionPorUsuario[row.usuario].push(row);
+      });
+    }
+    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADAS 8, 9 Y 10 (Octavos, Cuartos, Semifinales)
+    else if (jornadaNumero >= 8 && jornadaNumero <= 10) {
       // Obtener los pronósticos de clasificación con los datos completos de los partidos
       // para poder calcular correctamente qué equipo avanzó en cada cruce
       const clasificacionQuery = await pool.query(`
@@ -1410,12 +1456,21 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       const pronosticosUsuario = userData.pronosticos;
       const fotoPerfil = userData.foto_perfil;
       
-      // Calcular puntaje TOTAL de la jornada (incluyendo todo: partidos + clasificación + final + cuadro final)
-      let puntajeJornada = pronosticosUsuario
+      // Calcular puntaje de PARTIDOS solamente
+      const puntosPartidos = pronosticosUsuario
         .filter(p => p.jornada_numero === jornadaNumero)
         .reduce((sum, p) => sum + (p.puntos || 0), 0);
       
-      // Agregar puntos de clasificación para jornadas 8, 9 y 10
+      // Calcular puntos de CLASIFICACIÓN (separados)
+      const puntosClasificacion = (jornadaNumero === 6 && clasificacionPorUsuario[usuario])
+        ? clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0)
+        : 0;
+      
+      // Para jornada 6: puntaje de jornada = SOLO partidos (clasificación se muestra aparte)
+      // Para jornadas 8, 9, 10: puntaje de jornada = partidos + clasificación
+      let puntajeJornada = puntosPartidos;
+      
+      // Agregar puntos de clasificación para jornadas 8, 9 y 10 (en estas sí suman al ranking de jornada)
       if (jornadaNumero >= 8 && jornadaNumero <= 10 && clasificacionPorUsuario[usuario]) {
         puntajeJornada += clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0);
       }
@@ -1443,7 +1498,9 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           <div class="usuario-info">
             <h2 class="usuario-nombre">👤 ${usuario}</h2>
           </div>
-          <div class="usuario-total">Jornada ${jornadaNumero}: ${puntajeJornada} pts</div>
+          <div class="usuario-total">
+            ${jornadaNumero === 6 ? `Partidos: ${puntosPartidos} pts<br/>Clasificación: ${puntosClasificacion} pts` : `Jornada ${jornadaNumero}: ${puntajeJornada} pts`}
+          </div>
         </div>
         <table>
           <thead>
@@ -1500,9 +1557,112 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
 
       `;
 
-      // AGREGAR SECCIONES ADICIONALES PARA JORNADAS 8, 9 Y 10
-      if (jornadaNumero >= 8 && jornadaNumero <= 10) {
-        // Clasificación (equipos que avanzan)
+      // AGREGAR SECCIONES ADICIONALES PARA JORNADAS 6, 8, 9 Y 10
+      // Jornada 6: Clasificación de fase de grupos
+      // Jornadas 8, 9, 10: Clasificación de octavos, cuartos, semifinales
+      if (jornadaNumero === 6) {
+        // Para J6: Mostrar clasificación agrupada por grupo (2 filas por grupo)
+        const clasificacion = clasificacionPorUsuario[usuario];
+        if (clasificacion && clasificacion.length > 0) {
+          // Agrupar por grupo
+          const grupos = {};
+          clasificacion.forEach(c => {
+            const grupo = c.fase_clasificado.split('_').pop(); // Extraer A, B, C, etc.
+            if (!grupos[grupo]) grupos[grupo] = { octavos: [], playoffs: null };
+            if (c.fase_clasificado.includes('OCTAVOS')) {
+              grupos[grupo].octavos.push(c);
+            } else if (c.fase_clasificado.includes('PLAYOFFS')) {
+              grupos[grupo].playoffs = c;
+            }
+          });
+          
+          // Calcular total de puntos de clasificación
+          const totalPuntosClasificacion = clasificacion.reduce((sum, c) => sum + (c.puntos || 0), 0);
+          
+          html += `
+            <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">⚡ Equipos Clasificados</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 10%; text-align: center;">Grupo</th>
+                  <th style="width: 30%;">Clasificación</th>
+                  <th style="width: 25%;">Equipo Pronosticado</th>
+                  <th style="width: 25%;">Equipo Real</th>
+                  <th style="width: 10%; text-align: center;">Puntos</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          
+          // Ordenar grupos alfabéticamente
+          const gruposOrdenados = Object.keys(grupos).sort();
+          
+          gruposOrdenados.forEach((grupo, index) => {
+            const data = grupos[grupo];
+            const tieneOctavos = data.octavos.length > 0;
+            const tienePlayoffs = data.playoffs !== null;
+            
+            // Obtener equipos reales clasificados
+            const oficialesGrupo = clasificadosOficialesJ6[grupo] || { octavos: [], playoffs: null };
+            const equiposRealesOctavos = oficialesGrupo.octavos.length > 0 
+              ? oficialesGrupo.octavos.join('<br>') 
+              : '?<br>?';
+            const equipoRealPlayoffs = oficialesGrupo.playoffs || '?';
+            
+            // Siempre mostrar 2 filas por grupo
+            // Primera fila: Octavos (1° y 2° lugar)
+            if (tieneOctavos) {
+              const equiposPronosticados = data.octavos.map(o => o.equipo_clasificado).join('<br>');
+              const puntosTotal = data.octavos.reduce((sum, o) => sum + (o.puntos || 0), 0);
+              const puntosClass = puntosTotal > 0 ? 'puntos-positivo' : 'puntos-cero';
+              
+              html += `
+                <tr>
+                  <td style="text-align: center; font-weight: bold; vertical-align: middle;" rowspan="2">${grupo}</td>
+                  <td><strong>Clasificados a Octavos</strong></td>
+                  <td>${equiposPronosticados}</td>
+                  <td>${equiposRealesOctavos}</td>
+                  <td style="text-align: center;" class="puntos-cell ${puntosClass}">${puntosTotal}</td>
+                </tr>
+              `;
+            }
+            
+            // Segunda fila: Playoffs Sudamericana (3° lugar)
+            if (tienePlayoffs) {
+              const puntosClass = data.playoffs.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
+              html += `
+                <tr>
+                  <td><strong>Clasificado a Playoffs Sudamericana</strong></td>
+                  <td>${data.playoffs.equipo_clasificado}</td>
+                  <td>${equipoRealPlayoffs}</td>
+                  <td style="text-align: center;" class="puntos-cell ${puntosClass}">${data.playoffs.puntos}</td>
+                </tr>
+              `;
+            } else {
+              // Si no hay playoffs, agregar fila vacía para mantener estructura
+              html += `
+                <tr>
+                  <td><strong>Clasificado a Playoffs Sudamericana</strong></td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td style="text-align: center;" class="puntos-cell">0</td>
+                </tr>
+              `;
+            }
+          });
+          
+          // Fila de total
+          html += `
+                <tr style="background-color: #f8f9fa; font-weight: bold;">
+                  <td colspan="4" style="text-align: right; padding-right: 10px;">TOTAL CLASIFICACIÓN:</td>
+                  <td style="text-align: center;" class="puntos-cell">${totalPuntosClasificacion}</td>
+                </tr>
+              </tbody>
+            </table>
+          `;
+        }
+      } else if (jornadaNumero >= 8 && jornadaNumero <= 10) {
+        // Para J8-10: Mantener formato anterior
         const clasificacion = clasificacionPorUsuario[usuario];
         if (clasificacion && clasificacion.length > 0) {
           html += `

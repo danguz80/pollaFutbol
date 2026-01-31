@@ -78,7 +78,9 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           u.id,
           u.nombre,
           u.foto_perfil,
-          COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada
+          ${jornadaNum === 6 
+            ? 'COALESCE(puntos_partidos.total, 0) as puntos_jornada' 
+            : 'COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada'}
         FROM usuarios u
         LEFT JOIN (
           SELECT lp.usuario_id, SUM(lp.puntos) as total
@@ -87,13 +89,15 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           WHERE lj.numero = $1
           GROUP BY lp.usuario_id
         ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+        ${jornadaNum === 6 ? '' : `
         LEFT JOIN (
           SELECT usuario_id, SUM(puntos) as total
           FROM libertadores_puntos_clasificacion
           WHERE jornada_numero = $1
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL
+        `}
+        WHERE puntos_partidos.total IS NOT NULL ${jornadaNum === 6 ? '' : 'OR puntos_clasificacion.total IS NOT NULL'}
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
