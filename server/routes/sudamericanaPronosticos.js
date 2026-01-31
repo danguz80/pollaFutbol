@@ -180,6 +180,95 @@ router.post('/guardar', verifyToken, async (req, res) => {
       }
     }
 
+    // Si es jornada 10, calcular y guardar finalistas virtuales
+    if (parseInt(jornada_numero) === 10) {
+      // Obtener todos los pronósticos de esta jornada para este usuario
+      const pronosticosJ10 = await client.query(`
+        SELECT 
+          sp.partido_id,
+          sp.goles_local,
+          sp.goles_visita,
+          sp.penales_local,
+          sp.penales_visita,
+          p.nombre_local,
+          p.nombre_visita,
+          p.tipo_partido
+        FROM sudamericana_pronosticos sp
+        JOIN sudamericana_partidos p ON sp.partido_id = p.id
+        JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+        WHERE sp.usuario_id = $1 AND sj.numero = 10
+        ORDER BY p.id
+      `, [usuario_id]);
+
+      const partidos = pronosticosJ10.rows;
+      const semifinalesIda = partidos.filter(p => p.tipo_partido === 'IDA');
+      const semifinalesVuelta = partidos.filter(p => p.tipo_partido === 'VUELTA');
+      const partidoFinal = partidos.find(p => p.tipo_partido === 'FINAL');
+
+      // Calcular finalistas
+      const finalistas = [];
+      
+      semifinalesVuelta.forEach(vuelta => {
+        const ida = semifinalesIda.find(i =>
+          i.nombre_local === vuelta.nombre_visita && i.nombre_visita === vuelta.nombre_local
+        );
+
+        if (ida && ida.goles_local !== null && ida.goles_visita !== null &&
+            vuelta.goles_local !== null && vuelta.goles_visita !== null) {
+          
+          const golesEquipoLocal = Number(ida.goles_local) + Number(vuelta.goles_visita);
+          const golesEquipoVisita = Number(ida.goles_visita) + Number(vuelta.goles_local);
+
+          let ganador = null;
+          if (golesEquipoLocal > golesEquipoVisita) {
+            ganador = ida.nombre_local;
+          } else if (golesEquipoVisita > golesEquipoLocal) {
+            ganador = ida.nombre_visita;
+          } else {
+            const penalesLocal = Number(vuelta.penales_local || 0);
+            const penalesVisita = Number(vuelta.penales_visita || 0);
+            if (penalesLocal > penalesVisita) {
+              ganador = vuelta.nombre_local;
+            } else if (penalesVisita > penalesLocal) {
+              ganador = vuelta.nombre_visita;
+            } else {
+              ganador = ida.nombre_local;
+            }
+          }
+
+          if (ganador) finalistas.push(ganador);
+        }
+      });
+
+      // Si tenemos los 2 finalistas y hay pronóstico de final, guardar
+      if (finalistas.length === 2 && partidoFinal) {
+        const [equipo_local, equipo_visita] = finalistas;
+        
+        // Eliminar registro anterior si existe
+        await client.query(
+          'DELETE FROM sudamericana_pronosticos_final_virtual WHERE usuario_id = $1 AND jornada_id = $2',
+          [usuario_id, jornada_id]
+        );
+
+        // Insertar nuevo registro
+        await client.query(
+          `INSERT INTO sudamericana_pronosticos_final_virtual 
+           (usuario_id, jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            usuario_id,
+            jornada_id,
+            equipo_local,
+            equipo_visita,
+            partidoFinal.goles_local,
+            partidoFinal.goles_visita,
+            partidoFinal.penales_local,
+            partidoFinal.penales_visita
+          ]
+        );
+      }
+    }
+
     await client.query('COMMIT');
 
     res.json({ mensaje: 'Pronósticos guardados exitosamente' });
@@ -252,10 +341,82 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
         partidosUnicos.push({
           nombre_local: p.nombre_local,
           nombre_visita: p.nombre_visita,
-          fecha: p.fecha
+          fecha: p.fecha,
+          tipo_partido: p.tipo_partido
         });
       }
     });
+
+    // Si es jornada 10, calcular finalistas reales
+    if (parseInt(jornadaNumero) === 10) {
+      const semifinalesIda = partidosUnicos.filter(p => p.tipo_partido === 'IDA');
+      const semifinalesVuelta = partidosUnicos.filter(p => p.tipo_partido === 'VUELTA');
+      const partidoFinal = partidosUnicos.find(p => p.tipo_partido === 'FINAL');
+      
+      if (partidoFinal && semifinalesIda.length > 0 && semifinalesVuelta.length > 0) {
+        const finalistas = [];
+        
+        semifinalesVuelta.forEach(vuelta => {
+          const ida = semifinalesIda.find(i =>
+            i.nombre_local === vuelta.nombre_visita && i.nombre_visita === vuelta.nombre_local
+          );
+          
+          if (!ida) return;
+          
+          // Buscar resultados reales en los pronósticos
+          const resultadoIda = pronosticos.find(p => 
+            p.nombre_local === ida.nombre_local && 
+            p.nombre_visita === ida.nombre_visita && 
+            p.tipo_partido === 'IDA'
+          );
+          
+          const resultadoVuelta = pronosticos.find(p =>
+            p.nombre_local === vuelta.nombre_local &&
+            p.nombre_visita === vuelta.nombre_visita &&
+            p.tipo_partido === 'VUELTA'
+          );
+          
+          if (!resultadoIda || !resultadoVuelta ||
+              resultadoIda.real_local === null || resultadoIda.real_visita === null ||
+              resultadoVuelta.real_local === null || resultadoVuelta.real_visita === null) {
+            return;
+          }
+          
+          // Calcular marcador global
+          const golesEquipoLocal = Number(resultadoIda.real_local) + Number(resultadoVuelta.real_visita);
+          const golesEquipoVisita = Number(resultadoIda.real_visita) + Number(resultadoVuelta.real_local);
+          
+          let ganador = null;
+          if (golesEquipoLocal > golesEquipoVisita) {
+            ganador = ida.nombre_local;
+          } else if (golesEquipoVisita > golesEquipoLocal) {
+            ganador = ida.nombre_visita;
+          } else {
+            // Empate, ver penales (buscar en resultadoVuelta)
+            const penalesLocal = Number(resultadoVuelta.penales_local || 0);
+            const penalesVisita = Number(resultadoVuelta.penales_visita || 0);
+            if (penalesLocal > penalesVisita) {
+              ganador = vuelta.nombre_local;
+            } else if (penalesVisita > penalesLocal) {
+              ganador = vuelta.nombre_visita;
+            } else {
+              ganador = ida.nombre_local;
+            }
+          }
+          
+          if (ganador) finalistas.push(ganador);
+        });
+        
+        // Si tenemos los 2 finalistas, actualizar el partido FINAL
+        if (finalistas.length === 2) {
+          const indexFinal = partidosUnicos.findIndex(p => p.tipo_partido === 'FINAL');
+          if (indexFinal !== -1) {
+            partidosUnicos[indexFinal].nombre_local = finalistas[0];
+            partidosUnicos[indexFinal].nombre_visita = finalistas[1];
+          }
+        }
+      }
+    }
 
     // Ordenar partidos por fecha
     partidosUnicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
@@ -394,6 +555,19 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
             align-items: center;
             gap: 8px;
           }
+          .partido-final {
+            background-color: #fff3cd !important;
+            border-left: 4px solid #ff6b6b;
+          }
+          .badge-final {
+            background-color: #ff6b6b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+          }
           .footer {
             text-align: center;
             margin-top: 40px;
@@ -442,6 +616,7 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
                 ${partidosUnicos.map(partido => {
                   const key = `${partido.nombre_local}|${partido.nombre_visita}`;
                   const p = userData.pronosticos[key];
+                  const esFinal = partido.tipo_partido === 'FINAL';
                   
                   // Obtener logos
                   const logoLocal = getLogoBase64(partido.nombre_local) || '';
@@ -449,7 +624,7 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
                   
                   if (!p) {
                     return `
-                      <tr>
+                      <tr ${esFinal ? 'class="partido-final"' : ''}>
                         <td>
                           <div class="partido-info">
                             ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${partido.nombre_local}">` : ''}
@@ -457,6 +632,7 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
                             <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
                             ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${partido.nombre_visita}">` : ''}
                             <span>${partido.nombre_visita}</span>
+                            ${esFinal ? '<span class="badge-final">🏆 FINAL</span>' : ''}
                           </div>
                         </td>
                         <td class="pronostico" style="color: #999;">Sin pronóstico</td>
@@ -466,14 +642,14 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
                   
                   const pronostico = `${p.goles_local}-${p.goles_visita}`;
                   
-                  // Agregar penales si es VUELTA y tiene penales pronosticados
+                  // Agregar penales si es VUELTA o FINAL y tiene penales pronosticados
                   let pronosticoHTML = pronostico;
-                  if (p.tipo_partido === 'VUELTA' && p.penales_local !== null && p.penales_visita !== null) {
+                  if ((p.tipo_partido === 'VUELTA' || p.tipo_partido === 'FINAL') && p.penales_local !== null && p.penales_visita !== null) {
                     pronosticoHTML += ` <span style="font-size: 11px; font-style: italic; color: #6c757d;">(${p.penales_local}-${p.penales_visita} pen.)</span>`;
                   }
                   
                   return `
-                    <tr>
+                    <tr ${esFinal ? 'class="partido-final"' : ''}>
                       <td>
                         <div class="partido-info">
                           ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">` : ''}
@@ -481,6 +657,7 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
                           <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
                           ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">` : ''}
                           <span>${p.nombre_visita}</span>
+                          ${esFinal ? '<span class="badge-final">🏆 FINAL</span>' : ''}
                         </div>
                       </td>
                       <td class="pronostico">${pronosticoHTML}</td>

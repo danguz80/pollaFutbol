@@ -48,6 +48,7 @@ export default function ClasificacionSudamericana() {
   const [puntosClasificadosJ7, setPuntosClasificadosJ7] = useState([]);
   const [puntosClasificadosJ8, setPuntosClasificadosJ8] = useState([]);
   const [puntosClasificadosJ9, setPuntosClasificadosJ9] = useState([]);
+  const [puntosClasificadosJ10, setPuntosClasificadosJ10] = useState([]);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -72,7 +73,7 @@ export default function ClasificacionSudamericana() {
         cargarGanadoresJornada(parseInt(filtroJornada));
         
         // Si es jornada 6, 7, 8 o 9, cargar clasificados
-        if (parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8 || parseInt(filtroJornada) === 9) {
+        if (parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8 || parseInt(filtroJornada) === 9 || parseInt(filtroJornada) === 10) {
           cargarClasificados();
         }
       }
@@ -292,6 +293,17 @@ export default function ClasificacionSudamericana() {
         { headers }
       );
       setPuntosClasificadosJ9(puntosRes9.data);
+      
+      // Cargar puntos de clasificación de jornada 10 (Semifinales/Cuadro Final)
+      const params10 = new URLSearchParams();
+      params10.append('jornada_numero', '10');
+      if (filtroNombre) params10.append('usuario_id', filtroNombre);
+
+      const puntosRes10 = await axios.get(
+        `${API_URL}/api/sudamericana-clasificacion/puntos-clasificacion?${params10.toString()}`,
+        { headers }
+      );
+      setPuntosClasificadosJ10(puntosRes10.data);
     } catch (error) {
       console.error('Error cargando clasificados:', error);
       setClasificadosOficiales([]);
@@ -299,6 +311,7 @@ export default function ClasificacionSudamericana() {
       setPuntosClasificadosJ7([]);
       setPuntosClasificadosJ8([]);
       setPuntosClasificadosJ9([]);
+      setPuntosClasificadosJ10([]);
     }
   };
 
@@ -546,12 +559,34 @@ export default function ClasificacionSudamericana() {
 
   const cargarGanadoresAcumulado = async () => {
     try {
-      const response = await axios.get(
-        `${API_URL}/api/sudamericana-ganadores-jornada/acumulado`
+      // REPLICAR LÓGICA DEL PDF: Obtener datos directamente del ranking acumulado, no de la tabla de ganadores
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      const rankingResponse = await axios.get(
+        `${API_URL}/api/sudamericana-puntuacion/ranking-acumulado`,
+        { headers }
       );
 
-      if (response.data.ganadores && response.data.ganadores.length > 0) {
-        setGanadoresAcumulado(response.data);
+      if (rankingResponse.data && rankingResponse.data.length > 0) {
+        // Encontrar el puntaje máximo
+        const puntajeMaximo = Math.max(...rankingResponse.data.map(u => parseInt(u.puntos_acumulados, 10)));
+        
+        // Obtener todos los ganadores con el puntaje máximo
+        const ganadores = rankingResponse.data
+          .filter(u => parseInt(u.puntos_acumulados, 10) === puntajeMaximo)
+          .map(u => ({
+            nombre: u.nombre,
+            puntaje: parseInt(u.puntos_acumulados, 10),
+            foto_perfil: u.foto_perfil
+          }));
+        
+        setGanadoresAcumulado({
+          ganadores: ganadores,
+          mensaje: ganadores.length > 1 
+            ? `¡Empate! ${ganadores.length} campeones comparten el primer lugar del ranking acumulado`
+            : `¡${ganadores[0].nombre} es el campeón del ranking acumulado de la Sudamericana!`
+        });
       } else {
         setGanadoresAcumulado(null);
       }
@@ -846,6 +881,9 @@ export default function ClasificacionSudamericana() {
         });
       }
       
+      // Para J10: NO sobrescribir partido.local/visita.nombre - mantener valores reales de BD
+      // Los valores pronosticados están en final_virtual_local/visita
+      
       // Ordenar pronósticos dentro de cada grupo
       Object.values(grupos).forEach(grupo => {
         grupo.pronosticos.sort((a, b) => {
@@ -870,6 +908,17 @@ export default function ClasificacionSudamericana() {
         
         // CALCULAR Y GUARDAR EL PUNTAJE TOTAL DEL GRUPO (incluyendo clasificados)
         grupo.puntaje_total = grupo.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+        
+        // Agregar clasificación para jornadas específicas
+        if (parseInt(filtroJornada) === 10) {
+          grupo.clasificacion = puntosClasificadosJ10.filter(p => p.usuario_id === grupo.usuario_id);
+        } else if (parseInt(filtroJornada) === 9) {
+          grupo.clasificacion = puntosClasificadosJ9.filter(p => p.usuario_id === grupo.usuario_id);
+        } else if (parseInt(filtroJornada) === 8) {
+          grupo.clasificacion = puntosClasificadosJ8.filter(p => p.usuario_id === grupo.usuario_id);
+        } else if (parseInt(filtroJornada) === 7) {
+          grupo.clasificacion = puntosClasificadosJ7.filter(p => p.usuario_id === grupo.usuario_id);
+        }
       });
       
       return Object.values(grupos);
@@ -923,7 +972,7 @@ export default function ClasificacionSudamericana() {
                   />
                 )}
                 <p className="mb-0 fw-bold">{ganador.nombre}</p>
-                <span className="badge bg-warning text-dark">{ganador.puntaje} puntos</span>
+                <span className="badge bg-warning text-dark">{parseInt(ganador.puntaje) || 0} puntos</span>
               </div>
             ))}
           </div>
@@ -949,7 +998,7 @@ export default function ClasificacionSudamericana() {
                   />
                 )}
                 <p className="mb-0 fw-bold">{ganador.nombre}</p>
-                <span className="badge bg-warning text-dark">{ganador.puntaje} puntos</span>
+                <span className="badge bg-warning text-dark">{parseInt(ganador.puntaje) || 0} puntos</span>
               </div>
             ))}
           </div>
@@ -1001,7 +1050,7 @@ export default function ClasificacionSudamericana() {
           )}
           
           <p className="text-muted mt-2 mb-0">
-            <small>Calcula puntos por partidos{parseInt(filtroJornada) === 7 ? ' y equipos clasificados desde Play-Offs' : parseInt(filtroJornada) === 8 ? ' y equipos clasificados desde Octavos' : parseInt(filtroJornada) === 9 ? ' y equipos clasificados desde Cuartos' : ''}</small>
+            <small>Calcula puntos por partidos{parseInt(filtroJornada) === 7 ? ' y equipos clasificados desde Play-Offs' : parseInt(filtroJornada) === 8 ? ' y equipos clasificados desde Octavos' : parseInt(filtroJornada) === 9 ? ' y equipos clasificados desde Cuartos' : parseInt(filtroJornada) === 10 ? ' y Cuadro Final (Campeón y Subcampeón)' : ''}</small>
           </p>
         </div>
       )}
@@ -1202,7 +1251,7 @@ export default function ClasificacionSudamericana() {
 
           <div className="table-responsive">
             {/* Para Jornada 6, 7 y 8: separar en dos tablas */}
-            {(parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8 || parseInt(filtroJornada) === 9) ? (
+            {(parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 7 || parseInt(filtroJornada) === 8 || parseInt(filtroJornada) === 9 || parseInt(filtroJornada) === 10) ? (
               <>
                 {agruparPronosticos().map((grupo, grupoIndex) => {
                   // Separar pronósticos en partidos y clasificados
@@ -1252,26 +1301,67 @@ export default function ClasificacionSudamericana() {
                                 {pronostico.partido?.grupo ? (
                                   <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
                                 ) : parseInt(filtroJornada) === 7 ? (
-                                  <span className="badge bg-warning text-dark">Play-Offs</span>
+                                  <div className="d-flex flex-column gap-1">
+                                    <span className="badge bg-warning text-dark">Play-Offs</span>
+                                    <span className="badge bg-secondary">{pronostico.partido?.id % 2 === 1 ? 'IDA' : 'VUELTA'}</span>
+                                  </div>
                                 ) : parseInt(filtroJornada) === 8 ? (
-                                  <span className="badge bg-primary">Octavos</span>
+                                  <div className="d-flex flex-column gap-1">
+                                    <span className="badge bg-primary">Octavos</span>
+                                    <span className="badge bg-secondary">{pronostico.partido?.id % 2 === 1 ? 'IDA' : 'VUELTA'}</span>
+                                  </div>
                                 ) : parseInt(filtroJornada) === 9 ? (
-                                  <span className="badge bg-success">Cuartos</span>
+                                  <div className="d-flex flex-column gap-1">
+                                    <span className="badge bg-success">Cuartos</span>
+                                    <span className="badge bg-secondary">{pronostico.partido?.id % 2 === 1 ? 'IDA' : 'VUELTA'}</span>
+                                  </div>
+                                ) : parseInt(filtroJornada) === 10 ? (
+                                  pronostico.partido?.tipo_partido === 'FINAL' ? (
+                                    <span className="badge bg-warning text-dark">🏆 Final</span>
+                                  ) : pronostico.partido?.tipo_partido === 'IDA' || pronostico.partido?.tipo_partido === 'VUELTA' ? (
+                                    <div className="d-flex flex-column gap-1">
+                                      <span className="badge bg-danger">
+                                        {filtroJornada === 7 ? 'Play-Offs' : 
+                                         filtroJornada === 8 ? 'Octavos' : 
+                                         filtroJornada === 9 ? 'Cuartos' : 
+                                         'Semifinales'}
+                                      </span>
+                                      <span className="badge bg-secondary">{pronostico.partido.tipo_partido}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="badge bg-danger">
+                                      {filtroJornada === 7 ? 'Play-Offs' : 
+                                       filtroJornada === 8 ? 'Octavos' : 
+                                       filtroJornada === 9 ? 'Cuartos' : 
+                                       'Semifinales'}
+                                    </span>
+                                  )
                                 ) : (
                                   <span className="text-muted">-</span>
                                 )}
                               </td>
                               <td>
                                 <div className="d-flex flex-column align-items-center">
+                                  {/* Primera línea: PRONOSTICADO (grande) */}
                                   <div className="d-flex justify-content-center align-items-center gap-2 w-100">
                                     <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
                                       <small className="fw-bold text-end">
-                                        {formatearNombreEquipo(pronostico.partido?.local?.nombre, pronostico.partido?.local?.pais)}
+                                        {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
+                                          ? formatearNombreEquipo(pronostico.final_virtual_local, null)
+                                          : formatearNombreEquipo(pronostico.partido?.local?.nombre, pronostico.partido?.local?.pais)
+                                        }
                                       </small>
-                                      {pronostico.partido?.local?.nombre && getLogoEquipo(pronostico.partido.local.nombre) && (
+                                      {((pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local && getLogoEquipo(pronostico.final_virtual_local)) || 
+                                        (pronostico.partido?.local?.nombre && getLogoEquipo(pronostico.partido.local.nombre))) && (
                                         <img 
-                                          src={getLogoEquipo(pronostico.partido.local.nombre)} 
-                                          alt={pronostico.partido.local.nombre}
+                                          src={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
+                                            ? getLogoEquipo(pronostico.final_virtual_local)
+                                            : getLogoEquipo(pronostico.partido.local.nombre)
+                                          }
+                                          alt={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
+                                            ? pronostico.final_virtual_local
+                                            : pronostico.partido.local.nombre
+                                          }
                                           style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                           onError={(e) => e.target.style.display = 'none'}
                                         />
@@ -1279,19 +1369,45 @@ export default function ClasificacionSudamericana() {
                                     </div>
                                     <span className="text-muted">vs</span>
                                     <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
-                                      {pronostico.partido?.visita?.nombre && getLogoEquipo(pronostico.partido.visita.nombre) && (
+                                      {((pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita && getLogoEquipo(pronostico.final_virtual_visita)) || 
+                                        (pronostico.partido?.visita?.nombre && getLogoEquipo(pronostico.partido.visita.nombre))) && (
                                         <img 
-                                          src={getLogoEquipo(pronostico.partido.visita.nombre)} 
-                                          alt={pronostico.partido.visita.nombre}
+                                          src={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
+                                            ? getLogoEquipo(pronostico.final_virtual_visita)
+                                            : getLogoEquipo(pronostico.partido.visita.nombre)
+                                          }
+                                          alt={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
+                                            ? pronostico.final_virtual_visita
+                                            : pronostico.partido.visita.nombre
+                                          }
                                           style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                           onError={(e) => e.target.style.display = 'none'}
                                         />
                                       )}
                                       <small className="fw-bold text-start">
-                                        {formatearNombreEquipo(pronostico.partido?.visita?.nombre, pronostico.partido?.visita?.pais)}
+                                        {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
+                                          ? formatearNombreEquipo(pronostico.final_virtual_visita, null)
+                                          : formatearNombreEquipo(pronostico.partido?.visita?.nombre, pronostico.partido?.visita?.pais)
+                                        }
                                       </small>
                                     </div>
                                   </div>
+                                  {/* Segunda línea: REAL (pequeña) */}
+                                  {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local && (
+                                    <div className="mt-1">
+                                      <small className="fst-italic text-muted" style={{fontSize: '0.75rem'}}>
+                                        <strong>Real:</strong> {pronostico.partido.local.nombre} vs {pronostico.partido.visita.nombre}
+                                        {pronostico.partido?.resultado?.local !== null && (
+                                          <>
+                                            {' - '}
+                                            <span className={pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? 'text-success fw-bold' : 'text-danger fw-bold'}>
+                                              {pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? '✓ Coincide' : '✗ No coincide'}
+                                            </span>
+                                          </>
+                                        )}
+                                      </small>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td className="text-center fw-bold fs-5">
@@ -1335,7 +1451,7 @@ export default function ClasificacionSudamericana() {
                       </table>
                       
                       {/* TABLA DE CLASIFICACIÓN */}
-                      {pronosticosClasificados.length > 0 && (
+                      {(pronosticosClasificados.length > 0 || parseInt(filtroJornada) === 10) && (
                         <>
                           <h5 className="mt-4 mb-3 text-success">⚡ Equipos Clasificados - {grupo.jugador}</h5>
                           <table className="table table-bordered table-hover">
@@ -1351,60 +1467,178 @@ export default function ClasificacionSudamericana() {
                               </tr>
                             </thead>
                             <tbody>
-                              {pronosticosClasificados.map((pronostico, index) => (
-                                <tr key={`clasif-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
-                                  <td className="fw-bold">
-                                    <div className="d-flex align-items-center gap-2">
-                                      <img
-                                        src={grupo.foto_perfil || '/perfil/default.png'}
-                                        alt={pronostico.usuario?.nombre || 'Usuario'}
-                                        className="rounded-circle"
-                                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                        onError={(e) => { e.target.src = '/perfil/default.png'; }}
-                                      />
-                                      <span>{pronostico.usuario.nombre}</span>
-                                    </div>
-                                  </td>
-                                  <td className="text-center">
-                                    <span className="badge bg-primary">
-                                      Jornada {pronostico.jornada.numero}
-                                    </span>
-                                  </td>
-                                  <td className="text-center">
-                                    <span className="badge bg-warning text-dark">{pronostico.partido.grupo}</span>
-                                  </td>
-                                  <td>
-                                    <div className="fw-bold text-center">
-                                      {pronostico.partido.local.nombre}
-                                    </div>
-                                  </td>
-                                  <td className="text-center">
-                                    <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
-                                      {pronostico.equipo_pronosticado || '-'}
-                                    </div>
-                                  </td>
-                                  <td className="text-center">
-                                    <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : pronostico.equipo_oficial ? 'text-danger' : 'text-muted'}`}>
-                                      {pronostico.equipo_oficial || 'Pendiente'}
-                                    </div>
-                                  </td>
-                                  <td className="text-center">
-                                    {pronostico.puntos > 0 ? (
-                                      <span className="badge bg-success">+{pronostico.puntos} pts</span>
-                                    ) : (
-                                      <span className="badge bg-secondary">0 pts</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                              {/* TOTAL CLASIFICACIÓN */}
-                              <tr className="table-dark fw-bold">
-                                <td colSpan="6" className="text-end">TOTAL CLASIFICACIÓN:</td>
+                              {pronosticosClasificados.length > 0 ? (
+                                pronosticosClasificados.map((pronostico, index) => (
+                                  <tr key={`clasif-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                                    <td className="fw-bold">
+                                      <div className="d-flex align-items-center gap-2">
+                                        <img
+                                          src={grupo.foto_perfil || '/perfil/default.png'}
+                                          alt={pronostico.usuario?.nombre || 'Usuario'}
+                                          className="rounded-circle"
+                                          style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                                        />
+                                        <span>{pronostico.usuario.nombre}</span>
+                                      </div>
+                                    </td>
+                                    <td className="text-center">
+                                      <span className="badge bg-primary">
+                                        Jornada {pronostico.jornada.numero}
+                                      </span>
+                                    </td>
+                                    <td className="text-center">
+                                      <span className="badge bg-warning text-dark">{pronostico.partido.grupo}</span>
+                                    </td>
+                                    <td>
+                                      <div className="fw-bold text-center">
+                                        {pronostico.partido.local.nombre}
+                                      </div>
+                                    </td>
+                                    <td className="text-center">
+                                      <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                        {pronostico.equipo_pronosticado || '-'}
+                                      </div>
+                                    </td>
+                                    <td className="text-center">
+                                      <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : pronostico.equipo_oficial ? 'text-danger' : 'text-muted'}`}>
+                                        {pronostico.equipo_oficial || 'Pendiente'}
+                                      </div>
+                                    </td>
+                                    <td className="text-center">
+                                      {pronostico.puntos > 0 ? (
+                                        <span className="badge bg-success">+{pronostico.puntos} pts</span>
+                                      ) : (
+                                        <span className="badge bg-secondary">0 pts</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : parseInt(filtroJornada) === 10 ? (() => {
+                                // Si no hay clasificación, mostrar mensaje
+                                if (!grupo.clasificacion || grupo.clasificacion.length === 0) {
+                                  return (
+                                    <tr className="table-warning">
+                                      <td colSpan="7" className="text-center">
+                                        <em>Este usuario no ha completado sus pronósticos de la Jornada 10</em>
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+                                
+                                // Mapear las clasificaciones: 2 finalistas + campeón + subcampeón
+                                const finalistas = grupo.clasificacion.filter(c => c.fase_clasificado === 'FINALISTA');
+                                const campeon = grupo.clasificacion.find(c => c.fase_clasificado === 'CAMPEON');
+                                const subcampeon = grupo.clasificacion.find(c => c.fase_clasificado === 'SUBCAMPEON');
+                                
+                                const clasificacionesOrdenadas = [
+                                  ...finalistas,
+                                  campeon,
+                                  subcampeon
+                                ].filter(Boolean);
+
+                                return clasificacionesOrdenadas.map((clasif, idx) => (
+                                  <tr key={idx} className={clasif.puntos > 0 ? 'table-success' : 'table-danger'}>
+                                    <td className="fw-bold">
+                                      <div className="d-flex align-items-center gap-2">
+                                        <img
+                                          src={grupo.foto_perfil || '/perfil/default.png'}
+                                          alt={grupo.jugador}
+                                          className="rounded-circle"
+                                          style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                                        />
+                                        <span>{grupo.jugador}</span>
+                                      </div>
+                                    </td>
+                                    <td className="text-center">
+                                      <span className="badge bg-primary">Jornada 10</span>
+                                    </td>
+                                    <td className="text-center">
+                                      <span className="badge bg-warning text-dark">Clasificados</span>
+                                    </td>
+                                    <td className="text-center fw-bold">
+                                      {clasif.fase_clasificado === 'FINALISTA' && '⚡ Clasificado a Final'}
+                                      {clasif.fase_clasificado === 'CAMPEON' && '🏆 Campeón'}
+                                      {clasif.fase_clasificado === 'SUBCAMPEON' && '🥈 Subcampeón'}
+                                    </td>
+                                    <td className="text-center">
+                                      <div className="fw-bold text-primary">
+                                        {clasif.equipo_clasificado}
+                                      </div>
+                                    </td>
+                                    <td className="text-center">
+                                      {clasif.equipo_oficial ? (
+                                        <span className="badge bg-success">{clasif.equipo_oficial}</span>
+                                      ) : (
+                                        <span className="text-muted">Pendiente</span>
+                                      )}
+                                    </td>
+                                    <td className="text-center">
+                                      <span className={`badge ${clasif.puntos > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                                        {clasif.puntos > 0 ? `+${clasif.puntos}` : '0'} pts
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ));
+                              })() : (
+                                // Para otras jornadas, mostrar clasificación normal
+                                grupo.clasificacion && grupo.clasificacion.length > 0 ? (
+                                  grupo.clasificacion.map((clasif, idx) => (
+                                    <tr key={idx} className="table-light">
+                                      <td className="fw-bold">
+                                        {idx === 0 && (
+                                          <div className="d-flex align-items-center gap-2">
+                                            <img
+                                              src={grupo.foto_perfil || '/perfil/default.png'}
+                                              alt={grupo.jugador}
+                                              className="rounded-circle"
+                                              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                                            />
+                                            <span>{grupo.jugador}</span>
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="text-center">
+                                        {idx === 0 && <span className="badge bg-primary">Jornada {selectedJornada}</span>}
+                                      </td>
+                                      <td className="text-center">
+                                        {idx === 0 && <span className="badge bg-warning text-dark">Clasificados</span>}
+                                      </td>
+                                      <td className="text-center fw-bold">
+                                        {clasif.fase_clasificado}
+                                      </td>
+                                      <td className="text-center">
+                                        <div className="fw-bold text-primary">
+                                          {clasif.equipo_clasificado}
+                                        </div>
+                                      </td>
+                                      <td className="text-center">
+                                        {clasif.equipo_oficial ? (
+                                          <span className="badge bg-success">{clasif.equipo_oficial}</span>
+                                        ) : (
+                                          <span className="text-muted">Pendiente</span>
+                                        )}
+                                      </td>
+                                      <td className="text-center">
+                                        <span className={`badge ${clasif.puntos > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                                          {clasif.puntos} pts
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : null
+                              )}
+                            </tbody>
+                            <tfoot className="table-dark">
+                              <tr>
+                                <td colSpan="6" className="text-end fw-bold">TOTAL CLASIFICACIÓN:</td>
                                 <td className="text-center">
                                   <span className="badge bg-dark fs-5">{puntosClasificados} pts</span>
                                 </td>
                               </tr>
-                            </tbody>
+                            </tfoot>
                           </table>
                           
                           {/* NOTA EXPLICATIVA */}
@@ -1534,7 +1768,28 @@ export default function ClasificacionSudamericana() {
                               </span>
                             </td>
                             <td className="text-center">
-                              {pronostico.partido?.grupo ? (
+                              {pronostico.partido?.tipo_partido === 'IDA' || pronostico.partido?.tipo_partido === 'VUELTA' ? (
+                                <div className="d-flex flex-column gap-1">
+                                  <span className="badge bg-danger">
+                                    {pronostico.jornada?.numero === 7 ? 'Play-Offs' : 
+                                     pronostico.jornada?.numero === 8 ? 'Octavos' : 
+                                     pronostico.jornada?.numero === 9 ? 'Cuartos' : 
+                                     'Semifinales'}
+                                  </span>
+                                  <span className="badge bg-secondary">{pronostico.partido.tipo_partido}</span>
+                                </div>
+                              ) : (pronostico.jornada?.numero >= 7 && pronostico.jornada?.numero <= 9) ? (
+                                <div className="d-flex flex-column gap-1">
+                                  <span className="badge bg-danger">
+                                    {pronostico.jornada?.numero === 7 ? 'Play-Offs' : 
+                                     pronostico.jornada?.numero === 8 ? 'Octavos' : 
+                                     'Cuartos'}
+                                  </span>
+                                  <span className="badge bg-secondary">{pronostico.partido?.id % 2 === 1 ? 'IDA' : 'VUELTA'}</span>
+                                </div>
+                              ) : pronostico.partido?.tipo_partido === 'FINAL' ? (
+                                <span className="badge bg-warning text-dark">🏆 Final</span>
+                              ) : pronostico.partido?.grupo ? (
                                 <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
                               ) : (
                                 <span className="text-muted">-</span>
@@ -1571,6 +1826,17 @@ export default function ClasificacionSudamericana() {
                                     </small>
                                   </div>
                                 </div>
+                                {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.partido?.resultado?.local !== null && (
+                                  <div className="mt-1">
+                                    <small className="fst-italic text-muted" style={{fontSize: '0.75rem'}}>
+                                      <strong>Real:</strong> {pronostico.partido.local.nombre} vs {pronostico.partido.visita.nombre}
+                                      {' - '}
+                                      <span className={pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? 'text-success fw-bold' : 'text-danger fw-bold'}>
+                                        {pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? '✓ Coincide' : '✗ No coincide'}
+                                      </span>
+                                    </small>
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="text-center fw-bold fs-5">
@@ -1613,7 +1879,7 @@ export default function ClasificacionSudamericana() {
                         <td colSpan="7" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
                         <td className="text-center">
                           <span className="badge bg-dark fs-5">
-                            {grupo.puntaje_total || 0} pts
+                            {parseInt(grupo.puntaje_total, 10) || 0} pts
                           </span>
                         </td>
                       </tr>
@@ -1753,7 +2019,7 @@ export default function ClasificacionSudamericana() {
                           </div>
                           <div className="flex-grow-1">
                             <h5 className="mb-1">{jugador.nombre}</h5>
-                            <p className="mb-0 fs-4 fw-bold">{jugador.puntos_acumulados} pts</p>
+                            <p className="mb-0 fs-4 fw-bold">{parseInt(jugador.puntos_acumulados, 10) || 0} pts</p>
                           </div>
                         </div>
                       </div>
@@ -1871,7 +2137,7 @@ export default function ClasificacionSudamericana() {
                         🏆 {ganador.nombre}
                       </h4>
                       <p className="mb-0 fs-5 fw-bold text-success">
-                        {ganador.puntaje} puntos
+                        {parseInt(ganador.puntaje, 10) || 0} puntos
                       </p>
                     </div>
                   ))}
@@ -1940,7 +2206,7 @@ export default function ClasificacionSudamericana() {
                         {ganador.nombre.toUpperCase()}
                       </h2>
                       <p className="mb-0 fw-bold text-warning" style={{ fontSize: '1.8rem' }}>
-                        {ganador.puntaje} PUNTOS
+                        {parseInt(ganador.puntaje, 10) || 0} PUNTOS
                       </p>
                     </div>
                   ))}

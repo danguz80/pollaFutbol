@@ -456,9 +456,9 @@ export default function AdminSudamericana() {
           <button
             className="btn btn-primary"
             onClick={procesarFaseGrupos}
-            disabled={loading || !textFaseGrupos.trim()}
+            disabled={!textFaseGrupos.trim()}
           >
-            {loading ? '⏳ Procesando...' : '🚀 Generar Fase de Grupos'}
+            🚀 Generar Fase de Grupos (J1-J6)
           </button>
         </div>
       </div>
@@ -487,9 +487,9 @@ export default function AdminSudamericana() {
           <button
             className="btn btn-success"
             onClick={generarOctavos}
-            disabled={loading || !textOctavos.trim()}
+            disabled={!textOctavos.trim()}
           >
-            {loading ? '⏳ Generando...' : '🚀 Generar Play-Offs (J7 IDA + VUELTA)'}
+            🚀 Generar Play-Offs (J7 IDA + VUELTA)
           </button>
         </div>
       </div>
@@ -549,9 +549,9 @@ export default function AdminSudamericana() {
           <button
             className="btn btn-info"
             onClick={generarCuartos}
-            disabled={loading || !textCuartos.trim()}
+            disabled={!textCuartos.trim()}
           >
-            {loading ? '⏳ Generando...' : '🚀 Generar Cuartos (J9 IDA + VUELTA)'}
+            🚀 Generar Cuartos (J9 IDA + VUELTA)
           </button>
         </div>
       </div>
@@ -573,16 +573,16 @@ export default function AdminSudamericana() {
               className="form-control font-monospace"
               rows="2"
               placeholder="Ejemplo:&#10;Flamengo vs River Plate&#10;Boca Juniors vs Palmeiras"
-              value={textFinal}
-              onChange={(e) => setTextFinal(e.target.value)}
+              value={textSemiFinal}
+              onChange={(e) => setTextSemiFinal(e.target.value)}
             />
           </div>
           <button
             className="btn btn-danger"
             onClick={generarSemiFinales}
-            disabled={loading || !textFinal.trim()}
+            disabled={!textSemiFinal.trim()}
           >
-            {loading ? '⏳ Generando...' : '🚀 Generar Semifinales + Final (J10)'}
+            🚀 Generar Semifinales + Final (J10)
           </button>
         </div>
       </div>

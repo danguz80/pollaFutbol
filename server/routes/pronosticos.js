@@ -324,12 +324,14 @@ async function generarPDFConResultados(jornadaNumero) {
     // 2. Obtener ranking de la jornada (desde ganadores_jornada)
     const rankingJornadaQuery = await pool.query(
       `SELECT 
-        posicion,
-        nombre AS usuario,
-        puntos_jornada
-      FROM ganadores_jornada
-      WHERE jornada_numero = $1
-      ORDER BY posicion ASC`,
+        ROW_NUMBER() OVER (ORDER BY gj.puntaje DESC, u.nombre ASC) AS posicion,
+        u.nombre AS usuario,
+        gj.puntaje AS puntos_jornada
+      FROM ganadores_jornada gj
+      JOIN usuarios u ON gj.jugador_id = u.id
+      JOIN jornadas j ON gj.jornada_id = j.id
+      WHERE j.numero = $1
+      ORDER BY gj.puntaje DESC, u.nombre ASC`,
       [jornadaNumero]
     );
 
@@ -353,9 +355,13 @@ async function generarPDFConResultados(jornadaNumero) {
 
     // 4. Obtener ganadores de la jornada
     const ganadoresQuery = await pool.query(
-      `SELECT nombre AS usuario, puntos_jornada
-      FROM ganadores_jornada
-      WHERE jornada_numero = $1 AND posicion = 1`,
+      `SELECT u.nombre AS usuario, gj.puntaje AS puntos_jornada
+      FROM ganadores_jornada gj
+      JOIN usuarios u ON gj.jugador_id = u.id
+      JOIN jornadas j ON gj.jornada_id = j.id
+      WHERE j.numero = $1
+      ORDER BY gj.puntaje DESC
+      LIMIT 1`,
       [jornadaNumero]
     );
 
@@ -375,10 +381,9 @@ async function generarPDFConResultados(jornadaNumero) {
       pronosticosPorUsuario[p.usuario].push(p);
     });
 
-    // Obtener logos
-    const whatsappService = getWhatsAppService();
-    const logoItauBase64 = whatsappService.getLogoBase64('itau');
-    const logoTorneoBase64 = whatsappService.getLogoBase64('torneo');
+    // Obtener logos (usar URLs directas)
+    const logoItauBase64 = 'https://pollafutbol.netlify.app/logos/itau-logo.png';
+    const logoTorneoBase64 = 'https://pollafutbol.netlify.app/logos/torneo-logo.png';
 
     // Generar HTML
     let html = `
@@ -684,8 +689,8 @@ async function generarPDFConResultados(jornadaNumero) {
       `;
 
       pronosticosUsuario.forEach((p) => {
-        const logoLocal = whatsappService.getLogoBase64(p.nombre_local);
-        const logoVisita = whatsappService.getLogoBase64(p.nombre_visita);
+        const logoLocal = getLogoBase64(p.nombre_local);
+        const logoVisita = getLogoBase64(p.nombre_visita);
         
         const pronostico = `${p.pred_local} - ${p.pred_visita}`;
         const resultado = (p.real_local !== null && p.real_visita !== null) 
@@ -749,6 +754,7 @@ async function generarPDFConResultados(jornadaNumero) {
     console.log(`✅ PDF generado, tamaño: ${pdfBuffer.length} bytes`);
 
     // Enviar por email
+    const whatsappService = getWhatsAppService();
     const nombreArchivo = `Resultados_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
     console.log(`📧 Enviando PDF por email...`);
     const resultadoEmail = await whatsappService.enviarEmailConPDF(

@@ -8,6 +8,36 @@ import { jwtDecode } from "jwt-decode";
 // Accede a la variable de entorno
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+// Función helper para obtener logo del equipo
+const getLogoEquipo = (nombreEquipo) => {
+  // Normalizar apóstrofes: \u2018 y \u2019 (tipográficos) → ' (normal)
+  const nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  
+  const logos = {
+    'Audax Italiano': '/logos_torneo_nacional/audax.png',
+    'Colo-Colo': '/logos_torneo_nacional/colo-colo.png',
+    'Cobresal': '/logos_torneo_nacional/cobresal.png',
+    'Coquimbo Unido': '/logos_torneo_nacional/coquimbo.png',
+    'Deportes Iquique': '/logos_torneo_nacional/iquique.png',
+    'Deportes La Serena': '/logos_torneo_nacional/laserena.png',
+    'Deportes Limache': '/logos_torneo_nacional/limache.webp',
+    'Deportes Concepción': '/logos_torneo_nacional/concepcion.png',
+    'U. de Concepción': '/logos_torneo_nacional/udeconce.png',
+    'Everton': '/logos_torneo_nacional/everton.png',
+    'Huachipato': '/logos_torneo_nacional/huachipato.png',
+    'Ñublense': '/logos_torneo_nacional/ñublense.png',
+    "O'Higgins": '/logos_torneo_nacional/ohiggins.webp',
+    'Palestino': '/logos_torneo_nacional/palestino.png',
+    'U. Católica': '/logos_torneo_nacional/uc.png',
+    'U. de Chile': '/logos_torneo_nacional/udechile.png',
+    'U. Española': '/logos_torneo_nacional/union-espanola.png',
+    'Unión Española': '/logos_torneo_nacional/union-espanola.png',
+    'Unión La Calera': '/logos_torneo_nacional/calera.png',
+    'Universidad de Concepción': '/logos_torneo_nacional/udeconce.png'
+  };
+  return logos[nombreNormalizado] || '/logos_torneo_nacional/default.png';
+};
+
 export default function Clasificacion() {
   const [jornadas, setJornadas] = useState([]);
   const [jornadaActual, setJornadaActual] = useState("");
@@ -467,13 +497,71 @@ export default function Clasificacion() {
     const filas = [];
     jugadores.forEach((usuario, userIdx) => {
       const bloque = agrupados[usuario];
+      const fotoPerfil = bloque[0]?.usuario_foto_perfil 
+        ? (bloque[0].usuario_foto_perfil.startsWith('/') ? bloque[0].usuario_foto_perfil : `/perfil/${bloque[0].usuario_foto_perfil}`)
+        : '/perfil/default.png';
+      
+      // Agregar fila de encabezado con jugador
+      filas.push(
+        <tr key={`header-${usuario}`} style={{ background: '#e3f2fd' }}>
+          <td colSpan={5} className="py-2">
+            <div className="d-flex align-items-center justify-content-center gap-2">
+              <img 
+                src={fotoPerfil} 
+                alt={usuario}
+                className="rounded-circle"
+                style={{width: '35px', height: '35px', objectFit: 'cover'}}
+                onError={(e) => { e.target.src = '/perfil/default.png'; }}
+              />
+              <span className="fw-bold fs-5">Jugador: {usuario}</span>
+            </div>
+          </td>
+        </tr>
+      );
+      
+      // Agregar fila de encabezados de columnas para este jugador
+      filas.push(
+        <tr key={`columns-${usuario}`} className="table-secondary text-center">
+          <th>Partido</th>
+          <th>Resultado real</th>
+          <th>Mi resultado</th>
+          <th>Bonus</th>
+          <th>Puntos</th>
+        </tr>
+      );
+      
       let total = 0;
       bloque.forEach((p, idx) => {
         total += p.puntos || 0;
+        
+        // Determinar color según puntos: verde para acierto, rojo para 0 puntos
+        const claseColor = p.puntos > 0 ? 'table-success' : 'table-danger';
+        
         filas.push(
-          <tr key={`${usuario}-${idx}`} className="text-center">
-            <td>{usuario}</td>
-            <td>{p.nombre_local} vs {p.nombre_visita}</td>
+          <tr key={`${usuario}-${idx}`} className={`text-center ${claseColor}`}>
+            <td>
+              <div className="d-flex align-items-center justify-content-center gap-2">
+                <div className="d-flex align-items-center gap-1">
+                  <img 
+                    src={getLogoEquipo(p.nombre_local)} 
+                    alt={p.nombre_local} 
+                    style={{width: '20px', height: '20px', objectFit: 'contain'}}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                  <small>{p.nombre_local}</small>
+                </div>
+                <span>vs</span>
+                <div className="d-flex align-items-center gap-1">
+                  <small>{p.nombre_visita}</small>
+                  <img 
+                    src={getLogoEquipo(p.nombre_visita)} 
+                    alt={p.nombre_visita} 
+                    style={{width: '20px', height: '20px', objectFit: 'contain'}}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </div>
+              </div>
+            </td>
             <td>
               {(p.real_local !== null && p.real_visita !== null && p.real_local !== undefined && p.real_visita !== undefined)
                 ? `${p.real_local} - ${p.real_visita}`
@@ -492,7 +580,7 @@ export default function Clasificacion() {
       // Total por jugador
       filas.push(
         <tr key={`total-${usuario}`} className="text-center" style={{ fontWeight: "bold", background: "#fff6d6" }}>
-          <td colSpan={5} className="text-end">
+          <td colSpan={4} className="text-end">
             Total {usuario} {(selectedMatch || selectedUser) ? '(filtrado)' : ''}:
           </td>
           <td>{total}</td>
@@ -502,7 +590,7 @@ export default function Clasificacion() {
       if (userIdx < jugadores.length - 1) {
         filas.push(
           <tr key={`sep-${usuario}`}>
-            <td colSpan={6} style={{ background: "#222", color: "white", height: 8, padding: 0 }}></td>
+            <td colSpan={5} style={{ background: "#222", color: "white", height: 8, padding: 0 }}></td>
           </tr>
         );
       }
@@ -926,16 +1014,6 @@ export default function Clasificacion() {
           </div>
         ) : (
           <table className="table table-bordered table-sm text-center">
-            <thead className="table-secondary text-center">
-              <tr>
-                <th className="text-center">Jugador</th>
-                <th className="text-center">Partido</th>
-                <th className="text-center">Resultado real</th>
-                <th className="text-center">Mi resultado</th>
-                <th className="text-center">Bonus</th>
-                <th className="text-center">Puntos</th>
-              </tr>
-            </thead>
             <tbody>
               {filasDetalleUnificado(detallePuntos)}
             </tbody>

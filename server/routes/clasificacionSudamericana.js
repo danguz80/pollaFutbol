@@ -30,17 +30,27 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         p.tipo_partido,
         sp.goles_local as pronostico_local,
         sp.goles_visita as pronostico_visita,
+        sp.penales_local as pronostico_penales_local,
+        sp.penales_visita as pronostico_penales_visita,
         p.goles_local as resultado_local,
         p.goles_visita as resultado_visita,
         p.bonus,
         sp.puntos,
-        sp.created_at as fecha_pronostico
+        sp.created_at as fecha_pronostico,
+        spfv.equipo_local as final_virtual_local,
+        spfv.equipo_visita as final_virtual_visita,
+        spfv.goles_local as final_virtual_goles_local,
+        spfv.goles_visita as final_virtual_goles_visita,
+        spfv.penales_local as final_virtual_penales_local,
+        spfv.penales_visita as final_virtual_penales_visita
       FROM sudamericana_pronosticos sp
       INNER JOIN usuarios u ON sp.usuario_id = u.id
       INNER JOIN sudamericana_partidos p ON sp.partido_id = p.id
       INNER JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
       LEFT JOIN sudamericana_equipos el ON p.nombre_local = el.nombre
       LEFT JOIN sudamericana_equipos ev ON p.nombre_visita = ev.nombre
+      LEFT JOIN sudamericana_pronosticos_final_virtual spfv ON sp.usuario_id = spfv.usuario_id 
+        AND sj.id = spfv.jornada_id
       WHERE 1=1
     `;
 
@@ -103,10 +113,18 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       },
       pronostico: {
         local: row.pronostico_local,
-        visita: row.pronostico_visita
+        visita: row.pronostico_visita,
+        penales_local: row.pronostico_penales_local,
+        penales_visita: row.pronostico_penales_visita
       },
       puntos: row.puntos,
-      fecha_pronostico: row.fecha_pronostico
+      fecha_pronostico: row.fecha_pronostico,
+      final_virtual_local: row.final_virtual_local,
+      final_virtual_visita: row.final_virtual_visita,
+      final_virtual_goles_local: row.final_virtual_goles_local,
+      final_virtual_goles_visita: row.final_virtual_goles_visita,
+      final_virtual_penales_local: row.final_virtual_penales_local,
+      final_virtual_penales_visita: row.final_virtual_penales_visita
     }));
 
     res.json(pronosticosFormateados);
@@ -215,7 +233,13 @@ router.get('/puntos-clasificacion', verifyToken, async (req, res) => {
       paramIndex++;
     }
 
-    query += ` ORDER BY pc.usuario_id, pc.fase_clasificado`;
+    query += ` ORDER BY pc.usuario_id, 
+      CASE pc.fase_clasificado
+        WHEN 'FINALISTA' THEN 1
+        WHEN 'CAMPEON' THEN 2
+        WHEN 'SUBCAMPEON' THEN 3
+        ELSE 4
+      END, pc.id`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);

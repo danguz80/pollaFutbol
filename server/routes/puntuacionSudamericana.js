@@ -115,11 +115,19 @@ router.get('/ranking-acumulado', verifyToken, async (req, res) => {
         u.id as usuario_id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(p.puntos), 0) as puntos_acumulados
+        COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_acumulados
       FROM usuarios u
-      LEFT JOIN sudamericana_pronosticos p ON p.usuario_id = u.id
-      WHERE u.activo = true
-      GROUP BY u.id, u.nombre, u.foto_perfil
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total
+        FROM sudamericana_pronosticos
+        GROUP BY usuario_id
+      ) puntos_partidos ON puntos_partidos.usuario_id = u.id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total
+        FROM sudamericana_puntos_clasificacion
+        GROUP BY usuario_id
+      ) puntos_clasificacion ON puntos_clasificacion.usuario_id = u.id
+      WHERE u.activo_sudamericana = true
       ORDER BY puntos_acumulados DESC
     `);
 

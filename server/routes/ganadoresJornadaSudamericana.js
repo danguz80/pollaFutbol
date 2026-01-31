@@ -36,13 +36,20 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(SUM(sp.puntos), 0) + COALESCE(SUM(pc.puntos), 0) as puntos_acumulados
+        COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_acumulados
       FROM usuarios u
-      LEFT JOIN sudamericana_pronosticos sp ON u.id = sp.usuario_id
-      LEFT JOIN sudamericana_puntos_clasificacion pc ON u.id = pc.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total
+        FROM sudamericana_pronosticos
+        GROUP BY usuario_id
+      ) puntos_partidos ON puntos_partidos.usuario_id = u.id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total
+        FROM sudamericana_puntos_clasificacion
+        GROUP BY usuario_id
+      ) puntos_clasificacion ON puntos_clasificacion.usuario_id = u.id
       WHERE u.activo_sudamericana = true
-      GROUP BY u.id, u.nombre, u.foto_perfil
-      HAVING COALESCE(SUM(sp.puntos), 0) + COALESCE(SUM(pc.puntos), 0) > 0
+        AND (COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0)) > 0
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `);
     
@@ -73,6 +80,45 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
          VALUES ($1, $2)`,
         [top3[i].id, parseInt(top3[i].puntos_acumulados, 10)]
       );
+    }
+    
+    // Obtener la última jornada cerrada
+    const ultimaJornadaResult = await pool.query(`
+      SELECT numero FROM sudamericana_jornadas 
+      WHERE cerrada = true 
+      ORDER BY numero DESC 
+      LIMIT 1
+    `);
+    
+    const ultimaJornadaCerrada = ultimaJornadaResult.rows[0]?.numero;
+    
+    // Generar PDF solo si es J10 (última jornada)
+    let pdfGenerado = false;
+    if (ultimaJornadaCerrada === 10) {
+      try {
+        // Obtener los ganadores de la JORNADA 10 (no acumulado) para el PDF
+        const ganadoresJ10Result = await pool.query(`
+          SELECT u.nombre, sgj.puntaje, u.foto_perfil
+          FROM sudamericana_ganadores_jornada sgj
+          INNER JOIN usuarios u ON sgj.usuario_id = u.id
+          WHERE sgj.jornada_numero = 10
+          ORDER BY sgj.puntaje DESC, u.nombre ASC
+        `);
+        
+        const ganadoresJ10 = ganadoresJ10Result.rows.map(row => ({
+          nombre: row.nombre,
+          puntaje: parseInt(row.puntaje, 10),
+          foto_perfil: row.foto_perfil
+        }));
+        
+        // Pasar ganadores de JORNADA 10 (no acumulado) al PDF
+        await generarPDFSudamericanaConGanadores(10, ganadoresJ10);
+        pdfGenerado = true;
+        console.log(`✅ PDF del ranking acumulado generado y enviado para J10 Sudamericana`);
+      } catch (pdfError) {
+        console.error('❌ Error generando/enviando PDF del ranking acumulado:', pdfError);
+        // No falla el endpoint si falla el PDF
+      }
     }
     
     // Registrar notificación para usuarios
@@ -121,11 +167,12 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       ganadores: ganadores.map(g => ({
         nombre: g.nombre,
         foto_perfil: g.foto_perfil,
-        puntaje: puntajeMaximo
+        puntaje: parseInt(puntajeMaximo, 10) || 0
       })),
       mensaje: ganadores.length === 1 
-        ? `🏆 EL CAMPEÓN DE COPA SUDAMERICANA ES: ${ganadores[0].nombre.toUpperCase()}`
-        : `🏆 LOS CAMPEONES DE COPA SUDAMERICANA SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`
+        ? `🏆 EL CAMPEÓN DE COPA SUDAMERICANA ES: ${ganadores[0].nombre.toUpperCase()}${pdfGenerado ? '\n\n📧 PDF enviado por email' : ''}`
+        : `🏆 LOS CAMPEONES DE COPA SUDAMERICANA SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}${pdfGenerado ? '\n\n📧 PDF enviado por email' : ''}`,
+      pdfGenerado
     });
     
   } catch (error) {
@@ -172,7 +219,7 @@ router.get('/acumulado', async (req, res) => {
     const ganadores = result.rows.map(row => ({
       nombre: row.nombre,
       foto_perfil: row.foto_perfil,
-      puntaje: row.puntaje
+      puntaje: parseInt(row.puntaje, 10) || 0
     }));
     
     const mensaje = ganadores.length === 1 
@@ -278,7 +325,7 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
     for (const usuario of usuariosResult.rows) {
       // Puntos de partidos (usando p.jornada_id porque sp.jornada_id es NULL)
       const puntosPartidosResult = await pool.query(`
-        SELECT COALESCE(SUM(sp.puntos), 0) as puntos_partidos
+        SELECT COALESCE(SUM(sp.puntos::integer), 0) as puntos_partidos
         FROM sudamericana_pronosticos sp
         INNER JOIN sudamericana_partidos p ON sp.partido_id = p.id
         INNER JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
@@ -289,7 +336,7 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       
       // Puntos de clasificación (solo para log)
       const puntosClasificacionResult = await pool.query(`
-        SELECT COALESCE(SUM(pc.puntos), 0) as puntos_clasificacion
+        SELECT COALESCE(SUM(pc.puntos::integer), 0) as puntos_clasificacion
         FROM sudamericana_puntos_clasificacion pc
         WHERE pc.usuario_id = $1 AND pc.jornada_numero = $2
       `, [usuario.id, jornadaNumero]);
@@ -383,20 +430,24 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       // No fallar la petición completa si la notificación falla
     }
     
-    // 8. Generar PDF con resultados y enviarlo por email
+    // 8. Generar PDF con resultados y enviarlo por email (EXCEPTO para J10)
     let pdfGenerado = false;
-    try {
-      await generarPDFSudamericanaConGanadores(jornadaNumero, ganadores);
-      pdfGenerado = true;
-      console.log(`✅ PDF generado y enviado para jornada ${jornadaNumero} de Sudamericana`);
-    } catch (pdfError) {
-      console.error('❌ Error generando/enviando PDF Sudamericana:', pdfError);
-      // No falla el endpoint si falla el PDF
+    if (jornadaNumero !== 10) {
+      try {
+        await generarPDFSudamericanaConGanadores(jornadaNumero, ganadores);
+        pdfGenerado = true;
+        console.log(`✅ PDF generado y enviado para jornada ${jornadaNumero} de Sudamericana`);
+      } catch (pdfError) {
+        console.error('❌ Error generando/enviando PDF Sudamericana:', pdfError);
+        // No falla el endpoint si falla el PDF
+      }
+    } else {
+      console.log(`ℹ️ J10: PDF no se envía aquí, se envía desde el botón Calcular Ganador Ranking Acumulado`);
     }
     
     const mensaje = ganadores.length === 1 
-      ? `El ganador de la jornada ${jornadaNumero} de Copa Sudamericana es: ${ganadores[0].nombre}${pdfGenerado ? '\n\n📧 PDF enviado por email' : ''}`
-      : `Los ganadores de la jornada ${jornadaNumero} de Copa Sudamericana son: ${ganadores.map(g => g.nombre).join(', ')}${pdfGenerado ? '\n\n📧 PDF enviado por email' : ''}`;
+      ? `El ganador de la jornada ${jornadaNumero} de Copa Sudamericana es: ${ganadores[0].nombre}${pdfGenerado ? '\n\n📧 PDF enviado por email' : jornadaNumero === 10 ? '\n\nℹ️ Para enviar el PDF, usa el botón Calcular Ganador Ranking Acumulado' : ''}`
+      : `Los ganadores de la jornada ${jornadaNumero} de Copa Sudamericana son: ${ganadores.map(g => g.nombre).join(', ')}${pdfGenerado ? '\n\n📧 PDF enviado por email' : jornadaNumero === 10 ? '\n\nℹ️ Para enviar el PDF, usa el botón Calcular Ganador Ranking Acumulado' : ''}`;
 
     // 9. Retornar los ganadores
     res.json({
@@ -516,11 +567,11 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         u.id,
         u.nombre AS usuario,
         u.foto_perfil,
-        COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntaje_total,
-        ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0)) DESC, u.nombre ASC) AS posicion
+        (COALESCE(puntos_partidos.total::integer, 0) + COALESCE(puntos_clasificacion.total::integer, 0)) as puntaje_total,
+        ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total::integer, 0) + COALESCE(puntos_clasificacion.total::integer, 0)) DESC, u.nombre ASC) AS posicion
       FROM usuarios u
       LEFT JOIN (
-        SELECT sp.usuario_id, SUM(sp.puntos) as total
+        SELECT sp.usuario_id, SUM(sp.puntos::integer) as total
         FROM sudamericana_pronosticos sp
         INNER JOIN sudamericana_partidos p ON sp.partido_id = p.id
         INNER JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
@@ -528,7 +579,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         GROUP BY sp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
       LEFT JOIN (
-        SELECT pc.usuario_id, SUM(pc.puntos) as total
+        SELECT pc.usuario_id, SUM(pc.puntos::integer) as total
         FROM sudamericana_puntos_clasificacion pc
         WHERE pc.jornada_numero <= $1
         GROUP BY pc.usuario_id
@@ -677,6 +728,33 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         JOIN usuarios u ON spc.usuario_id = u.id
         WHERE spc.jornada_numero = $1
         ORDER BY u.nombre, spc.fase_clasificado
+      `, [jornadaNumero]);
+
+      clasificacionQuery.rows.forEach(row => {
+        if (!clasificacionPorUsuario[row.usuario]) {
+          clasificacionPorUsuario[row.usuario] = [];
+        }
+        row.equipo_real_avanza = row.equipo_oficial || '?';
+        clasificacionPorUsuario[row.usuario].push(row);
+      });
+    } else if (jornadaNumero === 10) {
+      // JORNADA 10: Semifinales y Final - Clasificación (finalistas, campeón, subcampeón)
+      const clasificacionQuery = await pool.query(`
+        SELECT 
+          u.nombre AS usuario,
+          spc.equipo_clasificado,
+          spc.equipo_oficial,
+          spc.fase_clasificado,
+          spc.puntos
+        FROM sudamericana_puntos_clasificacion spc
+        JOIN usuarios u ON spc.usuario_id = u.id
+        WHERE spc.jornada_numero = $1
+        ORDER BY u.nombre, 
+          CASE spc.fase_clasificado
+            WHEN 'FINALISTA' THEN 1
+            WHEN 'CAMPEON' THEN 2
+            WHEN 'SUBCAMPEON' THEN 3
+          END
       `, [jornadaNumero]);
 
       clasificacionQuery.rows.forEach(row => {
@@ -980,11 +1058,33 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         <div class="ganador-card">
           ${fotoHTML}
           <div class="ganador-nombre">${ganador.nombre}</div>
-          <div class="ganador-puntos">${ganador.puntaje} puntos</div>
+          <div class="ganador-puntos">${ganador.puntaje !== undefined ? ganador.puntaje : 0} puntos</div>
         </div>
         `;
       }
       html += `</div>`;
+    }
+
+    // GANADOR DEL RANKING ACUMULADO (solo para J10)
+    if (jornadaNumero === 10 && ranking.length > 0) {
+      const ganadorAcumulado = ranking[0];
+      const fotoBase64Acum = ganadorAcumulado.foto_perfil ? getFotoPerfilBase64(ganadorAcumulado.foto_perfil) : null;
+      const fotoHTMLAcum = fotoBase64Acum 
+        ? `<img src="${fotoBase64Acum}" class="ganador-foto" alt="${ganadorAcumulado.usuario}">` 
+        : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
+      
+      html += `
+      <div class="ganadores-section" style="margin-top: 20px; background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); border: 3px solid #ffd700;">
+        <h2 style="color: #333;">👑 CAMPEÓN DEL RANKING ACUMULADO</h2>
+        <div class="ganador-cards">
+          <div class="ganador-card">
+            ${fotoHTMLAcum}
+            <div class="ganador-nombre">${ganadorAcumulado.usuario}</div>
+            <div class="ganador-puntos" style="font-size: 24px; font-weight: bold;">${ganadorAcumulado.puntaje_total} puntos</div>
+          </div>
+        </div>
+      </div>
+      `;
     }
 
     // RANKING DE LA JORNADA
@@ -1081,7 +1181,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       const puntosPartidos = data.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
       
       // Calcular puntos de CLASIFICACIÓN (separados, no suman al total de jornada)
-      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9) && clasificacionPorUsuario[usuario]) 
+      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) && clasificacionPorUsuario[usuario]) 
         ? clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0)
         : 0;
       
@@ -1157,8 +1257,8 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
             </tr>
       `;
 
-      // AGREGAR FILAS DE CLASIFICACIÓN para jornada 6, 7 y 8
-      if ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9) && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {
+      // AGREGAR FILAS DE CLASIFICACIÓN para jornada 6, 7, 8, 9 y 10
+      if ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {
         // Agregar encabezado de sección de clasificación
         html += `
           </tbody>
@@ -1200,6 +1300,18 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
             // Para Jornada 9 (Cuartos), mostrar "Clasificado a Semifinales"
             iconoFase = '🏆';
             textoFase = 'Clasificado a Semifinales';
+          } else if (jornadaNumero === 10) {
+            // Para Jornada 10 (Semifinales y Final)
+            if (c.fase_clasificado === 'FINALISTA') {
+              iconoFase = '🥈';
+              textoFase = 'Finalista (5 pts)';
+            } else if (c.fase_clasificado === 'CAMPEON') {
+              iconoFase = '🏆';
+              textoFase = 'Campeón (15 pts)';
+            } else if (c.fase_clasificado === 'SUBCAMPEON') {
+              iconoFase = '🥉';
+              textoFase = 'Subcampeón (8 pts)';
+            }
           }
           
           // El equipo_clasificado ES el equipo pronosticado

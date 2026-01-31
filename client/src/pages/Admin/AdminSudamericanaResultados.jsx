@@ -48,6 +48,72 @@ export default function AdminSudamericanaResultados() {
     fetchJornadaInfo(jornadaSeleccionada);
   }, [jornadaSeleccionada]);
 
+  // Calcular finalistas automáticamente cuando cambien los resultados (solo J10)
+  useEffect(() => {
+    if (parseInt(jornadaSeleccionada) !== 10 || partidos.length === 0) return;
+    
+    const semifinalesIda = partidos.filter(p => p.tipoPartido === 'IDA');
+    const semifinalesVuelta = partidos.filter(p => p.tipoPartido === 'VUELTA');
+    const indexFinal = partidos.findIndex(p => p.tipoPartido === 'FINAL');
+    
+    if (indexFinal === -1 || semifinalesIda.length === 0 || semifinalesVuelta.length === 0) return;
+    
+    const finalistas = [];
+    
+    // Calcular ganadores de cada semifinal
+    semifinalesVuelta.forEach(vuelta => {
+      const ida = semifinalesIda.find(i =>
+        i.local === vuelta.visita && i.visita === vuelta.local
+      );
+      
+      if (!ida) return;
+      
+      // Si no hay resultados completos, no calcular
+      if (ida.golesLocal === "" || ida.golesVisita === "" ||
+          vuelta.golesLocal === "" || vuelta.golesVisita === "") {
+        return;
+      }
+      
+      // Calcular marcador global
+      const golesEquipoLocal = Number(ida.golesLocal) + Number(vuelta.golesVisita);
+      const golesEquipoVisita = Number(ida.golesVisita) + Number(vuelta.golesLocal);
+      
+      let ganador = null;
+      if (golesEquipoLocal > golesEquipoVisita) {
+        ganador = ida.local;
+      } else if (golesEquipoVisita > golesEquipoLocal) {
+        ganador = ida.visita;
+      } else {
+        // Empate, ver penales
+        const penalesLocal = Number(vuelta.penalesLocal || 0);
+        const penalesVisita = Number(vuelta.penalesVisita || 0);
+        if (penalesLocal > penalesVisita) {
+          ganador = vuelta.local;
+        } else if (penalesVisita > penalesLocal) {
+          ganador = vuelta.visita;
+        } else {
+          ganador = ida.local;
+        }
+      }
+      
+      if (ganador) finalistas.push(ganador);
+    });
+    
+    // Si tenemos los 2 finalistas, actualizar el partido FINAL
+    if (finalistas.length === 2) {
+      setPartidos(prev => prev.map((p, i) => {
+        if (i === indexFinal) {
+          return {
+            ...p,
+            local: finalistas[0],
+            visita: finalistas[1]
+          };
+        }
+        return p;
+      }));
+    }
+  }, [jornadaSeleccionada, partidos.map(p => `${p.golesLocal}-${p.golesVisita}-${p.penalesLocal}-${p.penalesVisita}`).join('|')]);
+
   const fetchPartidos = async (numero) => {
     try {
       const token = localStorage.getItem('token');
@@ -68,6 +134,7 @@ export default function AdminSudamericanaResultados() {
         tipoPartido: p.tipo_partido || null, // IDA, VUELTA, FINAL o null (fase grupos)
         jornadaId: p.jornada_id,
       }));
+      
       setPartidos(partidosConGoles);
     } catch (err) {
       console.error("Error al cargar partidos:", err);
@@ -518,14 +585,17 @@ export default function AdminSudamericanaResultados() {
                   </tr>
                 </thead>
                 <tbody>
-                  {partidos.map((p) => (
-                    <tr key={p.id}>
-                      <td className="fw-bold">
-                        <div className="d-flex align-items-center">
-                          <LogoEquipo nombre={p.local} style={{ width: '24px', height: '24px' }} />
-                          {p.local}
-                        </div>
-                      </td>
+                  {partidos.map((p) => {
+                    const esFinal = p.tipoPartido === 'FINAL';
+                    return (
+                      <tr key={p.id} className={esFinal ? 'table-warning' : ''}>
+                        <td className="fw-bold">
+                          <div className="d-flex align-items-center gap-2">
+                            <LogoEquipo nombre={p.local} style={{ width: '24px', height: '24px' }} />
+                            {p.local}
+                            {esFinal && <span className="badge bg-danger ms-2">🏆 FINAL</span>}
+                          </div>
+                        </td>
                       <td>
                         <div className="d-flex justify-content-center align-items-center gap-2">
                           <input
@@ -548,7 +618,7 @@ export default function AdminSudamericanaResultados() {
                         </div>
                       </td>
                       <td className="fw-bold">
-                        <div className="d-flex align-items-center">
+                        <div className="d-flex align-items-center gap-2">
                           <LogoEquipo nombre={p.visita} style={{ width: '24px', height: '24px' }} />
                           {p.visita}
                         </div>
@@ -634,7 +704,8 @@ export default function AdminSudamericanaResultados() {
                         </select>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
 
