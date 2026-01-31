@@ -208,7 +208,6 @@ app.use(express.json());
       ADD COLUMN IF NOT EXISTS copa_chile VARCHAR(100),
       ADD COLUMN IF NOT EXISTS copa_liga VARCHAR(100)
     `);
-    console.log('✅ Columnas copa_chile y copa_liga agregadas a predicciones_finales');
   } catch (error) {
     console.error('❌ Error agregando columnas copa_chile y copa_liga:', error.message);
   }
@@ -222,7 +221,6 @@ app.use(express.json());
       ADD COLUMN IF NOT EXISTS copa_chile VARCHAR(100),
       ADD COLUMN IF NOT EXISTS copa_liga VARCHAR(100)
     `);
-    console.log('✅ Columnas copa_chile y copa_liga agregadas a prediccion_final_admin');
   } catch (error) {
     console.error('❌ Error agregando columnas copa_chile y copa_liga a admin:', error.message);
   }

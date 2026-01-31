@@ -23,7 +23,6 @@ router.post("/", verifyToken, async (req, res) => {
     );
     // Solo permitir si está explícitamente en true
     if (usuarioCheck.rowCount === 0 || usuarioCheck.rows[0].activo_torneo_nacional !== true) {
-      console.log('🚫 Usuario sin acceso a Torneo Nacional:', usuarioId, usuarioCheck.rows[0]);
       return res.status(403).json({ error: "No tienes acceso para ingresar pronósticos en el Torneo Nacional" });
     }
 
@@ -124,9 +123,7 @@ router.post("/calcular/:jornada", async (req, res) => {
     let pdfGenerado = false;
     let pdfError = null;
     try {
-      console.log(`📄 Generando PDF con resultados para jornada ${jornada}...`);
       await generarPDFConResultados(jornada);
-      console.log('✅ PDF con resultados generado y enviado exitosamente');
       pdfGenerado = true;
     } catch (error) {
       console.error('❌ Error generando PDF con resultados:', error);
@@ -258,18 +255,20 @@ router.get("/ranking/jornada/:jornada", async (req, res) => {
         u.id as usuario_id,
         u.nombre as usuario,
         u.foto_perfil,
-        SUM(p.puntos) as puntaje_jornada
+        COALESCE(SUM(p.puntos), 0) as puntos_jornada
       FROM usuarios u
-      JOIN pronosticos p ON p.usuario_id = u.id
-      JOIN partidos pa ON p.partido_id = pa.id
-      JOIN jornadas j ON pa.jornada_id = j.id
-      WHERE j.numero = $1 AND u.activo_torneo_nacional = true
+      LEFT JOIN pronosticos p ON p.usuario_id = u.id
+      LEFT JOIN partidos pa ON p.partido_id = pa.id
+      LEFT JOIN jornadas j ON pa.jornada_id = j.id AND j.numero = $1
+      WHERE u.activo_torneo_nacional = true
+        AND u.rol != 'admin'
       GROUP BY u.id, u.nombre, u.foto_perfil
-      ORDER BY puntaje_jornada DESC, usuario ASC`,
+      ORDER BY puntos_jornada DESC, usuario ASC`,
       [jornada]
     );
     res.json(result.rows);
   } catch (error) {
+    console.error("Error en ranking de jornada:", error);
     res.status(500).json({ error: "No se pudo obtener el ranking de la jornada" });
   }
 });
@@ -293,6 +292,34 @@ router.get("/ranking/general", async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: "No se pudo obtener el ranking general" });
+  }
+});
+
+// Ranking acumulado hasta una jornada específica (para simulador)
+router.get("/ranking/acumulado-hasta/:jornadaNumero", async (req, res) => {
+  try {
+    const { jornadaNumero } = req.params;
+    
+    const result = await pool.query(
+      `SELECT 
+        u.id as usuario_id,
+        u.nombre as usuario,
+        u.foto_perfil,
+        COALESCE(SUM(p.puntos),0) as puntaje_total
+      FROM usuarios u
+      LEFT JOIN pronosticos p ON p.usuario_id = u.id
+      LEFT JOIN jornadas j ON j.id = p.jornada_id
+      WHERE u.activo_torneo_nacional = true
+        AND u.rol != 'admin'
+        AND (j.numero IS NULL OR j.numero <= $1)
+      GROUP BY u.id, u.nombre, u.foto_perfil
+      ORDER BY puntaje_total DESC, usuario ASC`,
+      [jornadaNumero]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error en ranking acumulado hasta jornada:", error);
+    res.status(500).json({ error: "No se pudo obtener el ranking acumulado" });
   }
 });
 

@@ -366,10 +366,8 @@ router.post('/sumar-ranking', verifyToken, authorizeRoles('admin'), async (req, 
       
       usuariosActualizados++;
     }
-    
-    console.log(`✅ Total de usuarios actualizados: ${usuariosActualizados}`);
-    
-    res.json({ 
+
+    res.json({
       message: 'Puntos sumados al ranking exitosamente',
       usuariosActualizados
     });

@@ -168,4 +168,35 @@ router.get("/todos", verifyToken, authorizeRoles("admin"), async (req, res) => {
   }
 });
 
+// 🔧 TEMPORAL: Actualizar fotos de perfil faltantes
+router.post("/actualizar-fotos-faltantes", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const updates = [
+      { nombre: 'Alfred Venegas', foto: '/perfil/avenegas.jpeg' },
+      { nombre: 'Carlos Titus', foto: '/perfil/ctitus.jpeg' },
+      { nombre: 'Javier Aguilera', foto: '/perfil/jaguilera.jpeg' },
+      { nombre: 'Juan Torrijo', foto: '/perfil/jtorrijo.png' },
+      { nombre: 'Julio Zuñiga', foto: '/perfil/jzuniga.jpg' }
+    ];
+
+    const resultados = [];
+    for (const update of updates) {
+      const result = await pool.query(
+        'UPDATE usuarios SET foto_perfil = $1 WHERE nombre = $2 RETURNING nombre, foto_perfil',
+        [update.foto, update.nombre]
+      );
+      if (result.rowCount > 0) {
+        resultados.push({ status: 'ok', ...result.rows[0] });
+      } else {
+        resultados.push({ status: 'not_found', nombre: update.nombre });
+      }
+    }
+
+    res.json({ mensaje: 'Fotos actualizadas', resultados });
+  } catch (error) {
+    console.error("Error al actualizar fotos:", error);
+    res.status(500).json({ error: "No se pudieron actualizar las fotos" });
+  }
+});
+
 export default router;

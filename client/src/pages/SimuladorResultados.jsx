@@ -4,6 +4,34 @@ import AccesosDirectos from "../components/AccesosDirectos";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+// Función para obtener logo del equipo
+const getLogoEquipo = (nombreEquipo) => {
+  const nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  const logos = {
+    'Audax Italiano': '/logos_torneo_nacional/audax.png',
+    'Colo-Colo': '/logos_torneo_nacional/colo-colo.png',
+    'Cobresal': '/logos_torneo_nacional/cobresal.png',
+    'Coquimbo Unido': '/logos_torneo_nacional/coquimbo.png',
+    'Deportes Iquique': '/logos_torneo_nacional/iquique.png',
+    'Deportes La Serena': '/logos_torneo_nacional/laserena.png',
+    'Deportes Limache': '/logos_torneo_nacional/limache.webp',
+    'Deportes Concepción': '/logos_torneo_nacional/concepcion.png',
+    'U. de Concepción': '/logos_torneo_nacional/udeconce.png',
+    'Everton': '/logos_torneo_nacional/everton.png',
+    'Huachipato': '/logos_torneo_nacional/huachipato.png',
+    'Ñublense': '/logos_torneo_nacional/ñublense.png',
+    "O'Higgins": '/logos_torneo_nacional/ohiggins.webp',
+    'Palestino': '/logos_torneo_nacional/palestino.png',
+    'U. Católica': '/logos_torneo_nacional/uc.png',
+    'U. de Chile': '/logos_torneo_nacional/udechile.png',
+    'U. Española': '/logos_torneo_nacional/union-espanola.png',
+    'Unión Española': '/logos_torneo_nacional/union-espanola.png',
+    'Unión La Calera': '/logos_torneo_nacional/calera.png',
+    'Universidad de Concepción': '/logos_torneo_nacional/udeconce.png'
+  };
+  return logos[nombreNormalizado] || null;
+};
+
 export default function SimuladorResultados() {
   const navigate = useNavigate();
   const [jornadas, setJornadas] = useState([]);
@@ -46,10 +74,24 @@ export default function SimuladorResultados() {
       const dataPartidos = await resPartidos.json();
       setPartidos(dataPartidos);
       
-      // Inicializar resultados simulados vacíos
+      // Inicializar resultados: usar resultados reales si existen, vacío si no
       const resultados = {};
       dataPartidos.forEach(p => {
-        resultados[p.id] = { golesLocal: "", golesVisita: "" };
+        if (p.goles_local !== null && p.goles_visita !== null) {
+          // Tiene resultado real - no modificable
+          resultados[p.id] = { 
+            golesLocal: p.goles_local, 
+            golesVisita: p.goles_visita,
+            esReal: true // Marca para deshabilitar input
+          };
+        } else {
+          // Sin resultado - modificable
+          resultados[p.id] = { 
+            golesLocal: "", 
+            golesVisita: "",
+            esReal: false 
+          };
+        }
       });
       setResultadosSimulados(resultados);
 
@@ -58,14 +100,14 @@ export default function SimuladorResultados() {
       const dataPronosticos = await resPronosticos.json();
       setPronosticos(dataPronosticos);
 
-      // Cargar ranking de jornada actual
+      // Cargar ranking de jornada actual (REAL de la BD)
       const resRankingJornada = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/jornada/${jornadaSeleccionada}`);
       const dataRankingJornada = await resRankingJornada.json();
       setRankingJornada(dataRankingJornada);
       setRankingJornadaSimulado(dataRankingJornada);
 
-      // Cargar ranking acumulado
-      const resRankingAcumulado = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`);
+      // Cargar ranking acumulado (REAL hasta jornada seleccionada)
+      const resRankingAcumulado = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/acumulado-hasta/${jornadaSeleccionada}`);
       const dataRankingAcumulado = await resRankingAcumulado.json();
       setRankingAcumulado(dataRankingAcumulado);
       setRankingAcumuladoSimulado(dataRankingAcumulado);
@@ -128,6 +170,12 @@ export default function SimuladorResultados() {
       return;
     }
 
+    // Crear mapa de fotos desde ranking acumulado (tiene todos los jugadores)
+    const fotosMap = {};
+    rankingAcumulado.forEach(j => {
+      fotosMap[j.usuario] = j.foto_perfil;
+    });
+
     // Calcular puntos de la jornada simulada
     const puntosJornada = {};
     
@@ -138,14 +186,17 @@ export default function SimuladorResultados() {
       const resultado = resultadosSimulados[partido.id];
       const puntos = calcularPuntos(pron, partido, resultado);
 
-      if (!puntosJornada[pron.usuario]) {
-        puntosJornada[pron.usuario] = {
-          usuario: pron.usuario,
-          nombre: pron.nombre,
+      const nombreUsuario = pron.usuario; // nombre del jugador
+      
+      if (!puntosJornada[nombreUsuario]) {
+        puntosJornada[nombreUsuario] = {
+          usuario: nombreUsuario,
+          nombre: nombreUsuario,
+          foto_perfil: pron.usuario_foto_perfil || fotosMap[nombreUsuario] || null,
           puntos_jornada: 0
         };
       }
-      puntosJornada[pron.usuario].puntos_jornada += puntos;
+      puntosJornada[nombreUsuario].puntos_jornada += puntos;
     });
 
     // Ranking de jornada simulado
@@ -153,12 +204,16 @@ export default function SimuladorResultados() {
       .sort((a, b) => b.puntos_jornada - a.puntos_jornada);
     setRankingJornadaSimulado(nuevoRankingJornada);
 
-    // Ranking acumulado simulado (suma puntos actuales + simulados)
+    // Ranking acumulado simulado
+    // Los puntos del ranking acumulado YA incluyen esta jornada si tiene resultados reales
+    // Entonces: puntosActuales - puntosRealesJornada + puntosSimuladosJornada
     const nuevoRankingAcumulado = rankingAcumulado.map(jugador => {
+      const puntosRealesJornada = rankingJornada.find(j => j.usuario === jugador.usuario)?.puntos_jornada || 0;
       const puntosSimuladosJornada = puntosJornada[jugador.usuario]?.puntos_jornada || 0;
+      
       return {
         ...jugador,
-        puntaje_total: jugador.puntaje_total + puntosSimuladosJornada
+        puntaje_total: jugador.puntaje_total - puntosRealesJornada + puntosSimuladosJornada
       };
     }).sort((a, b) => b.puntaje_total - a.puntaje_total);
     
@@ -173,11 +228,29 @@ export default function SimuladorResultados() {
   }, [resultadosSimulados]);
 
   const limpiarSimulacion = () => {
+    // Restaurar valores originales: mantener resultados reales, limpiar simulados
     const resultados = {};
     partidos.forEach(p => {
-      resultados[p.id] = { golesLocal: "", golesVisita: "" };
+      if (p.goles_local !== null && p.goles_visita !== null) {
+        // Mantener resultado real
+        resultados[p.id] = { 
+          golesLocal: p.goles_local, 
+          golesVisita: p.goles_visita,
+          esReal: true 
+        };
+      } else {
+        // Limpiar simulado
+        resultados[p.id] = { 
+          golesLocal: "", 
+          golesVisita: "",
+          esReal: false 
+        };
+      }
     });
     setResultadosSimulados(resultados);
+    // Restaurar rankings originales
+    setRankingJornadaSimulado(rankingJornada);
+    setRankingAcumuladoSimulado(rankingAcumulado);
   };
 
   return (
@@ -238,32 +311,63 @@ export default function SimuladorResultados() {
                   </tr>
                 </thead>
                 <tbody>
-                  {partidos.map((partido) => (
-                    <tr key={partido.id}>
-                      <td className="text-end">{partido.local}</td>
-                      <td className="text-center" style={{ width: '120px' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          className="form-control form-control-sm text-center"
-                          value={resultadosSimulados[partido.id]?.golesLocal ?? ""}
-                          onChange={(e) => handleResultadoChange(partido.id, 'golesLocal', e.target.value)}
-                        />
-                      </td>
-                      <td className="text-center" style={{ width: '120px' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          className="form-control form-control-sm text-center"
-                          value={resultadosSimulados[partido.id]?.golesVisita ?? ""}
-                          onChange={(e) => handleResultadoChange(partido.id, 'golesVisita', e.target.value)}
-                        />
-                      </td>
-                      <td>{partido.visita}</td>
-                    </tr>
-                  ))}
+                  {partidos.map((partido) => {
+                    const resultado = resultadosSimulados[partido.id];
+                    const esResultadoReal = resultado?.esReal;
+                    
+                    return (
+                      <tr key={partido.id}>
+                        <td className="text-end">
+                          <div className="d-flex align-items-center justify-content-end gap-2">
+                            <span>{partido.local}</span>
+                            <img 
+                              src={getLogoEquipo(partido.local)} 
+                              alt={partido.local}
+                              style={{width: '25px', height: '25px', objectFit: 'contain'}}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          </div>
+                        </td>
+                        <td className="text-center" style={{ width: '120px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="20"
+                            className="form-control form-control-sm text-center"
+                            value={resultado?.golesLocal ?? ""}
+                            onChange={(e) => handleResultadoChange(partido.id, 'golesLocal', e.target.value)}
+                            disabled={esResultadoReal}
+                            style={esResultadoReal ? { backgroundColor: '#e9ecef', fontWeight: 'bold' } : {}}
+                            title={esResultadoReal ? 'Resultado real - No modificable' : ''}
+                          />
+                        </td>
+                        <td className="text-center" style={{ width: '120px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="20"
+                            className="form-control form-control-sm text-center"
+                            value={resultado?.golesVisita ?? ""}
+                            onChange={(e) => handleResultadoChange(partido.id, 'golesVisita', e.target.value)}
+                            disabled={esResultadoReal}
+                            style={esResultadoReal ? { backgroundColor: '#e9ecef', fontWeight: 'bold' } : {}}
+                            title={esResultadoReal ? 'Resultado real - No modificable' : ''}
+                          />
+                        </td>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            <img 
+                              src={getLogoEquipo(partido.visita)} 
+                              alt={partido.visita}
+                              style={{width: '25px', height: '25px', objectFit: 'contain'}}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                            <span>{partido.visita}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -293,9 +397,26 @@ export default function SimuladorResultados() {
                       {rankingJornadaSimulado.map((jugador, index) => (
                         <tr key={jugador.usuario}>
                           <td>{index + 1}</td>
-                          <td>{jugador.nombre || jugador.usuario}</td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2">
+                              {jugador.foto_perfil && (
+                                <img 
+                                  src={jugador.foto_perfil} 
+                                  alt={jugador.nombre}
+                                  style={{
+                                    width: '30px',
+                                    height: '30px',
+                                    borderRadius: '50%',
+                                    objectFit: 'cover'
+                                  }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              )}
+                              <span>{jugador.nombre || jugador.usuario}</span>
+                            </div>
+                          </td>
                           <td className="text-end">
-                            <strong>{jugador.puntos_jornada || 0}</strong>
+                            <strong>{jugador.puntos_jornada ?? 0}</strong>
                           </td>
                         </tr>
                       ))}
@@ -325,9 +446,26 @@ export default function SimuladorResultados() {
                       {rankingAcumuladoSimulado.map((jugador, index) => (
                         <tr key={jugador.usuario}>
                           <td>{index + 1}</td>
-                          <td>{jugador.nombre || jugador.usuario}</td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2">
+                              {jugador.foto_perfil && (
+                                <img 
+                                  src={jugador.foto_perfil} 
+                                  alt={jugador.nombre}
+                                  style={{
+                                    width: '30px',
+                                    height: '30px',
+                                    borderRadius: '50%',
+                                    objectFit: 'cover'
+                                  }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              )}
+                              <span>{jugador.nombre || jugador.usuario}</span>
+                            </div>
+                          </td>
                           <td className="text-end">
-                            <strong>{jugador.puntaje_total}</strong>
+                            <strong>{jugador.puntaje_total ?? 0}</strong>
                           </td>
                         </tr>
                       ))}
