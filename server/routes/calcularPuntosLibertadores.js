@@ -55,6 +55,16 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
     let puntosAsignados = 0;
     let puntosClasificacion = 0;
 
+    // Para jornadas 8-10: Eliminar registros existentes de clasificación antes de recalcular
+    if (jornadaNumero && jornadaNumero >= 8 && jornadaNumero <= 10) {
+      await pool.query(
+        `DELETE FROM libertadores_puntos_clasificacion 
+         WHERE jornada_numero = $1`,
+        [jornadaNumero]
+      );
+      console.log(`  🗑️  Registros de clasificación J${jornadaNumero} eliminados`);
+    }
+
     // Calcular puntos para cada pronóstico
     for (const pronostico of pronosticosResult.rows) {
       const {
@@ -362,11 +372,6 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             INSERT INTO libertadores_puntos_clasificacion 
             (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
             VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (usuario_id, partido_id, jornada_numero)
-            DO UPDATE SET 
-              equipo_clasificado = EXCLUDED.equipo_clasificado,
-              fase_clasificado = EXCLUDED.fase_clasificado,
-              puntos = EXCLUDED.puntos
           `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
         } // Fin debeGuardarClasificacion

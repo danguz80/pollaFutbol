@@ -133,7 +133,9 @@ export default function ClasificacionLibertadores() {
       if (filtroPartido) params.append('partido_id', filtroPartido);
       // Si es jornada 6, NO filtrar por jornada para obtener todas las jornadas 1-6
       // (necesarias para calcular tablas de clasificación)
-      if (filtroJornada && parseInt(filtroJornada) !== 6) params.append('jornada_numero', filtroJornada);
+      if (filtroJornada && parseInt(filtroJornada) !== 6) {
+        params.append('jornada_numero', filtroJornada);
+      }
 
       const response = await axios.get(
         `${API_URL}/api/libertadores-clasificacion/pronosticos?${params.toString()}`,
@@ -603,7 +605,54 @@ export default function ClasificacionLibertadores() {
           });
         });
       }
-      
+
+      // Si es jornada 8, agregar pronósticos de clasificados (equipos que avanzan)
+      if (parseInt(filtroJornada) === 8) {
+        Object.values(grupos).forEach(grupo => {
+          // Agrupar por partido_id para evitar duplicados
+          const clasificacionesPorPartido = {};
+          
+          grupo.pronosticos.forEach(p => {
+            // Solo procesar partidos de VUELTA que tienen datos de clasificación
+            if (p.partido?.tipo_partido === 'VUELTA' && 
+                p.equipo_pronosticado_avanza && 
+                p.puntos_clasificacion !== null && 
+                p.puntos_clasificacion !== undefined) {
+              
+              if (!clasificacionesPorPartido[p.partido.id]) {
+                clasificacionesPorPartido[p.partido.id] = {
+                  partido_id: p.partido.id,
+                  partido_nombre: `${p.partido.local.nombre} vs ${p.partido.visita.nombre}`,
+                  equipo_pronosticado: p.equipo_pronosticado_avanza,
+                  equipo_real: p.equipo_real_avanza || '?',
+                  puntos: p.puntos_clasificacion
+                };
+              }
+            }
+          });
+          
+          // Crear filas de clasificación
+          Object.values(clasificacionesPorPartido).forEach(clasif => {
+            grupo.pronosticos.push({
+              id: `clasif-j8-${grupo.usuario_id}-${clasif.partido_id}`,
+              esClasificado: true,
+              tipoClasificado: 'cuartos',
+              usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+              jornada: { numero: 8, cerrada: true },
+              partido: {
+                id: clasif.partido_id,
+                grupo: null,
+                local: { nombre: clasif.partido_nombre },
+                visita: { nombre: '' }
+              },
+              equipo_pronosticado: clasif.equipo_pronosticado,
+              equipo_oficial: clasif.equipo_real,
+              puntos: clasif.puntos
+            });
+          });
+        });
+      }
+
       // Ordenar pronósticos dentro de cada grupo
       Object.values(grupos).forEach(grupo => {
         grupo.pronosticos.sort((a, b) => {
@@ -1040,8 +1089,8 @@ export default function ClasificacionLibertadores() {
             </div>
           </div>
 
-          {/* Para jornada 6: SEPARAR TABLAS DE PARTIDOS Y CLASIFICACIÓN */}
-          {parseInt(filtroJornada) === 6 ? (
+          {/* Para jornadas 6 y 8: SEPARAR TABLAS DE PARTIDOS Y CLASIFICACIÓN */}
+          {(parseInt(filtroJornada) === 6 || parseInt(filtroJornada) === 8) ? (
             agruparPronosticos().map((grupo, grupoIndex) => {
               // Separar partidos de clasificados
               const pronosticosPartidos = grupo.pronosticos.filter(p => !p.esClasificado);
@@ -1054,33 +1103,54 @@ export default function ClasificacionLibertadores() {
               return (
                 <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
                   {/* TABLA 1: PARTIDOS */}
-                  <h5 className="mt-4 mb-3 text-primary">🏟️ Partidos - {grupo.jugador}</h5>
-                  <div className="table-responsive">
+                  <div className="table-responsive mt-4">
                     <table className="table table-bordered table-hover">
-                      <thead className="table-dark">
-                        <tr>
-                          <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                      {/* ENCABEZADO CON JUGADOR */}
+                      <thead>
+                        <tr className="table-light">
+                          <th colSpan="6" className="text-center">
+                            <div className="d-flex align-items-center justify-content-center gap-2">
+                              <img
+                                src={grupo.foto_perfil || '/perfil/default.png'}
+                                alt={grupo.jugador}
+                                className="rounded-circle"
+                                style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                              />
+                              <span className="fw-bold fs-5">🏟️ Partidos - {grupo.jugador}</span>
+                            </div>
+                          </th>
+                        </tr>
+                        <tr className="table-dark">
                           <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                          <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                          <th className="text-center" style={{ width: '120px' }}>Grupo</th>
                           <th className="text-center">Partido</th>
-                          <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
-                          <th className="text-center" style={{ width: '100px' }}>Resultado</th>
-                          <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                          <th className="text-center" style={{ width: '120px' }}>Pronóstico</th>
+                          <th className="text-center" style={{ width: '120px' }}>Resultado</th>
+                          <th className="text-center" style={{ width: '80px' }}>Bonus</th>
                           <th className="text-center" style={{ width: '80px' }}>Puntos</th>
                         </tr>
                       </thead>
                       <tbody>
                         {pronosticosPartidos.map((pronostico, index) => (
                           <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
-                            <td className="fw-bold">{pronostico.usuario.nombre}</td>
                             <td className="text-center">
                               <span className="badge bg-primary">
                                 Jornada {pronostico.jornada.numero}
                               </span>
                             </td>
                             <td className="text-center">
-                              {pronostico.partido.grupo ? (
-                                <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
+                              {parseInt(filtroJornada) === 6 ? (
+                                pronostico.partido.grupo ? (
+                                  <span className="badge bg-warning text-dark">Grupo {pronostico.partido.grupo}</span>
+                                ) : (
+                                  <span className="text-muted">-</span>
+                                )
+                              ) : parseInt(filtroJornada) === 8 ? (
+                                <div>
+                                  <div className="badge bg-info mb-1">Octavos</div>
+                                  <div className="badge bg-secondary">{pronostico.partido.tipo_partido || '-'}</div>
+                                </div>
                               ) : (
                                 <span className="text-muted">-</span>
                               )}
@@ -1146,7 +1216,7 @@ export default function ClasificacionLibertadores() {
                         ))}
                         {/* TOTAL PARTIDOS */}
                         <tr className="table-dark fw-bold">
-                          <td colSpan="7" className="text-end">TOTAL PARTIDOS:</td>
+                          <td colSpan="6" className="text-end">TOTAL PARTIDOS:</td>
                           <td className="text-center">
                             <span className="badge bg-dark fs-5">{puntosPartidos} pts</span>
                           </td>
@@ -1158,48 +1228,57 @@ export default function ClasificacionLibertadores() {
                   {/* TABLA 2: CLASIFICACIÓN */}
                   {pronosticosClasificados.length > 0 && (
                     <>
-                      <h5 className="mt-4 mb-3 text-success">⚡ Equipos Clasificados - {grupo.jugador}</h5>
-                      <div className="table-responsive">
+                      <div className="table-responsive mt-4">
                         <table className="table table-bordered table-hover">
-                          <thead className="table-success">
-                            <tr>
-                              <th className="text-center" style={{ width: '150px' }}>Jugador</th>
+                          {/* ENCABEZADO CON JUGADOR */}
+                          <thead>
+                            <tr className="table-light">
+                              <th colSpan="6" className="text-center">
+                                <div className="d-flex align-items-center justify-content-center gap-2">
+                                  <img
+                                    src={grupo.foto_perfil || '/perfil/default.png'}
+                                    alt={grupo.jugador}
+                                    className="rounded-circle"
+                                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                                  />
+                                  <span className="fw-bold fs-5">⚡ Equipos Clasificados - {grupo.jugador}</span>
+                                </div>
+                              </th>
+                            </tr>
+                            <tr className="table-dark">
                               <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                              <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                              <th className="text-center" style={{ width: '120px' }}>Grupo</th>
                               <th className="text-center">Clasificación</th>
-                              <th className="text-center" style={{ width: '150px' }}>Equipo Pronosticado</th>
-                              <th className="text-center" style={{ width: '150px' }}>Equipo Real</th>
+                              <th className="text-center" style={{ width: '200px' }}>Equipo Pronosticado</th>
+                              <th className="text-center" style={{ width: '200px' }}>Equipo Real</th>
                               <th className="text-center" style={{ width: '80px' }}>Puntos</th>
                             </tr>
                           </thead>
                           <tbody>
                             {pronosticosClasificados.map((pronostico, index) => (
                               <tr key={`clasif-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
-                                <td className="fw-bold">
-                                  <div className="d-flex align-items-center gap-2">
-                                    <img
-                                      src={grupo.foto_perfil || '/perfil/default.png'}
-                                      alt={grupo.jugador}
-                                      className="rounded-circle"
-                                      style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                      onError={(e) => { e.target.src = '/perfil/default.png'; }}
-                                    />
-                                    <span>{pronostico.usuario.nombre}</span>
-                                  </div>
-                                </td>
                                 <td className="text-center">
                                   <span className="badge bg-primary">
                                     Jornada {pronostico.jornada.numero}
                                   </span>
                                 </td>
                                 <td className="text-center">
-                                  <span className="badge bg-warning text-dark">Grupo {pronostico.partido.grupo}</span>
+                                  {parseInt(filtroJornada) === 6 ? (
+                                    <span className="badge bg-warning text-dark">Grupo {pronostico.partido.grupo}</span>
+                                  ) : (
+                                    <span className="badge bg-success">Clasificados</span>
+                                  )}
                                 </td>
                                 <td className="text-center fw-bold">
-                                  {pronostico.partido.local.nombre}
+                                  {parseInt(filtroJornada) === 6 ? (
+                                    pronostico.partido.local.nombre
+                                  ) : (
+                                    <span>Equipo que avanza a Cuartos de final</span>
+                                  )}
                                 </td>
                                 <td className="text-center">
-                                  {pronostico.tipoClasificado === 'playoffs' ? (
+                                  {pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
                                     <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
                                       {pronostico.equipo_pronosticado}
                                     </div>
@@ -1219,9 +1298,9 @@ export default function ClasificacionLibertadores() {
                                   )}
                                 </td>
                                 <td className="text-center">
-                                  {pronostico.tipoClasificado === 'playoffs' ? (
+                                  {pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
                                     <div className="fw-bold">
-                                      {pronostico.equipo_oficial || '-'}
+                                      {pronostico.equipo_oficial || '?'}
                                     </div>
                                   ) : (
                                     pronostico.equipos_oficiales?.map((equipo, idx) => (
@@ -1239,7 +1318,7 @@ export default function ClasificacionLibertadores() {
                                   )}
                                 </td>
                                 <td className="text-center">
-                                  {pronostico.tipoClasificado === 'playoffs' ? (
+                                  {pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
                                     pronostico.puntos > 0 ? (
                                       <span className="badge bg-success">
                                         +{pronostico.puntos} pts
@@ -1271,7 +1350,7 @@ export default function ClasificacionLibertadores() {
                             ))}
                             {/* TOTAL CLASIFICACIÓN */}
                             <tr className="table-dark fw-bold">
-                              <td colSpan="6" className="text-end">TOTAL CLASIFICACIÓN:</td>
+                              <td colSpan="5" className="text-end">TOTAL CLASIFICACIÓN:</td>
                               <td className="text-center">
                                 <span className="badge bg-dark fs-5">{puntosClasificados} pts</span>
                               </td>
