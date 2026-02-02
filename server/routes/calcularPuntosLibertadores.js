@@ -426,6 +426,71 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         // Obtener reglas de puntuación para Cuadro Final
         const puntosCampeon = reglas.find(r => r.fase === 'CAMPEÓN' && r.concepto.includes('Campeón'))?.puntos || 15;
         const puntosSubcampeon = reglas.find(r => r.fase === 'CAMPEÓN' && r.concepto.includes('Subcampeón'))?.puntos || 8;
+        const puntosFinalistaJ10 = 5; // Puntos por acertar finalista
+        
+        // Obtener todos los pronósticos del partido final virtual
+        const pronosticosFinalesResult = await pool.query(`
+          SELECT usuario_id, equipo_local, equipo_visita, 
+                 goles_local, goles_visita, penales_local, penales_visita
+          FROM libertadores_pronosticos_final_virtual lpfv
+          JOIN libertadores_jornadas lj ON lpfv.jornada_id = lj.id
+          WHERE lj.numero = 10
+        `);
+
+        // Obtener todos los partidos de J10 para saber quiénes son los finalistas reales
+        const partidosJ10Result = await pool.query(`
+          SELECT p.id, p.nombre_local, p.nombre_visita, p.goles_local, p.goles_visita,
+                 p.penales_local, p.penales_visita, p.tipo_partido
+          FROM libertadores_partidos p
+          INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+          WHERE lj.numero = 10
+          ORDER BY p.id
+        `);
+
+        const partidosJ10 = partidosJ10Result.rows;
+        const partidosSemifinal = partidosJ10.filter(p => p.tipo_partido === 'IDA' || p.tipo_partido === 'VUELTA');
+        const finalistasReales = [];
+
+        // Calcular finalistas reales desde las semis
+        const semifinalesIda = partidosSemifinal.filter(p => p.tipo_partido === 'IDA');
+        const semifinalesVuelta = partidosSemifinal.filter(p => p.tipo_partido === 'VUELTA');
+
+        for (const vuelta of semifinalesVuelta) {
+          const ida = semifinalesIda.find(p => 
+            p.nombre_local === vuelta.nombre_visita && 
+            p.nombre_visita === vuelta.nombre_local
+          );
+          if (ida && vuelta.goles_local !== null && vuelta.goles_visita !== null && 
+              ida.goles_local !== null && ida.goles_visita !== null) {
+            // Calcular ganador del cruce
+            const golesLocalTotal = ida.goles_local + vuelta.goles_visita;
+            const golesVisitaTotal = ida.goles_visita + vuelta.goles_local;
+            
+            let ganador = null;
+            if (golesLocalTotal > golesVisitaTotal) {
+              ganador = ida.nombre_local;
+            } else if (golesVisitaTotal > golesLocalTotal) {
+              ganador = ida.nombre_visita;
+            } else {
+              // Empate, revisar penales de la vuelta
+              if (vuelta.penales_local !== null && vuelta.penales_visita !== null) {
+                if (vuelta.penales_local > vuelta.penales_visita) {
+                  ganador = vuelta.nombre_local;
+                } else {
+                  ganador = vuelta.nombre_visita;
+                }
+              }
+            }
+            if (ganador) finalistasReales.push(ganador);
+          }
+        }
+
+        console.log('🔍 Finalistas reales Libertadores:', finalistasReales);
+        console.log('🏆 Campeón real:', campeonReal);
+        console.log('🥈 Subcampeón real:', subcampeonReal);
+
+        // Array para guardar puntos de clasificación J10
+        const puntosJ10 = [];
         
         // Obtener todas las predicciones
         const predicciones = await pool.query('SELECT * FROM libertadores_predicciones_campeon');
@@ -448,6 +513,97 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             WHERE usuario_id = $3
           `, [puntos_campeon_usuario, puntos_subcampeon_usuario, prediccion.usuario_id]);
         }
+
+        // Ahora crear registros en libertadores_puntos_clasificacion para cada usuario
+        for (const pron of pronosticosFinalesResult.rows) {
+          const finalistasPronosticados = [pron.equipo_local, pron.equipo_visita];
+
+          // Puntos por finalistas (5pts cada uno)
+          // Para el equipo_local del usuario
+          const localAcerto = finalistasReales.includes(pron.equipo_local);
+          const localEquipoOficial = localAcerto ? pron.equipo_local : (finalistasReales[0] || null);
+          
+          puntosJ10.push({
+            usuario_id: pron.usuario_id,
+            jornada_numero: 10,
+            equipo_clasificado: pron.equipo_local,
+            equipo_oficial: localEquipoOficial,
+            fase_clasificado: 'FINALISTA',
+            puntos: localAcerto ? puntosFinalistaJ10 : 0
+          });
+          
+          // Para el equipo_visita del usuario
+          const visitaAcerto = finalistasReales.includes(pron.equipo_visita);
+          const visitaEquipoOficial = visitaAcerto ? pron.equipo_visita : (finalistasReales[1] || finalistasReales[0] || null);
+          
+          puntosJ10.push({
+            usuario_id: pron.usuario_id,
+            jornada_numero: 10,
+            equipo_clasificado: pron.equipo_visita,
+            equipo_oficial: visitaEquipoOficial,
+            fase_clasificado: 'FINALISTA',
+            puntos: visitaAcerto ? puntosFinalistaJ10 : 0
+          });
+
+          // Determinar campeón y subcampeón pronosticados
+          const golesLocalPron = (pron.goles_local || 0) + (pron.penales_local || 0);
+          const golesVisitaPron = (pron.goles_visita || 0) + (pron.penales_visita || 0);
+          let campeonPronosticado = null;
+          let subcampeonPronosticado = null;
+
+          if (golesLocalPron > golesVisitaPron) {
+            campeonPronosticado = pron.equipo_local;
+            subcampeonPronosticado = pron.equipo_visita;
+          } else if (golesVisitaPron > golesLocalPron) {
+            campeonPronosticado = pron.equipo_visita;
+            subcampeonPronosticado = pron.equipo_local;
+          }
+
+          // IMPORTANTE: Solo dar puntos si el partido pronosticado coincide con el partido real
+          const partidoCoincide = finalistasReales.length === 2 && (
+            (pron.equipo_local === finalistasReales[0] && pron.equipo_visita === finalistasReales[1]) ||
+            (pron.equipo_local === finalistasReales[1] && pron.equipo_visita === finalistasReales[0])
+          );
+
+          // Puntos por campeón (15pts)
+          if (campeonPronosticado) {
+            const aciertoCampeon = partidoCoincide && campeonPronosticado === campeonReal;
+            puntosJ10.push({
+              usuario_id: pron.usuario_id,
+              jornada_numero: 10,
+              equipo_clasificado: campeonPronosticado,
+              equipo_oficial: campeonReal,
+              fase_clasificado: 'CAMPEON',
+              puntos: aciertoCampeon ? puntosCampeon : 0
+            });
+          }
+
+          // Puntos por subcampeón (8pts)
+          if (subcampeonPronosticado) {
+            const aciertoSubcampeon = partidoCoincide && subcampeonPronosticado === subcampeonReal;
+            puntosJ10.push({
+              usuario_id: pron.usuario_id,
+              jornada_numero: 10,
+              equipo_clasificado: subcampeonPronosticado,
+              equipo_oficial: subcampeonReal,
+              fase_clasificado: 'SUBCAMPEON',
+              puntos: aciertoSubcampeon ? puntosSubcampeon : 0
+            });
+          }
+        }
+
+        // Borrar registros existentes de J10 e insertar los nuevos
+        await pool.query('DELETE FROM libertadores_puntos_clasificacion WHERE jornada_numero = 10');
+        for (const punto of puntosJ10) {
+          await pool.query(`
+            INSERT INTO libertadores_puntos_clasificacion 
+            (usuario_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [punto.usuario_id, punto.jornada_numero, punto.equipo_clasificado,
+              punto.equipo_oficial, punto.fase_clasificado, punto.puntos]);
+        }
+
+        console.log(`✅ J10 Libertadores: ${finalistasReales.length} finalistas, campeón: ${campeonReal}, ${puntosJ10.length} registros creados`);
       }
     }
 
@@ -673,7 +829,7 @@ function getFaseDeJornada(numeroJornada) {
 function getFaseAvance(numeroJornada) {
   if (numeroJornada === 7 || numeroJornada === 8) return 'OCTAVOS';
   if (numeroJornada === 9) return 'CUARTOS';
-  if (numeroJornada === 10) return 'SEMIFINALES';
+  if (numeroJornada === 10) return 'FINALISTA';  // Cambiado de SEMIFINALES a FINALISTA
   if (numeroJornada === 11) return 'LA FINAL';
   return '';
 }

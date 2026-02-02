@@ -149,9 +149,101 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
     `;
 
     const result = await pool.query(query, params);
+    
+    // LÓGICA ESPECIAL PARA J10: Agregar partido FINAL para usuarios que no lo tienen en libertadores_pronosticos
+    let rowsFinales = result.rows;
+    
+    if (jornada_numero && parseInt(jornada_numero) === 10) {
+      // Obtener el partido FINAL (id 456)
+      const partidoFinalResult = await pool.query(`
+        SELECT p.*, lj.id as jornada_id, lj.numero as jornada_numero, lj.nombre as jornada_nombre, lj.cerrada as jornada_cerrada
+        FROM libertadores_partidos p
+        INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+        WHERE p.id = 456 AND lj.numero = 10
+      `);
+      
+      if (partidoFinalResult.rows.length > 0) {
+        const partidoFinal = partidoFinalResult.rows[0];
+        
+        // Obtener usuarios que tienen datos en final_virtual pero NO tienen pronóstico del partido 456
+        const usuariosConFinalVirtual = await pool.query(`
+          SELECT DISTINCT 
+            lpfv.usuario_id,
+            u.nombre as usuario_nombre,
+            u.foto_perfil as usuario_foto_perfil,
+            lpfv.jornada_id,
+            lpfv.equipo_local as final_virtual_local,
+            lpfv.equipo_visita as final_virtual_visita,
+            lpfv.goles_local as final_virtual_goles_local,
+            lpfv.goles_visita as final_virtual_goles_visita,
+            lpfv.penales_local as final_virtual_penales_local,
+            lpfv.penales_visita as final_virtual_penales_visita
+          FROM libertadores_pronosticos_final_virtual lpfv
+          INNER JOIN usuarios u ON lpfv.usuario_id = u.id
+          WHERE lpfv.jornada_id = $1
+            AND NOT EXISTS (
+              SELECT 1 FROM libertadores_pronosticos lp
+              WHERE lp.usuario_id = lpfv.usuario_id
+                AND lp.partido_id = 456
+            )
+            ${usuario_id && !isNaN(usuario_id) ? 'AND lpfv.usuario_id = $2' : ''}
+        `, usuario_id && !isNaN(usuario_id) ? [partidoFinal.jornada_id, parseInt(usuario_id)] : [partidoFinal.jornada_id]);
+        
+        // Agregar filas sintéticas para estos usuarios
+        for (const usr of usuariosConFinalVirtual.rows) {
+          // Obtener puntos de campeón/subcampeón
+          const puntosCampeonResult = await pool.query(`
+            SELECT puntos_campeon, puntos_subcampeon
+            FROM libertadores_predicciones_campeon
+            WHERE usuario_id = $1
+          `, [usr.usuario_id]);
+          
+          rowsFinales.push({
+            id: null, // No hay pronóstico real del partido 456
+            usuario_id: usr.usuario_id,
+            usuario_nombre: usr.usuario_nombre,
+            usuario_foto_perfil: usr.usuario_foto_perfil,
+            jornada_id: usr.jornada_id,
+            jornada_numero: partidoFinal.jornada_numero,
+            jornada_nombre: partidoFinal.jornada_nombre,
+            jornada_cerrada: partidoFinal.jornada_cerrada,
+            partido_id: partidoFinal.id,
+            nombre_local: partidoFinal.nombre_local,
+            nombre_visita: partidoFinal.nombre_visita,
+            pais_local: null,
+            pais_visita: null,
+            grupo_local: null,
+            grupo_visita: null,
+            partido_fecha: partidoFinal.fecha,
+            tipo_partido: 'FINAL',
+            pronostico_local: null,
+            pronostico_visita: null,
+            penales_pronostico_local: null,
+            penales_pronostico_visita: null,
+            resultado_local: partidoFinal.goles_local,
+            resultado_visita: partidoFinal.goles_visita,
+            penales_real_local: partidoFinal.penales_local,
+            penales_real_visita: partidoFinal.penales_visita,
+            bonus: partidoFinal.bonus,
+            puntos: null,
+            created_at: null,
+            equipo_pronosticado_avanza: null,
+            puntos_clasificacion: null,
+            puntos_campeon: puntosCampeonResult.rows[0]?.puntos_campeon || 0,
+            puntos_subcampeon: puntosCampeonResult.rows[0]?.puntos_subcampeon || 0,
+            final_virtual_local: usr.final_virtual_local,
+            final_virtual_visita: usr.final_virtual_visita,
+            final_virtual_goles_local: usr.final_virtual_goles_local,
+            final_virtual_goles_visita: usr.final_virtual_goles_visita,
+            final_virtual_penales_local: usr.final_virtual_penales_local,
+            final_virtual_penales_visita: usr.final_virtual_penales_visita
+          });
+        }
+      }
+    }
 
     // Formatear datos
-    const pronosticos = await Promise.all(result.rows.map(async row => {
+    const pronosticos = await Promise.all(rowsFinales.map(async row => {
       // Calcular equipo que el usuario pronosticó que avanza (para jornadas 8+)
       let equipoPronosticadoAvanza = null;
       let partidoIda = null;
@@ -501,6 +593,57 @@ router.get('/puntos-clasificados-j6', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo puntos clasificados J6:', error);
     res.status(500).json({ error: 'Error obteniendo puntos clasificados J6' });
+  }
+});
+
+// GET /api/libertadores-clasificacion/puntos-clasificacion - Obtener puntos de clasificación
+router.get('/puntos-clasificacion', verifyToken, async (req, res) => {
+  try {
+    const { jornada_numero, usuario_id } = req.query;
+
+    let query = `
+      SELECT 
+        pc.id,
+        pc.usuario_id,
+        u.nombre as usuario_nombre,
+        pc.jornada_numero,
+        pc.equipo_clasificado,
+        pc.equipo_oficial,
+        pc.fase_clasificado,
+        pc.puntos
+      FROM libertadores_puntos_clasificacion pc
+      INNER JOIN usuarios u ON pc.usuario_id = u.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (jornada_numero && !isNaN(jornada_numero)) {
+      query += ` AND pc.jornada_numero = $${paramIndex}`;
+      params.push(parseInt(jornada_numero));
+      paramIndex++;
+    }
+
+    if (usuario_id && !isNaN(usuario_id)) {
+      query += ` AND pc.usuario_id = $${paramIndex}`;
+      params.push(parseInt(usuario_id));
+      paramIndex++;
+    }
+
+    query += ` ORDER BY pc.usuario_id, 
+      CASE pc.fase_clasificado
+        WHEN 'FINALISTA' THEN 1
+        WHEN 'CAMPEON' THEN 2
+        WHEN 'SUBCAMPEON' THEN 3
+        ELSE 4
+      END, pc.id`;
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo puntos clasificación:', error);
+    res.status(500).json({ error: 'Error al obtener puntos de clasificación' });
   }
 });
 

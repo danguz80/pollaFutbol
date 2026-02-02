@@ -400,9 +400,9 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       const puntosClasificacion = parseInt(puntosClasificacionResult.rows[0].puntos_clasificacion || 0, 10);
       const puntosCampeonSubcampeonNum = parseInt(puntosCampeonSubcampeon || 0, 10);
       
-      // Para jornadas 6 y 8: NO incluir puntos de clasificación en el ranking de jornada
+      // Para jornadas 6, 8, 9 y 10: NO incluir puntos de clasificación en el ranking de jornada
       // Los puntos de clasificación solo suman al acumulado
-      const puntosTotal = (jornadaNumero === 6 || jornadaNumero === 8)
+      const puntosTotal = (jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10)
         ? puntosPartidos 
         : puntosPartidos + puntosClasificacion + puntosCampeonSubcampeonNum + puntosPartidoFinal;
       
@@ -610,7 +610,7 @@ router.get('/:jornadaNumero', async (req, res) => {
           u.id,
           u.nombre,
           u.foto_perfil,
-          ${(jornadaNumero === 6 || jornadaNumero === 8)
+          ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10)
             ? 'COALESCE(puntos_partidos.total, 0) as puntos_jornada' 
             : 'COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada'}
         FROM usuarios u
@@ -621,7 +621,7 @@ router.get('/:jornadaNumero', async (req, res) => {
           WHERE lj.numero = $1
           GROUP BY lp.usuario_id
         ) puntos_partidos ON u.id = puntos_partidos.usuario_id
-        ${(jornadaNumero === 6 || jornadaNumero === 8) ? '' : `
+        ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : `
         LEFT JOIN (
           SELECT usuario_id, SUM(puntos) as total
           FROM libertadores_puntos_clasificacion
@@ -629,7 +629,7 @@ router.get('/:jornadaNumero', async (req, res) => {
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
         `}
-        WHERE puntos_partidos.total IS NOT NULL ${(jornadaNumero === 6 || jornadaNumero === 8) ? '' : 'OR puntos_clasificacion.total IS NOT NULL'}
+        WHERE puntos_partidos.total IS NOT NULL ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : 'OR puntos_clasificacion.total IS NOT NULL'}
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
@@ -744,11 +744,11 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         u.nombre AS usuario,
         u.foto_perfil,
         (COALESCE(puntos_partidos.total, 0) + 
-         ${(jornadaNumero === 6 || jornadaNumero === 8) ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
+         ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
          COALESCE(puntos_finales.campeon, 0) +
          COALESCE(puntos_finales.subcampeon, 0)) AS puntos_jornada,
         ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total, 0) + 
-                                      ${(jornadaNumero === 6 || jornadaNumero === 8) ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
+                                      ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
                                       COALESCE(puntos_finales.campeon, 0) +
                                       COALESCE(puntos_finales.subcampeon, 0)) DESC, u.nombre ASC) AS posicion
       FROM usuarios u
@@ -759,7 +759,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         WHERE lj.numero = $1
         GROUP BY lp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
-      ${(jornadaNumero === 6 || jornadaNumero === 8) ? '' : `
+      ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : `
       LEFT JOIN (
         SELECT usuario_id, SUM(puntos) as total
         FROM libertadores_puntos_clasificacion
@@ -775,7 +775,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       ) puntos_finales ON u.id = puntos_finales.usuario_id
       WHERE u.activo_libertadores = true
         AND u.rol != 'admin'
-        AND (puntos_partidos.total IS NOT NULL ${(jornadaNumero === 6 || jornadaNumero === 8) ? '' : 'OR puntos_clasificacion.total IS NOT NULL'} OR 
+        AND (puntos_partidos.total IS NOT NULL ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : 'OR puntos_clasificacion.total IS NOT NULL'} OR 
              puntos_finales.campeon IS NOT NULL OR 
              puntos_finales.subcampeon IS NOT NULL)
       ORDER BY puntos_jornada DESC
@@ -1462,18 +1462,12 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         .reduce((sum, p) => sum + (p.puntos || 0), 0);
       
       // Calcular puntos de CLASIFICACIÓN (separados)
-      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 8) && clasificacionPorUsuario[usuario])
+      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) && clasificacionPorUsuario[usuario])
         ? clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0)
         : 0;
       
-      // Para jornadas 6 y 8: puntaje de jornada = SOLO partidos (clasificación se muestra aparte)
-      // Para jornadas 9 y 10: puntaje de jornada = partidos + clasificación
+      // Para jornadas 6, 8, 9 y 10: puntaje de jornada = SOLO partidos (clasificación se muestra aparte pero NO suma al ranking de jornada)
       let puntajeJornada = puntosPartidos;
-      
-      // Agregar puntos de clasificación para jornadas 9 y 10 (en estas sí suman al ranking de jornada)
-      if (jornadaNumero >= 9 && jornadaNumero <= 10 && clasificacionPorUsuario[usuario]) {
-        puntajeJornada += clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0);
-      }
       
       // Agregar puntos del partido final (solo jornada 10)
       if (jornadaNumero === 10 && partidoFinalPorUsuario[usuario]) {
@@ -1499,7 +1493,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             <h2 class="usuario-nombre">👤 ${usuario}</h2>
           </div>
           <div class="usuario-total">
-            ${(jornadaNumero === 6 || jornadaNumero === 8) ? `Partidos: ${puntosPartidos} pts<br/>Clasificación: ${puntosClasificacion} pts` : `Jornada ${jornadaNumero}: ${puntajeJornada} pts`}
+            ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? `Partidos: ${puntosPartidos} pts<br/>Clasificación: ${puntosClasificacion} pts` : `Jornada ${jornadaNumero}: ${puntajeJornada} pts`}
           </div>
         </div>
         <table>
