@@ -9,6 +9,7 @@ import { calcularTablaOficial } from '../utils/calcularClasificadosLibertadores.
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,8 +41,7 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
         COALESCE(puntos_partidos.total, 0) + 
         COALESCE(puntos_clasificacion.total, 0) + 
         COALESCE(puntos_campeon.campeon, 0) + 
-        COALESCE(puntos_campeon.subcampeon, 0) +
-        COALESCE(puntos_final.puntos, 0) as puntos_acumulados
+        COALESCE(puntos_campeon.subcampeon, 0) as puntos_acumulados
       FROM usuarios u
       LEFT JOIN (
         SELECT lp.usuario_id, SUM(lp.puntos) as total
@@ -51,34 +51,13 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       LEFT JOIN (
         SELECT lpc.usuario_id, SUM(lpc.puntos) as total
         FROM libertadores_puntos_clasificacion lpc
+        WHERE lpc.fase_clasificado NOT IN ('CAMPEON', 'SUBCAMPEON')
         GROUP BY lpc.usuario_id
       ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
       LEFT JOIN (
         SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
         FROM libertadores_predicciones_campeon
       ) puntos_campeon ON u.id = puntos_campeon.usuario_id
-      LEFT JOIN (
-        SELECT 
-          lpfv.usuario_id,
-          CASE
-            WHEN lpfv.goles_local = lp.goles_local AND lpfv.goles_visita = lp.goles_visita 
-              THEN 10 * COALESCE(lp.bonus, 1)
-            WHEN ABS(lpfv.goles_local - lpfv.goles_visita) = ABS(lp.goles_local - lp.goles_visita)
-                 AND SIGN(lpfv.goles_local - lpfv.goles_visita) = SIGN(lp.goles_local - lp.goles_visita)
-              THEN 7 * COALESCE(lp.bonus, 1)
-            WHEN SIGN(lpfv.goles_local - lpfv.goles_visita) = SIGN(lp.goles_local - lp.goles_visita)
-              THEN 4 * COALESCE(lp.bonus, 1)
-            ELSE 0
-          END as puntos
-        FROM libertadores_pronosticos_final_virtual lpfv
-        INNER JOIN libertadores_jornadas lj ON lpfv.jornada_id = lj.id
-        INNER JOIN libertadores_partidos lp ON lp.id = 456
-        WHERE lj.numero = 10 
-          AND lpfv.equipo_local = lp.nombre_local 
-          AND lpfv.equipo_visita = lp.nombre_visita
-          AND lp.goles_local IS NOT NULL 
-          AND lp.goles_visita IS NOT NULL
-      ) puntos_final ON u.id = puntos_final.usuario_id
       WHERE u.activo = true
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `);
@@ -157,12 +136,23 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
     let pdfGenerado = false;
     let pdfError = null;
     try {
-      await generarPDFLibertadoresConGanadores(10, ganadores.map(g => ({
-        usuario_id: g.id,
-        nombre: g.nombre,
-        foto_perfil: g.foto_perfil,
-        puntaje: puntajeMaximo
-      })));
+      // Obtener los ganadores de la JORNADA 10 (no acumulado) para el PDF
+      const ganadoresJ10Result = await pool.query(`
+        SELECT u.nombre, lgj.puntaje, u.foto_perfil
+        FROM libertadores_ganadores_jornada lgj
+        INNER JOIN usuarios u ON lgj.usuario_id = u.id
+        WHERE lgj.jornada_numero = 10
+        ORDER BY lgj.puntaje DESC, u.nombre ASC
+      `);
+      
+      const ganadoresJ10 = ganadoresJ10Result.rows.map(row => ({
+        nombre: row.nombre,
+        puntaje: parseInt(row.puntaje, 10),
+        foto_perfil: row.foto_perfil
+      }));
+      
+      // Pasar ganadores de JORNADA 10 (no acumulado) al PDF
+      await generarPDFLibertadoresConGanadores(10, ganadoresJ10);
       pdfGenerado = true;
     } catch (error) {
       console.error('❌ Error generando PDF de Libertadores jornada 10:', error);
@@ -400,17 +390,14 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       const puntosClasificacion = parseInt(puntosClasificacionResult.rows[0].puntos_clasificacion || 0, 10);
       const puntosCampeonSubcampeonNum = parseInt(puntosCampeonSubcampeon || 0, 10);
       
-      // Para jornadas 6, 8, 9 y 10: NO incluir puntos de clasificación en el ranking de jornada
-      // Los puntos de clasificación solo suman al acumulado
-      const puntosTotal = (jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10)
-        ? puntosPartidos 
-        : puntosPartidos + puntosClasificacion + puntosCampeonSubcampeonNum + puntosPartidoFinal;
+      // SOLO puntos por partidos para ganador de jornada (igual que Sudamericana)
+      const puntajeTotal = puntosPartidos;
       
       puntosUsuarios.push({
         usuario_id: usuario.id,
         nombre: usuario.nombre,
         foto_perfil: usuario.foto_perfil,
-        puntaje: puntosTotal
+        puntaje: puntajeTotal
       });
     }
     
@@ -659,93 +646,125 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       [jornadaNumero]
     );
 
-    // 2. Obtener ranking acumulado hasta la jornada (excluyendo admins)
-    const rankingQuery = await pool.query(
-      `SELECT 
-        u.nombre AS usuario,
-        u.foto_perfil,
-        (COALESCE(puntos_partidos.total, 0) + 
-         COALESCE(puntos_clasificacion.total, 0) +
-         COALESCE(puntos_finales.campeon, 0) +
-         COALESCE(puntos_finales.subcampeon, 0)) AS puntaje_total,
-        ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total, 0) + 
-                                      COALESCE(puntos_clasificacion.total, 0) +
-                                      COALESCE(puntos_finales.campeon, 0) +
-                                      COALESCE(puntos_finales.subcampeon, 0)) DESC, u.nombre ASC) AS posicion
-      FROM usuarios u
-      LEFT JOIN (
-        SELECT lp.usuario_id, SUM(lp.puntos) as total
-        FROM libertadores_pronosticos lp
-        JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-        WHERE lj.numero <= $1
-        GROUP BY lp.usuario_id
-      ) puntos_partidos ON u.id = puntos_partidos.usuario_id
-      LEFT JOIN (
-        SELECT usuario_id, SUM(puntos) as total
-        FROM libertadores_puntos_clasificacion
-        WHERE jornada_numero <= $1
-        GROUP BY usuario_id
-      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-      LEFT JOIN (
-        SELECT usuario_id, 
-               CASE WHEN $1 >= 10 THEN COALESCE(puntos_campeon, 0) ELSE 0 END as campeon,
-               CASE WHEN $1 >= 10 THEN COALESCE(puntos_subcampeon, 0) ELSE 0 END as subcampeon
-        FROM libertadores_predicciones_campeon
-      ) puntos_finales ON u.id = puntos_finales.usuario_id
-      WHERE u.activo_libertadores = true
-        AND u.rol != 'admin'
-      ORDER BY puntaje_total DESC
-      LIMIT 10`,
-      [jornadaNumero]
-    );
+    // 2. Obtener ranking acumulado - USAR EXACTAMENTE LA MISMA QUERY QUE /api/libertadores-rankings/acumulado/:numero
+    const rankingQuery = jornadaNumero >= 10
+      ? await pool.query(
+          `SELECT 
+            u.id,
+            u.nombre,
+            u.foto_perfil,
+            COALESCE(puntos_partidos.total, 0) + 
+            COALESCE(puntos_clasificacion.total, 0) + 
+            COALESCE(puntos_final.puntos, 0) as puntos_acumulados
+          FROM usuarios u
+          LEFT JOIN (
+            SELECT lp.usuario_id, SUM(lp.puntos) as total
+            FROM libertadores_pronosticos lp
+            INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+            WHERE lj.numero <= $1 AND lp.partido_id != 456
+            GROUP BY lp.usuario_id
+          ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+          LEFT JOIN (
+            SELECT lpc.usuario_id, SUM(lpc.puntos) as total
+            FROM libertadores_puntos_clasificacion lpc
+            WHERE lpc.jornada_numero <= $1
+            GROUP BY lpc.usuario_id
+          ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+          LEFT JOIN (
+            SELECT 
+              lpfv.usuario_id,
+              CASE
+                WHEN lpfv.goles_local = lp.goles_local AND lpfv.goles_visita = lp.goles_visita 
+                  THEN 10 * COALESCE(lp.bonus, 1)
+                WHEN ABS(lpfv.goles_local - lpfv.goles_visita) = ABS(lp.goles_local - lp.goles_visita)
+                     AND SIGN(lpfv.goles_local - lpfv.goles_visita) = SIGN(lp.goles_local - lp.goles_visita)
+                  THEN 7 * COALESCE(lp.bonus, 1)
+                WHEN SIGN(lpfv.goles_local - lpfv.goles_visita) = SIGN(lp.goles_local - lp.goles_visita)
+                  THEN 4 * COALESCE(lp.bonus, 1)
+                ELSE 0
+              END as puntos
+            FROM libertadores_pronosticos_final_virtual lpfv
+            INNER JOIN libertadores_jornadas lj ON lpfv.jornada_id = lj.id
+            INNER JOIN libertadores_partidos lp ON lp.id = 456
+            WHERE lj.numero = 10 
+              AND lpfv.equipo_local = lp.nombre_local 
+              AND lpfv.equipo_visita = lp.nombre_visita
+              AND lp.goles_local IS NOT NULL 
+              AND lp.goles_visita IS NOT NULL
+          ) puntos_final ON u.id = puntos_final.usuario_id
+          WHERE puntos_partidos.total IS NOT NULL 
+             OR puntos_clasificacion.total IS NOT NULL 
+             OR puntos_final.puntos IS NOT NULL
+          ORDER BY puntos_acumulados DESC, u.nombre ASC
+          LIMIT 10`,
+          [jornadaNumero]
+        )
+      : await pool.query(
+          `SELECT 
+            u.id,
+            u.nombre,
+            u.foto_perfil,
+            COALESCE(puntos_partidos.total, 0) + 
+            COALESCE(puntos_clasificacion.total, 0) as puntos_acumulados
+          FROM usuarios u
+          LEFT JOIN (
+            SELECT lp.usuario_id, SUM(lp.puntos) as total
+            FROM libertadores_pronosticos lp
+            INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+            WHERE lj.numero <= $1
+            GROUP BY lp.usuario_id
+          ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+          LEFT JOIN (
+            SELECT lpc.usuario_id, SUM(lpc.puntos) as total
+            FROM libertadores_puntos_clasificacion lpc
+            WHERE lpc.jornada_numero <= $1
+            GROUP BY lpc.usuario_id
+          ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+          WHERE puntos_partidos.total IS NOT NULL 
+             OR puntos_clasificacion.total IS NOT NULL
+          ORDER BY puntos_acumulados DESC, u.nombre ASC
+          LIMIT 10`,
+          [jornadaNumero]
+        );
+    
+    let ranking = rankingQuery.rows.map((r, index) => ({
+      ...r,
+      usuario: r.nombre,
+      puntaje_total: r.puntos_acumulados,
+      posicion: index + 1
+    }));
 
-    // 3. Obtener ranking de la jornada específica (excluyendo admins)
+    // 3. Obtener ranking de la jornada específica (excluyendo admins) - SOLO PUNTOS DE PARTIDOS
+    // USAR MISMA QUERY QUE /api/libertadores-rankings/jornada/:numero
     const rankingJornadaQuery = await pool.query(
       `SELECT 
+        u.id,
         u.nombre AS usuario,
         u.foto_perfil,
-        (COALESCE(puntos_partidos.total, 0) + 
-         ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
-         COALESCE(puntos_finales.campeon, 0) +
-         COALESCE(puntos_finales.subcampeon, 0)) AS puntos_jornada,
-        ROW_NUMBER() OVER (ORDER BY (COALESCE(puntos_partidos.total, 0) + 
-                                      ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '0' : 'COALESCE(puntos_clasificacion.total, 0)'} +
-                                      COALESCE(puntos_finales.campeon, 0) +
-                                      COALESCE(puntos_finales.subcampeon, 0)) DESC, u.nombre ASC) AS posicion
+        COALESCE(puntos_partidos.total, 0) as puntos_jornada,
+        ROW_NUMBER() OVER (ORDER BY COALESCE(puntos_partidos.total, 0) DESC, u.nombre ASC) AS posicion
       FROM usuarios u
       LEFT JOIN (
         SELECT lp.usuario_id, SUM(lp.puntos) as total
         FROM libertadores_pronosticos lp
-        JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+        INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+        INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
         WHERE lj.numero = $1
         GROUP BY lp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
-      ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : `
-      LEFT JOIN (
-        SELECT usuario_id, SUM(puntos) as total
-        FROM libertadores_puntos_clasificacion
-        WHERE jornada_numero = $1
-        GROUP BY usuario_id
-      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-      `}
-      LEFT JOIN (
-        SELECT usuario_id, 
-               CASE WHEN $1 = 10 THEN COALESCE(puntos_campeon, 0) ELSE 0 END as campeon,
-               CASE WHEN $1 = 10 THEN COALESCE(puntos_subcampeon, 0) ELSE 0 END as subcampeon
-        FROM libertadores_predicciones_campeon
-      ) puntos_finales ON u.id = puntos_finales.usuario_id
-      WHERE u.activo_libertadores = true
-        AND u.rol != 'admin'
-        AND (puntos_partidos.total IS NOT NULL ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : 'OR puntos_clasificacion.total IS NOT NULL'} OR 
-             puntos_finales.campeon IS NOT NULL OR 
-             puntos_finales.subcampeon IS NOT NULL)
-      ORDER BY puntos_jornada DESC
+      WHERE u.rol != 'admin'
+        AND EXISTS (
+          SELECT 1 FROM libertadores_pronosticos lp2
+          INNER JOIN libertadores_partidos p2 ON lp2.partido_id = p2.id
+          INNER JOIN libertadores_jornadas lj2 ON p2.jornada_id = lj2.id
+          WHERE lp2.usuario_id = u.id AND lj2.numero = $1
+        )
+      ORDER BY puntos_jornada DESC, u.nombre ASC
       LIMIT 10`,
       [jornadaNumero]
     );
 
     const pronosticos = pronosticosQuery.rows;
-    let ranking = rankingQuery.rows;
     let rankingJornada = rankingJornadaQuery.rows;
 
     // Para jornada 10: Agregar puntos del partido FINAL a los rankings
@@ -811,29 +830,9 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
       });
 
-      // Agregar puntos del FINAL al ranking de jornada
-      rankingJornada = rankingJornada.map(jugador => ({
-        ...jugador,
-        puntos_jornada: parseInt(jugador.puntos_jornada) + (puntosFinalesPorUsuario[jugador.usuario] || 0)
-      })).sort((a, b) => b.puntos_jornada - a.puntos_jornada || a.usuario.localeCompare(b.usuario));
-
-      // Recalcular posiciones
-      rankingJornada = rankingJornada.map((jugador, index) => ({
-        ...jugador,
-        posicion: index + 1
-      }));
-
-      // Agregar puntos del FINAL al ranking acumulado
-      ranking = ranking.map(jugador => ({
-        ...jugador,
-        puntaje_total: parseInt(jugador.puntaje_total) + (puntosFinalesPorUsuario[jugador.usuario] || 0)
-      })).sort((a, b) => b.puntaje_total - a.puntaje_total || a.usuario.localeCompare(b.usuario));
-
-      // Recalcular posiciones
-      ranking = ranking.map((jugador, index) => ({
-        ...jugador,
-        posicion: index + 1
-      }));
+      // NO agregar puntos del FINAL a los rankings porque YA están incluidos en las queries
+      // El ranking de jornada incluye TODOS los partidos (incluyendo el 456)
+      // El ranking acumulado incluye puntos_final calculado desde libertadores_pronosticos_final_virtual
     }
 
     // Agrupar pronósticos por usuario
@@ -1069,15 +1068,27 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
         .ranking-table .top-1 {
           background: #ffd700 !important;
+        }
+        .ranking-table .top-1 td {
+          background: #ffd700 !important;
           color: #000 !important;
+          font-weight: bold !important;
         }
         .ranking-table .top-2 {
           background: #c0c0c0 !important;
+        }
+        .ranking-table .top-2 td {
+          background: #c0c0c0 !important;
           color: #000 !important;
+          font-weight: bold !important;
         }
         .ranking-table .top-3 {
           background: #cd7f32 !important;
-          color: #000 !important;
+        }
+        .ranking-table .top-3 td {
+          background: #cd7f32 !important;
+          color: #fff !important;
+          font-weight: bold !important;
         }
         .ranking-foto {
           width: 35px;
@@ -1128,33 +1139,33 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         <div class="ganador-card">
           ${fotoHTML}
           <div class="ganador-nombre">${ganador.nombre}</div>
-          <div class="ganador-puntos">${ganador.puntaje} puntos</div>
+          <div class="ganador-puntos">${ganador.puntaje !== undefined ? ganador.puntaje : 0} puntos</div>
         </div>
         `;
       }
       html += `</div>`;
     }
 
-    // GANADOR DEL RANKING ACUMULADO (SOLO JORNADA 10)
-    if (jornadaNumero === 10) {
-      const ganadorAcumulado = ranking.length > 0 ? ranking[0] : null;
-      if (ganadorAcumulado) {
-        const fotoBase64 = ganadorAcumulado.foto_perfil ? getFotoPerfilBase64(ganadorAcumulado.foto_perfil) : null;
-        const fotoHTML = fotoBase64 
-          ? `<img src="${fotoBase64}" class="ganador-foto" alt="${ganadorAcumulado.usuario}">` 
-          : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
-        
-        html += `
-        <div class="ganadores-section">
-          <h2>👑 CAMPEÓN DEL RANKING ACUMULADO</h2>
+    // GANADOR DEL RANKING ACUMULADO (solo para J10)
+    if (jornadaNumero === 10 && ranking.length > 0) {
+      const ganadorAcumulado = ranking[0];
+      const fotoBase64Acum = ganadorAcumulado.foto_perfil ? getFotoPerfilBase64(ganadorAcumulado.foto_perfil) : null;
+      const fotoHTMLAcum = fotoBase64Acum 
+        ? `<img src="${fotoBase64Acum}" class="ganador-foto" alt="${ganadorAcumulado.usuario}">` 
+        : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
+      
+      html += `
+      <div class="ganadores-section" style="margin-top: 20px; background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); border: 3px solid #ffd700;">
+        <h2 style="color: #333;">👑 CAMPEÓN DEL RANKING ACUMULADO</h2>
+        <div class="ganador-cards">
           <div class="ganador-card">
-            ${fotoHTML}
+            ${fotoHTMLAcum}
             <div class="ganador-nombre">${ganadorAcumulado.usuario}</div>
-            <div class="ganador-puntos">${ganadorAcumulado.puntaje_total} puntos</div>
+            <div class="ganador-puntos" style="font-size: 24px; font-weight: bold;">${ganadorAcumulado.puntaje_total} puntos</div>
           </div>
         </div>
-        `;
-      }
+      </div>
+      `;
     }
 
     // RANKING DE LA JORNADA
@@ -1174,9 +1185,10 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       `;
       rankingJornada.forEach((r) => {
         let rowClass = '';
-        if (r.posicion === 1) rowClass = 'top-1';
-        else if (r.posicion === 2) rowClass = 'top-2';
-        else if (r.posicion === 3) rowClass = 'top-3';
+        const pos = parseInt(r.posicion);
+        if (pos === 1) rowClass = 'top-1';
+        else if (pos === 2) rowClass = 'top-2';
+        else if (pos === 3) rowClass = 'top-3';
         
         const fotoBase64 = r.foto_perfil ? getFotoPerfilBase64(r.foto_perfil) : null;
         const fotoHTML = fotoBase64 ? `<img src="${fotoBase64}" class="ranking-foto" alt="${r.usuario}">` : '';
@@ -1276,8 +1288,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       });
     }
     // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADAS 8, 9 Y 10 (Octavos, Cuartos, Semifinales)
-    else if (jornadaNumero >= 8 && jornadaNumero <= 10) {
-      // Obtener los pronósticos de clasificación con los datos completos de los partidos
+    else if (jornadaNumero === 8 || jornadaNumero === 9) {
+      // Para J8 y J9: Obtener los pronósticos de clasificación con los datos completos de los partidos
       // para poder calcular correctamente qué equipo avanzó en cada cruce
       const clasificacionQuery = await pool.query(`
         SELECT 
@@ -1312,6 +1324,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         ORDER BY u.nombre, lpc.fase_clasificado
       `, [jornadaNumero]);
 
+
+
       clasificacionQuery.rows.forEach(row => {
         if (!clasificacionPorUsuario[row.usuario]) {
           clasificacionPorUsuario[row.usuario] = [];
@@ -1341,6 +1355,30 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
         
         row.equipo_real_avanza = equipoRealQueAvanza || '?';
+        clasificacionPorUsuario[row.usuario].push(row);
+      });
+    }
+    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADA 10 (Semifinales - Finalistas)
+    else if (jornadaNumero === 10) {
+      // Para J10: consulta simple sin JOIN con partidos porque los finalistas no vienen de partidos IDA/VUELTA
+      const clasificacionQuery = await pool.query(`
+        SELECT 
+          u.nombre AS usuario,
+          lpc.equipo_clasificado,
+          lpc.fase_clasificado,
+          lpc.puntos
+        FROM libertadores_puntos_clasificacion lpc
+        JOIN usuarios u ON lpc.usuario_id = u.id
+        WHERE lpc.jornada_numero = $1
+        ORDER BY u.nombre, lpc.fase_clasificado
+      `, [jornadaNumero]);
+
+
+
+      clasificacionQuery.rows.forEach(row => {
+        if (!clasificacionPorUsuario[row.usuario]) {
+          clasificacionPorUsuario[row.usuario] = [];
+        }
         clasificacionPorUsuario[row.usuario].push(row);
       });
     }
@@ -1390,7 +1428,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         partidoFinalPorUsuario[row.usuario] = {
           ...row,
           puntos,
-          equiposCoinciden
+          equiposCoinciden,
+          finalistasPronosticados: [row.equipo_local_pronosticado, row.equipo_visita_pronosticado]
         };
       });
 
@@ -1422,23 +1461,26 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         .filter(p => p.jornada_numero === jornadaNumero)
         .reduce((sum, p) => sum + (p.puntos || 0), 0);
       
-      // Calcular puntos de CLASIFICACIÓN (separados)
-      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) && clasificacionPorUsuario[usuario])
-        ? clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0)
-        : 0;
+      // Para J10: Cuadro Final incluye clasificados + campeon + subcampeon
+      // Para otras jornadas: solo Clasificación
+      let puntosCuadroFinal = 0;
+      let puntosClasificacion = 0;
       
-      // Para jornadas 6, 8, 9 y 10: puntaje de jornada = SOLO partidos (clasificación se muestra aparte pero NO suma al ranking de jornada)
-      let puntajeJornada = puntosPartidos;
-      
-      // Agregar puntos del partido final (solo jornada 10)
-      if (jornadaNumero === 10 && partidoFinalPorUsuario[usuario]) {
-        puntajeJornada += partidoFinalPorUsuario[usuario].puntos || 0;
-      }
-      
-      // Agregar puntos del cuadro final (solo jornada 10)
-      if (jornadaNumero === 10 && cuadroFinalPorUsuario[usuario]) {
-        const cf = cuadroFinalPorUsuario[usuario];
-        puntajeJornada += (cf.puntos_campeon || 0) + (cf.puntos_subcampeon || 0);
+      if (jornadaNumero === 10) {
+        // J10: Cuadro Final = finalistas + campeon + subcampeon
+        if (clasificacionPorUsuario[usuario]) {
+          // Solo sumar puntos de FINALISTAS (no CAMPEON ni SUBCAMPEON porque vienen de cuadroFinalPorUsuario)
+          puntosCuadroFinal += clasificacionPorUsuario[usuario]
+            .filter(c => c.fase_clasificado === 'FINALISTA')
+            .reduce((sum, c) => sum + (c.puntos || 0), 0);
+        }
+        if (cuadroFinalPorUsuario[usuario]) {
+          const cf = cuadroFinalPorUsuario[usuario];
+          puntosCuadroFinal += (cf.puntos_campeon || 0) + (cf.puntos_subcampeon || 0);
+        }
+      } else if ((jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9) && clasificacionPorUsuario[usuario]) {
+        // J6, J8, J9: solo Clasificación
+        puntosClasificacion = clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0);
       }
       
       const fotoBase64 = fotoPerfil ? getFotoPerfilBase64(fotoPerfil) : null;
@@ -1454,7 +1496,9 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             <h2 class="usuario-nombre">👤 ${usuario}</h2>
           </div>
           <div class="usuario-total">
-            ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? `Partidos: ${puntosPartidos} pts<br/>Clasificación: ${puntosClasificacion} pts` : `Jornada ${jornadaNumero}: ${puntajeJornada} pts`}
+            Partidos: ${puntosPartidos} pts
+            ${puntosClasificacion > 0 ? `<br/>Clasificación: ${puntosClasificacion} pts` : ''}
+            ${puntosCuadroFinal > 0 ? `<br/>Cuadro Final: ${puntosCuadroFinal} pts` : ''}
           </div>
         </div>
         <table>
@@ -1471,7 +1515,12 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           <tbody>
       `;
 
-      pronosticosUsuario.forEach((p) => {
+      // Filtrar partidos: para J10, excluir el partido final (bonus x3) de la tabla normal
+      const partidosMostrar = jornadaNumero === 10 
+        ? pronosticosUsuario.filter(p => (p.bonus || 1) !== 3)
+        : pronosticosUsuario;
+
+      partidosMostrar.forEach((p) => {
         const logoLocal = getLogoBase64(p.nombre_local);
         const logoVisita = getLogoBase64(p.nombre_visita);
         
@@ -1616,8 +1665,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             </table>
           `;
         }
-      } else if (jornadaNumero >= 8 && jornadaNumero <= 10) {
-        // Para J8-10: Mantener formato anterior
+      } else if (jornadaNumero === 8 || jornadaNumero === 9) {
+        // Para J8-9 solamente: Mostrar equipos que avanzan
         const clasificacion = clasificacionPorUsuario[usuario];
         if (clasificacion && clasificacion.length > 0) {
           html += `
@@ -1654,17 +1703,19 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
 
       // SECCIONES ADICIONALES SOLO PARA JORNADA 10
       if (jornadaNumero === 10) {
-        // Partido FINAL
+        // Partido FINAL (solo si tiene equipos reales, para evitar duplicados)
         const partidoFinal = partidoFinalPorUsuario[usuario];
-        if (partidoFinal) {
+        if (partidoFinal && partidoFinal.nombre_local && partidoFinal.nombre_visita) {
           const logoLocal = getLogoBase64(partidoFinal.nombre_local);
           const logoVisita = getLogoBase64(partidoFinal.nombre_visita);
           const puntosClass = partidoFinal.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
           const pronostico = `${partidoFinal.pronostico_local} - ${partidoFinal.pronostico_visita}`;
           const resultado = partidoFinal.resultado_local !== null ? `${partidoFinal.resultado_local} - ${partidoFinal.resultado_visita}` : 'Pendiente';
+          const equiposCoinciden = partidoFinal.equipo_local_pronosticado === partidoFinal.nombre_local && 
+                                  partidoFinal.equipo_visita_pronosticado === partidoFinal.nombre_visita;
 
           html += `
-            <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">🏆 FINAL</h3>
+            <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">🏆 PARTIDO FINAL</h3>
             <table>
               <thead>
                 <tr>
@@ -1688,10 +1739,10 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
                         <span style="font-size: 12px; font-style: italic; color: #666; margin-left: 10px;">Real</span>
                       </div>
                     </div>
-                    <div style="font-size: 14px; color: #666;">
+                    ${!equiposCoinciden ? `<div style="font-size: 14px; color: #666;">
                       <span>${partidoFinal.equipo_local_pronosticado} vs ${partidoFinal.equipo_visita_pronosticado}</span>
                       <span style="font-size: 12px; font-style: italic; margin-left: 10px;">Pron.</span>
-                    </div>
+                    </div>` : ''}
                   </td>
                   <td style="text-align: center;">${pronostico}</td>
                   <td style="text-align: center;" class="resultado">${resultado}</td>
@@ -1703,11 +1754,30 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           `;
         }
 
-        // Cuadro Final (Campeón y Subcampeón)
-        const cuadroFinal = cuadroFinalPorUsuario[usuario];
-        if (cuadroFinal) {
-          const puntosCampeonClass = cuadroFinal.puntos_campeon > 0 ? 'puntos-positivo' : 'puntos-cero';
-          const puntosSubcampeonClass = cuadroFinal.puntos_subcampeon > 0 ? 'puntos-positivo' : 'puntos-cero';
+
+
+        // Cuadro Final (Clasificados + Campeón + Subcampeón) - Solo para J10
+        if (jornadaNumero === 10) {
+          const cuadroFinal = cuadroFinalPorUsuario[usuario];
+          const partidoFinal = partidoFinalPorUsuario[usuario];
+          const todosClasificados = clasificacionPorUsuario[usuario] || [];
+          
+          // Filtrar solo FINALISTAS (no incluir CAMPEON ni SUBCAMPEON porque vienen en cuadroFinal)
+          const finalistas = todosClasificados.filter(c => c.fase_clasificado === 'FINALISTA');
+          
+          // Obtener equipos finalistas pronosticados desde partidoFinal
+          const finalistasPronosticados = partidoFinal?.finalistasPronosticados?.join(', ') || '-';
+          
+          // Calcular puntos de finalistas
+          const puntosClasificados = finalistas.reduce((sum, c) => sum + (c.puntos || 0), 0);
+          
+          const puntosCampeon = cuadroFinal?.puntos_campeon || 0;
+          const puntosSubcampeon = cuadroFinal?.puntos_subcampeon || 0;
+          const totalCuadroFinal = puntosClasificados + puntosCampeon + puntosSubcampeon;
+          
+          const puntosClasificadosClass = puntosClasificados > 0 ? 'puntos-positivo' : 'puntos-cero';
+          const puntosCampeonClass = puntosCampeon > 0 ? 'puntos-positivo' : 'puntos-cero';
+          const puntosSubcampeonClass = puntosSubcampeon > 0 ? 'puntos-positivo' : 'puntos-cero';
 
           html += `
             <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">🏆 Cuadro Final</h3>
@@ -1722,16 +1792,26 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
               </thead>
               <tbody>
                 <tr>
+                  <td><strong>Finalistas</strong></td>
+                  <td>Palmeiras (BRA), Flamengo (BRA)</td>
+                  <td>${finalistasPronosticados}</td>
+                  <td style="text-align: center;" class="puntos-cell ${puntosClasificadosClass}">${puntosClasificados}</td>
+                </tr>
+                <tr>
                   <td><strong>Campeón</strong></td>
                   <td>Flamengo (BRA)</td>
-                  <td>${cuadroFinal.campeon || '-'}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosCampeonClass}">${cuadroFinal.puntos_campeon || 0}</td>
+                  <td>${cuadroFinal?.campeon || '-'}</td>
+                  <td style="text-align: center;" class="puntos-cell ${puntosCampeonClass}">${puntosCampeon}</td>
                 </tr>
                 <tr>
                   <td><strong>Subcampeón</strong></td>
                   <td>Palmeiras (BRA)</td>
-                  <td>${cuadroFinal.subcampeon || '-'}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosSubcampeonClass}">${cuadroFinal.puntos_subcampeon || 0}</td>
+                  <td>${cuadroFinal?.subcampeon || '-'}</td>
+                  <td style="text-align: center;" class="puntos-cell ${puntosSubcampeonClass}">${puntosSubcampeon}</td>
+                </tr>
+                <tr style="border-top: 2px solid #1e3c72;">
+                  <td colspan="3" style="text-align: right;"><strong>Total Cuadro Final:</strong></td>
+                  <td style="text-align: center;" class="puntos-cell"><strong>${totalCuadroFinal} pts</strong></td>
                 </tr>
               </tbody>
             </table>

@@ -154,9 +154,6 @@ export default function ClasificacionLibertadores() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      console.log('🔍 Pronósticos recibidos del servidor:', response.data.length);
-      console.log('🔍 Partidos únicos:', [...new Set(response.data.map(p => p.partido.id))]);
-
       // LÓGICA ESPECIAL PARA J10: Si el usuario no tiene pronóstico para el partido 456 (FINAL),
       // pero SÍ tiene datos de final_virtual, agregar el partido sintético
       if (filtroJornada == 10) {
@@ -182,8 +179,6 @@ export default function ClasificacionLibertadores() {
             );
             
             if (pronosticoConFinalVirtual) {
-              console.log(`🔧 Agregando partido FINAL sintético para usuario ${pronosticoConFinalVirtual.usuario.nombre}`);
-              
               // Agregar partido sintético
               response.data.push({
                 id: null,
@@ -344,7 +339,6 @@ export default function ClasificacionLibertadores() {
         `${API_URL}/api/libertadores-clasificacion/puntos-clasificacion?${params10.toString()}`,
         { headers }
       );
-      console.log('🔍 Datos J10 recibidos:', puntosRes10.data);
       setPuntosClasificadosJ10(puntosRes10.data);
     } catch (error) {
       console.error('Error cargando clasificados:', error);
@@ -967,7 +961,6 @@ export default function ClasificacionLibertadores() {
         // Agregar clasificación para jornadas específicas
         if (parseInt(filtroJornada) === 10) {
           grupo.clasificacion = puntosClasificadosJ10.filter(p => p.usuario_id === grupo.usuario_id);
-          console.log(`🔍 Usuario ${grupo.jugador}: clasificacion =`, grupo.clasificacion);
         } else if (parseInt(filtroJornada) === 9) {
           grupo.clasificacion = puntosClasificadosJ9.filter(p => p.usuario_id === grupo.usuario_id);
         } else if (parseInt(filtroJornada) === 8) {
@@ -1470,7 +1463,6 @@ export default function ClasificacionLibertadores() {
                   {/* TABLA 2: CLASIFICACIÓN */}
                   {(() => {
                     const shouldShow = pronosticosClasificados.length > 0 || parseInt(filtroJornada) === 10;
-                    console.log('🔍 ¿Mostrar tabla clasificación?', shouldShow, 'pronosticosClasificados.length:', pronosticosClasificados.length, 'filtroJornada:', filtroJornada);
                     return shouldShow;
                   })() && (
                     <>
@@ -1504,7 +1496,6 @@ export default function ClasificacionLibertadores() {
                           <tbody>
                             {parseInt(filtroJornada) === 10 ? (() => {
                               // J10: Clasificación con finalistas, campeón y subcampeón
-                              console.log('🔍 Entrando en lógica J10, grupo:', grupo.jugador, 'clasificacion:', grupo.clasificacion);
                               if (!grupo.clasificacion || grupo.clasificacion.length === 0) {
                                 return (
                                   <tr className="table-warning">
@@ -1525,8 +1516,6 @@ export default function ClasificacionLibertadores() {
                                 campeon,
                                 subcampeon
                               ].filter(Boolean);
-
-                              console.log('🔍 Clasificaciones ordenadas:', clasificacionesOrdenadas);
 
                               return clasificacionesOrdenadas.map((clasif, idx) => (
                                 <tr key={`j10-clasif-${grupo.usuario_id}-${idx}`} className={clasif.puntos > 0 ? 'table-success' : 'table-danger'}>
@@ -2080,24 +2069,21 @@ export default function ClasificacionLibertadores() {
                       </React.Fragment>
                     ))}
                     
-                    {/* FILA 7: Cuadro Final (Campeón + Subcampeón) - Solo para Jornada 10 */}
+                    {/* FILA 7: Cuadro Final (Clasificados + Campeón + Subcampeón) - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && (() => {
                       const primerPronostico = grupo.pronosticos[0];
                       
-                      if (!primerPronostico.equipos_pronosticados_final) {
-                        return null;
-                      }
-                      
-                      const { campeon: pronosticadoCampeon, subcampeon: pronosticadoSubcampeon } = primerPronostico.equipos_pronosticados_final;
+                      // Siempre mostrar para J10
+                      const equiposPronosticados = primerPronostico.equipos_pronosticados_final || {};
+                      const { campeon: pronosticadoCampeon, subcampeon: pronosticadoSubcampeon } = equiposPronosticados;
                       
                       // Buscar el partido FINAL real - TEMPORAL: usar id 456
                       const partidoFinalReal = partidos.find(p => p.id === 456);
-                      if (!partidoFinalReal) return null;
                       
                       // Determinar campeón y subcampeón REALES
                       let realCampeon = null;
                       let realSubcampeon = null;
-                      const hayResultado = partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null;
+                      const hayResultado = partidoFinalReal && partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null;
                       const jornada = jornadas.find(j => j.id === primerPronostico.jornada.id);
                       const jornadaCerrada = jornada?.cerrada || false;
                       
@@ -2129,6 +2115,12 @@ export default function ClasificacionLibertadores() {
                       const coincideCampeon = pronosticadoCampeon === realCampeon;
                       const coincideSubcampeon = pronosticadoSubcampeon === realSubcampeon;
                       
+                      // Obtener puntos de clasificados (finalistas)
+                      const puntosClasificados = grupo.clasificacion?.reduce((sum, c) => sum + (c.puntos || 0), 0) || 0;
+                      const puntosCampeon = primerPronostico.puntos_campeon || 0;
+                      const puntosSubcampeon = primerPronostico.puntos_subcampeon || 0;
+                      const totalCuadroFinal = puntosClasificados + puntosCampeon + puntosSubcampeon;
+                      
                       return (
                         <tr className="table-info">
                           <td colSpan="4" className="text-center">
@@ -2146,27 +2138,43 @@ export default function ClasificacionLibertadores() {
                               </div>
                             )}
                             {/* PRONOSTICADO abajo (pequeño, cursiva) */}
-                            <div style={{fontSize: '0.85rem', fontStyle: 'italic'}} className="text-muted">
-                              Campeón: {pronosticadoCampeon} | Subcampeón: {pronosticadoSubcampeon}
-                            </div>
+                            {pronosticadoCampeon && pronosticadoSubcampeon && (
+                              <div style={{fontSize: '0.85rem', fontStyle: 'italic'}} className="text-muted">
+                                Campeón: {pronosticadoCampeon} | Subcampeón: {pronosticadoSubcampeon}
+                              </div>
+                            )}
                           </td>
                           <td colSpan="3" className="text-center">
                             {/* Vacío o info adicional */}
                           </td>
                           {/* Columna: Puntaje desglosado */}
                           <td className="text-center">
-                            {hayResultado && jornadaCerrada ? (
-                              <div>
-                                <div className={coincideCampeon ? 'text-success fw-bold' : 'text-danger'}>
-                                  {primerPronostico.puntos_campeon || 0} pts Campeón
-                                </div>
-                                <div className={coincideSubcampeon ? 'text-success fw-bold' : 'text-danger'}>
-                                  {primerPronostico.puntos_subcampeon || 0} pts Subcampeón
-                                </div>
+                            <div>
+                              {/* Equipos Clasificados (Finalistas) */}
+                              <div className={puntosClasificados > 0 ? 'text-success fw-bold' : 'text-muted'}>
+                                {puntosClasificados} pts Finalistas
                               </div>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
+                              {/* Campeón */}
+                              {hayResultado && jornadaCerrada ? (
+                                <div className={coincideCampeon ? 'text-success fw-bold' : 'text-danger'}>
+                                  {puntosCampeon} pts Campeón
+                                </div>
+                              ) : (
+                                <div className="text-muted">{puntosCampeon} pts Campeón</div>
+                              )}
+                              {/* Subcampeón */}
+                              {hayResultado && jornadaCerrada ? (
+                                <div className={coincideSubcampeon ? 'text-success fw-bold' : 'text-danger'}>
+                                  {puntosSubcampeon} pts Subcampeón
+                                </div>
+                              ) : (
+                                <div className="text-muted">{puntosSubcampeon} pts Subcampeón</div>
+                              )}
+                              {/* Total */}
+                              <div className="border-top mt-1 pt-1 fw-bold">
+                                {totalCuadroFinal} pts Total
+                              </div>
+                            </div>
                           </td>
                         </tr>
                       );

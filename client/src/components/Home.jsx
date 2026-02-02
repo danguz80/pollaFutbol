@@ -9,6 +9,7 @@ export default function Home() {
     const navigate = useNavigate();
     const [rankingCampeonato, setRankingCampeonato] = useState([]);
     const [rankingLibertadores, setRankingLibertadores] = useState([]);
+    const [rankingSudamericana, setRankingSudamericana] = useState([]);
     const [fotoPerfilMap, setFotoPerfilMap] = useState({});
     const [usuarios, setUsuarios] = useState([]);
     const [mostrarAdmin, setMostrarAdmin] = useState(false);
@@ -69,6 +70,28 @@ export default function Home() {
                     }
                 })
                 .catch(err => console.error('Error al cargar ranking Libertadores:', err));
+
+            // Ranking Sudamericana
+            fetch(`${API_BASE_URL}/api/sudamericana-rankings/actual`, {
+                headers: { 
+                    'Authorization': `Bearer ${token}` 
+                }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ranking) {
+                        setRankingSudamericana(data.ranking);
+                        // Mapear fotos de ranking sudamericana
+                        setFotoPerfilMap(prev => {
+                            const map = { ...prev };
+                            data.ranking.forEach(u => { 
+                                map[u.nombre] = u.foto_perfil; 
+                            });
+                            return map;
+                        });
+                    }
+                })
+                .catch(err => console.error('Error al cargar ranking Sudamericana:', err));
 
             // Si es admin, cargar todos los usuarios
             if (currentUser.rol === 'admin') {
@@ -398,6 +421,15 @@ export default function Home() {
                             title="Top 3 Copa Libertadores" 
                             ranking={rankingLibertadores} 
                             emoji="🔴"
+                        />
+                    )}
+
+                    {/* Top 3 Ranking Sudamericana - Solo si hay puntos */}
+                    {rankingSudamericana.length > 0 && rankingSudamericana[0]?.puntos_acumulados > 0 && (
+                        <Top3Component 
+                            title="Top 3 Copa Sudamericana" 
+                            ranking={rankingSudamericana} 
+                            emoji="🟢"
                         />
                     )}
 
