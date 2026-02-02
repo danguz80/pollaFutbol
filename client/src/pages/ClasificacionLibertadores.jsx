@@ -154,6 +154,83 @@ export default function ClasificacionLibertadores() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
+      console.log('🔍 Pronósticos recibidos del servidor:', response.data.length);
+      console.log('🔍 Partidos únicos:', [...new Set(response.data.map(p => p.partido.id))]);
+
+      // LÓGICA ESPECIAL PARA J10: Si el usuario no tiene pronóstico para el partido 456 (FINAL),
+      // pero SÍ tiene datos de final_virtual, agregar el partido sintético
+      if (filtroJornada == 10) {
+        // Obtener partido FINAL real (456)
+        const partidoFinalReal = await axios.get(`${API_URL}/api/libertadores/partidos/456`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        // Obtener usuarios únicos en J10
+        const usuariosJ10 = [...new Set(response.data.filter(p => p.jornada.numero == 10).map(p => p.usuario.id))];
+        
+        for (const usuarioId of usuariosJ10) {
+          // Verificar si el usuario tiene pronóstico para el partido 456
+          const tienePartido456 = response.data.some(p => p.usuario.id == usuarioId && p.partido.id == 456);
+          
+          if (!tienePartido456) {
+            // Buscar si el usuario tiene datos de final_virtual en algún pronóstico de J10
+            const pronosticoConFinalVirtual = response.data.find(p => 
+              p.usuario.id == usuarioId && 
+              p.jornada.numero == 10 && 
+              p.final_virtual_local && 
+              p.final_virtual_visita
+            );
+            
+            if (pronosticoConFinalVirtual) {
+              console.log(`🔧 Agregando partido FINAL sintético para usuario ${pronosticoConFinalVirtual.usuario.nombre}`);
+              
+              // Agregar partido sintético
+              response.data.push({
+                id: null,
+                usuario: pronosticoConFinalVirtual.usuario,
+                jornada: pronosticoConFinalVirtual.jornada,
+                partido: {
+                  id: 456,
+                  local: {
+                    nombre: partidoFinalReal.data.nombre_local,
+                    pais: null
+                  },
+                  visita: {
+                    nombre: partidoFinalReal.data.nombre_visita,
+                    pais: null
+                  },
+                  grupo: null,
+                  fecha: partidoFinalReal.data.fecha,
+                  tipo_partido: 'FINAL',
+                  bonus: partidoFinalReal.data.bonus || 3,
+                  resultado: {
+                    local: partidoFinalReal.data.goles_local,
+                    visita: partidoFinalReal.data.goles_visita
+                  }
+                },
+                pronostico: {
+                  local: null,
+                  visita: null,
+                  penales_local: null,
+                  penales_visita: null
+                },
+                puntos: null,
+                fecha_pronostico: null,
+                final_virtual_local: pronosticoConFinalVirtual.final_virtual_local,
+                final_virtual_visita: pronosticoConFinalVirtual.final_virtual_visita,
+                final_virtual_goles_local: pronosticoConFinalVirtual.final_virtual_goles_local,
+                final_virtual_goles_visita: pronosticoConFinalVirtual.final_virtual_goles_visita,
+                final_virtual_penales_local: pronosticoConFinalVirtual.final_virtual_penales_local,
+                final_virtual_penales_visita: pronosticoConFinalVirtual.final_virtual_penales_visita,
+                equipos_pronosticados_final: pronosticoConFinalVirtual.equipos_pronosticados_final,
+                puntos_campeon: pronosticoConFinalVirtual.puntos_campeon,
+                puntos_subcampeon: pronosticoConFinalVirtual.puntos_subcampeon
+              });
+            }
+          }
+        }
+      }
+
       // Verificar si la jornada seleccionada está abierta (no cerrada)
       const jornadaSeleccionada = jornadas.find(j => j.numero === parseInt(filtroJornada));
       const estaAbierta = jornadaSeleccionada && !jornadaSeleccionada.cerrada;
@@ -1285,15 +1362,26 @@ export default function ClasificacionLibertadores() {
                             </td>
                             <td>
                               <div className="d-flex flex-column align-items-center">
+                                {/* Primera línea: PRONOSTICADO (grande) */}
                                 <div className="d-flex justify-content-center align-items-center gap-2 w-100">
                                   <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
                                     <small className="fw-bold text-end">
-                                      {formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)}
+                                      {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
+                                        ? formatearNombreEquipo(pronostico.final_virtual_local, null)
+                                        : formatearNombreEquipo(pronostico.partido.local.nombre, pronostico.partido.local.pais)
+                                      }
                                     </small>
-                                    {getLogoEquipo(pronostico.partido.local.nombre) && (
+                                    {((pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local && getLogoEquipo(pronostico.final_virtual_local)) || 
+                                      (pronostico.partido.local.nombre && getLogoEquipo(pronostico.partido.local.nombre))) && (
                                       <img 
-                                        src={getLogoEquipo(pronostico.partido.local.nombre)} 
-                                        alt={pronostico.partido.local.nombre}
+                                        src={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
+                                          ? getLogoEquipo(pronostico.final_virtual_local)
+                                          : getLogoEquipo(pronostico.partido.local.nombre)
+                                        }
+                                        alt={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
+                                          ? pronostico.final_virtual_local
+                                          : pronostico.partido.local.nombre
+                                        }
                                         style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                         onError={(e) => e.target.style.display = 'none'}
                                       />
@@ -1301,19 +1389,45 @@ export default function ClasificacionLibertadores() {
                                   </div>
                                   <span className="text-muted">vs</span>
                                   <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
-                                    {getLogoEquipo(pronostico.partido.visita.nombre) && (
+                                    {((pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita && getLogoEquipo(pronostico.final_virtual_visita)) || 
+                                      (pronostico.partido.visita.nombre && getLogoEquipo(pronostico.partido.visita.nombre))) && (
                                       <img 
-                                        src={getLogoEquipo(pronostico.partido.visita.nombre)} 
-                                        alt={pronostico.partido.visita.nombre}
+                                        src={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
+                                          ? getLogoEquipo(pronostico.final_virtual_visita)
+                                          : getLogoEquipo(pronostico.partido.visita.nombre)
+                                        }
+                                        alt={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
+                                          ? pronostico.final_virtual_visita
+                                          : pronostico.partido.visita.nombre
+                                        }
                                         style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                         onError={(e) => e.target.style.display = 'none'}
                                       />
                                     )}
                                     <small className="fw-bold text-start">
-                                      {formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)}
+                                      {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
+                                        ? formatearNombreEquipo(pronostico.final_virtual_visita, null)
+                                        : formatearNombreEquipo(pronostico.partido.visita.nombre, pronostico.partido.visita.pais)
+                                      }
                                     </small>
                                   </div>
                                 </div>
+                                {/* Segunda línea: REAL (pequeña) - Solo para FINAL */}
+                                {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local && (
+                                  <div className="mt-1">
+                                    <small className="fst-italic text-muted" style={{fontSize: '0.75rem'}}>
+                                      <strong>Real:</strong> {pronostico.partido.local.nombre} vs {pronostico.partido.visita.nombre}
+                                      {pronostico.partido?.resultado?.local !== null && (
+                                        <>
+                                          {' - '}
+                                          <span className={pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? 'text-success fw-bold' : 'text-danger fw-bold'}>
+                                            {pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? '✓ Coincide' : '✗ No coincide'}
+                                          </span>
+                                        </>
+                                      )}
+                                    </small>
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="text-center fw-bold fs-5">
@@ -1966,208 +2080,7 @@ export default function ClasificacionLibertadores() {
                       </React.Fragment>
                     ))}
                     
-                    {/* FILA 7: PARTIDO FINAL - Solo para Jornada 10 */}
-                    {(() => {
-                      console.log('🔍 Verificando PARTIDO FINAL: grupo.jornada=', grupo.jornada);
-                      return grupo.jornada === 10;
-                    })() && (() => {
-                      // SIEMPRE buscar el partido FINAL (id 456)
-                      const partidoFinalReal = partidos.find(p => p.id === 456);
-                      
-                      // Si no existe el partido FINAL en la BD, no mostrar
-                      if (!partidoFinalReal) {
-                        console.log('⚠️ Partido FINAL (id 456) no existe en la BD');
-                        return null;
-                      }
-                      
-                      // Buscar datos de FINAL virtual del usuario (puede estar en cualquier pronóstico de J10)
-                      const pronosticoConDatosFinal = grupo.pronosticos.find(p => 
-                        p.final_virtual_local && p.final_virtual_visita
-                      );
-                      
-                      // Si el usuario no tiene datos de final virtual, mostrar mensaje
-                      if (!pronosticoConDatosFinal) {
-                        console.log('⚠️ NO hay datos final_virtual para', grupo.jugador);
-                        
-                        const equiposReales = {
-                          local: partidoFinalReal.nombre_local,
-                          visita: partidoFinalReal.nombre_visita
-                        };
-                        
-                        const hayResultado = partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null;
-                        const jornada = jornadas.find(j => j.numero === 10);
-                        const jornadaCerrada = jornada?.cerrada || false;
-                        
-                        return (
-                          <tr className="table-warning">
-                            <td colSpan="4" className="text-center">
-                              <div className="mb-2">
-                                <strong style={{fontSize: '1.1rem'}}>🏆 FINAL</strong>
-                              </div>
-                              {/* Partido REAL arriba (grande) */}
-                              <div className="mb-2">
-                                <strong>{equiposReales.local} vs {equiposReales.visita}</strong>
-                                <span className="text-muted ms-2">(Partido Real)</span>
-                              </div>
-                              {/* Sin pronóstico */}
-                              <div style={{fontSize: '0.85rem', fontStyle: 'italic'}} className="text-danger">
-                                Sin pronóstico de final virtual
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <span className="text-muted">-</span>
-                            </td>
-                            <td className="text-center">
-                              {hayResultado && jornadaCerrada ? (
-                                <div className="fw-bold text-success">
-                                  {partidoFinalReal.goles_local} - {partidoFinalReal.goles_visita}
-                                  {partidoFinalReal.penales_local !== null && partidoFinalReal.penales_visita !== null && (
-                                    <div style={{fontSize: '0.85rem'}}>
-                                      (Pen: {partidoFinalReal.penales_local} - {partidoFinalReal.penales_visita})
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-muted">Pendiente</span>
-                              )}
-                            </td>
-                            <td className="text-center">
-                              <span className={partidoFinalReal.bonus && partidoFinalReal.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
-                                x{partidoFinalReal.bonus || 1}
-                              </span>
-                            </td>
-                            <td className="text-center">
-                              <span className="badge bg-secondary">0 pts</span>
-                            </td>
-                          </tr>
-                        );
-                      }
-                      
-                      // Extraer datos de la final virtual
-                      const equiposPronosticados = {
-                        local: pronosticoConDatosFinal.final_virtual_local,
-                        visita: pronosticoConDatosFinal.final_virtual_visita,
-                        goles_local: pronosticoConDatosFinal.final_virtual_goles_local,
-                        goles_visita: pronosticoConDatosFinal.final_virtual_goles_visita,
-                        penales_local: pronosticoConDatosFinal.final_virtual_penales_local,
-                        penales_visita: pronosticoConDatosFinal.final_virtual_penales_visita
-                      };
-                      
-                      const equiposReales = {
-                        local: partidoFinalReal.nombre_local,
-                        visita: partidoFinalReal.nombre_visita
-                      };
-                      
-                      // Verificar si coinciden los equipos (en cualquier orden)
-                      const coincidePartido = (
-                        (equiposPronosticados.local === equiposReales.local && equiposPronosticados.visita === equiposReales.visita) ||
-                        (equiposPronosticados.local === equiposReales.visita && equiposPronosticados.visita === equiposReales.local)
-                      );
-                      
-                      // Determinar si hay resultado real y si la jornada está cerrada
-                      const hayResultado = partidoFinalReal.goles_local !== null && partidoFinalReal.goles_visita !== null;
-                      const jornada = jornadas.find(j => j.id === primerPronostico.jornada.id);
-                      const jornadaCerrada = jornada?.cerrada || false;
-                      
-                      // Calcular puntos si hay resultado y coinciden los equipos
-                      let puntosPartidoFinal = 0;
-                      if (hayResultado && coincidePartido) {
-                        // SISTEMA DE PUNTOS ESPECIAL PARA LA FINAL
-                        const golesPronosticadosLocal = equiposPronosticados.goles_local;
-                        const golesPronosticadosVisita = equiposPronosticados.goles_visita;
-                        const golesRealesLocal = partidoFinalReal.goles_local;
-                        const golesRealesVisita = partidoFinalReal.goles_visita;
-                        
-                        // Diferencia de goles
-                        const difPronosticada = golesPronosticadosLocal - golesPronosticadosVisita;
-                        const difReal = golesRealesLocal - golesRealesVisita;
-                        
-                        // Obtener bonus del partido (x1, x2, x3)
-                        const bonus = partidoFinalReal.bonus || 1;
-                        
-                        // 10 puntos si acierta resultado exacto
-                        if (golesPronosticadosLocal === golesRealesLocal && golesPronosticadosVisita === golesRealesVisita) {
-                          puntosPartidoFinal = 10 * bonus;
-                        }
-                        // 7 puntos si acierta diferencia de goles
-                        else if (difPronosticada === difReal) {
-                          puntosPartidoFinal = 7 * bonus;
-                        }
-                        // 4 puntos si acierta ganador/empate (signo 1X2)
-                        else if ((difPronosticada > 0 && difReal > 0) || (difPronosticada < 0 && difReal < 0) || (difPronosticada === 0 && difReal === 0)) {
-                          puntosPartidoFinal = 4 * bonus;
-                        }
-                      }
-                      
-                      return (
-                        <tr className={coincidePartido && hayResultado && jornadaCerrada ? 'table-success' : hayResultado && jornadaCerrada ? 'table-danger' : ''}>
-                          <td colSpan="4" className="text-center">
-                            <div className="mb-2">
-                              <strong style={{fontSize: '1.1rem'}}>🏆 FINAL</strong>
-                            </div>
-                            {/* Partido REAL arriba (grande) */}
-                            <div className="mb-2">
-                              <strong>{equiposReales.local} vs {equiposReales.visita}</strong>
-                              <span className="text-muted ms-2">(Partido Real)</span>
-                            </div>
-                            {/* Partido PRONOSTICADO abajo (pequeño, cursiva) */}
-                            <div style={{fontSize: '0.85rem', fontStyle: 'italic'}} className="text-muted">
-                              {equiposPronosticados.local} vs {equiposPronosticados.visita}
-                              <span className="ms-2">(Partido Pronosticado)</span>
-                            </div>
-                          </td>
-                          {/* Columna: Goles Pronosticado */}
-                          <td className="text-center">
-                            <div className="fw-bold text-primary">
-                              {equiposPronosticados.goles_local} - {equiposPronosticados.goles_visita}
-                              {equiposPronosticados.penales_local !== null && equiposPronosticados.penales_visita !== null && (
-                                <div style={{fontSize: '0.85rem'}}>
-                                  (Pen: {equiposPronosticados.penales_local} - {equiposPronosticados.penales_visita})
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          {/* Columna: Goles Real */}
-                          <td className="text-center">
-                            {hayResultado && jornadaCerrada ? (
-                              <div className="fw-bold text-success">
-                                {partidoFinalReal.goles_local} - {partidoFinalReal.goles_visita}
-                                {partidoFinalReal.penales_local !== null && partidoFinalReal.penales_visita !== null && (
-                                  <div style={{fontSize: '0.85rem'}}>
-                                    (Pen: {partidoFinalReal.penales_local} - {partidoFinalReal.penales_visita})
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted">Pendiente</span>
-                            )}
-                          </td>
-                          {/* Columna: Bonus */}
-                          <td className="text-center">
-                            <span className={partidoFinalReal.bonus && partidoFinalReal.bonus > 1 ? "badge bg-info text-white" : "text-muted"}>
-                              x{partidoFinalReal.bonus || 1}
-                            </span>
-                          </td>
-                          {/* Columna: Puntaje + Coincidencia */}
-                          <td className="text-center">
-                            {hayResultado && jornadaCerrada ? (
-                              <div>
-                                <div className="fw-bold fs-5">
-                                  {puntosPartidoFinal} pts
-                                </div>
-                                <div style={{fontSize: '0.85rem'}} className={coincidePartido ? 'text-success' : 'text-danger'}>
-                                  {coincidePartido ? 'Partido SI coincide' : 'Partido NO coincide'}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                    
-                    {/* FILA 8: Cuadro Final (Campeón + Subcampeón) - Solo para Jornada 10 */}
+                    {/* FILA 7: Cuadro Final (Campeón + Subcampeón) - Solo para Jornada 10 */}
                     {grupo.jornada === 10 && (() => {
                       const primerPronostico = grupo.pronosticos[0];
                       
