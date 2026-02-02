@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import JornadaSelector from "../components/JornadaSelector";
 import AccesosDirectos from "../components/AccesosDirectos";
 import CuentaRegresivaGlobal from "../components/CuentaRegresivaGlobal";
@@ -49,6 +49,7 @@ function useAuth() {
 export default function Jornada() {
   const usuario = useAuth();
   const navigate = useNavigate();
+  const { id } = useParams(); // Obtener número de jornada de la URL
 
   const [jornadas, setJornadas] = useState([]);
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState(null); // el número de la jornada
@@ -93,6 +94,14 @@ export default function Jornada() {
       .then(setJornadas)
       .catch((err) => console.error("Error al cargar jornadas", err));
   }, []);
+
+  // Si viene número de jornada en la URL, seleccionarla automáticamente
+  useEffect(() => {
+    if (id && jornadas.length > 0) {
+      const numeroJornada = parseInt(id, 10);
+      setJornadaSeleccionada(numeroJornada);
+    }
+  }, [id, jornadas]);
 
   // Cuando cambia jornadaSeleccionada, obtenemos el id real y los datos
   useEffect(() => {

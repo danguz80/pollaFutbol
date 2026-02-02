@@ -2,8 +2,11 @@
 export const getLogoEquipo = (nombreEquipo) => {
   if (!nombreEquipo) return null;
   
+  // Eliminar país entre paréntesis (ej: "Palmeiras (BRA)" -> "Palmeiras")
+  const nombreSinPais = nombreEquipo.replace(/\s*\([A-Z]{3}\)\s*$/i, '').trim();
+  
   // Normalizar nombre del equipo (sin espacios, sin tildes, minúsculas)
-  const nombreNormalizado = nombreEquipo
+  const nombreNormalizado = nombreSinPais
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // Eliminar tildes

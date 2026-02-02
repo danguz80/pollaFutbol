@@ -62,7 +62,7 @@ export default function HeroSection({ competencia }) {
         navigate(`/jornada/${partido.jornada_numero}`);
         break;
       case 'sudamericana':
-        navigate('/sudamericana');
+        navigate(`/sudamericana/jornada/${partido.jornada_numero}`);
         break;
       default:
         break;

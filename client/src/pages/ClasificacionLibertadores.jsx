@@ -1535,13 +1535,31 @@ export default function ClasificacionLibertadores() {
                                     {clasif.fase_clasificado === 'SUBCAMPEON' && '🥈 Subcampeón'}
                                   </td>
                                   <td className="text-center">
-                                    <div className="fw-bold text-primary">
-                                      {clasif.equipo_clasificado}
+                                    <div className="d-flex align-items-center justify-content-center gap-2">
+                                      {getLogoEquipo(clasif.equipo_clasificado) && (
+                                        <img 
+                                          src={getLogoEquipo(clasif.equipo_clasificado)} 
+                                          alt={clasif.equipo_clasificado}
+                                          style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                          onError={(e) => e.target.style.display = 'none'}
+                                        />
+                                      )}
+                                      <span className="fw-bold text-primary">{clasif.equipo_clasificado}</span>
                                     </div>
                                   </td>
                                   <td className="text-center">
                                     {clasif.equipo_oficial ? (
-                                      <span className="badge bg-success">{clasif.equipo_oficial}</span>
+                                      <div className="d-flex align-items-center justify-content-center gap-2">
+                                        {getLogoEquipo(clasif.equipo_oficial) && (
+                                          <img 
+                                            src={getLogoEquipo(clasif.equipo_oficial)} 
+                                            alt={clasif.equipo_oficial}
+                                            style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                            onError={(e) => e.target.style.display = 'none'}
+                                          />
+                                        )}
+                                        <span className="badge bg-success">{clasif.equipo_oficial}</span>
+                                      </div>
                                     ) : (
                                       <span className="text-muted">Pendiente</span>
                                     )}
@@ -1570,7 +1588,17 @@ export default function ClasificacionLibertadores() {
                                   </td>
                                   <td className="text-center fw-bold">
                                     {parseInt(filtroJornada) === 6 ? (
-                                      pronostico.partido.local.nombre
+                                      <div className="d-flex align-items-center justify-content-center gap-2">
+                                        {getLogoEquipo(pronostico.partido.local.nombre) && (
+                                          <img 
+                                            src={getLogoEquipo(pronostico.partido.local.nombre)} 
+                                            alt={pronostico.partido.local.nombre}
+                                            style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                            onError={(e) => e.target.style.display = 'none'}
+                                          />
+                                        )}
+                                        <span>{pronostico.partido.local.nombre}</span>
+                                      </div>
                                     ) : (
                                       <span>Equipo que avanza</span>
                                     )}
@@ -1582,8 +1610,18 @@ export default function ClasificacionLibertadores() {
                                      pronostico.tipoClasificado === 'finalista' ||
                                      pronostico.tipoClasificado === 'campeon' ||
                                      pronostico.tipoClasificado === 'subcampeon' ? (
-                                      <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
-                                        {pronostico.equipo_pronosticado}
+                                      <div className="d-flex align-items-center justify-content-center gap-2">
+                                        {getLogoEquipo(pronostico.equipo_pronosticado) && (
+                                          <img 
+                                            src={getLogoEquipo(pronostico.equipo_pronosticado)} 
+                                            alt={pronostico.equipo_pronosticado}
+                                            style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                            onError={(e) => e.target.style.display = 'none'}
+                                          />
+                                        )}
+                                        <span className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                          {pronostico.equipo_pronosticado}
+                                        </span>
                                       </div>
                                     ) : (
                                       pronostico.equipos_pronosticados?.map((equipo, idx) => (
@@ -1595,15 +1633,33 @@ export default function ClasificacionLibertadores() {
                                             padding: '4px 0'
                                           }}
                                         >
-                                          {equipo}
+                                          <div className="d-flex align-items-center justify-content-center gap-2">
+                                            {getLogoEquipo(equipo) && (
+                                              <img 
+                                                src={getLogoEquipo(equipo)} 
+                                                alt={equipo}
+                                                style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                                onError={(e) => e.target.style.display = 'none'}
+                                              />
+                                            )}
+                                            <span>{equipo}</span>
+                                          </div>
                                         </div>
                                       ))
                                     )}
                                   </td>
                                   <td className="text-center">
                                     {pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
-                                      <div className="fw-bold">
-                                        {pronostico.equipo_oficial || '?'}
+                                      <div className="d-flex align-items-center justify-content-center gap-2">
+                                        {getLogoEquipo(pronostico.equipo_oficial) && (
+                                          <img 
+                                            src={getLogoEquipo(pronostico.equipo_oficial)} 
+                                            alt={pronostico.equipo_oficial}
+                                            style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                            onError={(e) => e.target.style.display = 'none'}
+                                          />
+                                        )}
+                                        <span className="fw-bold">{pronostico.equipo_oficial || '?'}</span>
                                       </div>
                                     ) : (
                                       pronostico.equipos_oficiales?.map((equipo, idx) => (
@@ -1615,7 +1671,17 @@ export default function ClasificacionLibertadores() {
                                             padding: '4px 0'
                                           }}
                                         >
-                                          {equipo}
+                                          <div className="d-flex align-items-center justify-content-center gap-2">
+                                            {getLogoEquipo(equipo) && (
+                                              <img 
+                                                src={getLogoEquipo(equipo)} 
+                                                alt={equipo}
+                                                style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                                onError={(e) => e.target.style.display = 'none'}
+                                              />
+                                            )}
+                                            <span>{equipo}</span>
+                                          </div>
                                         </div>
                                       ))
                                     )}
@@ -1674,13 +1740,31 @@ export default function ClasificacionLibertadores() {
                                       {parseInt(filtroJornada) === 7 && clasif.fase_clasificado}
                                     </td>
                                     <td className="text-center">
-                                      <div className="fw-bold text-primary">
-                                        {clasif.equipo_clasificado}
+                                      <div className="d-flex align-items-center justify-content-center gap-2">
+                                        {getLogoEquipo(clasif.equipo_clasificado) && (
+                                          <img 
+                                            src={getLogoEquipo(clasif.equipo_clasificado)} 
+                                            alt={clasif.equipo_clasificado}
+                                            style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                            onError={(e) => e.target.style.display = 'none'}
+                                          />
+                                        )}
+                                        <span className="fw-bold text-primary">{clasif.equipo_clasificado}</span>
                                       </div>
                                     </td>
                                     <td className="text-center">
                                       {clasif.equipo_oficial ? (
-                                        <span className="badge bg-success">{clasif.equipo_oficial}</span>
+                                        <div className="d-flex align-items-center justify-content-center gap-2">
+                                          {getLogoEquipo(clasif.equipo_oficial) && (
+                                            <img 
+                                              src={getLogoEquipo(clasif.equipo_oficial)} 
+                                              alt={clasif.equipo_oficial}
+                                              style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                              onError={(e) => e.target.style.display = 'none'}
+                                            />
+                                          )}
+                                          <span className="badge bg-success">{clasif.equipo_oficial}</span>
+                                        </div>
                                       ) : (
                                         <span className="text-muted">Pendiente</span>
                                       )}
@@ -1779,8 +1863,18 @@ export default function ClasificacionLibertadores() {
                               {/* Renderizado condicional según tipo de clasificado */}
                               {pronostico.tipoClasificado === 'playoffs' ? (
                                 // Para playoffs: mostrar 1 solo equipo
-                                <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
-                                  {pronostico.equipo_pronosticado}
+                                <div className="d-flex align-items-center justify-content-center gap-2">
+                                  {getLogoEquipo(pronostico.equipo_pronosticado) && (
+                                    <img 
+                                      src={getLogoEquipo(pronostico.equipo_pronosticado)} 
+                                      alt={pronostico.equipo_pronosticado}
+                                      style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                      onError={(e) => e.target.style.display = 'none'}
+                                    />
+                                  )}
+                                  <span className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                    {pronostico.equipo_pronosticado}
+                                  </span>
                                 </div>
                               ) : (
                                 // Para octavos: mostrar 2 equipos pronosticados (aciertos primero)
@@ -1793,7 +1887,17 @@ export default function ClasificacionLibertadores() {
                                       padding: '4px 0'
                                     }}
                                   >
-                                    {equipo}
+                                    <div className="d-flex align-items-center justify-content-center gap-2">
+                                      {getLogoEquipo(equipo) && (
+                                        <img 
+                                          src={getLogoEquipo(equipo)} 
+                                          alt={equipo}
+                                          style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                          onError={(e) => e.target.style.display = 'none'}
+                                        />
+                                      )}
+                                      <span>{equipo}</span>
+                                    </div>
                                   </div>
                                 ))
                               )}
@@ -1802,8 +1906,16 @@ export default function ClasificacionLibertadores() {
                               {/* Renderizado condicional según tipo de clasificado */}
                               {pronostico.tipoClasificado === 'playoffs' ? (
                                 // Para playoffs: mostrar 1 solo equipo
-                                <div className="fw-bold">
-                                  {pronostico.equipo_oficial || '-'}
+                                <div className="d-flex align-items-center justify-content-center gap-2">
+                                  {getLogoEquipo(pronostico.equipo_oficial) && (
+                                    <img 
+                                      src={getLogoEquipo(pronostico.equipo_oficial)} 
+                                      alt={pronostico.equipo_oficial}
+                                      style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                      onError={(e) => e.target.style.display = 'none'}
+                                    />
+                                  )}
+                                  <span className="fw-bold">{pronostico.equipo_oficial || '-'}</span>
                                 </div>
                               ) : (
                                 // Para octavos: mostrar 2 equipos oficiales
@@ -1816,7 +1928,17 @@ export default function ClasificacionLibertadores() {
                                       padding: '4px 0'
                                     }}
                                   >
-                                    {equipo}
+                                    <div className="d-flex align-items-center justify-content-center gap-2">
+                                      {getLogoEquipo(equipo) && (
+                                        <img 
+                                          src={getLogoEquipo(equipo)} 
+                                          alt={equipo}
+                                          style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                          onError={(e) => e.target.style.display = 'none'}
+                                        />
+                                      )}
+                                      <span>{equipo}</span>
+                                    </div>
                                   </div>
                                 ))
                               )}
