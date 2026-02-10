@@ -75,8 +75,18 @@ export function getLogoBase64(nombreEquipo) {
   }
 
   try {
-    // Intentar leer desde el servidor primero (para desarrollo local)
-    const rutaLogo = path.join(__dirname, '../public/logos_equipos', archivoLogo);
+    // En producción, siempre usar URLs para reducir consumo de memoria
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+      const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
+      logoCache[nombreNormalizado] = urlLogo;
+      console.log(`✅ Logo URL: ${nombreEquipo} -> ${urlLogo}`);
+      return urlLogo;
+    }
+    
+    // En desarrollo, intentar leer desde el servidor
+    const rutaLogo = path.join(__dirname, '../../client/public', carpeta, archivoLogo);
     
     if (fs.existsSync(rutaLogo)) {
       // Leer el archivo y convertir a base64
@@ -89,20 +99,20 @@ export function getLogoBase64(nombreEquipo) {
                        'image/png';
       
       const base64Image = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
-      logoCache[nombreEquipo] = base64Image;
+      logoCache[nombreNormalizado] = base64Image;
       console.log(`✅ Logo cargado desde servidor: ${nombreEquipo}`);
       return base64Image;
     } else {
-      // En producción, usar URL de Netlify
+      // Fallback a URL de Netlify
       const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
-      logoCache[nombreEquipo] = urlLogo;
-      console.log(`✅ Logo URL: ${nombreEquipo} -> ${urlLogo}`);
+      logoCache[nombreNormalizado] = urlLogo;
+      console.log(`✅ Logo URL (fallback): ${nombreEquipo} -> ${urlLogo}`);
       return urlLogo;
     }
   } catch (error) {
     // Fallback a URL de Netlify si hay error
     const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
-    logoCache[nombreEquipo] = urlLogo;
+    logoCache[nombreNormalizado] = urlLogo;
     console.log(`⚠️ Error leyendo logo, usando URL: ${nombreEquipo}`);
     return urlLogo;
   }

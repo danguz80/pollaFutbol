@@ -5,6 +5,7 @@ import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { getWhatsAppService } from '../services/whatsappService.js';
 import htmlPdf from 'html-pdf-node';
 import { getLogoBase64 } from '../utils/logoHelper.js';
+import { getFotoPerfilBase64 } from '../utils/fotoPerfilHelper.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -433,31 +434,6 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
       const key = `${p.nombre_local}|${p.nombre_visita}`;
       pronosticosPorUsuario[p.usuario].pronosticos[key] = p;
     });
-
-    // Función para convertir foto de perfil a base64
-    const getFotoPerfilBase64 = (fotoPerfil) => {
-      if (!fotoPerfil) return null;
-      try {
-        // Limpiar el path: si empieza con /perfil/, quitarlo
-        let cleanPath = fotoPerfil;
-        if (cleanPath.startsWith('/perfil/')) {
-          cleanPath = cleanPath.substring(8);
-        } else if (cleanPath.startsWith('perfil/')) {
-          cleanPath = cleanPath.substring(7);
-        }
-        
-        const fotoPath = path.join(__dirname, '../../client/public/perfil', cleanPath);
-        
-        if (fs.existsSync(fotoPath)) {
-          const imageBuffer = fs.readFileSync(fotoPath);
-          const ext = path.extname(cleanPath).substring(1);
-          return `data:image/${ext};base64,${imageBuffer.toString('base64')}`;
-        }
-      } catch (error) {
-        console.warn(`⚠️  Error cargando foto: ${fotoPerfil}`, error.message);
-      }
-      return null;
-    };
 
     // Generar HTML para el PDF
     const htmlContent = `

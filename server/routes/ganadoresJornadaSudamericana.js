@@ -5,6 +5,7 @@ import { checkRole } from '../middleware/checkRole.js';
 import htmlPdf from 'html-pdf-node';
 import { getWhatsAppService } from '../services/whatsappService.js';
 import { getLogoBase64 } from '../utils/logoHelper.js';
+import { getFotoPerfilBase64 } from '../utils/fotoPerfilHelper.js';
 import { calcularTablaOficial } from '../utils/calcularClasificadosSudamericana.js';
 import fs from 'fs';
 import path from 'path';
@@ -777,31 +778,6 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       }
       pronosticosPorUsuario[p.usuario].pronosticos.push(p);
     });
-
-    // Función para convertir foto de perfil a base64
-    const getFotoPerfilBase64 = (fotoPerfil) => {
-      if (!fotoPerfil) return null;
-      try {
-        let cleanPath = fotoPerfil;
-        if (cleanPath.startsWith('/perfil/')) {
-          cleanPath = cleanPath.substring(8);
-        } else if (cleanPath.startsWith('perfil/')) {
-          cleanPath = cleanPath.substring(7);
-        }
-        
-        const fotoPath = path.join(__dirname, '../../client/public/perfil', cleanPath);
-        
-        if (fs.existsSync(fotoPath)) {
-          const imageBuffer = fs.readFileSync(fotoPath);
-          const ext = path.extname(cleanPath).substring(1);
-          const base64 = `data:image/${ext};base64,${imageBuffer.toString('base64')}`;
-          return base64;
-        }
-      } catch (error) {
-        console.error('Error cargando foto:', error);
-      }
-      return null;
-    };
 
     // Obtener servicio de WhatsApp para envío de email
     const whatsappService = getWhatsAppService();
