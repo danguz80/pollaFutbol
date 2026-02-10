@@ -660,4 +660,5 @@ async function generarPDFCompleto(jornadaNumero) {
   }
 }
 
+export { generarPDFCompleto };
 export default router;

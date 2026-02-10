@@ -58,6 +58,11 @@ export default function Clasificacion() {
   const [ganadoresAcumulado, setGanadoresAcumulado] = useState(null);
   const [mostrarGanadoresAcumulado, setMostrarGanadoresAcumulado] = useState(false);
   
+  // Estados para modal
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState("success"); // success, warning, error
+  
   // Estados para Cuadro Final
   const [prediccionesReales, setPrediccionesReales] = useState({});
   const [prediccionesUsuarios, setPrediccionesUsuarios] = useState([]);
@@ -259,7 +264,7 @@ export default function Clasificacion() {
       return;
     }
 
-    if (!confirm(`¿Calcular los ganadores de la jornada ${jornadaActual}?`)) {
+    if (!confirm(`¿Calcular los ganadores de la jornada ${jornadaActual} y generar PDF con resultados?\n\nEl PDF incluirá: pronósticos, resultados reales, puntos, rankings y ganadores. Se enviará automáticamente por email.`)) {
       return;
     }
 
@@ -284,9 +289,32 @@ export default function Clasificacion() {
       const rankingAcumuladoRes = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`);
       setRankingAcumulado(await rankingAcumuladoRes.json());
       
+      // Mostrar mensaje con información del PDF en modal
+      if (response.data.pdfGenerado) {
+        setModalType("success");
+        setModalMessage(
+          `✅ ${response.data.mensaje}\n\n` +
+          `📧 PDF enviado por email con:\n` +
+          `• Ganadores de la jornada\n` +
+          `• Ranking de la jornada\n` +
+          `• Ranking acumulado\n` +
+          `• Pronósticos y resultados\n` +
+          `• Puntos por usuario`
+        );
+      } else {
+        setModalType("warning");
+        setModalMessage(
+          `✅ ${response.data.mensaje}` +
+          (response.data.pdfError ? `\n\n⚠️ Error en PDF: ${response.data.pdfError}` : '')
+        );
+      }
+      setShowModal(true);
+      
     } catch (error) {
       console.error('Error calculando ganadores:', error);
-      alert('❌ Error al calcular los ganadores');
+      setModalType("error");
+      setModalMessage('❌ Error al calcular los ganadores\n\n' + (error.response?.data?.error || error.message));
+      setShowModal(true);
     } finally {
       setCalculandoGanadores(false);
     }
@@ -1327,6 +1355,55 @@ export default function Clasificacion() {
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
         </>
+      )}
+
+      {/* Modal de Confirmación */}
+      {showModal && (
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowModal(false)}
+        >
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className={`modal-header ${
+                modalType === 'success' ? 'bg-success text-white' :
+                modalType === 'warning' ? 'bg-warning text-dark' :
+                'bg-danger text-white'
+              }`}>
+                <h5 className="modal-title">
+                  {modalType === 'success' ? '✅ Operación Exitosa' :
+                   modalType === 'warning' ? '⚠️ Advertencia' :
+                   '❌ Error'}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowModal(false)}
+                  style={{ filter: modalType === 'warning' ? 'none' : 'invert(1)' }}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div style={{ whiteSpace: 'pre-line', fontSize: '16px' }}>
+                  {modalMessage}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className={`btn btn-lg ${
+                    modalType === 'success' ? 'btn-success' :
+                    modalType === 'warning' ? 'btn-warning' :
+                    'btn-danger'
+                  }`}
+                  onClick={() => setShowModal(false)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
