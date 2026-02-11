@@ -34,7 +34,7 @@ router.get("/", async (req, res) => {
         INNER JOIN jornadas j ON p.jornada_id = j.id
         WHERE j.cerrada = false 
           AND p.bonus >= 2
-        ORDER BY p.fecha ASC, p.bonus DESC
+        ORDER BY j.numero ASC, p.bonus DESC, p.fecha ASC
       `);
       
       partidos.push(...torneoResult.rows);
@@ -59,7 +59,7 @@ router.get("/", async (req, res) => {
         WHERE lj.activa = true 
           AND lj.cerrada = false 
           AND lp.bonus >= 2
-        ORDER BY lp.fecha ASC, lp.bonus DESC
+        ORDER BY lj.numero ASC, lp.bonus DESC, lp.fecha ASC
       `);
       
       partidos.push(...libertadoresResult.rows);
@@ -85,7 +85,7 @@ router.get("/", async (req, res) => {
           WHERE sj.activa = true 
             AND sj.cerrada = false 
             AND sp.bonus >= 2
-          ORDER BY sp.fecha ASC, sp.bonus DESC
+          ORDER BY sj.numero ASC, sp.bonus DESC, sp.fecha ASC
         `);
         
         partidos.push(...sudamericanaResult.rows);
@@ -95,11 +95,15 @@ router.get("/", async (req, res) => {
       }
     }
 
-    // Ordenar todos los partidos por fecha y bonus
+    // Ordenar todos los partidos por número de jornada, bonus y fecha
     partidos.sort((a, b) => {
-      // Primero por bonus (mayor a menor)
+      // Primero por número de jornada (menor a mayor - más próximas primero)
+      if (a.jornada_numero !== b.jornada_numero) {
+        return a.jornada_numero - b.jornada_numero;
+      }
+      // Luego por bonus (mayor a menor)
       if (b.bonus !== a.bonus) return b.bonus - a.bonus;
-      // Luego por fecha (más cercano primero)
+      // Finalmente por fecha (más cercano primero)
       return new Date(a.fecha) - new Date(b.fecha);
     });
 
