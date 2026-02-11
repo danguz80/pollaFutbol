@@ -16,6 +16,7 @@ import CambiarPassword from "./pages/CambiarPassword";
 import AdminLibertadores from "./pages/AdminLibertadores";
 import Libertadores from "./pages/Libertadores";
 import Sudamericana from "./pages/Sudamericana";
+import Mundial from "./pages/Mundial";
 import JornadaLibertadores from "./pages/JornadaLibertadores";
 import JornadaSudamericana from "./pages/JornadaSudamericana";
 import EstadisticasLibertadores from "./pages/EstadisticasLibertadores";
@@ -36,6 +37,11 @@ import AdminLibertadoresResultados from "./pages/Admin/AdminLibertadoresResultad
 import AdminSudamericana from "./pages/AdminSudamericana";
 import AdminSudamericanaGestion from "./pages/Admin/AdminSudamericanaGestion";
 import AdminSudamericanaResultados from "./pages/Admin/AdminSudamericanaResultados";
+import AdminMundial from "./pages/Admin/AdminMundial";
+import AdminMundialFixture from "./pages/Admin/AdminMundialFixture";
+import AdminMundialResultados from "./pages/Admin/AdminMundialResultados";
+import AdminMundialGestion from "./pages/Admin/AdminMundialGestion";
+import JornadaMundial from "./pages/JornadaMundial";
 import EstadisticasNacional from "./pages/EstadisticasNacional";
 import ModalNotificacionGanador from "./components/ModalNotificacionGanador";
 import { useNotificaciones } from "./hooks/useNotificaciones";
@@ -118,6 +124,26 @@ export default function AppRouter() {
             <AdminSudamericanaResultados />
           </RutaProtegidaAdmin>
         } />
+        <Route path="/admin/mundial" element={
+          <RutaProtegidaAdmin>
+            <AdminMundialFixture />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/mundial/fixture" element={
+          <RutaProtegidaAdmin>
+            <AdminMundialFixture />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/mundial/resultados" element={
+          <RutaProtegidaAdmin>
+            <AdminMundialResultados />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/mundial/gestion" element={
+          <RutaProtegidaAdmin>
+            <AdminMundialGestion />
+          </RutaProtegidaAdmin>
+        } />
         <Route path="/admin/torneo-nacional" element={
           <RutaProtegidaAdmin>
             <AdminTorneoNacional />
@@ -156,6 +182,8 @@ export default function AppRouter() {
         <Route path="/sudamericana/ganadores-jornada" element={<GanadoresJornadaSudamericana />} />
         <Route path="/sudamericana/clasificacion" element={<ClasificacionSudamericana />} />
         <Route path="/sudamericana/puntuacion" element={<PuntuacionSudamericana />} />
+        <Route path="/mundial" element={<Mundial />} />
+        <Route path="/mundial/jornada/:numero" element={<JornadaMundial />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/notificaciones" element={<TodasNotificaciones />} />
         <Route path="/register" element={<Register />} />

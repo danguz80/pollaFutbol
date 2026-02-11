@@ -396,6 +396,12 @@ export default function Home() {
                 >
                     🟢 Copa Sudamericana 2026
                 </button>
+                <button
+                    className="btn btn-info px-4 py-2"
+                    onClick={() => navigate("/mundial")}
+                >
+                    🌍 Mundial 2026
+                </button>
             </div>
 
             {/* Hero Section con partidos destacados - DEBAJO DE BOTONES */}
