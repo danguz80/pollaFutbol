@@ -72,6 +72,8 @@ router.delete('/eliminar-datos-sudamericana', verifyToken, authorizeRoles('admin
       AND table_name IN (
         'sudamericana_pronosticos',
         'sudamericana_puntos_clasificacion',
+        'sudamericana_ganadores_jornada',
+        'sudamericana_ganadores_acumulado',
         'sudamericana_partidos',
         'sudamericana_jornadas',
         'sudamericana_equipos'
@@ -94,30 +96,39 @@ router.delete('/eliminar-datos-sudamericana', verifyToken, authorizeRoles('admin
       console.log(`✅ Eliminados ${puntosClasifResult.rowCount} puntos de clasificación`);
     }
 
-    // 3. Eliminar partidos
+    // 3. Eliminar ganadores de jornada
+    let ganadoresResult = { rowCount: 0 };
+    if (tablas.has('sudamericana_ganadores_jornada')) {
+      ganadoresResult = await client.query('DELETE FROM sudamericana_ganadores_jornada RETURNING id');
+      console.log(`✅ Eliminados ${ganadoresResult.rowCount} ganadores de jornada`);
+    }
+
+    // 4. Eliminar ganadores acumulado
+    let ganadoresAcumuladoResult = { rowCount: 0 };
+    if (tablas.has('sudamericana_ganadores_acumulado')) {
+      ganadoresAcumuladoResult = await client.query('DELETE FROM sudamericana_ganadores_acumulado RETURNING id');
+      console.log(`✅ Eliminados ${ganadoresAcumuladoResult.rowCount} ganadores acumulado`);
+    }
+
+    // 5. Eliminar partidos
     let partidosResult = { rowCount: 0 };
     if (tablas.has('sudamericana_partidos')) {
       partidosResult = await client.query('DELETE FROM sudamericana_partidos RETURNING id');
       console.log(`✅ Eliminados ${partidosResult.rowCount} partidos`);
     }
 
-    // 4. Eliminar equipos
+    // 6. Eliminar jornadas
+    let jornadasResult = { rowCount: 0 };
+    if (tablas.has('sudamericana_jornadas')) {
+      jornadasResult = await client.query('DELETE FROM sudamericana_jornadas RETURNING id');
+      console.log(`✅ Eliminadas ${jornadasResult.rowCount} jornadas`);
+    }
+
+    // 7. Eliminar equipos
     let equiposResult = { rowCount: 0 };
     if (tablas.has('sudamericana_equipos')) {
       equiposResult = await client.query('DELETE FROM sudamericana_equipos RETURNING id');
       console.log(`✅ Eliminados ${equiposResult.rowCount} equipos`);
-    }
-
-    // 5. Resetear jornadas (NO eliminar, solo resetear estado)
-    let jornadasResult = { rowCount: 0 };
-    if (tablas.has('sudamericana_jornadas')) {
-      jornadasResult = await client.query(`
-        UPDATE sudamericana_jornadas 
-        SET cerrada = false, activa = false
-        WHERE numero >= 1
-        RETURNING id
-      `);
-      console.log(`✅ Reseteadas ${jornadasResult.rowCount} jornadas`);
     }
 
     await client.query('COMMIT');
@@ -128,9 +139,11 @@ router.delete('/eliminar-datos-sudamericana', verifyToken, authorizeRoles('admin
       mensaje: 'Datos de Copa Sudamericana eliminados exitosamente',
       pronosticosEliminados: pronosticosResult.rowCount,
       puntosClasificacionEliminados: puntosClasifResult.rowCount,
+      ganadoresJornadaEliminados: ganadoresResult.rowCount,
+      ganadoresAcumuladoEliminados: ganadoresAcumuladoResult.rowCount,
       partidosEliminados: partidosResult.rowCount,
+      jornadasEliminadas: jornadasResult.rowCount,
       equiposEliminados: equiposResult.rowCount,
-      jornadasReseteadas: jornadasResult.rowCount,
       temporada
     });
   } catch (error) {

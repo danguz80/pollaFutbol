@@ -128,6 +128,7 @@ router.get('/ranking-acumulado', verifyToken, async (req, res) => {
         GROUP BY usuario_id
       ) puntos_clasificacion ON puntos_clasificacion.usuario_id = u.id
       WHERE u.activo_sudamericana = true
+        AND (COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0)) > 0
       ORDER BY puntos_acumulados DESC
     `);
 
