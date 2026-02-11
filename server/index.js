@@ -43,6 +43,7 @@ import sudamericanaClasificadosRoutes from "./routes/sudamericanaClasificados.js
 import estadisticasNacionalRoutes from "./routes/estadisticas_nacional.js";
 import heroPartidosRoutes from "./routes/heroPartidos.js";
 import notificacionesRoutes from "./routes/notificaciones.js";
+import desempateTorneoRoutes from "./routes/desempateTorneo.js";
 
 dotenv.config();
 
@@ -293,6 +294,7 @@ app.use('/api/admin', adminSudamericanaRoutes);
 app.use('/api/estadisticas-nacional', estadisticasNacionalRoutes);
 app.use('/api/hero-partidos-bonus', heroPartidosRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
+app.use('/api/desempate-torneo', desempateTorneoRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");

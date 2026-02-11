@@ -5,17 +5,47 @@ import AccesosDirectos from '../../components/AccesosDirectos';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+const CRITERIOS_DESEMPATE = [
+  'Mayor cantidad de goles marcados en calidad de visita.',
+  'Menor cantidad de tarjetas rojas recibidas.',
+  'Menor cantidad de tarjetas amarillas recibidas.',
+  'Sorteo.'
+];
+
 export default function AdminTorneoNacional() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [respaldoExiste, setRespaldoExiste] = useState(false);
   const [estadisticas, setEstadisticas] = useState(null);
   const [temporada, setTemporada] = useState(2026); // Temporada actual del torneo
+  const [equiposEmpatados, setEquiposEmpatados] = useState([]); // ← aquí deberías setear los equipos empatados detectados
+  const [criterioSeleccionado, setCriterioSeleccionado] = useState(CRITERIOS_DESEMPATE[0]);
+  const [detalle, setDetalle] = useState('');
+  const [aplicandoDesempate, setAplicandoDesempate] = useState(false);
+  const [ordenEquipos, setOrdenEquipos] = useState([]);
 
   useEffect(() => {
     verificarRespaldo();
     cargarEstadisticas();
+    cargarEmpatesPendientes();
   }, []);
+
+  const cargarEmpatesPendientes = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `${API_URL}/api/estadisticas-nacional/empates-pendientes`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const empates = response.data.equiposEmpatados || [];
+      setEquiposEmpatados(empates);
+      setOrdenEquipos(empates); // Inicializar orden con el orden actual
+    } catch (error) {
+      console.error('Error cargando empates pendientes:', error);
+      setEquiposEmpatados([]);
+      setOrdenEquipos([]);
+    }
+  };
 
   const verificarRespaldo = async () => {
     try {
@@ -108,6 +138,53 @@ export default function AdminTorneoNacional() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const aplicarDesempate = async () => {
+    if (equiposEmpatados.length === 0) {
+      alert('No hay equipos empatados para aplicar desempate.');
+      return;
+    }
+    if (ordenEquipos.length !== equiposEmpatados.length) {
+      alert('⚠️ Debes definir el orden de todos los equipos empatados.');
+      return;
+    }
+    setAplicandoDesempate(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${API_URL}/api/desempate-torneo/aplicar`,
+        {
+          temporada,
+          equipos: equiposEmpatados.sort().join(','), // Orden original (alfabético)
+          criterio: criterioSeleccionado,
+          detalle,
+          orden: ordenEquipos.join(',') // Orden final después del desempate
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert('✅ Criterio de desempate aplicado correctamente.');
+      setDetalle('');
+      await cargarEmpatesPendientes(); // Recargar lista de empates
+    } catch (error) {
+      alert('❌ Error aplicando desempate: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setAplicandoDesempate(false);
+    }
+  };
+
+  const moverEquipoArriba = (index) => {
+    if (index === 0) return;
+    const nuevoOrden = [...ordenEquipos];
+    [nuevoOrden[index - 1], nuevoOrden[index]] = [nuevoOrden[index], nuevoOrden[index - 1]];
+    setOrdenEquipos(nuevoOrden);
+  };
+
+  const moverEquipoAbajo = (index) => {
+    if (index === ordenEquipos.length - 1) return;
+    const nuevoOrden = [...ordenEquipos];
+    [nuevoOrden[index], nuevoOrden[index + 1]] = [nuevoOrden[index + 1], nuevoOrden[index]];
+    setOrdenEquipos(nuevoOrden);
   };
 
   return (
@@ -269,6 +346,79 @@ export default function AdminTorneoNacional() {
           <li>Después de eliminar, puedes importar el fixture del nuevo año</li>
         </ul>
       </div>
+
+      {/* Sección de desempate si hay equipos empatados */}
+      {equiposEmpatados.length > 0 && (
+        <div className="alert alert-warning mb-4">
+          <h5>⚠️ Desempate requerido</h5>
+          <p className="mb-3">
+            Los siguientes equipos están empatados en los primeros 4 criterios automáticos (puntos, diferencia de goles, partidos ganados, goles a favor).
+          </p>
+          
+          <div className="mb-3">
+            <label className="fw-bold">Selecciona el criterio a aplicar:</label>
+            <select
+              className="form-select mt-1"
+              value={criterioSeleccionado}
+              onChange={e => setCriterioSeleccionado(e.target.value)}
+            >
+              {CRITERIOS_DESEMPATE.map((criterio, idx) => (
+                <option key={idx} value={criterio}>{criterio}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mb-3">
+            <label className="fw-bold">Ordena los equipos según el criterio seleccionado:</label>
+            <p className="small text-muted mb-2">Usa las flechas para ordenar del primero al último en la tabla</p>
+            <div className="list-group">
+              {ordenEquipos.map((equipo, index) => (
+                <div key={equipo} className="list-group-item d-flex justify-content-between align-items-center">
+                  <span>
+                    <strong>{index + 1}.</strong> {equipo}
+                  </span>
+                  <div>
+                    <button
+                      className="btn btn-sm btn-outline-primary me-1"
+                      onClick={() => moverEquipoArriba(index)}
+                      disabled={index === 0}
+                      title="Mover arriba"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={() => moverEquipoAbajo(index)}
+                      disabled={index === ordenEquipos.length - 1}
+                      title="Mover abajo"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <label>Detalle adicional (opcional):</label>
+            <input
+              className="form-control"
+              value={detalle}
+              onChange={e => setDetalle(e.target.value)}
+              placeholder="Ej: goles de visita: Limache 3, Católica 2"
+            />
+          </div>
+
+          <button
+            className="btn btn-success"
+            onClick={aplicarDesempate}
+            disabled={aplicandoDesempate}
+          >
+            {aplicandoDesempate ? 'Aplicando...' : 'Aplicar criterio de desempate'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
