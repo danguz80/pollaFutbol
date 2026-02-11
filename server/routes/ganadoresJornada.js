@@ -69,6 +69,46 @@ router.post('/acumulado', verifyToken, authorizeRoles('admin'), async (req, res)
       );
     }
     
+    // Registrar notificación para usuarios
+    try {
+      const mensajeNotificacion = ganadores.length === 1 
+        ? `🏆 EL CAMPEÓN DEL RANKING ACUMULADO DEL TORNEO NACIONAL ES: ${ganadores[0].nombre.toUpperCase()}`
+        : `🏆 LOS CAMPEONES DEL RANKING ACUMULADO DEL TORNEO NACIONAL SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`;
+      
+      // Primero eliminar notificaciones anteriores del acumulado
+      await pool.query(
+        `DELETE FROM notificaciones 
+         WHERE competencia = $1 AND tipo = $2`,
+        ['torneo_nacional', 'acumulado']
+      );
+      
+      // Luego insertar la nueva notificación
+      const resultNotif = await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, jornada_numero, ganadores, mensaje, icono, url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        [
+          'torneo_nacional', 
+          'acumulado', 
+          'ganador_acumulado',
+          null,
+          JSON.stringify(ganadores.map(g => ({
+            nombre: g.nombre,
+            puntaje: puntajeMaximo,
+            foto_perfil: g.foto_perfil
+          }))), 
+          mensajeNotificacion,
+          '👑',
+          '/clasificacion'
+        ]
+      );
+      
+      console.log(`✅ Notificación acumulado creada con ID: ${resultNotif.rows[0].id}`);
+    } catch (errorNotif) {
+      console.error('❌ Error creando notificación acumulado:', errorNotif);
+      // No fallar la petición completa si la notificación falla
+    }
+    
     // Retornar el TOP 3 con sus posiciones
     res.json({
       tipo: 'acumulado',
@@ -274,6 +314,47 @@ router.post('/:jornadaNumero', verifyToken, authorizeRoles('admin'), async (req,
 
     console.log(`✅ Ganadores guardados exitosamente`);
     console.log(`✅ Campo 'ganadores' actualizado en tabla jornadas\n`);
+
+    // 7.5. Registrar notificación para usuarios
+    console.log(`🔔 Creando notificación para jornada ${jornadaNumero}...`);
+    try {
+      const mensajeNotificacion = ganadores.length === 1 
+        ? `El ganador de la jornada ${jornadaNumero} del Torneo Nacional es: ${ganadores[0].nombre}`
+        : `Los ganadores de la jornada ${jornadaNumero} del Torneo Nacional son: ${ganadores.map(g => g.nombre).join(', ')}`;
+      
+      // Primero eliminar notificaciones anteriores de esta jornada
+      await pool.query(
+        `DELETE FROM notificaciones 
+         WHERE competencia = $1 AND tipo = $2 AND jornada_numero = $3`,
+        ['torneo_nacional', 'jornada', jornadaNumero]
+      );
+      
+      // Luego insertar la nueva notificación
+      const resultNotif = await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, jornada_numero, ganadores, mensaje, icono, url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        [
+          'torneo_nacional', 
+          'jornada', 
+          'ganador_jornada',
+          jornadaNumero, 
+          JSON.stringify(ganadores.map(g => ({
+            nombre: g.nombre,
+            puntaje: g.puntaje,
+            foto_perfil: g.foto_perfil
+          }))), 
+          mensajeNotificacion,
+          '🏆',
+          `/clasificacion?jornada=${jornadaNumero}`
+        ]
+      );
+      
+      console.log(`✅ Notificación creada con ID: ${resultNotif.rows[0].id}`);
+    } catch (errorNotif) {
+      console.error('❌ Error creando notificación:', errorNotif);
+      // No fallar la petición completa si la notificación falla
+    }
 
     // 8. Generar PDF con resultados y enviarlo por email
     let pdfGenerado = false;
