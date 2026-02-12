@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getLogoEquipo } from '../utils/libertadoresLogos.jsx';
+import { getMundialLogoPorNombre } from '../utils/mundialLogos';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -49,6 +50,7 @@ export default function HeroSection({ competencia }) {
       case 'libertadores': return 'danger';
       case 'torneo_nacional': return 'primary';
       case 'sudamericana': return 'success';
+      case 'mundial': return 'info';
       default: return 'secondary';
     }
   };
@@ -64,9 +66,19 @@ export default function HeroSection({ competencia }) {
       case 'sudamericana':
         navigate(`/sudamericana/jornada/${partido.jornada_numero}`);
         break;
+      case 'mundial':
+        navigate(`/mundial/jornada/${partido.jornada_numero}`);
+        break;
       default:
         break;
     }
+  };
+
+  const getLogoEquipoSegunCompetencia = (nombreEquipo, competencia) => {
+    if (competencia === 'mundial') {
+      return getMundialLogoPorNombre(nombreEquipo);
+    }
+    return getLogoEquipo(nombreEquipo);
   };
 
   const handlePrev = () => {
@@ -96,8 +108,8 @@ export default function HeroSection({ competencia }) {
   }
 
   const currentPartido = partidos[currentIndex];
-  const logoLocal = getLogoEquipo(currentPartido.local);
-  const logoVisita = getLogoEquipo(currentPartido.visita);
+  const logoLocal = getLogoEquipoSegunCompetencia(currentPartido.local, currentPartido.competencia);
+  const logoVisita = getLogoEquipoSegunCompetencia(currentPartido.visita, currentPartido.competencia);
 
   return (
     <div 

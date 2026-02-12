@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getMundialLogoPorNombre } from '../../utils/mundialLogos';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -94,10 +95,35 @@ export default function AdminMundialResultados() {
     ));
   };
 
-  const handleCambiarBonus = (id, valor) => {
+  const handleCambiarBonus = async (id, valor) => {
+    // Actualizar el estado local
     setPartidos(partidos.map(p =>
       p.id === id ? { ...p, bonus: Number(valor) } : p
     ));
+
+    // Actualizar inmediatamente en la base de datos
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/mundial/partidos/${id}`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ bonus: Number(valor) }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar bonus');
+      }
+
+      console.log(`✅ Bonus actualizado a x${valor} para partido ${id}`);
+    } catch (error) {
+      console.error('Error actualizando bonus:', error);
+      alert('❌ Error al actualizar bonus. Por favor, intenta de nuevo.');
+      // Recargar partidos para restaurar el estado correcto
+      fetchPartidos(jornadaSeleccionada);
+    }
   };
 
   const guardarResultados = async () => {
@@ -122,7 +148,8 @@ export default function AdminMundialResultados() {
           },
           body: JSON.stringify({ 
             resultado_local: partido.resultado_local, 
-            resultado_visitante: partido.resultado_visitante 
+            resultado_visitante: partido.resultado_visitante,
+            bonus: partido.bonus
           }),
         });
       }
@@ -199,6 +226,61 @@ export default function AdminMundialResultados() {
       golesVisita: Math.floor(Math.random() * 4)
     }));
     setPartidos(partidosAzar);
+  };
+
+  const generarAzarFaseGruposCompleta = async () => {
+    if (!confirm('¿Estás seguro de completar TODAS las jornadas de fase de grupos (1-3) con resultados aleatorios?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Iterar sobre jornadas 1 a 3 (fase de grupos del Mundial)
+      for (let jornadaNum = 1; jornadaNum <= 3; jornadaNum++) {
+        // Obtener partidos de la jornada
+        const res = await fetch(`${API_BASE_URL}/api/mundial/partidos`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        const partidosJornada = data.filter(p => p.jornada_numero === jornadaNum);
+        
+        if (partidosJornada.length === 0) continue;
+
+        // Guardar resultados aleatorios para cada partido
+        for (const partido of partidosJornada) {
+          await fetch(`${API_BASE_URL}/api/mundial/partidos/${partido.id}`, {
+            method: "PATCH",
+            headers: { 
+              "Content-Type": "application/json",
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ 
+              resultado_local: Math.floor(Math.random() * 4),
+              resultado_visitante: Math.floor(Math.random() * 4)
+            }),
+          });
+        }
+      }
+
+      alert('✅ Se completaron todas las jornadas de fase de grupos (1-3) con resultados aleatorios');
+      
+      // Recargar la jornada actual
+      fetchPartidos(jornadaSeleccionada);
+    } catch (error) {
+      console.error('Error al generar azar fase grupos completa:', error);
+      alert('❌ Error al completar fase de grupos: ' + (error.message || 'Error desconocido'));
+    }
+  };
+
+  const resetearTodos = () => {
+    const partidosReseteados = partidos.map(p => ({
+      ...p,
+      golesLocal: "",
+      golesVisita: ""
+    }));
+    setPartidos(partidosReseteados);
   };
 
   const getSubtitulo = (numero) => {
@@ -299,7 +381,7 @@ export default function AdminMundialResultados() {
         </div>
       )}
 
-      {/* Tabla de resultados */}
+      {/* Cards de resultados */}
       {partidos.length > 0 && (
         <>
           <div className="card mb-4">
@@ -307,91 +389,139 @@ export default function AdminMundialResultados() {
               <h5>⚽ Ingresar Resultados Reales</h5>
             </div>
             <div className="card-body">
-              <div className="table-responsive">
-                <table className="table table-bordered text-center align-middle">
-                  <thead className="table-dark">
-                    <tr>
-                      <th style={{ width: '5%' }}>#</th>
-                      <th style={{ width: '30%' }}>Equipo Local</th>
-                      <th style={{ width: '15%' }}>Resultado</th>
-                      <th style={{ width: '30%' }}>Equipo Visitante</th>
-                      <th style={{ width: '10%' }}>Bonus</th>
-                      <th style={{ width: '10%' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {partidos.map((partido, index) => (
-                      <tr key={partido.id}>
-                        <td className="fw-bold">{index + 1}</td>
-                        <td className="text-start">
-                          <div className="d-flex flex-column">
-                            <span className="fw-bold">{partido.local}</span>
-                            <div className="d-flex gap-1">
-                              {partido.paisLocal && <span className="badge bg-secondary">{partido.paisLocal}</span>}
-                              {partido.grupo && <span className="badge bg-primary">Grupo {partido.grupo}</span>}
-                            </div>
+              <div className="row g-3">
+                {partidos.map((partido, index) => (
+                  <div key={partido.id} className="col-12 col-md-6 col-lg-4">
+                    <div className="card shadow-sm h-100">
+                      <div className="card-header bg-info text-white text-center">
+                        <div className="d-flex justify-content-between align-items-center">
+                          <small className="fw-bold">Partido {index + 1}</small>
+                          <div>
+                            {partido.grupo && (
+                              <span className="badge bg-primary me-2">Grupo {partido.grupo}</span>
+                            )}
+                            <select
+                              className="form-select form-select-sm d-inline-block"
+                              style={{ width: 'auto', fontSize: '0.75rem' }}
+                              value={partido.bonus}
+                              onChange={(e) => handleCambiarBonus(partido.id, e.target.value)}
+                            >
+                              <option value="1">x1</option>
+                              <option value="2">x2</option>
+                              <option value="3">x3</option>
+                            </select>
                           </div>
-                        </td>
-                        <td>
-                          <div className="d-flex justify-content-center align-items-center gap-1">
+                        </div>
+                      </div>
+                      <div className="card-body">
+                        <div className="row align-items-center text-center">
+                          {/* Equipo Local */}
+                          <div className="col-5">
+                            <img 
+                              src={getMundialLogoPorNombre(partido.local)} 
+                              alt={partido.local}
+                              className="mb-2"
+                              style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+                              onError={(e) => e.target.style.display = 'none'}
+                            />
+                            <p className="fw-bold mb-2 small">{partido.local}</p>
+                            {partido.paisLocal && (
+                              <span className="badge bg-secondary mb-2">{partido.paisLocal}</span>
+                            )}
                             <input
                               type="number"
                               min="0"
-                              className="form-control form-control-sm text-center"
-                              style={{ width: "60px" }}
+                              className="form-control form-control-lg text-center fw-bold"
+                              style={{ MozAppearance: 'textfield' }}
                               value={partido.golesLocal}
                               onChange={(e) => handleCambiarGoles(partido.id, "golesLocal", e.target.value)}
+                              placeholder="0"
                             />
-                            <span className="fw-bold">-</span>
+                          </div>
+
+                          {/* VS */}
+                          <div className="col-2">
+                            <p className="fw-bold text-muted fs-3 mb-0">VS</p>
+                          </div>
+
+                          {/* Equipo Visitante */}
+                          <div className="col-5">
+                            <img 
+                              src={getMundialLogoPorNombre(partido.visita)} 
+                              alt={partido.visita}
+                              className="mb-2"
+                              style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+                              onError={(e) => e.target.style.display = 'none'}
+                            />
+                            <p className="fw-bold mb-2 small">{partido.visita}</p>
+                            {partido.paisVisita && (
+                              <span className="badge bg-secondary mb-2">{partido.paisVisita}</span>
+                            )}
                             <input
                               type="number"
                               min="0"
-                              className="form-control form-control-sm text-center"
-                              style={{ width: "60px" }}
+                              className="form-control form-control-lg text-center fw-bold"
+                              style={{ MozAppearance: 'textfield' }}
                               value={partido.golesVisita}
                               onChange={(e) => handleCambiarGoles(partido.id, "golesVisita", e.target.value)}
+                              placeholder="0"
                             />
                           </div>
-                        </td>
-                        <td className="text-start">
-                          <div className="d-flex flex-column">
-                            <span className="fw-bold">{partido.visita}</span>
-                            {partido.paisVisita && <span className="badge bg-secondary">{partido.paisVisita}</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <select
-                            className="form-select form-select-sm"
-                            value={partido.bonus}
-                            onChange={(e) => handleCambiarBonus(partido.id, e.target.value)}
-                          >
-                            <option value="1">x1</option>
-                            <option value="2">x2</option>
-                            <option value="3">x3</option>
-                            <option value="5">x5</option>
-                          </select>
-                        </td>
-                        <td>
+                        </div>
+
+                        {/* Botón limpiar */}
+                        <div className="text-center mt-3">
                           <button
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => handleCambiarGoles(partido.id, "golesLocal", "")}
-                            title="Limpiar"
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => {
+                              handleCambiarGoles(partido.id, "golesLocal", "");
+                              handleCambiarGoles(partido.id, "golesVisita", "");
+                            }}
+                            title="Limpiar resultado"
                           >
-                            🗑️
+                            🗑️ Limpiar
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="d-flex justify-content-between mt-3">
-                <button className="btn btn-warning" onClick={generarAzar}>
-                  🎲 Generar Al Azar
+              <div className="text-center d-flex gap-3 justify-content-center flex-wrap mt-4">
+                {Number(jornadaSeleccionada) <= 3 && (
+                  <button className="btn btn-outline-warning btn-lg px-4" onClick={generarAzarFaseGruposCompleta}>
+                    🎲✨ Azar Fase Grupos (3 Jornadas)
+                  </button>
+                )}
+                <button className="btn btn-outline-info btn-lg px-4" onClick={generarAzar}>
+                  🎲 Azar Solo Jornada {jornadaSeleccionada}
                 </button>
-                <button className="btn btn-success btn-lg" onClick={guardarResultados}>
+                <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
+                  🔄 Resetear
+                </button>
+                <button className="btn btn-success btn-lg px-5" onClick={guardarResultados}>
                   💾 Guardar Resultados
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-lg"
+                  onClick={() => {
+                    const nuevaJornada = Number(jornadaSeleccionada) - 1;
+                    if (nuevaJornada >= 1) setJornadaSeleccionada(String(nuevaJornada));
+                  }}
+                  disabled={Number(jornadaSeleccionada) <= 1}
+                >
+                  ← Anterior
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-lg"
+                  onClick={() => {
+                    const nuevaJornada = Number(jornadaSeleccionada) + 1;
+                    if (nuevaJornada <= 7) setJornadaSeleccionada(String(nuevaJornada));
+                  }}
+                  disabled={Number(jornadaSeleccionada) >= 7}
+                >
+                  Siguiente →
                 </button>
               </div>
             </div>

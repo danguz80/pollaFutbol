@@ -6,10 +6,10 @@ const router = express.Router();
 /**
  * GET /api/hero-partidos-bonus
  * Devuelve todos los partidos con bonus >= 2 de jornadas activas y no cerradas
- * de todas las competencias (Torneo Nacional, Libertadores, Sudamericana)
+ * de todas las competencias (Torneo Nacional, Libertadores, Sudamericana, Mundial)
  * 
  * Query params opcionales:
- * - competencia: 'torneo_nacional', 'libertadores', 'sudamericana' (filtrar por una sola)
+ * - competencia: 'torneo_nacional', 'libertadores', 'sudamericana', 'mundial' (filtrar por una sola)
  */
 router.get("/", async (req, res) => {
   try {
@@ -95,9 +95,54 @@ router.get("/", async (req, res) => {
       }
     }
 
-    // Ordenar todos los partidos por número de jornada, bonus y fecha
+    // 4. MUNDIAL - Partidos con bonus >= 2 de jornadas activas y no cerradas
+    if (!competencia || competencia === 'mundial') {
+      try {
+        const mundialResult = await pool.query(`
+          SELECT 
+            'mundial' as competencia,
+            'Mundial 2026' as nombre_competencia,
+            mj.numero as jornada_numero,
+            mj.nombre as jornada_nombre,
+            mp.id,
+            mp.equipo_local as local,
+            mp.equipo_visitante as visita,
+            mp.fecha,
+            mp.bonus,
+            mj.id as jornada_id
+          FROM mundial_partidos mp
+          INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
+          WHERE mj.activa = true 
+            AND mj.cerrada = false 
+            AND mp.bonus >= 2
+          ORDER BY mj.numero ASC, mp.bonus DESC, mp.fecha ASC
+        `);
+        
+        partidos.push(...mundialResult.rows);
+      } catch (mundialErr) {
+        console.error('Error obteniendo partidos hero del Mundial:', mundialErr);
+        // Continuar sin error si Mundial no está disponible
+      }
+    }
+
+    // Ordenar todos los partidos: primero por competencia (Mundial al final), luego por jornada, bonus y fecha
     partidos.sort((a, b) => {
-      // Primero por número de jornada (menor a mayor - más próximas primero)
+      // Primero por prioridad de competencia (menor número = mayor prioridad)
+      const prioridadCompetencia = {
+        'torneo_nacional': 1,
+        'libertadores': 2,
+        'sudamericana': 3,
+        'mundial': 4  // Mundial al final
+      };
+      
+      const prioA = prioridadCompetencia[a.competencia] || 99;
+      const prioB = prioridadCompetencia[b.competencia] || 99;
+      
+      if (prioA !== prioB) {
+        return prioA - prioB;
+      }
+      
+      // Luego por número de jornada (menor a mayor - más próximas primero)
       if (a.jornada_numero !== b.jornada_numero) {
         return a.jornada_numero - b.jornada_numero;
       }

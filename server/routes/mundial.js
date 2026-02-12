@@ -222,23 +222,52 @@ router.post('/jornadas/:numero/fixture', verifyToken, authorizeRoles('admin'), a
 router.patch('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { resultado_local, resultado_visitante } = req.body;
+    const { resultado_local, resultado_visitante, bonus } = req.body;
+
+    // Construir la query dinámicamente según los campos enviados
+    const updates = [];
+    const values = [];
+    let paramCounter = 1;
+
+    if (resultado_local !== undefined) {
+      updates.push(`resultado_local = $${paramCounter}`);
+      values.push(resultado_local);
+      paramCounter++;
+    }
+
+    if (resultado_visitante !== undefined) {
+      updates.push(`resultado_visitante = $${paramCounter}`);
+      values.push(resultado_visitante);
+      paramCounter++;
+    }
+
+    if (bonus !== undefined) {
+      updates.push(`bonus = $${paramCounter}`);
+      values.push(bonus);
+      paramCounter++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+
+    values.push(id);
 
     const result = await pool.query(`
       UPDATE mundial_partidos 
-      SET resultado_local = $1, resultado_visitante = $2
-      WHERE id = $3
+      SET ${updates.join(', ')}
+      WHERE id = $${paramCounter}
       RETURNING *
-    `, [resultado_local, resultado_visitante, id]);
+    `, values);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Partido no encontrado' });
     }
 
-    res.json({ mensaje: 'Resultado actualizado', partido: result.rows[0] });
+    res.json({ mensaje: 'Partido actualizado', partido: result.rows[0] });
   } catch (error) {
-    console.error('Error actualizando resultado:', error);
-    res.status(500).json({ error: 'Error actualizando resultado' });
+    console.error('Error actualizando partido:', error);
+    res.status(500).json({ error: 'Error actualizando partido' });
   }
 });
 
