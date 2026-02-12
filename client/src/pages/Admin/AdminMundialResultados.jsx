@@ -283,6 +283,29 @@ export default function AdminMundialResultados() {
     setPartidos(partidosReseteados);
   };
 
+  const calcularPuntajes = async () => {
+    if (!jornadaSeleccionada) return;
+    if (!confirm(`¿Calcular puntajes de la jornada ${jornadaSeleccionada} del Mundial 2026?`)) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/mundial-calcular/puntos`, {
+        method: "POST",
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ jornadaNumero: parseInt(jornadaSeleccionada) })
+      });
+      const data = await res.json();
+      
+      alert(data.mensaje || "✅ Puntajes calculados correctamente");
+    } catch (error) {
+      console.error("Error al calcular puntajes:", error);
+      alert("❌ Error al calcular puntajes");
+    }
+  };
+
   const getSubtitulo = (numero) => {
     if (numero <= 3) return 'Fase de Grupos';
     if (numero === 4) return '16vos de Final';
@@ -500,8 +523,11 @@ export default function AdminMundialResultados() {
                 <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
                   🔄 Resetear
                 </button>
-                <button className="btn btn-success btn-lg px-5" onClick={guardarResultados}>
+                <button className="btn btn-primary btn-lg px-4" onClick={guardarResultados}>
                   💾 Guardar Resultados
+                </button>
+                <button className="btn btn-success btn-lg px-4" onClick={calcularPuntajes}>
+                  🧮 Calcular Puntajes
                 </button>
                 <button
                   className="btn btn-outline-secondary btn-lg"

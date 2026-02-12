@@ -60,7 +60,8 @@ router.put("/actualizar-usuario/:id", verifyToken, authorizeRoles("admin"), asyn
     activo_torneo_nacional,
     activo_libertadores,
     activo_sudamericana,
-    activo_copa_mundo
+    activo_copa_mundo,
+    activo_mundial
   } = req.body;
 
   try {
@@ -74,12 +75,13 @@ router.put("/actualizar-usuario/:id", verifyToken, authorizeRoles("admin"), asyn
            activo_torneo_nacional = $6,
            activo_libertadores = $7,
            activo_sudamericana = $8,
-           activo_copa_mundo = $9
-       WHERE id = $10 
+           activo_copa_mundo = $9,
+           activo_mundial = $10
+       WHERE id = $11 
        RETURNING id, nombre, email, rol, activo, foto_perfil, activo_torneo_nacional, 
-                 activo_libertadores, activo_sudamericana, activo_copa_mundo`,
+                 activo_libertadores, activo_sudamericana, activo_copa_mundo, activo_mundial`,
       [nombre, email, rol, activo, foto_perfil, activo_torneo_nacional, activo_libertadores, 
-       activo_sudamericana, activo_copa_mundo, id]
+       activo_sudamericana, activo_copa_mundo, activo_mundial, id]
     );
 
     if (result.rowCount === 0) {

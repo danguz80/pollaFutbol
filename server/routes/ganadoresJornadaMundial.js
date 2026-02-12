@@ -29,6 +29,33 @@ router.get('/titulos', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/mundial-ganadores-jornada/acumulado - Obtener ganadores del ranking acumulado
+router.get('/acumulado', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        mga.id,
+        mga.usuario_id,
+        u.nombre,
+        u.foto_perfil,
+        mga.puntos_totales,
+        mga.posicion,
+        mga.jornadas_ganadas
+      FROM mundial_ganadores_acumulado mga
+      INNER JOIN usuarios u ON u.id = mga.usuario_id
+      WHERE mga.posicion = 1
+      ORDER BY mga.puntos_totales DESC, u.nombre ASC
+    `);
+
+    res.json({
+      ganadores: result.rows
+    });
+  } catch (error) {
+    console.error('Error obteniendo ganadores acumulado:', error);
+    res.status(500).json({ error: 'Error obteniendo ganadores acumulado' });
+  }
+});
+
 // GET /api/mundial-ganadores-jornada/:jornadaNumero - Obtener ganadores de una jornada específica
 router.get('/:jornadaNumero', verifyToken, async (req, res) => {
   try {

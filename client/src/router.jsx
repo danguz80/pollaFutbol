@@ -23,10 +23,14 @@ import EstadisticasLibertadores from "./pages/EstadisticasLibertadores";
 import EstadisticasSudamericana from "./pages/EstadisticasSudamericana";
 import ClasificacionLibertadores from "./pages/ClasificacionLibertadores";
 import ClasificacionSudamericana from "./pages/ClasificacionSudamericana";
+import ClasificacionMundial from "./pages/ClasificacionMundial";
+import EstadisticasMundial from "./pages/EstadisticasMundial";
 import PuntuacionLibertadores from "./pages/PuntuacionLibertadores";
 import PuntuacionSudamericana from "./pages/PuntuacionSudamericana";
+import PuntuacionMundial from "./pages/PuntuacionMundial";
 import GanadoresJornadaLibertadores from "./pages/GanadoresJornadaLibertadores";
 import GanadoresJornadaSudamericana from "./pages/GanadoresJornadaSudamericana";
+import GanadoresJornadaMundial from "./pages/GanadoresJornadaMundial";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
 import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
@@ -184,6 +188,10 @@ export default function AppRouter() {
         <Route path="/sudamericana/puntuacion" element={<PuntuacionSudamericana />} />
         <Route path="/mundial" element={<Mundial />} />
         <Route path="/mundial/jornada/:numero" element={<JornadaMundial />} />
+        <Route path="/mundial/clasificacion" element={<ClasificacionMundial />} />
+        <Route path="/mundial/estadisticas" element={<EstadisticasMundial />} />
+        <Route path="/mundial/puntuacion" element={<PuntuacionMundial />} />
+        <Route path="/mundial/ganadores-jornada" element={<GanadoresJornadaMundial />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/notificaciones" element={<TodasNotificaciones />} />
         <Route path="/register" element={<Register />} />

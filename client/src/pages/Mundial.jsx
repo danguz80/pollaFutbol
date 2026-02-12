@@ -5,8 +5,18 @@ import HeroSection from '../components/HeroSection';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+function useAuth() {
+  try {
+    const usuario = JSON.parse(localStorage.getItem("usuario"));
+    return usuario;
+  } catch {
+    return null;
+  }
+}
+
 export default function Mundial() {
   const navigate = useNavigate();
+  const usuario = useAuth();
   const [jornadas, setJornadas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState([]);
@@ -15,6 +25,18 @@ export default function Mundial() {
   const [fotoPerfilMap, setFotoPerfilMap] = useState({});
 
   useEffect(() => {
+    if (!usuario) {
+      navigate("/login");
+      return;
+    }
+    
+    // Solo permitir acceso si está explícitamente en true
+    if (usuario.activo_mundial !== true) {
+      alert("⚠️ No tienes acceso al Mundial 2026. Contacta al administrador.");
+      navigate("/");
+      return;
+    }
+
     cargarJornadas();
     cargarRanking();
     cargarGanadores();
@@ -136,7 +158,7 @@ export default function Mundial() {
           📊 Estadísticas
         </button>
         <button className="btn btn-info" onClick={() => navigate('/mundial/clasificacion')}>
-          🏅 Clasificación
+          📋 Clasificación
         </button>
         <button className="btn btn-info" onClick={() => navigate('/mundial/puntuacion')}>
           📈 Puntuación

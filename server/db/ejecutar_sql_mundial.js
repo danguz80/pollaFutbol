@@ -26,6 +26,7 @@ async function crearTablasMundial() {
     console.log('   - mundial_predicciones_campeon');
     console.log('   - mundial_ganadores_jornada');
     console.log('   - mundial_ganadores_acumulado');
+    console.log('   - mundial_puntuacion');
 
     process.exit(0);
   } catch (error) {

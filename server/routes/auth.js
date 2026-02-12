@@ -79,6 +79,7 @@ router.post("/login", async (req, res) => {
         activo_libertadores: user.activo_libertadores || false,
         activo_sudamericana: user.activo_sudamericana || false,
         activo_copa_mundo: user.activo_copa_mundo || false,
+        activo_mundial: user.activo_mundial || false,
         foto_perfil: user.foto_perfil || null
       }
     });

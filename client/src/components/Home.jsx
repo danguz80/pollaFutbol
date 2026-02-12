@@ -166,7 +166,7 @@ export default function Home() {
                     activo_torneo_nacional: usuarioEditando.activo_torneo_nacional,
                     activo_libertadores: usuarioEditando.activo_libertadores,
                     activo_sudamericana: usuarioEditando.activo_sudamericana,
-                    activo_copa_mundo: usuarioEditando.activo_copa_mundo
+                    activo_mundial: usuarioEditando.activo_mundial
                 })
             });
             
@@ -185,7 +185,7 @@ export default function Home() {
                         activo_torneo_nacional: usuarioEditando.activo_torneo_nacional,
                         activo_libertadores: usuarioEditando.activo_libertadores,
                         activo_sudamericana: usuarioEditando.activo_sudamericana,
-                        activo_copa_mundo: usuarioEditando.activo_copa_mundo
+                        activo_mundial: usuarioEditando.activo_mundial
                     };
                     localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
                     console.log('✅ Usuario actualizado en localStorage:', usuarioActualizado);
@@ -297,7 +297,7 @@ export default function Home() {
                         activo_torneo_nacional: u.activo_torneo_nacional,
                         activo_libertadores: u.activo_libertadores,
                         activo_sudamericana: u.activo_sudamericana,
-                        activo_copa_mundo: u.activo_copa_mundo
+                        activo_mundial: u.activo_mundial
                     })
                 });
                 
@@ -654,8 +654,8 @@ export default function Home() {
                                                                     <input
                                                                         type="checkbox"
                                                                         className="form-check-input"
-                                                                        checked={u.activo_copa_mundo || false}
-                                                                        onChange={(e) => handleCambioMasivo(index, 'activo_copa_mundo', e.target.checked)}
+                                                                        checked={u.activo_mundial || false}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'activo_mundial', e.target.checked)}
                                                                     />
                                                                 </td>
                                                                 <td>
@@ -758,8 +758,8 @@ export default function Home() {
                                                                     <input
                                                                         type="checkbox"
                                                                         className="form-check-input"
-                                                                        checked={usuarioEditando.activo_copa_mundo || false}
-                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo_copa_mundo: e.target.checked})}
+                                                                        checked={usuarioEditando.activo_mundial || false}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo_mundial: e.target.checked})}
                                                                     />
                                                                 </td>
                                                                 <td>
@@ -831,10 +831,10 @@ export default function Home() {
                                                                     {u.activo_sudamericana ? '✅' : '❌'}
                                                                 </td>
                                                                 <td className="text-center">
-                                                                    {u.activo_copa_mundo ? '✅' : '❌'}
+                                                                    {u.activo_mundial ? '✅' : '❌'}
                                                                 </td>
                                                                 <td>
-                                                                    <button 
+                                                                   <button 
                                                                         className="btn btn-sm btn-warning me-1"
                                                                         onClick={() => setUsuarioEditando({...u})}
                                                                         disabled={modoEdicionMasiva}

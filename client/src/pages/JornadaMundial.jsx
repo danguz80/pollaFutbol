@@ -30,6 +30,14 @@ export default function JornadaMundial() {
       navigate("/login");
       return;
     }
+    
+    // Solo permitir acceso si está explícitamente en true
+    if (usuario.activo_mundial !== true) {
+      alert("⚠️ No tienes acceso para ingresar pronósticos en el Mundial 2026. Contacta al administrador.");
+      navigate("/");
+      return;
+    }
+    
     cargarDatos();
   }, [numero]);
 
@@ -97,8 +105,8 @@ export default function JornadaMundial() {
     const nuevosPronosticos = {};
     partidos.forEach(partido => {
       nuevosPronosticos[partido.id] = {
-        goles_local: Math.floor(Math.random() * 5), // 0 a 4
-        goles_visita: Math.floor(Math.random() * 5), // 0 a 4
+        goles_local: Math.floor(Math.random() * 4), // 0 a 3
+        goles_visita: Math.floor(Math.random() * 4), // 0 a 3
       };
     });
     setPronosticos(nuevosPronosticos);
@@ -128,8 +136,8 @@ export default function JornadaMundial() {
         // Preparar pronósticos aleatorios
         const pronosticosArray = partidosJornada.map(partido => ({
           partido_id: partido.id,
-          resultado_local: Math.floor(Math.random() * 5),
-          resultado_visitante: Math.floor(Math.random() * 5)
+          resultado_local: Math.floor(Math.random() * 4),
+          resultado_visitante: Math.floor(Math.random() * 4)
         }));
 
         // Enviar pronósticos de esta jornada

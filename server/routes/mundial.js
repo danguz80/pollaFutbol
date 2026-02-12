@@ -7,6 +7,23 @@ const router = express.Router();
 
 // ==================== GESTIÓN DE EQUIPOS ====================
 
+// Obtener todos los grupos
+router.get('/grupos', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT grupo FROM mundial_partidos 
+      WHERE grupo IS NOT NULL 
+      ORDER BY grupo
+    `);
+    
+    const grupos = result.rows.map(r => ({ letra: r.grupo }));
+    res.json(grupos);
+  } catch (error) {
+    console.error('Error obteniendo grupos:', error);
+    res.status(500).json({ error: 'Error obteniendo grupos' });
+  }
+});
+
 // Obtener todos los equipos
 router.get('/equipos', async (req, res) => {
   try {
@@ -410,6 +427,18 @@ router.post('/pronosticos/:numero', verifyToken, async (req, res) => {
     const { numero } = req.params;
     const usuario_id = req.usuario.id;
     const { pronosticos } = req.body;
+
+    // Verificar si el usuario está activo en Mundial
+    const usuarioCheck = await pool.query(
+      'SELECT activo_mundial FROM usuarios WHERE id = $1',
+      [usuario_id]
+    );
+    
+    // Solo permitir si está explícitamente en true
+    if (usuarioCheck.rowCount === 0 || usuarioCheck.rows[0].activo_mundial !== true) {
+      console.log('🚫 Usuario sin acceso al Mundial:', usuario_id, usuarioCheck.rows[0]);
+      return res.status(403).json({ error: 'No tienes acceso para ingresar pronósticos en el Mundial 2026' });
+    }
 
     if (!Array.isArray(pronosticos) || pronosticos.length === 0) {
       return res.status(400).json({ error: 'Se requiere un array de pronósticos' });
