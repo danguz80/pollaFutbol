@@ -113,7 +113,34 @@ router.patch("/:id/fecha-cierre", verifyToken, authorizeRoles('admin'), async (r
       return res.status(404).json({ error: "Jornada no encontrada" });
     }
     
-    res.json({ ok: true, message: "Fecha de cierre actualizada", jornada: result.rows[0] });
+    const jornada = result.rows[0];
+    
+    // Crear notificación de fecha de cierre actualizada
+    if (fecha_cierre) {
+      const fechaFormateada = new Date(fecha_cierre).toLocaleString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          'torneo_nacional',
+          'fecha_cierre',
+          'fecha_cierre_actualizada',
+          `⏰ Fecha de cierre actualizada para Jornada ${jornada.numero}: ${fechaFormateada}`,
+          '⏰',
+          `/jornada/${jornada.numero}`,
+          jornada.numero
+        ]
+      );
+      console.log(`✅ Notificación de fecha de cierre creada para jornada ${jornada.numero}`);
+    }
+    
+    res.json({ ok: true, message: "Fecha de cierre actualizada", jornada });
   } catch (err) {
     console.error("Error al actualizar fecha de cierre:", err);
     res.status(500).json({ error: "Error al actualizar fecha de cierre" });
@@ -234,8 +261,13 @@ router.patch("/:numero/partidos", async (req, res) => {
     return res.status(400).json({ error: "No se recibieron partidos para actualizar" });
   }
   let actualizados = 0;
+  let resultadosIngresados = 0;
   try {
     for (const partido of partidos) {
+      // Verificar si se están ingresando resultados (goles)
+      const tieneResultados = partido.golesLocal !== "" && partido.golesLocal !== null && 
+                              partido.golesVisita !== "" && partido.golesVisita !== null;
+      
       // Actualizar goles y bonus
       await pool.query(
         `UPDATE partidos
@@ -249,7 +281,27 @@ router.patch("/:numero/partidos", async (req, res) => {
         ]
       );
       actualizados++;
+      if (tieneResultados) resultadosIngresados++;
     }
+    
+    // Crear notificación si se ingresaron resultados reales
+    if (resultadosIngresados > 0) {
+      await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          'torneo_nacional',
+          'resultados',
+          'resultados_agregados',
+          `📊 Se han agregado ${resultadosIngresados} resultado(s) real(es) en la Jornada ${numero}`,
+          '📊',
+          `/jornada/${numero}`,
+          parseInt(numero)
+        ]
+      );
+      console.log(`✅ Notificación de resultados creada para jornada ${numero}`);
+    }
+    
     res.json({ mensaje: "Resultados y bonus guardados en la base de datos", actualizados });
   } catch (error) {
     console.error("Error al actualizar partidos:", error);
@@ -516,6 +568,24 @@ router.patch("/:id/cerrar", async (req, res) => {
     }
     
     const jornada = result.rows[0];
+    
+    // Crear notificación cuando se cierra la jornada
+    if (cerrada === true) {
+      await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          'torneo_nacional',
+          'jornada',
+          'jornada_cerrada',
+          `🔒 La Jornada ${jornada.numero} ha sido cerrada. Ya no se aceptan pronósticos.`,
+          '🔒',
+          `/jornada/${jornada.numero}`,
+          jornada.numero
+        ]
+      );
+      console.log(`✅ Notificación de jornada cerrada creada para jornada ${jornada.numero}`);
+    }
     
     // Si se está cerrando la jornada (cerrada = true), generar PDF y enviar por email
     if (cerrada === true) {

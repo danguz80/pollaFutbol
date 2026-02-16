@@ -258,7 +258,34 @@ router.patch('/jornadas/:numero/cierre', verifyToken, authorizeRoles('admin'), a
       return res.status(404).json({ error: 'Jornada no encontrada' });
     }
 
-    res.json({ mensaje: 'Fecha de cierre actualizada', jornada: result.rows[0] });
+    const jornada = result.rows[0];
+    
+    // Crear notificación de fecha de cierre actualizada
+    if (fecha_cierre) {
+      const fechaFormateada = new Date(fecha_cierre).toLocaleString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          'sudamericana',
+          'fecha_cierre',
+          'fecha_cierre_actualizada',
+          `⏰ Fecha de cierre actualizada para Jornada ${jornada.numero} - Sudamericana: ${fechaFormateada}`,
+          '⏰',
+          `/sudamericana/jornada/${jornada.numero}`,
+          jornada.numero
+        ]
+      );
+      console.log(`✅ Notificación Sudamericana: fecha de cierre actualizada para jornada ${jornada.numero}`);
+    }
+
+    res.json({ mensaje: 'Fecha de cierre actualizada', jornada });
   } catch (error) {
     console.error('Error actualizando fecha de cierre:', error);
     res.status(500).json({ error: 'Error actualizando fecha de cierre' });
@@ -282,7 +309,27 @@ router.patch('/jornadas/:numero/toggle', verifyToken, authorizeRoles('admin'), a
       return res.status(404).json({ error: 'Jornada no encontrada' });
     }
 
-    res.json({ mensaje: `Jornada ${cerrada ? 'cerrada' : 'abierta'}`, jornada: result.rows[0] });
+    const jornada = result.rows[0];
+    
+    // Crear notificación cuando se cierra la jornada
+    if (cerrada === true) {
+      await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          'sudamericana',
+          'jornada',
+          'jornada_cerrada',
+          `🔒 La Jornada ${jornada.numero} de Sudamericana ha sido cerrada. Ya no se aceptan pronósticos.`,
+          '🔒',
+          `/sudamericana/jornada/${jornada.numero}`,
+          jornada.numero
+        ]
+      );
+      console.log(`✅ Notificación Sudamericana: jornada ${jornada.numero} cerrada`);
+    }
+
+    res.json({ mensaje: `Jornada ${cerrada ? 'cerrada' : 'abierta'}`, jornada });
   } catch (error) {
     console.error('Error cambiando estado de jornada:', error);
     res.status(500).json({ error: 'Error cambiando estado de jornada' });
@@ -690,6 +737,31 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
         } else {
           console.log('No se pudieron determinar los 2 ganadores de semifinales');
         }
+      }
+    }
+
+    // Crear notificación si se ingresaron resultados
+    if (partidos && partidos.length > 0) {
+      const resultadosIngresados = partidos.filter(p => 
+        p.goles_local !== null && p.goles_local !== '' &&
+        p.goles_visita !== null && p.goles_visita !== ''
+      ).length;
+      
+      if (resultadosIngresados > 0) {
+        await pool.query(
+          `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            'sudamericana',
+            'resultados',
+            'resultados_agregados',
+            `📊 Se han agregado ${resultadosIngresados} resultado(s) real(es) en la Jornada ${req.params.numero} - Sudamericana`,
+            '📊',
+            `/sudamericana/jornada/${req.params.numero}`,
+            parseInt(req.params.numero)
+          ]
+        );
+        console.log(`✅ Notificación Sudamericana: resultados agregados para jornada ${req.params.numero}`);
       }
     }
 

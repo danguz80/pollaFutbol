@@ -281,7 +281,38 @@ router.patch('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, 
       return res.status(404).json({ error: 'Partido no encontrado' });
     }
 
-    res.json({ mensaje: 'Partido actualizado', partido: result.rows[0] });
+    // Crear notificación si se ingresó un resultado real
+    const partido = result.rows[0];
+    if ((resultado_local !== undefined && resultado_local !== null) || 
+        (resultado_visitante !== undefined && resultado_visitante !== null)) {
+      
+      // Obtener número de jornada del partido
+      const jornadaResult = await pool.query(
+        'SELECT numero FROM mundial_jornadas WHERE id = $1',
+        [partido.jornada_id]
+      );
+      
+      if (jornadaResult.rows.length > 0) {
+        const jornadaNumero = jornadaResult.rows[0].numero;
+        
+        await pool.query(
+          `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            'mundial',
+            'resultados',
+            'resultados_agregados',
+            `📊 Se ha agregado un resultado real en la Jornada ${jornadaNumero} - Mundial`,
+            '📊',
+            `/mundial/jornada/${jornadaNumero}`,
+            jornadaNumero
+          ]
+        );
+        console.log(`✅ Notificación Mundial: resultado agregado para jornada ${jornadaNumero}`);
+      }
+    }
+
+    res.json({ mensaje: 'Partido actualizado', partido });
   } catch (error) {
     console.error('Error actualizando partido:', error);
     res.status(500).json({ error: 'Error actualizando partido' });
@@ -327,7 +358,25 @@ router.patch('/jornadas/:numero/cerrar', verifyToken, authorizeRoles('admin'), a
       return res.status(404).json({ error: 'Jornada no encontrada' });
     }
 
-    res.json({ mensaje: 'Jornada cerrada exitosamente', jornada: result.rows[0] });
+    const jornada = result.rows[0];
+    
+    // Crear notificación cuando se cierra la jornada
+    await pool.query(
+      `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        'mundial',
+        'jornada',
+        'jornada_cerrada',
+        `🔒 La Jornada ${jornada.numero} del Mundial ha sido cerrada. Ya no se aceptan pronósticos.`,
+        '🔒',
+        `/mundial/jornada/${jornada.numero}`,
+        jornada.numero
+      ]
+    );
+    console.log(`✅ Notificación Mundial: jornada ${jornada.numero} cerrada`);
+
+    res.json({ mensaje: 'Jornada cerrada exitosamente', jornada });
   } catch (error) {
     console.error('Error cerrando jornada:', error);
     res.status(500).json({ error: 'Error cerrando jornada' });
@@ -354,6 +403,57 @@ router.patch('/jornadas/:numero/abrir', verifyToken, authorizeRoles('admin'), as
   } catch (error) {
     console.error('Error abriendo jornada:', error);
     res.status(500).json({ error: 'Error abriendo jornada' });
+  }
+});
+
+// Actualizar fecha de cierre de jornada (Admin)
+router.patch('/jornadas/:numero/fecha-cierre', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const { fecha_cierre } = req.body;
+
+    const result = await pool.query(`
+      UPDATE mundial_jornadas 
+      SET fecha_cierre = $1 
+      WHERE numero = $2
+      RETURNING *
+    `, [fecha_cierre, numero]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+
+    const jornada = result.rows[0];
+    
+    // Crear notificación de fecha de cierre actualizada
+    if (fecha_cierre) {
+      const fechaFormateada = new Date(fecha_cierre).toLocaleString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          'mundial',
+          'fecha_cierre',
+          'fecha_cierre_actualizada',
+          `⏰ Fecha de cierre actualizada para Jornada ${jornada.numero} - Mundial: ${fechaFormateada}`,
+          '⏰',
+          `/mundial/jornada/${jornada.numero}`,
+          jornada.numero
+        ]
+      );
+      console.log(`✅ Notificación Mundial: fecha de cierre actualizada para jornada ${jornada.numero}`);
+    }
+
+    res.json({ mensaje: 'Fecha de cierre actualizada', jornada });
+  } catch (error) {
+    console.error('Error actualizando fecha de cierre:', error);
+    res.status(500).json({ error: 'Error actualizando fecha de cierre' });
   }
 });
 
