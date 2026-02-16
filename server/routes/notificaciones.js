@@ -171,4 +171,118 @@ router.post('/crear', verifyToken, async (req, res) => {
   }
 });
 
+// GET: Obtener todas las notificaciones (solo admin) - para gestión
+router.get('/admin', verifyToken, async (req, res) => {
+  try {
+    // Verificar que sea admin
+    if (req.usuario.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo administradores pueden acceder' });
+    }
+    
+    const limit = parseInt(req.query.limit) || 100;
+    
+    const notificaciones = await pool.query(`
+      SELECT 
+        n.id,
+        n.competencia,
+        n.tipo,
+        n.tipo_notificacion,
+        n.jornada_numero,
+        n.ganadores,
+        n.mensaje,
+        n.icono,
+        n.url,
+        n.fecha_calculo,
+        n.datos_adicionales,
+        COUNT(nl.usuario_id) as lecturas
+      FROM notificaciones n
+      LEFT JOIN notificaciones_leidas nl ON nl.notificacion_id = n.id
+      GROUP BY n.id, n.competencia, n.tipo, n.tipo_notificacion, n.jornada_numero, 
+               n.ganadores, n.mensaje, n.icono, n.url, n.fecha_calculo, n.datos_adicionales
+      ORDER BY n.fecha_calculo DESC
+      LIMIT $1
+    `, [limit]);
+    
+    res.json({ notificaciones: notificaciones.rows });
+    
+  } catch (error) {
+    console.error('Error obteniendo notificaciones para admin:', error);
+    res.status(500).json({ error: 'Error obteniendo notificaciones' });
+  }
+});
+
+// DELETE: Eliminar notificación específica (solo admin)
+router.delete('/:notificacionId', verifyToken, async (req, res) => {
+  try {
+    // Verificar que sea admin
+    if (req.usuario.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo administradores pueden eliminar notificaciones' });
+    }
+    
+    const { notificacionId } = req.params;
+    
+    console.log(`🗑️ Eliminando notificación ${notificacionId}`);
+    
+    // Primero eliminar las lecturas asociadas (por CASCADE debería hacerse automático, pero por seguridad)
+    await pool.query(
+      `DELETE FROM notificaciones_leidas WHERE notificacion_id = $1`,
+      [notificacionId]
+    );
+    
+    // Luego eliminar la notificación
+    const result = await pool.query(
+      `DELETE FROM notificaciones WHERE id = $1 RETURNING id`,
+      [notificacionId]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+    
+    console.log(`✅ Notificación ${notificacionId} eliminada exitosamente`);
+    res.json({ success: true, message: 'Notificación eliminada' });
+    
+  } catch (error) {
+    console.error('Error eliminando notificación:', error);
+    res.status(500).json({ error: 'Error eliminando notificación' });
+  }
+});
+
+// DELETE: Eliminar múltiples notificaciones (solo admin)
+router.post('/eliminar-multiples', verifyToken, async (req, res) => {
+  try {
+    // Verificar que sea admin
+    if (req.usuario.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo administradores pueden eliminar notificaciones' });
+    }
+    
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de IDs' });
+    }
+    
+    console.log(`🗑️ Eliminando ${ids.length} notificaciones`);
+    
+    // Primero eliminar las lecturas asociadas
+    await pool.query(
+      `DELETE FROM notificaciones_leidas WHERE notificacion_id = ANY($1)`,
+      [ids]
+    );
+    
+    // Luego eliminar las notificaciones
+    const result = await pool.query(
+      `DELETE FROM notificaciones WHERE id = ANY($1)`,
+      [ids]
+    );
+    
+    console.log(`✅ ${result.rowCount} notificaciones eliminadas exitosamente`);
+    res.json({ success: true, eliminadas: result.rowCount });
+    
+  } catch (error) {
+    console.error('Error eliminando notificaciones múltiples:', error);
+    res.status(500).json({ error: 'Error eliminando notificaciones' });
+  }
+});
+
 export default router;

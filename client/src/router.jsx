@@ -45,6 +45,7 @@ import AdminMundial from "./pages/Admin/AdminMundial";
 import AdminMundialFixture from "./pages/Admin/AdminMundialFixture";
 import AdminMundialResultados from "./pages/Admin/AdminMundialResultados";
 import AdminMundialGestion from "./pages/Admin/AdminMundialGestion";
+import AdminNotificaciones from "./pages/Admin/AdminNotificaciones";
 import JornadaMundial from "./pages/JornadaMundial";
 import EstadisticasNacional from "./pages/EstadisticasNacional";
 import ModalNotificacionGanador from "./components/ModalNotificacionGanador";
@@ -166,6 +167,11 @@ export default function AppRouter() {
         <Route path="/admin/torneo-nacional/cuadro-final" element={
           <RutaProtegidaAdmin>
             <AdminCuadroFinal />
+          </RutaProtegidaAdmin>
+        } />
+        <Route path="/admin/notificaciones" element={
+          <RutaProtegidaAdmin>
+            <AdminNotificaciones />
           </RutaProtegidaAdmin>
         } />
 

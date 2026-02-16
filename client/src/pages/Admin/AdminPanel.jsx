@@ -619,7 +619,7 @@ export default function AdminPanel() {
   return (
     <div className="container mt-4">
       <h2>⚙️ Panel de Administración</h2>
-      <div className="mb-3 d-flex gap-2">
+      <div className="mb-3 d-flex gap-2 flex-wrap">
         <button onClick={() => navigate("/admin/torneo-nacional")} className="btn btn-primary">
           ⚽ Torneo Nacional
         </button>
@@ -631,6 +631,9 @@ export default function AdminPanel() {
         </button>
         <button onClick={() => navigate("/admin/mundial")} className="btn btn-success">
           🌍 Mundial 2026
+        </button>
+        <button onClick={() => navigate("/admin/notificaciones")} className="btn btn-secondary">
+          🔔 Gestión de Notificaciones
         </button>
       </div>
 
