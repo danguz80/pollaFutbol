@@ -44,16 +44,20 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
     return null;
   }
 
-  // Formatear fecha y hora real de cierre en zona horaria de Chile
-  const fechaCierreReal = new Date(fechaCierre).toLocaleString('es-CL', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'America/Santiago'
-  });
+  // Formatear fecha SIN conversión de zona horaria
+  // (el admin ya ajusta manualmente la hora al guardar)
+  const fecha = new Date(fechaCierre);
+  const diasSemana = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  
+  const diaSemana = diasSemana[fecha.getUTCDay()];
+  const dia = fecha.getUTCDate();
+  const mes = meses[fecha.getUTCMonth()];
+  const año = fecha.getUTCFullYear();
+  const hora = String(fecha.getUTCHours()).padStart(2, '0');
+  const minutos = String(fecha.getUTCMinutes()).padStart(2, '0');
+  
+  const fechaCierreReal = `${diaSemana}, ${dia} de ${mes} de ${año}, ${hora}:${minutos}`;
 
   return (
     <div className="alert alert-info text-center" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>

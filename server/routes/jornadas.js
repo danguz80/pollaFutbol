@@ -117,12 +117,15 @@ router.patch("/:id/fecha-cierre", verifyToken, authorizeRoles('admin'), async (r
     
     // Crear notificación de fecha de cierre actualizada
     if (fecha_cierre) {
-      const fechaFormateada = new Date(fecha_cierre).toLocaleString('es-ES', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      // Formatear la fecha SIN conversión de zona horaria
+      // Usar la fecha tal como está guardada (ya viene ajustada por el admin)
+      const fecha = new Date(fecha_cierre);
+      const dia = String(fecha.getUTCDate()).padStart(2, '0');
+      const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      const mes = meses[fecha.getUTCMonth()];
+      const hora = String(fecha.getUTCHours()).padStart(2, '0');
+      const minutos = String(fecha.getUTCMinutes()).padStart(2, '0');
+      const fechaFormateada = `${dia} ${mes} ${hora}:${minutos}`;
       
       await pool.query(
         `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero, ganadores)

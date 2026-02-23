@@ -115,24 +115,16 @@ export default function AdminTorneoResultados() {
       setJornadaId(data.id);
       
       if (data.fecha_cierre) {
-        // Convertir la fecha UTC de BD a hora de Chile GMT-3 para mostrar
+        // Mostrar la fecha tal como está guardada en BD (sin conversión de zona horaria)
+        // El admin ya ajusta manualmente la hora al guardar
         const fechaUTC = new Date(data.fecha_cierre);
+        const año = fechaUTC.getUTCFullYear();
+        const mes = String(fechaUTC.getUTCMonth() + 1).padStart(2, '0');
+        const dia = String(fechaUTC.getUTCDate()).padStart(2, '0');
+        const hora = String(fechaUTC.getUTCHours()).padStart(2, '0');
+        const minutos = String(fechaUTC.getUTCMinutes()).padStart(2, '0');
         
-        // Formatear en zona horaria de Chile usando Intl
-        const formatter = new Intl.DateTimeFormat('sv-SE', {
-          timeZone: 'America/Santiago',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        });
-        
-        const parts = formatter.formatToParts(fechaUTC);
-        const getValue = (type) => parts.find(p => p.type === type)?.value || '';
-        
-        const fechaChile = `${getValue('year')}-${getValue('month')}-${getValue('day')}T${getValue('hour')}:${getValue('minute')}`;
+        const fechaChile = `${año}-${mes}-${dia}T${hora}:${minutos}`;
         setFechaCierre(fechaChile);
       } else {
         setFechaCierre("");
