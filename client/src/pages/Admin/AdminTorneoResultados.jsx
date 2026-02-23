@@ -116,11 +116,12 @@ export default function AdminTorneoResultados() {
       
       if (data.fecha_cierre) {
         // CONVERSIÓN CORRECTA: UTC (base de datos) → Chile (local para mostrar)
-        // La fecha viene en UTC desde la base de datos
+        // La fecha viene en UTC desde la base de datos con 'Z' al final
+        // new Date() interpreta la 'Z' como UTC automáticamente
+        // Los métodos get*() devuelven valores en hora local del navegador
         const fechaUTC = new Date(data.fecha_cierre);
         
-        // Convertir a hora local del navegador (que debería estar en Chile)
-        // El input datetime-local necesita formato: YYYY-MM-DDTHH:mm
+        // El input datetime-local necesita formato: YYYY-MM-DDTHH:mm en hora LOCAL
         const año = fechaUTC.getFullYear();
         const mes = String(fechaUTC.getMonth() + 1).padStart(2, '0');
         const dia = String(fechaUTC.getDate()).padStart(2, '0');
@@ -319,25 +320,11 @@ export default function AdminTorneoResultados() {
       
       // CONVERSIÓN CORRECTA: Chile (local) → UTC
       // El input datetime-local da "2026-01-30T17:00" (formato local sin timezone)
-      // Interpretamos como hora de Chile y convertimos a UTC
+      // new Date() interpreta automáticamente como hora local del navegador
+      // toISOString() convierte automáticamente a UTC
       
-      // Crear fecha interpretándola como hora de Chile (America/Santiago)
       const fechaLocal = new Date(fechaCierre);
-      
-      // Obtener el offset de Chile en esta fecha específica (maneja horario de verano automáticamente)
-      const offsetChile = -3 * 60; // Chile está GMT-3 (o GMT-4 en horario de verano)
-      // Para ser más preciso, usamos el offset del navegador si está en Chile
-      const offsetActual = fechaLocal.getTimezoneOffset(); // negativo para GMT-
-      
-      // Si asumimos que el admin está en Chile, usar su offset local
-      // Si no, asumir GMT-3 estándar
-      const offsetMinutos = offsetActual;
-      
-      // Convertir a UTC sumando el offset (porque getTimezoneOffset da negativo)
-      const fechaUTC = new Date(fechaLocal.getTime() - (offsetMinutos * 60 * 1000));
-      
-      // Enviar en formato ISO (UTC)
-      const fechaUTCString = fechaUTC.toISOString();
+      const fechaUTCString = fechaLocal.toISOString();
       
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaId}/fecha-cierre`, {
         method: "PATCH",
