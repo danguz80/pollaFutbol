@@ -108,7 +108,7 @@ export default function Mundial() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
-        if (ganadoresResponse.data.ganadores && ganadoresResponse.data.ganadores.length > 0) {
+        if (ganadoresResponse.data.ganadores && Array.isArray(ganadoresResponse.data.ganadores) && ganadoresResponse.data.ganadores.length > 0) {
           setUltimosGanadores({
             jornada: jornadaCerrada.numero,
             ganadores: ganadoresResponse.data.ganadores

@@ -327,7 +327,7 @@ export default function Clasificacion() {
         `${API_BASE_URL}/api/ganadores-jornada/${jornadaNumero}`
       );
 
-      if (response.data.ganadores && response.data.ganadores.length > 0) {
+      if (response.data.ganadores && Array.isArray(response.data.ganadores) && response.data.ganadores.length > 0) {
         setGanadores(response.data);
       } else {
         setGanadores(null);
@@ -375,7 +375,7 @@ export default function Clasificacion() {
     const cargarGanadoresAcumulado = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/ganadores-jornada/acumulado`);
-        if (response.data.ganadores && response.data.ganadores.length > 0) {
+        if (response.data.ganadores && Array.isArray(response.data.ganadores) && response.data.ganadores.length > 0) {
           setGanadoresAcumulado(response.data);
         }
       } catch (error) {
@@ -768,7 +768,7 @@ export default function Clasificacion() {
               <div className="modal-content">
                 <div className="modal-header bg-warning text-dark">
                   <h5 className="modal-title">
-                    🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {jornadaActual}
+                    🏆 {ganadores.ganadores && Array.isArray(ganadores.ganadores) && ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {jornadaActual}
                   </h5>
                   <button 
                     type="button" 
@@ -819,7 +819,7 @@ export default function Clasificacion() {
       )}
 
       {/* Mostrar ganadores guardados si existen (sin modal) */}
-      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
+      {ganadores && Array.isArray(ganadores.ganadores) && ganadores.ganadores.length > 0 && !mostrarGanadores && (
         <div className="alert alert-info text-center mb-4">
           <h5 className="mb-3">
             🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {jornadaActual}
@@ -920,7 +920,7 @@ export default function Clasificacion() {
       )}
 
       {/* Mostrar ganadores acumulado guardados si existen */}
-      {ganadoresAcumulado && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
+      {ganadoresAcumulado && Array.isArray(ganadoresAcumulado.ganadores) && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
         <div className="alert alert-warning text-center border-3 border-warning shadow mb-4">
           <h4 className="mb-3">
             👑 TOP 3 DEL RANKING ACUMULADO 👑
