@@ -4,24 +4,45 @@ import FireworksEffect from './FireworksEffect';
 const ModalNotificacionGanador = ({ notificacion, show, onClose }) => {
   if (!notificacion || !show) return null;
 
-  const { ganadores, mensaje, tipo, jornada_numero, competencia } = notificacion;
+  const { ganadores, mensaje, tipo, tipo_notificacion, jornada_numero, competencia, icono } = notificacion;
   
-  // Validar que ganadores existe y es válido antes de parsearlo
-  if (!ganadores) return null;
+  // Determinar si es una notificación de ganadores o informativa
+  const esNotificacionGanadores = ganadores && ganadores !== null;
   
-  const ganadoresArray = typeof ganadores === 'string' ? JSON.parse(ganadores) : ganadores;
+  // Si es notificación de ganadores, parsear y validar
+  let ganadoresArray = [];
+  if (esNotificacionGanadores) {
+    ganadoresArray = typeof ganadores === 'string' ? JSON.parse(ganadores) : ganadores;
+    // Validar que ganadoresArray es un array válido
+    if (!Array.isArray(ganadoresArray) || ganadoresArray.length === 0) {
+      // Si no es válido, tratar como notificación informativa
+      ganadoresArray = [];
+    }
+  }
   
-  // Validar que ganadoresArray es un array válido
-  if (!Array.isArray(ganadoresArray) || ganadoresArray.length === 0) return null;
+  const esGanadores = ganadoresArray.length > 0;
 
   const getTituloCompetencia = () => {
     if (competencia === 'libertadores') return 'Copa Libertadores';
     if (competencia === 'sudamericana') return 'Copa Sudamericana';
-    if (competencia === 'chile') return 'Campeonato Nacional';
+    if (competencia === 'mundial') return 'Mundial';
+    if (competencia === 'torneo_nacional' || competencia === 'chile') return 'Campeonato Nacional';
     return competencia;
   };
 
   const getTitulo = () => {
+    // Notificaciones informativas
+    if (tipo_notificacion === 'resultados_agregados') {
+      return `📊 Resultados Agregados`;
+    }
+    if (tipo_notificacion === 'fecha_cierre_actualizada') {
+      return `⏰ Fecha de Cierre Actualizada`;
+    }
+    if (tipo_notificacion === 'fixture_creado') {
+      return `📅 Nuevo Fixture Creado`;
+    }
+    
+    // Notificaciones de ganadores
     if (tipo === 'acumulado') {
       return `🏆 ${ganadoresArray.length === 1 ? 'Campeón' : 'Campeones'} del Ranking Acumulado`;
     }
@@ -29,10 +50,60 @@ const ModalNotificacionGanador = ({ notificacion, show, onClose }) => {
   };
 
   const esAcumulado = tipo === 'acumulado';
+  
+  // Determinar si mostrar fuegos artificiales (solo para ganadores)
+  const mostrarFuegos = esGanadores;
 
+  // RENDER PARA NOTIFICACIONES INFORMATIVAS (sin ganadores)
+  if (!esGanadores) {
+    return (
+      <div 
+        className="modal show d-block" 
+        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+        onClick={onClose}
+      >
+        <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content">
+            <div className="modal-header bg-info text-white">
+              <h5 className="modal-title">
+                {getTitulo()}
+              </h5>
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={onClose}
+              ></button>
+            </div>
+            <div className="modal-body text-center py-4">
+              <div className="mb-4">
+                <h1 style={{ fontSize: '4rem' }}>{icono || '📢'}</h1>
+              </div>
+              <p className="fs-5 mb-3">{mensaje}</p>
+              {getTituloCompetencia() && (
+                <p className="text-muted mb-0">
+                  <strong>{getTituloCompetencia()}</strong>
+                </p>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={onClose}
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDER PARA NOTIFICACIONES DE GANADORES
   return (
     <>
-      <FireworksEffect intensity={esAcumulado ? 'high' : 'normal'} />
+      {mostrarFuegos && <FireworksEffect intensity={esAcumulado ? 'high' : 'normal'} />}
       <div 
         className="modal show d-block" 
         style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
