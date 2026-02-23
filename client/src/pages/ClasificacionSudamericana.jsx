@@ -510,7 +510,7 @@ export default function ClasificacionSudamericana() {
         `${API_URL}/api/sudamericana-ganadores-jornada/${jornadaNumero}`
       );
 
-      if (response.data.ganadores && response.data.ganadores.length > 0) {
+      if (response.data.ganadores && Array.isArray(response.data.ganadores) && response.data.ganadores.length > 0) {
         setGanadores(response.data);
       } else {
         setGanadores(null);
@@ -954,7 +954,7 @@ export default function ClasificacionSudamericana() {
       <NavegacionSudamericana />
 
       {/* Mostrar ganador acumulado guardado si existe */}
-      {ganadoresAcumulado && ganadoresAcumulado.ganadores && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
+      {ganadoresAcumulado && Array.isArray(ganadoresAcumulado.ganadores) && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
         <div className="alert alert-warning text-center mb-4">
           <h5 className="mb-3">
             🏆 Top 3 Ranking Acumulado
@@ -980,7 +980,7 @@ export default function ClasificacionSudamericana() {
       )}
 
       {/* Mostrar ganadores guardados si existen (sin modal) */}
-      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
+      {ganadores && Array.isArray(ganadores.ganadores) && ganadores.ganadores.length > 0 && !mostrarGanadores && (
         <div className="alert alert-info text-center mb-4">
           <h5 className="mb-3">
             🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
@@ -2105,7 +2105,7 @@ export default function ClasificacionSudamericana() {
               <div className="modal-content">
                 <div className="modal-header bg-warning text-dark">
                   <h5 className="modal-title">
-                    🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero} - Copa Sudamericana
+                    🏆 {Array.isArray(ganadores.ganadores) && ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero} - Copa Sudamericana
                   </h5>
                   <button 
                     type="button" 
@@ -2175,7 +2175,7 @@ export default function ClasificacionSudamericana() {
               <div className="modal-content border-5 border-warning">
                 <div className="modal-header bg-gradient" style={{ background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }}>
                   <h3 className="modal-title text-dark fw-bold w-100 text-center">
-                    👑 {ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} COPA SUDAMERICANA 👑
+                    👑 {Array.isArray(ganadoresAcumulado.ganadores) && ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} COPA SUDAMERICANA 👑
                   </h3>
                   <button 
                     type="button" 

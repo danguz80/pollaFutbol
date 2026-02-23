@@ -108,7 +108,7 @@ export default function GanadoresJornadaLibertadores() {
               { headers }
             );
             const ganadoresData = await ganadoresRes.json();
-            if (ganadoresData.ganadores && ganadoresData.ganadores.length > 0) {
+            if (ganadoresData.ganadores && Array.isArray(ganadoresData.ganadores) && ganadoresData.ganadores.length > 0) {
               ganadoresPorJornadaTemp[jornada.numero] = ganadoresData.ganadores.map(g => g.nombre);
             }
           } catch (error) {

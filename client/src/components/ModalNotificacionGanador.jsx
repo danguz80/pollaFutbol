@@ -5,7 +5,14 @@ const ModalNotificacionGanador = ({ notificacion, show, onClose }) => {
   if (!notificacion || !show) return null;
 
   const { ganadores, mensaje, tipo, jornada_numero, competencia } = notificacion;
+  
+  // Validar que ganadores existe y es válido antes de parsearlo
+  if (!ganadores) return null;
+  
   const ganadoresArray = typeof ganadores === 'string' ? JSON.parse(ganadores) : ganadores;
+  
+  // Validar que ganadoresArray es un array válido
+  if (!Array.isArray(ganadoresArray) || ganadoresArray.length === 0) return null;
 
   const getTituloCompetencia = () => {
     if (competencia === 'libertadores') return 'Copa Libertadores';

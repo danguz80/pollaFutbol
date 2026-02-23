@@ -475,7 +475,7 @@ export default function ClasificacionLibertadores() {
         `${API_URL}/api/libertadores-ganadores-jornada/${jornadaNumero}`
       );
 
-      if (response.data.ganadores && response.data.ganadores.length > 0) {
+      if (response.data.ganadores && Array.isArray(response.data.ganadores) && response.data.ganadores.length > 0) {
         setGanadores(response.data);
       } else {
         setGanadores(null);
@@ -521,7 +521,7 @@ export default function ClasificacionLibertadores() {
         `${API_URL}/api/libertadores-ganadores-jornada/acumulado`
       );
 
-      if (response.data.ganadores && response.data.ganadores.length > 0) {
+      if (response.data.ganadores && Array.isArray(response.data.ganadores) && response.data.ganadores.length > 0) {
         setGanadoresAcumulado(response.data);
       } else {
         setGanadoresAcumulado(null);
@@ -1003,7 +1003,7 @@ export default function ClasificacionLibertadores() {
       <NavegacionLibertadores />
 
       {/* Mostrar ganador acumulado guardado si existe */}
-      {ganadoresAcumulado && ganadoresAcumulado.ganadores && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
+      {ganadoresAcumulado && Array.isArray(ganadoresAcumulado.ganadores) && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
         <div className="alert alert-warning text-center mb-4">
           <h5 className="mb-3">
             🏆 Top 3 Ranking Acumulado
@@ -1029,7 +1029,7 @@ export default function ClasificacionLibertadores() {
       )}
 
       {/* Mostrar ganadores guardados si existen (sin modal) */}
-      {ganadores && ganadores.ganadores.length > 0 && !mostrarGanadores && (
+      {ganadores && Array.isArray(ganadores.ganadores) && ganadores.ganadores.length > 0 && !mostrarGanadores && (
         <div className="alert alert-info text-center mb-4">
           <h5 className="mb-3">
             🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
@@ -2529,7 +2529,7 @@ export default function ClasificacionLibertadores() {
               <div className="modal-content">
                 <div className="modal-header bg-warning text-dark">
                   <h5 className="modal-title">
-                    🏆 {ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
+                    🏆 {Array.isArray(ganadores.ganadores) && ganadores.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Jornada {ganadores.jornadaNumero}
                   </h5>
                   <button 
                     type="button" 
@@ -2599,7 +2599,7 @@ export default function ClasificacionLibertadores() {
               <div className="modal-content border-5 border-warning">
                 <div className="modal-header bg-gradient" style={{ background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' }}>
                   <h3 className="modal-title text-dark fw-bold w-100 text-center">
-                    👑 {ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} DEL RANKING ACUMULADO 👑
+                    👑 {Array.isArray(ganadoresAcumulado.ganadores) && ganadoresAcumulado.ganadores.length === 1 ? 'CAMPEÓN' : 'CAMPEONES'} DEL RANKING ACUMULADO 👑
                   </h3>
                   <button 
                     type="button" 
