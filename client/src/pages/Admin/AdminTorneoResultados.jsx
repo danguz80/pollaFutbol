@@ -115,17 +115,20 @@ export default function AdminTorneoResultados() {
       setJornadaId(data.id);
       
       if (data.fecha_cierre) {
-        // Mostrar la fecha tal como está guardada en BD (sin conversión de zona horaria)
-        // El admin ya ajusta manualmente la hora al guardar
+        // CONVERSIÓN CORRECTA: UTC (base de datos) → Chile (local para mostrar)
+        // La fecha viene en UTC desde la base de datos
         const fechaUTC = new Date(data.fecha_cierre);
-        const año = fechaUTC.getUTCFullYear();
-        const mes = String(fechaUTC.getUTCMonth() + 1).padStart(2, '0');
-        const dia = String(fechaUTC.getUTCDate()).padStart(2, '0');
-        const hora = String(fechaUTC.getUTCHours()).padStart(2, '0');
-        const minutos = String(fechaUTC.getUTCMinutes()).padStart(2, '0');
         
-        const fechaChile = `${año}-${mes}-${dia}T${hora}:${minutos}`;
-        setFechaCierre(fechaChile);
+        // Convertir a hora local del navegador (que debería estar en Chile)
+        // El input datetime-local necesita formato: YYYY-MM-DDTHH:mm
+        const año = fechaUTC.getFullYear();
+        const mes = String(fechaUTC.getMonth() + 1).padStart(2, '0');
+        const dia = String(fechaUTC.getDate()).padStart(2, '0');
+        const hora = String(fechaUTC.getHours()).padStart(2, '0');
+        const minutos = String(fechaUTC.getMinutes()).padStart(2, '0');
+        
+        const fechaLocal = `${año}-${mes}-${dia}T${hora}:${minutos}`;
+        setFechaCierre(fechaLocal);
       } else {
         setFechaCierre("");
       }
@@ -314,9 +317,27 @@ export default function AdminTorneoResultados() {
     try {
       const token = localStorage.getItem("token");
       
-      // El input datetime-local da "2026-01-30T19:00"
-      // Lo interpretamos como hora de Chile (GMT-3) y lo enviamos con ese timezone
-      const fechaConTimezone = fechaCierre + ':00-03:00';
+      // CONVERSIÓN CORRECTA: Chile (local) → UTC
+      // El input datetime-local da "2026-01-30T17:00" (formato local sin timezone)
+      // Interpretamos como hora de Chile y convertimos a UTC
+      
+      // Crear fecha interpretándola como hora de Chile (America/Santiago)
+      const fechaLocal = new Date(fechaCierre);
+      
+      // Obtener el offset de Chile en esta fecha específica (maneja horario de verano automáticamente)
+      const offsetChile = -3 * 60; // Chile está GMT-3 (o GMT-4 en horario de verano)
+      // Para ser más preciso, usamos el offset del navegador si está en Chile
+      const offsetActual = fechaLocal.getTimezoneOffset(); // negativo para GMT-
+      
+      // Si asumimos que el admin está en Chile, usar su offset local
+      // Si no, asumir GMT-3 estándar
+      const offsetMinutos = offsetActual;
+      
+      // Convertir a UTC sumando el offset (porque getTimezoneOffset da negativo)
+      const fechaUTC = new Date(fechaLocal.getTime() - (offsetMinutos * 60 * 1000));
+      
+      // Enviar en formato ISO (UTC)
+      const fechaUTCString = fechaUTC.toISOString();
       
       const res = await fetch(`${API_BASE_URL}/api/jornadas/${jornadaId}/fecha-cierre`, {
         method: "PATCH",
@@ -324,7 +345,7 @@ export default function AdminTorneoResultados() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ fecha_cierre: fechaConTimezone })
+        body: JSON.stringify({ fecha_cierre: fechaUTCString })
       });
       
       if (res.ok) {
@@ -335,7 +356,7 @@ export default function AdminTorneoResultados() {
         const [year, month, day] = fecha.split('-');
         
         setModalType("success");
-        setModalMessage(`✅ Fecha configurada: ${day}/${month}/${year} a las ${hora} hrs (Chile GMT-3)\n\nLa jornada ${jornadaSeleccionada} se cerrará automáticamente a esa hora.\n\nEl sistema revisa cada minuto.`);
+        setModalMessage(`✅ Fecha configurada: ${day}/${month}/${year} a las ${hora} hrs (hora local Chile)\n\nLa jornada ${jornadaSeleccionada} se cerrará automáticamente a esa hora.\n\nEl sistema revisa cada minuto.`);
         setShowModal(true);
       } else {
         alert(`❌ Error al guardar`);
