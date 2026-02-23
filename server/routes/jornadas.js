@@ -125,8 +125,8 @@ router.patch("/:id/fecha-cierre", verifyToken, authorizeRoles('admin'), async (r
       });
       
       await pool.query(
-        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero, ganadores)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           'torneo_nacional',
           'fecha_cierre',
@@ -134,7 +134,8 @@ router.patch("/:id/fecha-cierre", verifyToken, authorizeRoles('admin'), async (r
           `⏰ Fecha de cierre actualizada para Jornada ${jornada.numero}: ${fechaFormateada}`,
           '⏰',
           `/jornada/${jornada.numero}`,
-          jornada.numero
+          jornada.numero,
+          null  // Las notificaciones de fecha_cierre no tienen ganadores
         ]
       );
       console.log(`✅ Notificación de fecha de cierre creada para jornada ${jornada.numero}`);
