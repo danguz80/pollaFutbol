@@ -1097,4 +1097,123 @@ router.post('/generar-pdf/:jornada', verifyToken, authorizeRoles('admin'), async
   }
 });
 
+// GET /api/pronosticos/resumen/jornada/:jornada - Resumen agrupado de pronósticos por jornada
+router.get("/resumen/jornada/:jornada", async (req, res) => {
+  const { jornada } = req.params;
+
+  try {
+    // Obtener todos los pronósticos de la jornada con información del partido y usuarios
+    const result = await pool.query(
+      `SELECT 
+        p.partido_id,
+        pa.nombre_local,
+        pa.nombre_visita,
+        pa.fecha,
+        p.goles_local,
+        p.goles_visita,
+        u.id as usuario_id,
+        u.nombre as usuario_nombre,
+        u.foto_perfil
+      FROM pronosticos p
+      JOIN partidos pa ON p.partido_id = pa.id
+      JOIN jornadas j ON pa.jornada_id = j.id
+      JOIN usuarios u ON p.usuario_id = u.id
+      WHERE j.numero = $1
+        AND u.activo_torneo_nacional = true
+        AND u.rol != 'admin'
+      ORDER BY pa.fecha ASC, pa.id ASC, p.goles_local, p.goles_visita`,
+      [jornada]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ partidos: [], totalPronosticos: 0 });
+    }
+
+    // Agrupar pronósticos por partido
+    const partidosMap = new Map();
+
+    result.rows.forEach(row => {
+      const partidoKey = row.partido_id;
+      
+      if (!partidosMap.has(partidoKey)) {
+        partidosMap.set(partidoKey, {
+          partido_id: row.partido_id,
+          nombre_local: row.nombre_local,
+          nombre_visita: row.nombre_visita,
+          fecha: row.fecha,
+          pronosticos: []
+        });
+      }
+
+      partidosMap.get(partidoKey).pronosticos.push({
+        goles_local: row.goles_local,
+        goles_visita: row.goles_visita,
+        usuario_id: row.usuario_id,
+        usuario_nombre: row.usuario_nombre,
+        foto_perfil: row.foto_perfil
+      });
+    });
+
+    // Para cada partido, agrupar pronósticos por resultado
+    const partidosAgrupados = Array.from(partidosMap.values()).map(partido => {
+      const pronosticosAgrupados = new Map();
+      const totalPronosticosPartido = partido.pronosticos.length;
+
+      partido.pronosticos.forEach(pron => {
+        const key = `${pron.goles_local}-${pron.goles_visita}`;
+        
+        if (!pronosticosAgrupados.has(key)) {
+          pronosticosAgrupados.set(key, {
+            resultado: key,
+            goles_local: pron.goles_local,
+            goles_visita: pron.goles_visita,
+            cantidad: 0,
+            porcentaje: 0,
+            usuarios: []
+          });
+        }
+
+        const grupo = pronosticosAgrupados.get(key);
+        grupo.cantidad++;
+        grupo.usuarios.push({
+          id: pron.usuario_id,
+          nombre: pron.usuario_nombre,
+          foto_perfil: pron.foto_perfil
+        });
+      });
+
+      // Calcular porcentajes
+      pronosticosAgrupados.forEach(grupo => {
+        grupo.porcentaje = ((grupo.cantidad / totalPronosticosPartido) * 100).toFixed(1);
+      });
+
+      // Convertir a array y ordenar por cantidad descendente
+      const gruposArray = Array.from(pronosticosAgrupados.values())
+        .sort((a, b) => b.cantidad - a.cantidad);
+
+      return {
+        partido_id: partido.partido_id,
+        nombre_local: partido.nombre_local,
+        nombre_visita: partido.nombre_visita,
+        fecha: partido.fecha,
+        total_pronosticos: totalPronosticosPartido,
+        grupos: gruposArray
+      };
+    });
+
+    res.json({
+      jornada: parseInt(jornada),
+      partidos: partidosAgrupados,
+      totalPronosticos: result.rows.length
+    });
+
+  } catch (error) {
+    console.error("Error obteniendo resumen de pronósticos:", error);
+    res.status(500).json({ 
+      error: "No se pudo obtener el resumen de pronósticos",
+      detalles: error.message
+    });
+  }
+});
+
 export default router;

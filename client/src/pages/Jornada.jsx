@@ -505,7 +505,15 @@ export default function Jornada() {
 
   return (
     <div className="container mt-4">
-      <h2>📅 Ingresar Pronósticos</h2>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h2>📅 Ingresar Pronósticos</h2>
+        <button 
+          className="btn btn-info btn-sm"
+          onClick={() => navigate('/resumen-jornada')}
+        >
+          📊 Ver Resumen de Jornada
+        </button>
+      </div>
       <AccesosDirectos />
       <CuentaRegresivaGlobal />
       <JornadaSelector

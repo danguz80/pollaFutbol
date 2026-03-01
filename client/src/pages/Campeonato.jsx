@@ -136,6 +136,7 @@ export default function Campeonato() {
         <button className="btn btn-success" onClick={() => navigate("/jornada/1")}>Ingresar Pronósticos</button>
         <button className="btn btn-warning" onClick={() => navigate("/cuadro-final")}>Cuadro Final</button>
         <button className="btn btn-primary" onClick={() => navigate("/estadisticas-nacional")}>Estadísticas</button>
+        <button className="btn btn-secondary" onClick={() => navigate("/resumen-jornada")}>📊 Resumen Jornada</button>
         <button className="btn btn-danger" onClick={() => navigate("/ganadores-jornada")}>Ganadores</button>
         <button className="btn btn-outline-success" onClick={() => navigate("/simulador-resultados")}>🎮 Simulador</button>
       </div>

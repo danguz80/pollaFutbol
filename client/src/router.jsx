@@ -48,6 +48,7 @@ import AdminMundialGestion from "./pages/Admin/AdminMundialGestion";
 import AdminNotificaciones from "./pages/Admin/AdminNotificaciones";
 import JornadaMundial from "./pages/JornadaMundial";
 import EstadisticasNacional from "./pages/EstadisticasNacional";
+import ResumenJornada from "./pages/ResumenJornada";
 import ModalNotificacionGanador from "./components/ModalNotificacionGanador";
 import { useNotificaciones } from "./hooks/useNotificaciones";
 import TodasNotificaciones from "./pages/TodasNotificaciones";
@@ -71,6 +72,7 @@ export default function AppRouter() {
         <Route path="/" element={<Home />} />
         <Route path="/clasificacion" element={<Clasificacion />} />
         <Route path="/jornada/:id" element={<Jornada />} />
+        <Route path="/resumen-jornada" element={<ResumenJornada />} />
         <Route path="/cuadro-final" element={<CuadroFinal />} />
         <Route path="/ganadores-jornada" element={<GanadoresJornada />} />
 
