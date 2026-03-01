@@ -106,6 +106,26 @@ router.get('/tabla-posiciones', async (req, res) => {
       }
     }
 
+    // Ordenar la tabla final según los criterios de desempate
+    result.rows.sort((a, b) => {
+      // 1) Mayor cantidad de puntos
+      if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+      
+      // 2) Mayor diferencia de goles
+      const difA = a.goles_favor - a.goles_contra;
+      const difB = b.goles_favor - b.goles_contra;
+      if (difB !== difA) return difB - difA;
+      
+      // 3) Mayor cantidad de partidos ganados
+      if (b.ganados !== a.ganados) return b.ganados - a.ganados;
+      
+      // 4) Mayor cantidad de goles marcados
+      if (b.goles_favor !== a.goles_favor) return b.goles_favor - a.goles_favor;
+      
+      // Alfabético como último recurso
+      return a.equipo.localeCompare(b.equipo);
+    });
+
     // Detectar empates que aún requieren criterios adicionales (5-8)
     const equiposEmpatados = [];
     for (let i = 0; i < result.rows.length - 1; i++) {
