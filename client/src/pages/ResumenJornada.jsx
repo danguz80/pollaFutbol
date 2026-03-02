@@ -58,7 +58,8 @@ export default function ResumenJornada() {
   const navigate = useNavigate();
   
   const [jornadas, setJornadas] = useState([]);
-  const [jornadaSeleccionada, setJornadaSeleccionada] = useState(1);
+  const [jornadasCerradas, setJornadasCerradas] = useState([]);
+  const [jornadaSeleccionada, setJornadaSeleccionada] = useState(null);
   const [resumenData, setResumenData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -75,20 +76,34 @@ export default function ResumenJornada() {
     }
   }, []);
 
-  // Cargar jornadas disponibles
+  // Cargar jornadas disponibles y filtrar solo las cerradas
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/jornadas`)
       .then((res) => res.json())
-      .then(setJornadas)
+      .then(data => {
+        setJornadas(data);
+        const cerradas = data.filter(j => j.cerrada === true);
+        setJornadasCerradas(cerradas);
+        // Seleccionar la última jornada cerrada por defecto
+        if (cerradas.length > 0) {
+          setJornadaSeleccionada(cerradas[cerradas.length - 1].numero);
+        }
+      })
       .catch((err) => console.error("Error al cargar jornadas", err));
   }, []);
 
   // Cargar resumen cuando cambia la jornada seleccionada
   useEffect(() => {
     if (jornadaSeleccionada) {
-      cargarResumen(jornadaSeleccionada);
+      // Verificar que la jornada esté cerrada
+      const jornada = jornadas.find(j => j.numero === jornadaSeleccionada);
+      if (jornada && jornada.cerrada) {
+        cargarResumen(jornadaSeleccionada);
+      } else {
+        setResumenData(null);
+      }
     }
-  }, [jornadaSeleccionada]);
+  }, [jornadaSeleccionada, jornadas]);
 
   const cargarResumen = async (numeroJornada) => {
     try {
@@ -168,24 +183,40 @@ export default function ResumenJornada() {
               <label className="form-label fw-bold">Seleccionar Jornada:</label>
             </div>
             <div className="col-md-4">
-              <select 
-                className="form-select" 
-                value={jornadaSeleccionada}
-                onChange={(e) => setJornadaSeleccionada(parseInt(e.target.value))}
-              >
-                {jornadas.map(j => (
-                  <option key={j.id} value={j.numero}>
-                    Jornada {j.numero} {j.cerrada ? '(Cerrada)' : '(Abierta)'}
-                  </option>
-                ))}
-              </select>
+              {jornadasCerradas.length > 0 ? (
+                <select 
+                  className="form-select" 
+                  value={jornadaSeleccionada || ''}
+                  onChange={(e) => setJornadaSeleccionada(parseInt(e.target.value))}
+                >
+                  {jornadasCerradas.map(j => (
+                    <option key={j.id} value={j.numero}>
+                      Jornada {j.numero}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="alert alert-warning mb-0">
+                  No hay jornadas cerradas disponibles aún.
+                </div>
+              )}
+            </div>
+            <div className="col-md-5">
+              <small className="text-muted">
+                ℹ️ Solo puedes ver el resumen de jornadas cerradas
+              </small>
             </div>
           </div>
         </div>
       </div>
 
       {/* Mostrar resumen */}
-      {resumenData && resumenData.partidos && resumenData.partidos.length > 0 ? (
+      {jornadasCerradas.length === 0 ? (
+        <div className="alert alert-info text-center">
+          <h5>📊 Resumen de Jornada</h5>
+          <p className="mb-0">El resumen de pronósticos estará disponible una vez que se cierre la primera jornada.</p>
+        </div>
+      ) : resumenData && resumenData.partidos && resumenData.partidos.length > 0 ? (
         <div className="row g-4">
           {resumenData.partidos.map((partido, index) => (
             <div key={partido.partido_id} className="col-12">
@@ -324,11 +355,11 @@ export default function ResumenJornada() {
             </div>
           ))}
         </div>
-      ) : (
+      ) : jornadaSeleccionada ? (
         <div className="alert alert-info text-center">
           No hay pronósticos disponibles para esta jornada aún.
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
