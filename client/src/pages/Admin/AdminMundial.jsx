@@ -171,13 +171,29 @@ export default function AdminMundial() {
               className="btn btn-warning"
               onClick={() => navigate('/admin/mundial/resultados')}
             >
-              ⚽ Ingresar Resultados
+              ⚽ Ingresar Resultados y Calcular
             </button>
             <button 
               className="btn btn-success"
-              onClick={() => navigate('/admin/mundial/calcular')}
+              onClick={() => navigate('/admin/mundial/gestion')}
             >
-              📊 Calcular Puntos
+              🔧 Gestión y Respaldo
+            </button>
+          </div>
+          
+          {/* Botones del Home del Mundial - Centrados */}
+          <div className="d-flex flex-wrap justify-content-center gap-2 mt-3">
+            <button className="btn btn-info" onClick={() => navigate('/mundial/estadisticas')}>
+              📊 Estadísticas
+            </button>
+            <button className="btn btn-info" onClick={() => navigate('/mundial/clasificacion')}>
+              📋 Clasificación
+            </button>
+            <button className="btn btn-info" onClick={() => navigate('/mundial/puntuacion')}>
+              📈 Puntuación
+            </button>
+            <button className="btn btn-info" onClick={() => navigate('/mundial/ganadores-jornada')}>
+              👑 Ganadores
             </button>
           </div>
         </div>

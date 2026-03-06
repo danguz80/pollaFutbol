@@ -356,26 +356,44 @@ export default function AdminMundialFixture() {
   return (
     <div className="container mt-4">
       {/* Header */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>🌍 Generador de Fixture - Mundial 2026</h2>
-        <div className="d-flex gap-2">
-          <button 
-            className="btn btn-success"
-            onClick={() => navigate('/admin/mundial/resultados')}
-          >
-            📊 Resultados y Jornadas
+      <div className="mb-4">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h2>🌍 Generador de Fixture - Mundial 2026</h2>
+          <div className="d-flex gap-2">
+            <button 
+              className="btn btn-success"
+              onClick={() => navigate('/admin/mundial/resultados')}
+            >
+              📊 Resultados y Jornadas
+            </button>
+            <button 
+              className="btn btn-warning"
+              onClick={() => navigate('/admin/mundial/gestion')}
+            >
+              🔧 Gestión y Respaldo
+            </button>
+            <button 
+              className="btn btn-secondary"
+              onClick={() => navigate('/admin/mundial')}
+            >
+              ← Volver
+            </button>
+          </div>
+        </div>
+
+        {/* Botones del Home del Mundial - Centrados */}
+        <div className="d-flex flex-wrap justify-content-center gap-2">
+          <button className="btn btn-info" onClick={() => navigate('/mundial/estadisticas')}>
+            📊 Estadísticas
           </button>
-          <button 
-            className="btn btn-warning"
-            onClick={() => navigate('/admin/mundial/gestion')}
-          >
-            🔧 Gestión y Respaldo
+          <button className="btn btn-info" onClick={() => navigate('/mundial/clasificacion')}>
+            📋 Clasificación
           </button>
-          <button 
-            className="btn btn-secondary"
-            onClick={() => navigate('/admin')}
-          >
-            ← Volver
+          <button className="btn btn-info" onClick={() => navigate('/mundial/puntuacion')}>
+            📈 Puntuación
+          </button>
+          <button className="btn btn-info" onClick={() => navigate('/mundial/ganadores-jornada')}>
+            👑 Ganadores
           </button>
         </div>
       </div>

@@ -133,7 +133,7 @@ export default function AppRouter() {
         } />
         <Route path="/admin/mundial" element={
           <RutaProtegidaAdmin>
-            <AdminMundialFixture />
+            <AdminMundial />
           </RutaProtegidaAdmin>
         } />
         <Route path="/admin/mundial/fixture" element={

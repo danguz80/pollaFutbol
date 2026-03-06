@@ -57,7 +57,13 @@ router.get('/actual', verifyToken, async (req, res) => {
 
     const result = await pool.query(query, [jornadaNum]);
     
-    res.json({ jornada: jornadaNum, ranking: result.rows });
+    // Convertir puntos a números
+    const ranking = result.rows.map(row => ({
+      ...row,
+      puntos_acumulados: parseInt(row.puntos_acumulados) || 0
+    }));
+    
+    res.json({ jornada: jornadaNum, ranking });
   } catch (error) {
     console.error('Error obteniendo ranking actual:', error);
     res.status(500).json({ error: 'Error obteniendo ranking actual' });
@@ -90,7 +96,13 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
 
     const result = await pool.query(query, [jornadaNum]);
     
-    res.json(result.rows);
+    // Convertir puntos a números
+    const ranking = result.rows.map(row => ({
+      ...row,
+      puntos_jornada: parseInt(row.puntos_jornada) || 0
+    }));
+    
+    res.json(ranking);
   } catch (error) {
     console.error('Error obteniendo ranking de jornada:', error);
     res.status(500).json({ error: 'Error obteniendo ranking de jornada' });
@@ -136,7 +148,13 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
 
     const result = await pool.query(query, [jornadaNum]);
     
-    res.json(result.rows);
+    // Convertir puntos a números
+    const ranking = result.rows.map(row => ({
+      ...row,
+      puntos_acumulados: parseInt(row.puntos_acumulados) || 0
+    }));
+    
+    res.json(ranking);
   } catch (error) {
     console.error('Error obteniendo ranking acumulado:', error);
     res.status(500).json({ error: 'Error obteniendo ranking acumulado' });

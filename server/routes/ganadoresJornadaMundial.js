@@ -2,6 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { checkRole } from '../middleware/checkRole.js';
+import { generarYEnviarPDFMundial } from '../utils/generadorPDFMundial.js';
 
 const router = express.Router();
 
@@ -180,30 +181,58 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       SELECT nombre, foto_perfil FROM usuarios WHERE id = ANY($1::int[])
     `, [ganadoresPrimero.map(g => g.usuario_id)]);
 
+    const mensajeNotificacion = ganadoresPrimero.length === 1 
+      ? `🏆 Ganador Jornada ${jornadaNum}: ${nombresGanadores.rows[0].nombre}` 
+      : `🏆 Ganadores Jornada ${jornadaNum}: ${nombresGanadores.rows.map(r => r.nombre).join(', ')}`;
+
     await pool.query(`
-      INSERT INTO notificaciones (competencia, tipo, titulo, mensaje, metadata, creado_en)
-      VALUES ($1, $2, $3, $4, $5, NOW())
+      INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, jornada_numero, ganadores, mensaje, icono, url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [
       'mundial',
       'jornada',
-      `Jornada ${jornadaNum} - Mundial 2026`,
-      ganadoresPrimero.length === 1 
-        ? `🏆 Ganador: ${nombresGanadores.rows[0].nombre}` 
-        : `🏆 Ganadores: ${nombresGanadores.rows.map(r => r.nombre).join(', ')}`,
-      JSON.stringify({
-        jornada: jornadaNum,
-        ganadores: nombresGanadores.rows.map(r => ({
-          nombre: r.nombre,
-          foto_perfil: r.foto_perfil
-        }))
-      })
+      'ganador_jornada',
+      jornadaNum,
+      JSON.stringify(nombresGanadores.rows.map(r => ({
+        nombre: r.nombre,
+        puntaje: ganadoresPrimero[0].puntos_jornada,
+        foto_perfil: r.foto_perfil
+      }))),
+      mensajeNotificacion,
+      '🏆',
+      '/mundial/clasificacion'
     ]);
 
+    // Generar y enviar PDF con PDFKit (optimizado)
+    let pdfGenerado = false;
+    let pdfError = null;
+    
+    try {
+      console.log(`📄 Generando PDF para Mundial Jornada ${jornadaNum}...`);
+      const pdfPath = await generarYEnviarPDFMundial(jornadaNum);
+      pdfGenerado = true;
+      console.log(`✅ PDF generado exitosamente en: ${pdfPath}`);
+    } catch (error) {
+      console.error(`❌ Error generando PDF para Jornada ${jornadaNum}:`, error.message);
+      pdfError = error.message;
+    }
+
+    const maxPuntaje = ganadoresPrimero[0] ? ganadoresPrimero[0].puntos : 0;
+    const mensaje = ganadoresPrimero.length === 1
+      ? `El ganador de la jornada ${jornadaNum} es: ${nombresGanadores.rows[0].nombre} con ${maxPuntaje} puntos`
+      : `Los ganadores de la jornada ${jornadaNum} son: ${nombresGanadores.rows.map(r => r.nombre).join(', ')} con ${maxPuntaje} puntos`;
+
     res.json({
-      mensaje: 'Ganadores calculados y guardados exitosamente',
+      mensaje,
       jornada: jornadaNum,
-      ganadores: ganadoresPrimero.length,
-      top3: ganadores.slice(0, 3)
+      ganadores: nombresGanadores.rows.map(r => ({
+        nombre: r.nombre,
+        foto_perfil: r.foto_perfil,
+        puntaje: maxPuntaje
+      })),
+      top3: ganadores.slice(0, 3),
+      pdfGenerado,
+      ...(pdfError && { pdfError })
     });
 
   } catch (error) {
