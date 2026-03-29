@@ -38,11 +38,11 @@ export default function AdminLibertadores() {
       lineas.forEach(linea => {
         const lineaTrim = linea.trim();
         
-        // Detectar jornada
-        const matchFecha = lineaTrim.match(/Fecha\s*(\d+)/i);
+        // Detectar jornada (acepta "Jornada" o "Fecha")
+        const matchJornada = lineaTrim.match(/(?:Jornada|Fecha)\s*(\d+)/i);
         
-        if (matchFecha) {
-          const num = parseInt(matchFecha[1]);
+        if (matchJornada) {
+          const num = parseInt(matchJornada[1]);
           if (num >= 1 && num <= 6) {
             jornadaActual = num;
             console.log(`Detectada Jornada ${num}`);
