@@ -39,6 +39,11 @@ const LOGOS_LIBERTADORES = {
   'Carabobo': 'carabobo.png',
   'Colo-Colo': 'colo-colo.png',
   'Estudiantes de La Plata': 'estudiantes_de_la_plata.svg',
+  'Estudiantes LP': 'Estudiantes_de_La_Plata.png',
+  'Deportes Tolima': 'Tolima.png',
+  'Universidad Central': 'ucentral_ven.png',
+  'Lanús': 'Lanus.png',
+  'Lanus': 'Lanus.png',
   'Universidad de Chile': 'udechile.png'
 };
 

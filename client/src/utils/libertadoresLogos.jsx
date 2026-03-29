@@ -18,8 +18,9 @@ export const getLogoEquipo = (nombreEquipo) => {
     // Argentina
     'bocajuniors': 'Boca_juniors.png',
     'estudiantesdelaplata': 'Estudiantes_de_La_Plata.png',
+    'estudianteslp': 'Estudiantes_de_La_Plata.png',
     'independienterivadavia': 'Independiente_Rivadavia.png',
-    'lanus': 'Lanús.png',
+    'lanus': 'Lanus.png',
     'platense': 'Platense.png',
     'racing': 'Racing.png',
     'rosariocentral': 'rosario_central.png',
@@ -76,6 +77,7 @@ export const getLogoEquipo = (nombreEquipo) => {
     'junior': 'junior_barranquilla.png',
     'juniorbarranquilla': 'junior_barranquilla.png',
     'tolima': 'Tolima.png',
+    'deportestolima': 'Tolima.png',
     'independientemedellin': 'ind_medellin.png',
     
     // Ecuador
@@ -112,6 +114,7 @@ export const getLogoEquipo = (nombreEquipo) => {
     'carabobo': 'carabobo.png',
     'carabobofc': 'carabobo.png',
     'deportivotachira': 'tachira.png',
+    'universidadcentral': 'ucentral_ven.png',
     'universidadcentraldevenezuela': 'ucentral_ven.png',
     'universidadcentraldevenezuelafc': 'ucentral_ven.png',
     'deportivolaguaira': 'depor_la_guauria.png',
