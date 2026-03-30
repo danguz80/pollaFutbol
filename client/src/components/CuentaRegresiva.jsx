@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) {
+export default function CuentaRegresiva({ fechaCierre, numeroJornada, competencia = "Torneo Nacional", onCero }) {
   const [tiempo, setTiempo] = useState({ dias: 0, horas: 0, minutos: 0, segundos: 0 });
   const [finalizado, setFinalizado] = useState(false);
 
@@ -58,7 +58,7 @@ export default function CuentaRegresiva({ fechaCierre, numeroJornada, onCero }) 
 
   return (
     <div className="alert alert-info text-center" style={{ fontWeight: 'bold', fontSize: '1.1em' }}>
-      <div>Tiempo restante antes de cerrar {numeroJornada || 'la jornada'} de Torneo Nacional:</div>
+      <div>Tiempo restante antes de cerrar {numeroJornada || 'la jornada'} de {competencia}:</div>
       <div className="mt-2" style={{ fontSize: '1.2em', color: '#0d6efd' }}>
         {tiempo.dias}d {tiempo.horas}h {tiempo.minutos}m {tiempo.segundos}s
       </div>
