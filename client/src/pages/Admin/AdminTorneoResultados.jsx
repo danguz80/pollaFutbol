@@ -201,8 +201,8 @@ export default function AdminTorneoResultados() {
   const generarAzar = () => {
     const partidosAzar = partidos.map(p => ({
       ...p,
-      golesLocal: Math.floor(Math.random() * 5), // 0 a 4
-      golesVisita: Math.floor(Math.random() * 5)  // 0 a 4
+      golesLocal: Math.floor(Math.random() * 4), // 0 a 3
+      golesVisita: Math.floor(Math.random() * 4)  // 0 a 3
     }));
     setPartidos(partidosAzar);
   };

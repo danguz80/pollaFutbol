@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getLogoEquipo } from '../utils/libertadoresLogos.jsx';
+import { getLogoEquipo as getLogoLibertadores } from '../utils/libertadoresLogos.jsx';
+import { getLogoEquipo as getLogoSudamericana } from '../utils/sudamericanaLogos.jsx';
 import { getMundialLogoPorNombre } from '../utils/mundialLogos';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -78,7 +79,11 @@ export default function HeroSection({ competencia }) {
     if (competencia === 'mundial') {
       return getMundialLogoPorNombre(nombreEquipo);
     }
-    return getLogoEquipo(nombreEquipo);
+    if (competencia === 'sudamericana') {
+      return getLogoSudamericana(nombreEquipo);
+    }
+    // Para libertadores y torneo_nacional usar el mismo helper
+    return getLogoLibertadores(nombreEquipo);
   };
 
   const handlePrev = () => {

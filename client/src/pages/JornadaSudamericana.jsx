@@ -304,8 +304,8 @@ export default function JornadaSudamericana() {
             {
               partido_id: partido.id,
               jornada_id: jornadaActual.id,
-              goles_local: Math.floor(Math.random() * 5),
-              goles_visita: Math.floor(Math.random() * 5)
+              goles_local: Math.floor(Math.random() * 4),
+              goles_visita: Math.floor(Math.random() * 4)
             },
             { 
               headers: { 

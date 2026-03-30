@@ -17,6 +17,7 @@ export default function AdminSudamericanaResultados() {
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("success");
   const [calculando, setCalculando] = useState(false);
+  const [fechaCierre, setFechaCierre] = useState("");
 
   // Obtener jornadas al montar
   useEffect(() => {
@@ -172,10 +173,25 @@ export default function AdminSudamericanaResultados() {
       setJornadaCerrada(!!data.cerrada);
       setJornadaActiva(!!data.activa);
       setJornadaId(data.id);
+      
+      if (data.fecha_cierre) {
+        // Conversión UTC → hora local de Chile
+        const fechaUTC = new Date(data.fecha_cierre);
+        const año = fechaUTC.getFullYear();
+        const mes = String(fechaUTC.getMonth() + 1).padStart(2, '0');
+        const dia = String(fechaUTC.getDate()).padStart(2, '0');
+        const hora = String(fechaUTC.getHours()).padStart(2, '0');
+        const minutos = String(fechaUTC.getMinutes()).padStart(2, '0');
+        const fechaLocal = `${año}-${mes}-${dia}T${hora}:${minutos}`;
+        setFechaCierre(fechaLocal);
+      } else {
+        setFechaCierre("");
+      }
     } catch (err) {
       setJornadaCerrada(false);
       setJornadaActiva(false);
       setJornadaId(null);
+      setFechaCierre("");
     }
   };
 
@@ -443,6 +459,77 @@ export default function AdminSudamericanaResultados() {
     }
   };
 
+  const configurarFechaCierre = async () => {
+    if (!jornadaSeleccionada || !fechaCierre) {
+      alert("⚠️ Debes seleccionar una fecha y hora");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      // Conversión: Chile (local) → UTC
+      const fechaLocal = new Date(fechaCierre);
+      const fechaUTCString = fechaLocal.toISOString();
+      
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/jornadas/${jornadaSeleccionada}/cierre`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ fecha_cierre: fechaUTCString })
+      });
+      
+      if (res.ok) {
+        await fetchJornadaInfo(jornadaSeleccionada);
+        
+        const [fecha, hora] = fechaCierre.split('T');
+        const [year, month, day] = fecha.split('-');
+        
+        setModalType("success");
+        setModalMessage(`✅ Fecha configurada: ${day}/${month}/${year} a las ${hora} hrs (hora local Chile)\n\nLa jornada ${jornadaSeleccionada} de Sudamericana se cerrará automáticamente a esa hora.\n\nEl sistema revisa cada minuto.`);
+        setShowModal(true);
+      } else {
+        alert(`❌ Error al guardar`);
+      }
+    } catch (error) {
+      alert("❌ Error al configurar");
+    }
+  };
+
+  const eliminarFechaCierre = async () => {
+    if (!jornadaSeleccionada) return;
+    
+    if (!confirm("¿Eliminar la fecha de cierre automático?")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      const res = await fetch(`${API_BASE_URL}/api/sudamericana/jornadas/${jornadaSeleccionada}/cierre`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ fecha_cierre: null })
+      });
+      
+      if (res.ok) {
+        setFechaCierre("");
+        await fetchJornadaInfo(jornadaSeleccionada);
+        
+        setModalType("success");
+        setModalMessage(`✅ Fecha de cierre eliminada\n\nLa jornada ${jornadaSeleccionada} ya no se cerrará automáticamente.`);
+        setShowModal(true);
+      } else {
+        alert(`❌ Error al eliminar`);
+      }
+    } catch (error) {
+      alert("❌ Error al eliminar fecha de cierre");
+    }
+  };
+
   const toggleActivarJornada = async () => {
     if (!jornadaSeleccionada) return;
     try {
@@ -560,6 +647,48 @@ export default function AdminSudamericanaResultados() {
                     {jornadaActiva ? "Activa: Visible para todos los jugadores" : "Inactiva: Oculta para los jugadores"}
                   </small>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cierre Automático de Jornada */}
+      {jornadaSeleccionada && (
+        <div className="card mb-4">
+          <div className="card-header bg-warning">
+            <h5 className="mb-0">⏰ Cierre Automático de Jornada</h5>
+          </div>
+          <div className="card-body">
+            <div className="row">
+              <div className="col-md-8">
+                <label className="form-label fw-bold">Fecha y Hora de Cierre Automático (Hora de Chile):</label>
+                <input
+                  type="datetime-local"
+                  className="form-control"
+                  value={fechaCierre}
+                  onChange={(e) => setFechaCierre(e.target.value)}
+                />
+                <small className="text-muted d-block mt-2">
+                  💡 La jornada se cerrará automáticamente a la hora indicada. El sistema revisa cada minuto.
+                </small>
+              </div>
+              <div className="col-md-4 d-flex flex-column justify-content-end gap-2">
+                <button
+                  className="btn btn-warning"
+                  onClick={configurarFechaCierre}
+                  disabled={!fechaCierre}
+                >
+                  💾 Guardar Fecha de Cierre
+                </button>
+                {fechaCierre && (
+                  <button
+                    className="btn btn-outline-danger"
+                    onClick={eliminarFechaCierre}
+                  >
+                    ❌ Eliminar Cierre Automático
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -102,15 +102,15 @@ export default function AdminLibertadores() {
               }
             }
             
-            // Agregar partido
+            // Agregar partido (con país en el nombre)
             jornadasPartidos[jornadaActual].push({
-              equipo_local: local,
-              equipo_visitante: visita,
+              equipo_local: `${local} (${paisLocal})`,
+              equipo_visitante: `${visita} (${paisVisita})`,
               fecha_hora: new Date().toISOString(),
               bonus: 1
             });
             
-            console.log(`J${jornadaActual}: ${local} vs ${visita} - Grupo ${grupo}`);
+            console.log(`J${jornadaActual}: ${local} (${paisLocal}) vs ${visita} (${paisVisita}) - Grupo ${grupo}`);
           }
         } else {
           // Mostrar líneas que no coinciden (para debug)

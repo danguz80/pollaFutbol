@@ -316,8 +316,8 @@ export default function Jornada() {
     const nuevosPronosticos = {};
     partidos.forEach(partido => {
       nuevosPronosticos[partido.id] = {
-        goles_local: Math.floor(Math.random() * 5), // 0 a 4
-        goles_visita: Math.floor(Math.random() * 5), // 0 a 4
+        goles_local: Math.floor(Math.random() * 4), // 0 a 3
+        goles_visita: Math.floor(Math.random() * 4), // 0 a 3
       };
     });
     setPronosticos(nuevosPronosticos);
@@ -375,8 +375,8 @@ export default function Jornada() {
             body: JSON.stringify({
               partido_id: partido.id,
               jornada_id: jornadaObj.id,
-              goles_local: Math.floor(Math.random() * 5),
-              goles_visita: Math.floor(Math.random() * 5)
+              goles_local: Math.floor(Math.random() * 4),
+              goles_visita: Math.floor(Math.random() * 4)
             }),
           });
 

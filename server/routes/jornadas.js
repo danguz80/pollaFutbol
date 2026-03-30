@@ -1124,8 +1124,8 @@ router.post("/importar-fixture", verifyToken, authorizeRoles('admin'), async (re
 // Función para cierre automático de jornadas basándose en fecha_cierre
 async function cierreAutomaticoJornadas() {
   try {
-    // Buscar jornadas abiertas con fecha_cierre definida y que ya hayan pasado esa fecha
-    const result = await pool.query(`
+    // 1. Buscar jornadas del TORNEO NACIONAL abiertas con fecha_cierre definida y que ya hayan pasado esa fecha
+    const resultNacional = await pool.query(`
       SELECT id, numero, fecha_cierre, cerrada 
       FROM jornadas 
       WHERE cerrada = false 
@@ -1133,8 +1133,8 @@ async function cierreAutomaticoJornadas() {
         AND fecha_cierre <= NOW()
     `);
 
-    for (const jornada of result.rows) {
-      console.log(`🔒 Cerrando automáticamente jornada ${jornada.numero}`);
+    for (const jornada of resultNacional.rows) {
+      console.log(`🔒 Cerrando automáticamente jornada ${jornada.numero} del Torneo Nacional`);
       
       // Cerrar la jornada
       await pool.query(
@@ -1148,13 +1148,55 @@ async function cierreAutomaticoJornadas() {
         const resultado = await whatsappService.enviarMensajeJornadaCerrada(jornada.numero);
         
         if (resultado.success) {
-          console.log(`✅ Email enviado para jornada ${jornada.numero}`);
+          console.log(`✅ Email enviado para jornada ${jornada.numero} del Nacional`);
         } else {
-          console.error(`❌ Error enviando email para jornada ${jornada.numero}:`, resultado.mensaje);
+          console.error(`❌ Error enviando email para jornada ${jornada.numero} del Nacional:`, resultado.mensaje);
         }
       } catch (error) {
-        console.error(`❌ Error enviando email para jornada ${jornada.numero}:`, error);
+        console.error(`❌ Error enviando email para jornada ${jornada.numero} del Nacional:`, error);
       }
+    }
+
+    // 2. Buscar jornadas de LIBERTADORES abiertas con fecha_cierre definida y que ya hayan pasado esa fecha
+    const resultLibertadores = await pool.query(`
+      SELECT id, numero, fecha_cierre, cerrada, nombre
+      FROM libertadores_jornadas 
+      WHERE cerrada = false 
+        AND fecha_cierre IS NOT NULL 
+        AND fecha_cierre <= NOW()
+    `);
+
+    for (const jornada of resultLibertadores.rows) {
+      console.log(`🔒 Cerrando automáticamente ${jornada.nombre || 'Jornada ' + jornada.numero} de Libertadores`);
+      
+      // Cerrar la jornada
+      await pool.query(
+        "UPDATE libertadores_jornadas SET cerrada = true WHERE id = $1",
+        [jornada.id]
+      );
+
+      console.log(`✅ Jornada ${jornada.numero} de Libertadores cerrada automáticamente`);
+    }
+
+    // 3. Buscar jornadas de SUDAMERICANA abiertas con fecha_cierre definida y que ya hayan pasado esa fecha
+    const resultSudamericana = await pool.query(`
+      SELECT id, numero, fecha_cierre, cerrada, nombre
+      FROM sudamericana_jornadas 
+      WHERE cerrada = false 
+        AND fecha_cierre IS NOT NULL 
+        AND fecha_cierre <= NOW()
+    `);
+
+    for (const jornada of resultSudamericana.rows) {
+      console.log(`🔒 Cerrando automáticamente ${jornada.nombre || 'Jornada ' + jornada.numero} de Sudamericana`);
+      
+      // Cerrar la jornada
+      await pool.query(
+        "UPDATE sudamericana_jornadas SET cerrada = true WHERE id = $1",
+        [jornada.id]
+      );
+
+      console.log(`✅ Jornada ${jornada.numero} de Sudamericana cerrada automáticamente`);
     }
   } catch (err) {
     console.error('❌ Error en cierre automático de jornadas:', err);

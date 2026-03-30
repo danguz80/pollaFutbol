@@ -47,6 +47,138 @@ const LOGOS_LIBERTADORES = {
   'Universidad de Chile': 'udechile.png'
 };
 
+// Mapeo de equipos de Sudamericana
+const LOGOS_SUDAMERICANA = {
+  // Argentina
+  'Boca Juniors': 'Boca_juniors.png',
+  'Argentinos Juniors': 'Argentinos_Juniors.png',
+  'Independiente': 'INDEPENDIENTE.png',
+  'Independiente Rivadavia': 'Independiente_Rivadavia.png',
+  'Lanús': 'Lanus.png',
+  'Lanus': 'Lanus.png',
+  'Platense': 'Platense.png',
+  'Racing': 'Racing.png',
+  'River Plate': 'RIVER_PLATE.png',
+  'Rosario Central': 'rosario_central.png',
+  'San Lorenzo': 'SAN_LORENZO.png',
+  'Tigre': 'TIGRE.png',
+  'Barracas Central': 'BARRACAS_CENTRAL.png',
+  'Deportivo Riestra': 'DEPORTIVO_RIESTRA.png',
+  'Estudiantes de La Plata': 'Estudiantes_de_La_Plata.png',
+  'Estudiantes LP': 'Estudiantes_de_La_Plata.png',
+  
+  // Brasil
+  'Atlético Mineiro': 'ATLETICO_MINEIRO.png',
+  'Bahia': 'bahia.png',
+  'Botafogo': 'BOTAFOGO.png',
+  'Bragantino': 'BRAGANTINO.png',
+  'RB Bragantino': 'BRAGANTINO.png',
+  'Corinthians': 'corinthians.png',
+  'Cruzeiro': 'Cruzeiro.png',
+  'Flamengo': 'Flamengo.png',
+  'Fluminense': 'Fluminense.png',
+  'Fortaleza': 'Fortaleza.png',
+  'Gremio': 'GREMIO.png',
+  'Mirassol': 'Mirassol.png',
+  'Palmeiras': 'Palmeiras.png',
+  'Santos': 'SANTOS.png',
+  'São Paulo': 'SAO_PAULO.png',
+  'Sao Paulo': 'SAO_PAULO.png',
+  'Vasco da Gama': 'VASCO_DA_GAMA.png',
+  
+  // Bolivia
+  'Bolívar': 'bolivar.png',
+  'Bolivar': 'bolivar.png',
+  'Blooming': 'BLOOMING.png',
+  'Always Ready': 'Always_Ready.png',
+  'Independiente Petrolero': 'INDEPENDIENTE_PETROLERO.png',
+  'Nacional Potosí': 'Nacional_Potosí.png',
+  'Nacional Potosi': 'Nacional_Potosí.png',
+  'The Strongest': 'The_Strongest.png',
+  
+  // Chile
+  'Audax Italiano': 'AUDAX_ITALIANO.png',
+  'Colo-Colo': 'colo-colo.png',
+  'Coquimbo Unido': 'coquimbo.png',
+  'Huachipato': 'huachipato.png',
+  "O'Higgins": 'ohiggins.webp',
+  'Palestino': 'PALESTINO.png',
+  'Recoleta': 'RECOLETA.png',
+  'Universidad Católica': 'uc.png',
+  'U. Católica': 'uc.png',
+  'Universidad de Chile': 'udechile.png',
+  'U. de Chile': 'udechile.png',
+  
+  // Colombia
+  'América de Cali': 'AMERICA_DE_CALI.png',
+  'Atlético Bucaramanga': 'AtléticoBucaramanga.png',
+  'Independiente Medellín': 'ind_medellin.png',
+  'Junior': 'junior_barranquilla.png',
+  'Junior Barranquilla': 'junior_barranquilla.png',
+  'Millonarios': 'MILLONARIOS.png',
+  'Santa Fe': 'Santa_Fe.png',
+  'Tolima': 'Tolima.png',
+  'Deportes Tolima': 'Tolima.png',
+  
+  // Ecuador
+  'Barcelona': 'Barcelona_SC.png',
+  'Barcelona SC': 'Barcelona_SC.png',
+  'Cienciano': 'CIENCIANO.png',
+  'Cuenca': 'CUENCA.png',
+  'Deportivo Cuenca': 'CUENCA.png',
+  'Independiente del Valle': 'Independiente_del_Valle.png',
+  'LDU': 'LDU.png',
+  'L.D.U. Quito': 'LDU.png',
+  'Liga de Quito': 'LDU.png',
+  'Macará': 'MACARA.png',
+  'Macara': 'MACARA.png',
+  'Universidad Católica Ecuador': 'Universidad_Católica_Ecuador.png',
+  
+  // Paraguay
+  '2 de Mayo': '2demayo.png',
+  'Cerro Porteño': 'Cerro_Porteno.png',
+  'Cerro Porteno': 'Cerro_Porteno.png',
+  'Guaraní': 'Guaraní.png',
+  'Guarani': 'Guaraní.png',
+  'Libertad': 'libertad.png',
+  'Olimpia': 'OLIMPIA.png',
+  
+  // Perú
+  'Alianza Atlético': 'ALIANZA_ATLETICO.png',
+  'Alianza Atletico': 'ALIANZA_ATLETICO.png',
+  'Alianza Lima': 'Alianza_Lima.png',
+  'Cusco': 'cusco.png',
+  'Cusco FC': 'cusco.png',
+  'Sporting Cristal': 'Sporting_Cristal.png',
+  'Universitario': 'Universitario.png',
+  
+  // Uruguay
+  'Atlético Juventud': 'ATLÉTICO_JUVENTUD.png',
+  'Boston River': 'ATLETICO_BOSTON_RIVER.png',
+  'Juventud': 'Juventud_de_Las_Piedras.png',
+  'Juventud de Las Piedras': 'Juventud_de_Las_Piedras.png',
+  'Liverpool': 'liverpool.png',
+  'Liverpool FC': 'liverpool.png',
+  'Montevideo City Torque': 'MONTEVIDEO_CITY_TORQUE.png',
+  'City Torque': 'MONTEVIDEO_CITY_TORQUE.png',
+  'Nacional': 'Nacional.png',
+  'Peñarol': 'Penarol.png',
+  'Penarol': 'Penarol.png',
+  
+  // Venezuela
+  'Caracas': 'CARACAS.png',
+  'Caracas FC': 'CARACAS.png',
+  'Carabobo': 'carabobo.png',
+  'Carabobo FC': 'carabobo.png',
+  'Deportivo Táchira': 'tachira.png',
+  'Deportivo Tachira': 'tachira.png',
+  'Deportivo La Guaira': 'depor_la_guauria.png',
+  'Puerto Cabello': 'PUERTO_CABELLO.png',
+  'Academia Puerto Cabello': 'PUERTO_CABELLO.png',
+  'Universidad Central': 'UNIVERSIDAD_CENTRAL.png',
+  'Universidad Central de Venezuela': 'ucentral_ven.png'
+};
+
 // Cache para almacenar logos en base64
 const logoCache = {};
 
@@ -57,7 +189,22 @@ const logoCache = {};
  */
 export function getLogoBase64(nombreEquipo) {
   // Normalizar apóstrofes: \u2019 (tipográfico) → ' (normal)
-  const nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  let nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  
+  // Extraer país entre paréntesis si existe (ej: "Palmeiras (BRA)" -> país = "BRA")
+  const matchPais = nombreNormalizado?.match(/\(([A-Z]{3})\)\s*$/i);
+  const pais = matchPais ? matchPais[1].toUpperCase() : null;
+  
+  // Eliminar país entre paréntesis (ej: "Palmeiras (BRA)" -> "Palmeiras")
+  nombreNormalizado = nombreNormalizado?.replace(/\s*\([A-Z]{3}\)\s*$/i, '').trim();
+  
+  // Casos especiales: equipos con mismo nombre pero diferentes países
+  if (nombreNormalizado === 'Independiente') {
+    if (pais === 'BOL') {
+      nombreNormalizado = 'Independiente Petrolero';
+    }
+    // Si es ARG, mantener "Independiente" para que busque el logo argentino
+  }
   
   // Si ya está en cache, retornar
   if (logoCache[nombreNormalizado]) {
@@ -72,6 +219,12 @@ export function getLogoBase64(nombreEquipo) {
   if (!archivoLogo) {
     archivoLogo = LOGOS_LIBERTADORES[nombreNormalizado];
     carpeta = 'copa_libertadores_logos_equipos';
+  }
+  
+  // Si no está en libertadores, buscar en sudamericana
+  if (!archivoLogo) {
+    archivoLogo = LOGOS_SUDAMERICANA[nombreNormalizado];
+    carpeta = 'copa_sudamericana_logos_equipos';
   }
   
   if (!archivoLogo) {
@@ -139,6 +292,13 @@ export function precargarLogos() {
   
   // Precargar logos de Libertadores
   Object.keys(LOGOS_LIBERTADORES).forEach(equipo => {
+    if (getLogoBase64(equipo)) {
+      cargados++;
+    }
+  });
+  
+  // Precargar logos de Sudamericana
+  Object.keys(LOGOS_SUDAMERICANA).forEach(equipo => {
     if (getLogoBase64(equipo)) {
       cargados++;
     }

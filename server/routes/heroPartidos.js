@@ -125,14 +125,17 @@ router.get("/", async (req, res) => {
       }
     }
 
-    // Ordenar todos los partidos: primero por competencia (Mundial al final), luego por jornada, bonus y fecha
+    // Ordenar todos los partidos con el siguiente criterio:
+    // 1. Torneo Nacional siempre primero
+    // 2. Libertadores y Sudamericana mezcladas por jornada (Jornada 1 de ambas, luego J2 de ambas, etc.)
+    // 3. Mundial al final
     partidos.sort((a, b) => {
-      // Primero por prioridad de competencia (menor número = mayor prioridad)
+      // Primero por prioridad de competencia
       const prioridadCompetencia = {
         'torneo_nacional': 1,
-        'libertadores': 2,
-        'sudamericana': 3,
-        'mundial': 4  // Mundial al final
+        'libertadores': 2,      // Misma prioridad para mezclar
+        'sudamericana': 2,      // Misma prioridad para mezclar
+        'mundial': 3            // Mundial al final
       };
       
       const prioA = prioridadCompetencia[a.competencia] || 99;
@@ -142,13 +145,16 @@ router.get("/", async (req, res) => {
         return prioA - prioB;
       }
       
-      // Luego por número de jornada (menor a mayor - más próximas primero)
+      // Si tienen la misma prioridad (ej: Libertadores y Sudamericana), ordenar por:
+      // 1. Número de jornada (menor a mayor) - esto mezcla jornada 1 de ambas, luego jornada 2, etc.
       if (a.jornada_numero !== b.jornada_numero) {
         return a.jornada_numero - b.jornada_numero;
       }
-      // Luego por bonus (mayor a menor)
+      
+      // 2. Por bonus (mayor a menor)
       if (b.bonus !== a.bonus) return b.bonus - a.bonus;
-      // Finalmente por fecha (más cercano primero)
+      
+      // 3. Finalmente por fecha (más cercano primero)
       return new Date(a.fecha) - new Date(b.fecha);
     });
 

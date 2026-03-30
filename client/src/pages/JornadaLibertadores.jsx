@@ -292,8 +292,8 @@ export default function JornadaLibertadores() {
     const nuevosPronosticos = {};
     partidos.forEach(partido => {
       nuevosPronosticos[partido.id] = {
-        goles_local: Math.floor(Math.random() * 5), // 0 a 4
-        goles_visita: Math.floor(Math.random() * 5), // 0 a 4
+        goles_local: Math.floor(Math.random() * 4), // 0 a 3
+        goles_visita: Math.floor(Math.random() * 4), // 0 a 3
       };
     });
     setPronosticos(nuevosPronosticos);
@@ -333,8 +333,8 @@ export default function JornadaLibertadores() {
             {
               partido_id: partido.id,
               jornada_id: jornadaActual.id,
-              goles_local: Math.floor(Math.random() * 5),
-              goles_visita: Math.floor(Math.random() * 5),
+              goles_local: Math.floor(Math.random() * 4),
+              goles_visita: Math.floor(Math.random() * 4),
               penales_local: null,
               penales_visita: null
             },
