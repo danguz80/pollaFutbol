@@ -16,6 +16,7 @@ export default function AdminLibertadoresResultados() {
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("success");
+  const [fechaCierre, setFechaCierre] = useState("");
 
   // Obtener jornadas al montar
   useEffect(() => {
@@ -104,10 +105,25 @@ export default function AdminLibertadoresResultados() {
       setJornadaCerrada(!!data.cerrada);
       setJornadaActiva(!!data.activa);
       setJornadaId(data.id);
+      
+      if (data.fecha_cierre) {
+        // Conversión UTC → hora local de Chile
+        const fechaUTC = new Date(data.fecha_cierre);
+        const año = fechaUTC.getFullYear();
+        const mes = String(fechaUTC.getMonth() + 1).padStart(2, '0');
+        const dia = String(fechaUTC.getDate()).padStart(2, '0');
+        const hora = String(fechaUTC.getHours()).padStart(2, '0');
+        const minutos = String(fechaUTC.getMinutes()).padStart(2, '0');
+        const fechaLocal = `${año}-${mes}-${dia}T${hora}:${minutos}`;
+        setFechaCierre(fechaLocal);
+      } else {
+        setFechaCierre("");
+      }
     } catch (err) {
       setJornadaCerrada(false);
       setJornadaActiva(false);
       setJornadaId(null);
+      setFechaCierre("");
     }
   };
 
@@ -351,6 +367,78 @@ export default function AdminLibertadoresResultados() {
     }
   };
 
+  const configurarFechaCierre = async () => {
+    if (!jornadaSeleccionada || !fechaCierre) {
+      alert("⚠️ Debes seleccionar una fecha y hora");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      // Conversión: Chile (local) → UTC
+      const fechaLocal = new Date(fechaCierre);
+      const fechaUTCString = fechaLocal.toISOString();
+      
+      const res = await fetch(`${API_BASE_URL}/api/libertadores/jornadas/${jornadaSeleccionada}/cierre`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ fecha_cierre: fechaUTCString })
+      });
+      
+      if (res.ok) {
+        await fetchJornadaInfo(jornadaSeleccionada);
+        
+        const [fecha, hora] = fechaCierre.split('T');
+        const [year, month, day] = fecha.split('-');
+        
+        setModalType("success");
+        setModalMessage(`✅ Fecha configurada: ${day}/${month}/${year} a las ${hora} hrs (hora local Chile)\n\nLa jornada ${jornadaSeleccionada} de Libertadores se cerrará automáticamente a esa hora.\n\nEl sistema revisa cada minuto.`);
+        setShowModal(true);
+      } else {
+        alert(`❌ Error al guardar`);
+      }
+    } catch (error) {
+      alert("❌ Error al configurar");
+    }
+  };
+
+  const eliminarFechaCierre = async () => {
+    if (!jornadaSeleccionada) return;
+    
+    if (!confirm("¿Eliminar la fecha de cierre automático?")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      const res = await fetch(`${API_BASE_URL}/api/libertadores/jornadas/${jornadaSeleccionada}/cierre`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ fecha_cierre: null })
+      });
+      
+      if (res.ok) {
+        setFechaCierre("");
+        await fetchJornadaInfo(jornadaSeleccionada);
+        
+        setModalType("success");
+        setModalMessage("✅ Fecha de cierre eliminada correctamente\n\nLa jornada ya no se cerrará automáticamente.");
+        setShowModal(true);
+      } else {
+        alert("❌ Error al eliminar fecha de cierre");
+      }
+    } catch (error) {
+      console.error("Error eliminando fecha de cierre:", error);
+      alert("❌ Error al eliminar fecha de cierre");
+    }
+  };
+
   const jornadasOrdenadas = [...jornadas].sort((a, b) => a.numero - b.numero);
 
   return (
@@ -431,6 +519,59 @@ export default function AdminLibertadoresResultados() {
                   <small className="text-muted">
                     {jornadaActiva ? "Activa: Visible para todos los jugadores" : "Inactiva: Oculta para los jugadores"}
                   </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cierre Automático de Jornada */}
+      {jornadaSeleccionada && (
+        <div className="card mb-4">
+          <div className="card-header bg-warning text-dark">
+            <h5>⏰ Cierre Automático de Jornada</h5>
+          </div>
+          <div className="card-body">
+            <p className="text-muted">
+              Configura una fecha y hora para que la jornada se cierre automáticamente. 
+              El sistema revisará cada minuto y cerrará la jornada cuando llegue la fecha configurada.
+            </p>
+            
+            <div className="row align-items-end">
+              <div className="col-md-6">
+                <label className="form-label fw-bold">Fecha y Hora de Cierre (Hora de Chile GMT-3)</label>
+                <input
+                  type="datetime-local"
+                  className="form-control form-control-lg"
+                  value={fechaCierre}
+                  onChange={(e) => setFechaCierre(e.target.value)}
+                />
+                {fechaCierre && (
+                  <div className="alert alert-success mt-2 mb-0">
+                    <strong>✅ Configurado:</strong> Se cerrará el {fechaCierre.split('T')[0].split('-').reverse().join('/')} a las {fechaCierre.split('T')[1]} hrs (Chile GMT-3)
+                    <br/>
+                    <small className="text-muted">La jornada se cerrará automáticamente a esta hora, sin importar dónde estés ubicado.</small>
+                  </div>
+                )}
+              </div>
+              <div className="col-md-6">
+                <div className="d-flex gap-2">
+                  <button
+                    className="btn btn-primary btn-lg"
+                    onClick={configurarFechaCierre}
+                    disabled={!fechaCierre}
+                  >
+                    💾 Guardar Fecha de Cierre
+                  </button>
+                  {fechaCierre && (
+                    <button
+                      className="btn btn-outline-danger btn-lg"
+                      onClick={eliminarFechaCierre}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
