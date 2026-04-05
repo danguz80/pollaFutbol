@@ -15,6 +15,7 @@ export default function ClasificacionLibertadores() {
   const [esAdmin, setEsAdmin] = useState(false);
   const [jornadaAbierta, setJornadaAbierta] = useState(false);
   const [participantes, setParticipantes] = useState([]);
+  const [noParticipantes, setNoParticipantes] = useState([]);
   
   // Rankings
   const [rankingJornada, setRankingJornada] = useState([]);
@@ -67,10 +68,18 @@ export default function ClasificacionLibertadores() {
   }, []);
 
   useEffect(() => {
+    if (jornadas.length === 0) return;
     cargarPronosticos();
     if (filtroJornada && filtroJornada !== '') {
       cargarRankings();
-      cargarGanadoresJornada(parseInt(filtroJornada));
+
+      // Solo cargar ganadores si la jornada está cerrada
+      const jornadaSel = jornadas.find(j => j.numero === parseInt(filtroJornada));
+      if (jornadaSel?.cerrada) {
+        cargarGanadoresJornada(parseInt(filtroJornada));
+      } else {
+        setGanadores(null);
+      }
       
       // Si es jornada 6, cargar clasificados
       if (parseInt(filtroJornada) === 6) {
@@ -84,7 +93,7 @@ export default function ClasificacionLibertadores() {
     }
     // Cargar ganadores acumulado siempre (no depende de filtro)
     cargarGanadoresAcumulado();
-  }, [filtroNombre, filtroPartido, filtroJornada]);
+  }, [filtroNombre, filtroPartido, filtroJornada, jornadas.length]);
 
   // Resetear filtro de partido cuando cambia la jornada
   useEffect(() => {
@@ -250,6 +259,19 @@ export default function ClasificacionLibertadores() {
         
         setParticipantes(usuariosUnicos);
         setPronosticos([]);
+
+        // Obtener todos los usuarios activos en libertadores para mostrar quién no ha subido pronósticos
+        try {
+          const todosRes = await fetch(`${API_URL}/api/usuarios`);
+          const todosUsuarios = await todosRes.json();
+          const usuariosSinPronosticos = todosUsuarios
+            .filter(u => u.activo_libertadores === true && !idsVistos.has(u.id) && u.rol !== 'admin')
+            .map(u => ({ id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil || null }));
+          setNoParticipantes(usuariosSinPronosticos);
+        } catch (err) {
+          console.error('Error cargando usuarios para no participantes:', err);
+          setNoParticipantes([]);
+        }
       } else {
         // Si es admin o la jornada está cerrada, mostrar pronósticos normalmente
         if (!esAdmin) {
@@ -259,6 +281,7 @@ export default function ClasificacionLibertadores() {
           setPronosticos(response.data);
         }
         setParticipantes([]);
+        setNoParticipantes([]);
       }
     } catch (error) {
       console.error('Error cargando pronósticos:', error);
@@ -1214,43 +1237,88 @@ export default function ClasificacionLibertadores() {
             <span className="visually-hidden">Cargando...</span>
           </div>
         </div>
-      ) : !esAdmin && jornadaAbierta && participantes.length > 0 ? (
-        /* Mostrar solo participantes si la jornada está abierta */
-        <div className="card shadow-sm mb-4">
-          <div className="card-header bg-warning text-dark">
-            <h5 className="mb-0">⏳ Jornada Abierta - Participantes que han subido pronósticos</h5>
+      ) : !esAdmin && jornadaAbierta ? (
+        /* Mostrar participantes y no participantes si la jornada está abierta */
+        <div>
+          <div className="alert alert-info text-center mb-4">
+            <h5>⏳ Jornada Abierta</h5>
+            <p className="mb-0">Los pronósticos se mostrarán una vez que se cierre la jornada.</p>
+            <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
           </div>
-          <div className="card-body">
-            <p className="text-muted mb-4">
-              Esta jornada aún está abierta. Los pronósticos se revelarán cuando la jornada se cierre.
-            </p>
-            <div className="row g-3">
-              {participantes.map((participante) => (
-                <div key={participante.id} className="col-6 col-sm-4 col-md-3 col-lg-2">
-                  <div className="card h-100 text-center">
-                    <div className="card-body p-3">
-                      <img
-                        src={participante.foto_perfil || '/perfil/default.png'}
-                        alt={participante.nombre}
-                        className="rounded-circle mb-2"
-                        style={{ width: '80px', height: '80px', objectFit: 'cover' }}
-                        onError={(e) => {
-                          e.target.src = '/perfil/default.png';
-                        }}
-                      />
-                      <p className="mb-0 small fw-bold">{participante.nombre}</p>
-                      <span className="badge bg-success mt-1">✓ Pronóstico enviado</span>
+
+          {participantes.length > 0 && (
+            <div className="card mb-3">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">✅ Participantes que ya subieron sus pronósticos ({participantes.length})</h5>
+              </div>
+              <div className="card-body">
+                <div className="row g-3">
+                  {participantes.map((participante) => (
+                    <div key={participante.id} className="col-6 col-md-4 col-lg-3">
+                      <div className="card h-100 shadow-sm">
+                        <div className="card-body text-center p-2">
+                          {participante.foto_perfil ? (
+                            <img
+                              src={participante.foto_perfil.startsWith('/') ? participante.foto_perfil : `/perfil/${participante.foto_perfil}`}
+                              alt={participante.nombre}
+                              className="rounded-circle mb-2"
+                              style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-circle bg-secondary d-flex align-items-center justify-content-center mb-2 mx-auto"
+                              style={{ width: '60px', height: '60px' }}
+                            >
+                              <span className="text-white fs-4">{(participante.nombre || 'U').charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <p className="mb-0 small fw-bold">{participante.nombre}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-            <div className="text-center mt-4">
-              <p className="text-muted mb-0">
-                <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante ha' : 'participantes han'} enviado sus pronósticos
-              </p>
+          )}
+
+          {noParticipantes.length > 0 && (
+            <div className="card">
+              <div className="card-header bg-warning text-dark">
+                <h5 className="mb-0">⏳ Participantes que AÚN NO han ingresado pronósticos ({noParticipantes.length})</h5>
+              </div>
+              <div className="card-body">
+                <div className="row g-3">
+                  {noParticipantes.map((p) => (
+                    <div key={p.id} className="col-6 col-md-4 col-lg-3">
+                      <div className="card h-100 shadow-sm border-warning">
+                        <div className="card-body text-center p-2">
+                          {p.foto_perfil ? (
+                            <img
+                              src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
+                              alt={p.nombre}
+                              className="rounded-circle mb-2 opacity-50"
+                              style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-circle bg-warning d-flex align-items-center justify-content-center mb-2 mx-auto opacity-50"
+                              style={{ width: '60px', height: '60px' }}
+                            >
+                              <span className="text-dark fs-4">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <p className="mb-0 small fw-bold text-muted">{p.nombre}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : pronosticos.length === 0 ? (
         <div className="alert alert-info text-center">

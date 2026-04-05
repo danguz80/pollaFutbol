@@ -431,6 +431,87 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
       }
     }
 
+    // ============================================
+    // 7. MUNDIAL - Ganadores de Jornadas (Estándar)
+    // ============================================
+    if (competenciaParam === 'todas' || competenciaParam === 'mundial') {
+      const tablaGanadoresExiste = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'mundial_ganadores_jornada'
+        )
+      `);
+
+      if (tablaGanadoresExiste.rows[0].exists) {
+        const ganadoresJornadasMundial = await pool.query(`
+          SELECT
+            $1::integer as anio,
+            'Mundial' as competencia,
+            'estandar' as tipo,
+            mgj.jornada_numero::text as categoria,
+            u.id as usuario_id,
+            NULL as nombre_manual,
+            ROW_NUMBER() OVER (PARTITION BY mgj.jornada_numero ORDER BY mgj.puntos DESC, u.nombre) as posicion,
+            mgj.puntos as puntos
+          FROM mundial_ganadores_jornada mgj
+          JOIN usuarios u ON mgj.usuario_id = u.id
+          WHERE NOT EXISTS (
+            SELECT 1 FROM rankings_historicos rh
+            WHERE rh.anio = $1::integer
+              AND rh.competencia = 'Mundial'
+              AND rh.tipo = 'estandar'
+              AND rh.categoria = mgj.jornada_numero::text
+              AND rh.usuario_id = u.id
+          )
+        `, [temporada]);
+
+        nuevosRegistros.push(...ganadoresJornadasMundial.rows);
+      }
+    }
+
+    // ============================================
+    // 8. MUNDIAL - Ganador Acumulado (Mayor)
+    // ============================================
+    if (competenciaParam === 'todas' || competenciaParam === 'mundial') {
+      const tablaAcumExiste = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'mundial_ganadores_acumulado'
+        )
+      `);
+
+      if (tablaAcumExiste.rows[0].exists) {
+        const ganadorAcumuladoMundial = await pool.query(`
+          SELECT * FROM (
+            SELECT
+              $1::integer as anio,
+              'Mundial' as competencia,
+              'mayor' as tipo,
+              NULL as categoria,
+              mga.usuario_id,
+              NULL as nombre_manual,
+              ROW_NUMBER() OVER (ORDER BY mga.puntos_totales DESC, u.nombre) as posicion,
+              mga.puntos_totales as puntos
+            FROM mundial_ganadores_acumulado mga
+            JOIN usuarios u ON mga.usuario_id = u.id
+            ORDER BY mga.puntos_totales DESC, u.nombre
+            LIMIT 3
+          ) ranking
+          WHERE NOT EXISTS (
+            SELECT 1 FROM rankings_historicos rh
+            WHERE rh.anio = $1::integer
+              AND rh.competencia = 'Mundial'
+              AND rh.tipo = 'mayor'
+              AND rh.usuario_id = ranking.usuario_id
+          )
+        `, [temporada]);
+
+        nuevosRegistros.push(...ganadorAcumuladoMundial.rows);
+      }
+    }
+
     // Insertar los nuevos registros
     const registrosInsertados = [];
     for (const registro of nuevosRegistros) {
@@ -461,7 +542,8 @@ router.post("/actualizar", verifyToken, authorizeRoles("admin"), async (req, res
       mensaje: `Se detectaron y agregaron ${registrosInsertados.length} nuevos registros para ${
         competenciaParam === 'libertadores' ? 'Copa Libertadores' : 
         competenciaParam === 'sudamericana' ? 'Copa Sudamericana' :
-        competenciaParam === 'nacional' ? 'Torneo Nacional' : 
+        competenciaParam === 'nacional' ? 'Torneo Nacional' :
+        competenciaParam === 'mundial' ? 'Mundial' :
         'todas las competencias'
       }`,
       total: registrosInsertados.length,

@@ -22,6 +22,9 @@ export default function ClasificacionMundial() {
   const [pronosticos, setPronosticos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [esAdmin, setEsAdmin] = useState(false);
+  const [jornadaAbierta, setJornadaAbierta] = useState(false);
+  const [participantes, setParticipantes] = useState([]);
+  const [noParticipantes, setNoParticipantes] = useState([]);
   
   // Rankings
   const [rankingJornada, setRankingJornada] = useState([]);
@@ -54,12 +57,19 @@ export default function ClasificacionMundial() {
   }, []);
 
   useEffect(() => {
+    if (jornadas.length === 0) return;
     cargarPronosticos();
     cargarRankings();
     if (filtroJornada) {
-      cargarGanadoresJornada(filtroJornada);
+      // Solo cargar ganadores si la jornada está cerrada
+      const jornadaSel = jornadas.find(j => j.numero === parseInt(filtroJornada));
+      if (jornadaSel?.cerrada) {
+        cargarGanadoresJornada(filtroJornada);
+      } else {
+        setGanadores(null);
+      }
     }
-  }, [filtroNombre, filtroPartido, filtroJornada]);
+  }, [filtroNombre, filtroPartido, filtroJornada, jornadas.length]);
 
   // Resetear filtro de partido cuando cambia la jornada
   useEffect(() => {
@@ -115,7 +125,47 @@ export default function ClasificacionMundial() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setPronosticos(response.data);
+      // Verificar si la jornada seleccionada está abierta (no cerrada)
+      const jornadaSeleccionada = jornadas.find(j => j.numero === parseInt(filtroJornada));
+      const estaAbierta = jornadaSeleccionada && !jornadaSeleccionada.cerrada;
+      setJornadaAbierta(estaAbierta);
+
+      // Si no es admin y la jornada está abierta, mostrar participantes y no participantes
+      if (!esAdmin && estaAbierta) {
+        const usuariosUnicos = [];
+        const idsVistos = new Set();
+
+        response.data.forEach(p => {
+          if (!idsVistos.has(p.usuario.id)) {
+            idsVistos.add(p.usuario.id);
+            usuariosUnicos.push({
+              id: p.usuario.id,
+              nombre: p.usuario.nombre,
+              foto_perfil: p.usuario.foto_perfil
+            });
+          }
+        });
+
+        setParticipantes(usuariosUnicos);
+        setPronosticos([]);
+
+        // Obtener todos los usuarios activos en mundial para mostrar quién no ha subido pronósticos
+        try {
+          const todosRes = await fetch(`${API_URL}/api/usuarios`);
+          const todosUsuarios = await todosRes.json();
+          const usuariosSinPronosticos = todosUsuarios
+            .filter(u => u.activo_mundial === true && !idsVistos.has(u.id) && u.rol !== 'admin')
+            .map(u => ({ id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil || null }));
+          setNoParticipantes(usuariosSinPronosticos);
+        } catch (err) {
+          console.error('Error cargando usuarios para no participantes:', err);
+          setNoParticipantes([]);
+        }
+      } else {
+        setPronosticos(response.data);
+        setParticipantes([]);
+        setNoParticipantes([]);
+      }
     } catch (error) {
       console.error('Error cargando pronósticos:', error);
     } finally {
@@ -477,7 +527,89 @@ export default function ClasificacionMundial() {
       </div>
 
       {/* Tabla de Pronósticos */}
-      {pronosticos.length > 0 ? (
+      {!esAdmin && jornadaAbierta ? (
+        <div>
+          <div className="alert alert-info text-center mb-4">
+            <h5>⏳ Jornada Abierta</h5>
+            <p className="mb-0">Los pronósticos se mostrarán una vez que se cierre la jornada.</p>
+            <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
+          </div>
+
+          {participantes.length > 0 && (
+            <div className="card mb-3">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">✅ Participantes que ya subieron sus pronósticos ({participantes.length})</h5>
+              </div>
+              <div className="card-body">
+                <div className="row g-3">
+                  {participantes.map((participante) => (
+                    <div key={participante.id} className="col-6 col-md-4 col-lg-3">
+                      <div className="card h-100 shadow-sm">
+                        <div className="card-body text-center p-2">
+                          {participante.foto_perfil ? (
+                            <img
+                              src={participante.foto_perfil.startsWith('/') ? participante.foto_perfil : `/perfil/${participante.foto_perfil}`}
+                              alt={participante.nombre}
+                              className="rounded-circle mb-2"
+                              style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-circle bg-secondary d-flex align-items-center justify-content-center mb-2 mx-auto"
+                              style={{ width: '60px', height: '60px' }}
+                            >
+                              <span className="text-white fs-4">{(participante.nombre || 'U').charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <p className="mb-0 small fw-bold">{participante.nombre}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {noParticipantes.length > 0 && (
+            <div className="card">
+              <div className="card-header bg-warning text-dark">
+                <h5 className="mb-0">⏳ Participantes que AÚN NO han ingresado pronósticos ({noParticipantes.length})</h5>
+              </div>
+              <div className="card-body">
+                <div className="row g-3">
+                  {noParticipantes.map((p) => (
+                    <div key={p.id} className="col-6 col-md-4 col-lg-3">
+                      <div className="card h-100 shadow-sm border-warning">
+                        <div className="card-body text-center p-2">
+                          {p.foto_perfil ? (
+                            <img
+                              src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
+                              alt={p.nombre}
+                              className="rounded-circle mb-2 opacity-50"
+                              style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-circle bg-warning d-flex align-items-center justify-content-center mb-2 mx-auto opacity-50"
+                              style={{ width: '60px', height: '60px' }}
+                            >
+                              <span className="text-dark fs-4">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <p className="mb-0 small fw-bold text-muted">{p.nombre}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : pronosticos.length > 0 ? (
         <>
           {agruparPronosticos().map((grupo, grupoIndex) => (
             <div key={`grupo-${grupo.usuario_id}-${grupoIndex}`} className="mb-4">
