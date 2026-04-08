@@ -34,6 +34,12 @@ export default function NavegacionLibertadores() {
       icono: '🎮',
       texto: 'Simulador',
       color: 'info'
+    },
+    {
+      ruta: '/resumen-jornada-libertadores',
+      icono: '📊',
+      texto: 'Resumen',
+      color: 'secondary'
     }
   ];
 

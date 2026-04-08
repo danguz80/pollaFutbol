@@ -135,6 +135,87 @@ router.get('/todos/jornada/:numero', verifyToken, async (req, res) => {
   }
 });
 
+// GET /resumen/jornada/:jornada - Resumen agrupado de pronósticos por jornada
+router.get('/resumen/jornada/:jornada', verifyToken, async (req, res) => {
+  const { jornada } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT 
+        sp.partido_id,
+        pa.nombre_local,
+        pa.nombre_visita,
+        pa.fecha,
+        sp.goles_local,
+        sp.goles_visita,
+        u.id as usuario_id,
+        u.nombre as usuario_nombre,
+        u.foto_perfil
+      FROM sudamericana_pronosticos sp
+      JOIN sudamericana_partidos pa ON sp.partido_id = pa.id
+      JOIN sudamericana_jornadas j ON pa.jornada_id = j.id
+      JOIN usuarios u ON sp.usuario_id = u.id
+      WHERE j.numero = $1
+        AND u.activo_sudamericana = true
+        AND u.rol != 'admin'
+      ORDER BY pa.fecha ASC, pa.id ASC, sp.goles_local, sp.goles_visita`,
+      [jornada]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ partidos: [], totalPronosticos: 0 });
+    }
+
+    const partidosMap = new Map();
+    result.rows.forEach(row => {
+      if (!partidosMap.has(row.partido_id)) {
+        partidosMap.set(row.partido_id, {
+          partido_id: row.partido_id,
+          nombre_local: row.nombre_local,
+          nombre_visita: row.nombre_visita,
+          fecha: row.fecha,
+          pronosticos: []
+        });
+      }
+      partidosMap.get(row.partido_id).pronosticos.push({
+        goles_local: row.goles_local,
+        goles_visita: row.goles_visita,
+        usuario_id: row.usuario_id,
+        usuario_nombre: row.usuario_nombre,
+        foto_perfil: row.foto_perfil
+      });
+    });
+
+    const partidosAgrupados = Array.from(partidosMap.values()).map(partido => {
+      const grupos = new Map();
+      partido.pronosticos.forEach(pron => {
+        const key = `${pron.goles_local}-${pron.goles_visita}`;
+        if (!grupos.has(key)) {
+          grupos.set(key, { resultado: key, goles_local: pron.goles_local, goles_visita: pron.goles_visita, cantidad: 0, porcentaje: 0, usuarios: [] });
+        }
+        const g = grupos.get(key);
+        g.cantidad++;
+        g.usuarios.push({ id: pron.usuario_id, nombre: pron.usuario_nombre, foto_perfil: pron.foto_perfil });
+      });
+      grupos.forEach(g => {
+        g.porcentaje = ((g.cantidad / partido.pronosticos.length) * 100).toFixed(1);
+      });
+      return {
+        partido_id: partido.partido_id,
+        nombre_local: partido.nombre_local,
+        nombre_visita: partido.nombre_visita,
+        fecha: partido.fecha,
+        total_pronosticos: partido.pronosticos.length,
+        grupos: Array.from(grupos.values()).sort((a, b) => b.cantidad - a.cantidad)
+      };
+    });
+
+    res.json({ jornada: parseInt(jornada), partidos: partidosAgrupados, totalPronosticos: result.rows.length });
+  } catch (error) {
+    console.error('Error obteniendo resumen Sudamericana:', error);
+    res.status(500).json({ error: 'No se pudo obtener el resumen', detalles: error.message });
+  }
+});
+
 // POST - Guardar pronósticos de un usuario para una jornada
 router.post('/guardar', verifyToken, async (req, res) => {
   const client = await pool.connect();

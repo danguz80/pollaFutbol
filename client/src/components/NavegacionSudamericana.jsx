@@ -34,6 +34,12 @@ export default function NavegacionSudamericana() {
       icono: '🎮',
       texto: 'Simulador',
       color: 'info'
+    },
+    {
+      ruta: '/resumen-jornada-sudamericana',
+      icono: '📊',
+      texto: 'Resumen',
+      color: 'secondary'
     }
   ];
 

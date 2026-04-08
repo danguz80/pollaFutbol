@@ -55,6 +55,8 @@ import TodasNotificaciones from "./pages/TodasNotificaciones";
 import SimuladorResultados from "./pages/SimuladorResultados";
 import SimuladorLibertadores from "./pages/SimuladorLibertadores";
 import SimuladorSudamericana from "./pages/SimuladorSudamericana";
+import ResumenJornadaLibertadores from "./pages/ResumenJornadaLibertadores";
+import ResumenJornadaSudamericana from "./pages/ResumenJornadaSudamericana";
 
 export default function AppRouter() {
   const { notificacionActual, mostrandoModal, cerrarNotificacion } = useNotificaciones();
@@ -184,6 +186,8 @@ export default function AppRouter() {
         <Route path="/simulador-resultados" element={<SimuladorResultados />} />
         <Route path="/simulador-libertadores" element={<SimuladorLibertadores />} />
         <Route path="/simulador-sudamericana" element={<SimuladorSudamericana />} />
+        <Route path="/resumen-jornada-libertadores" element={<ResumenJornadaLibertadores />} />
+        <Route path="/resumen-jornada-sudamericana" element={<ResumenJornadaSudamericana />} />
         <Route path="/libertadores" element={<Libertadores />} />
         <Route path="/libertadores/jornada/:numero" element={<JornadaLibertadores />} />
         <Route path="/libertadores/estadisticas" element={<EstadisticasLibertadores />} />
