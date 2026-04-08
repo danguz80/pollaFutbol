@@ -975,32 +975,6 @@ export default function ClasificacionSudamericana() {
       {/* Botonera Principal */}
       <NavegacionSudamericana />
 
-      {/* Mostrar ganador acumulado guardado si existe */}
-      {ganadoresAcumulado && Array.isArray(ganadoresAcumulado.ganadores) && ganadoresAcumulado.ganadores.length > 0 && !mostrarGanadoresAcumulado && (
-        <div className="alert alert-warning text-center mb-4">
-          <h5 className="mb-3">
-            🏆 Top 3 Ranking Acumulado
-          </h5>
-          <div className="d-flex justify-content-center gap-3 flex-wrap">
-            {ganadoresAcumulado.ganadores.map((ganador, index) => (
-              <div key={index} className="text-center">
-                {ganador.foto_perfil && (
-                  <img
-                    src={ganador.foto_perfil}
-                    alt={ganador.nombre}
-                    className="rounded-circle mb-2"
-                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
-                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
-                  />
-                )}
-                <p className="mb-0 fw-bold">{ganador.nombre}</p>
-                <span className="badge bg-warning text-dark">{parseInt(ganador.puntaje) || 0} puntos</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Mostrar ganadores guardados si existen (sin modal) */}
       {ganadores && Array.isArray(ganadores.ganadores) && ganadores.ganadores.length > 0 && !mostrarGanadores && (
         <div className="alert alert-info text-center mb-4">

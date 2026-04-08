@@ -533,87 +533,35 @@ router.get('/:jornadaNumero', async (req, res) => {
   }
   
   try {
-    // Calcular ganadores DIRECTAMENTE desde el ranking (siempre actualizado)
-    const incluirClasificacion = true;
-    
-    const rankingQuery = jornadaNumero === 10 
-      ? `
-        SELECT 
-          u.id,
-          u.nombre,
-          u.foto_perfil,
-          COALESCE(puntos_partidos.total, 0) as puntos_jornada
-        FROM usuarios u
-        LEFT JOIN (
-          SELECT lp.usuario_id, SUM(lp.puntos) as total
-          FROM libertadores_pronosticos lp
-          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-          WHERE lj.numero = $1
-          GROUP BY lp.usuario_id
-        ) puntos_partidos ON u.id = puntos_partidos.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL
-        ORDER BY puntos_jornada DESC, u.nombre ASC
-      `
-      : `
-        SELECT 
-          u.id,
-          u.nombre,
-          u.foto_perfil,
-          ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10)
-            ? 'COALESCE(puntos_partidos.total, 0) as puntos_jornada' 
-            : 'COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_jornada'}
-        FROM usuarios u
-        LEFT JOIN (
-          SELECT lp.usuario_id, SUM(lp.puntos) as total
-          FROM libertadores_pronosticos lp
-          INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
-          WHERE lj.numero = $1
-          GROUP BY lp.usuario_id
-        ) puntos_partidos ON u.id = puntos_partidos.usuario_id
-        ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : `
-        LEFT JOIN (
-          SELECT usuario_id, SUM(puntos) as total
-          FROM libertadores_puntos_clasificacion
-          WHERE jornada_numero = $1
-          GROUP BY usuario_id
-        ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        `}
-        WHERE puntos_partidos.total IS NOT NULL ${(jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) ? '' : 'OR puntos_clasificacion.total IS NOT NULL'}
-        ORDER BY puntos_jornada DESC, u.nombre ASC
-      `;
+    // Leer ganadores guardados desde la tabla (solo existen después de presionar "Calcular Ganadores")
+    const result = await pool.query(
+      `SELECT lgj.puntaje, lgj.fecha_calculo, u.id as usuario_id, u.nombre, u.foto_perfil
+       FROM libertadores_ganadores_jornada lgj
+       INNER JOIN usuarios u ON lgj.usuario_id = u.id
+       WHERE lgj.jornada_numero = $1
+       ORDER BY lgj.puntaje DESC, u.nombre ASC`,
+      [jornadaNumero]
+    );
 
-    const ranking = await pool.query(rankingQuery, [jornadaNumero]);
-    
-    if (ranking.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.json({ ganadores: [], mensaje: null });
     }
-    
-    // Obtener el puntaje máximo
-    const maxPuntaje = parseInt(ranking.rows[0].puntos_jornada);
-    
-    // Si el máximo es 0, no hay ganadores reales aún
-    if (maxPuntaje <= 0) {
-      return res.json({ ganadores: [], mensaje: null });
-    }
-    
-    // Filtrar todos los que tienen el puntaje máximo (pueden ser varios en empate)
-    const ganadores = ranking.rows
-      .filter(row => parseInt(row.puntos_jornada) === maxPuntaje)
-      .map(row => ({
-        nombre: row.nombre,
-        puntaje: maxPuntaje,
-        foto_perfil: row.foto_perfil
-      }));
-    
-    const mensaje = ganadores.length === 1 
+
+    const ganadores = result.rows.map(row => ({
+      nombre: row.nombre,
+      foto_perfil: row.foto_perfil,
+      puntaje: parseInt(row.puntaje)
+    }));
+
+    const mensaje = ganadores.length === 1
       ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}`
       : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}`;
-    
+
     res.json({
       jornadaNumero,
       ganadores,
       mensaje,
-      fechaCalculo: new Date()
+      fechaCalculo: result.rows[0].fecha_calculo
     });
     
   } catch (error) {
