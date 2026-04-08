@@ -28,6 +28,12 @@ export default function NavegacionLibertadores() {
       icono: '⭐',
       texto: 'Ganadores',
       color: 'success'
+    },
+    {
+      ruta: '/simulador-libertadores',
+      icono: '🎮',
+      texto: 'Simulador',
+      color: 'info'
     }
   ];
 

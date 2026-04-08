@@ -28,6 +28,12 @@ export default function NavegacionSudamericana() {
       icono: '⭐',
       texto: 'Ganadores',
       color: 'success'
+    },
+    {
+      ruta: '/simulador-sudamericana',
+      icono: '🎮',
+      texto: 'Simulador',
+      color: 'info'
     }
   ];
 

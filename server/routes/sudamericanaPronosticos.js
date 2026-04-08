@@ -106,6 +106,35 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
+// GET /todos/jornada/:numero - Obtener todos los pronósticos de todos los usuarios (simulador)
+router.get('/todos/jornada/:numero', verifyToken, async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const result = await pool.query(`
+      SELECT
+        u.id AS usuario_id,
+        u.nombre AS usuario,
+        u.foto_perfil AS usuario_foto_perfil,
+        sp.partido_id,
+        sp.goles_local,
+        sp.goles_visita,
+        p.nombre_local,
+        p.nombre_visita,
+        p.bonus
+      FROM sudamericana_pronosticos sp
+      JOIN usuarios u ON sp.usuario_id = u.id
+      JOIN sudamericana_partidos p ON sp.partido_id = p.id
+      JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
+      WHERE sj.numero = $1
+      ORDER BY u.nombre, p.id
+    `, [numero]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo todos los pronósticos:', error);
+    res.status(500).json({ error: 'Error obteniendo pronósticos' });
+  }
+});
+
 // POST - Guardar pronósticos de un usuario para una jornada
 router.post('/guardar', verifyToken, async (req, res) => {
   const client = await pool.connect();
