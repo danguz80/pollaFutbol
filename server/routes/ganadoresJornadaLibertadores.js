@@ -591,6 +591,11 @@ router.get('/:jornadaNumero', async (req, res) => {
     // Obtener el puntaje máximo
     const maxPuntaje = parseInt(ranking.rows[0].puntos_jornada);
     
+    // Si el máximo es 0, no hay ganadores reales aún
+    if (maxPuntaje <= 0) {
+      return res.json({ ganadores: [], mensaje: null });
+    }
+    
     // Filtrar todos los que tienen el puntaje máximo (pueden ser varios en empate)
     const ganadores = ranking.rows
       .filter(row => parseInt(row.puntos_jornada) === maxPuntaje)
@@ -1838,5 +1843,41 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
     throw error;
   }
 }
+
+// POST /:jornadaNumero/pdf-final - Generar PDF completo con resultados bajo demanda
+router.post('/:jornadaNumero/pdf-final', verifyToken, checkRole('admin'), async (req, res) => {
+  const jornadaNumero = parseInt(req.params.jornadaNumero);
+
+  if (isNaN(jornadaNumero)) {
+    return res.status(400).json({ error: 'Número de jornada inválido' });
+  }
+
+  try {
+    console.log(`📄 Generando PDF Final Libertadores Jornada ${jornadaNumero}...`);
+
+    // Obtener ganadores guardados de la jornada (puede estar vacío si aún no se calcularon)
+    const ganadoresResult = await pool.query(
+      `SELECT u.nombre, u.foto_perfil, lgj.puntaje
+       FROM libertadores_ganadores_jornada lgj
+       JOIN usuarios u ON lgj.usuario_id = u.id
+       WHERE lgj.jornada_numero = $1
+       ORDER BY lgj.puntaje DESC`,
+      [jornadaNumero]
+    );
+
+    const ganadores = ganadoresResult.rows.map(r => ({
+      nombre: r.nombre,
+      foto_perfil: r.foto_perfil,
+      puntaje: r.puntaje
+    }));
+
+    await generarPDFLibertadoresConGanadores(jornadaNumero, ganadores);
+
+    res.json({ ok: true, mensaje: 'PDF generado y enviado exitosamente' });
+  } catch (error) {
+    console.error('Error generando PDF Final Libertadores:', error);
+    res.status(500).json({ error: 'Error generando PDF completo', details: error.message });
+  }
+});
 
 export default router;

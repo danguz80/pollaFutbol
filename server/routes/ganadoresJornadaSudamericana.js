@@ -1387,4 +1387,40 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
   }
 }
 
+// POST /:jornadaNumero/pdf-final - Generar PDF completo con resultados bajo demanda
+router.post('/:jornadaNumero/pdf-final', verifyToken, checkRole('admin'), async (req, res) => {
+  const jornadaNumero = parseInt(req.params.jornadaNumero);
+
+  if (isNaN(jornadaNumero)) {
+    return res.status(400).json({ error: 'Número de jornada inválido' });
+  }
+
+  try {
+    console.log(`📄 Generando PDF Final Sudamericana Jornada ${jornadaNumero}...`);
+
+    // Obtener ganadores guardados de la jornada (puede estar vacío si aún no se calcularon)
+    const ganadoresResult = await pool.query(
+      `SELECT u.nombre, u.foto_perfil, sgj.puntaje
+       FROM sudamericana_ganadores_jornada sgj
+       JOIN usuarios u ON sgj.usuario_id = u.id
+       WHERE sgj.jornada_numero = $1
+       ORDER BY sgj.puntaje DESC`,
+      [jornadaNumero]
+    );
+
+    const ganadores = ganadoresResult.rows.map(r => ({
+      nombre: r.nombre,
+      foto_perfil: r.foto_perfil,
+      puntaje: r.puntaje
+    }));
+
+    await generarPDFSudamericanaConGanadores(jornadaNumero, ganadores);
+
+    res.json({ ok: true, mensaje: 'PDF generado y enviado exitosamente' });
+  } catch (error) {
+    console.error('Error generando PDF Final Sudamericana:', error);
+    res.status(500).json({ error: 'Error generando PDF completo', details: error.message });
+  }
+});
+
 export default router;
