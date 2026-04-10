@@ -11,11 +11,13 @@ export default function Sudamericana() {
   const [jornadas, setJornadas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState([]);
+  const [ultimosGanadores, setUltimosGanadores] = useState(null);
   const [fotoPerfilMap, setFotoPerfilMap] = useState({});
 
   useEffect(() => {
     cargarJornadas();
     cargarRanking();
+    cargarUltimosGanadores();
   }, []);
 
   const cargarJornadas = async () => {
@@ -56,6 +58,35 @@ export default function Sudamericana() {
     }
   };
 
+  const cargarUltimosGanadores = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const jornadasResponse = await axios.get(`${API_URL}/api/sudamericana/jornadas`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const jornadaCerrada = jornadasResponse.data
+        .filter(j => j.cerrada)
+        .sort((a, b) => b.numero - a.numero)[0];
+
+      if (jornadaCerrada) {
+        const ganadoresResponse = await axios.get(
+          `${API_URL}/api/sudamericana-ganadores-jornada/${jornadaCerrada.numero}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (ganadoresResponse.data.ganadores && Array.isArray(ganadoresResponse.data.ganadores) && ganadoresResponse.data.ganadores.length > 0) {
+          setUltimosGanadores({
+            jornada: jornadaCerrada.numero,
+            ganadores: ganadoresResponse.data.ganadores
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando últimos ganadores:', error);
+    }
+  };
+
   const getSubtitulo = (numero) => {
     if (numero <= 6) return 'Fase de Grupos';
     if (numero === 7) return 'Play-Offs Ida/Vuelta';
@@ -93,6 +124,29 @@ export default function Sudamericana() {
 
       {/* Hero Section con partidos destacados de Sudamericana */}
       <HeroSection competencia="sudamericana" />
+
+      {/* Banner de Últimos Ganadores */}
+      {ultimosGanadores && (
+        <div className="alert alert-success text-center mb-4 py-3">
+          <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3">
+            <h5 className="mb-0 d-flex align-items-center gap-3 flex-wrap justify-content-center">
+              <span>🏆 Últimos ganadores en la Jornada {ultimosGanadores.jornada}:</span>
+              {ultimosGanadores.ganadores.map((ganador, index) => (
+                <span key={index} className="d-inline-flex align-items-center gap-2 bg-white px-3 py-2 rounded shadow-sm">
+                  <img
+                    src={ganador.foto_perfil || '/perfil/default.png'}
+                    alt={ganador.nombre}
+                    className="rounded-circle"
+                    style={{ width: '40px', height: '40px', objectFit: 'cover', border: '2px solid #28a745' }}
+                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                  />
+                  <strong className="text-dark">{ganador.nombre}</strong>
+                </span>
+              ))}
+            </h5>
+          </div>
+        </div>
+      )}
 
       {/* Top 3 Ranking General - Solo si hay puntos */}
       {ranking.length > 0 && ranking[0]?.puntos_acumulados > 0 && (
