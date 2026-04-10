@@ -505,6 +505,9 @@ export default function ClasificacionSudamericana() {
       setGanadores(response.data);
       setMostrarGanadores(true);
       
+      // Notificar al hook global para que recargue las notificaciones pendientes
+      window.dispatchEvent(new Event('nuevaNotificacion'));
+      
       // Mostrar modal con resultado
       const pdfInfo = response.data.pdfGenerado 
         ? '\n\n📧 PDF enviado por email con:\n• Ganadores destacados con fotos\n• Ranking de la jornada\n• Ranking acumulado\n• Todos los pronósticos y resultados' 
@@ -561,6 +564,9 @@ export default function ClasificacionSudamericana() {
 
       setGanadoresAcumulado(response.data);
       setMostrarGanadoresAcumulado(true);
+      
+      // Notificar al hook global para que recargue las notificaciones pendientes
+      window.dispatchEvent(new Event('nuevaNotificacion'));
       
       // Mostrar modal con resultado
       setModalType("success");
