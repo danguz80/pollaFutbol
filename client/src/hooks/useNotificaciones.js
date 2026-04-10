@@ -16,15 +16,17 @@ export const useNotificaciones = () => {
       cargarNotificacionesPendientes();
     }
     
-    // Escuchar evento de login para recargar notificaciones
+    // Escuchar evento de login y de nueva notificación para recargar
     const handleLogin = () => {
       cargarNotificacionesPendientes();
     };
     
     window.addEventListener('userLoggedIn', handleLogin);
+    window.addEventListener('nuevaNotificacion', handleLogin);
     
     return () => {
       window.removeEventListener('userLoggedIn', handleLogin);
+      window.removeEventListener('nuevaNotificacion', handleLogin);
     };
   }, []);
 

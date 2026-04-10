@@ -1198,6 +1198,27 @@ async function cierreAutomaticoJornadas() {
 
       console.log(`✅ Jornada ${jornada.numero} de Sudamericana cerrada automáticamente`);
     }
+
+    // 4. Buscar jornadas de MUNDIAL abiertas con fecha_cierre definida y que ya hayan pasado esa fecha
+    const resultMundial = await pool.query(`
+      SELECT id, numero, fecha_cierre, cerrada, nombre
+      FROM mundial_jornadas 
+      WHERE cerrada = false 
+        AND fecha_cierre IS NOT NULL 
+        AND fecha_cierre <= NOW()
+    `);
+
+    for (const jornada of resultMundial.rows) {
+      console.log(`🔒 Cerrando automáticamente ${jornada.nombre || 'Jornada ' + jornada.numero} de Mundial`);
+      
+      // Cerrar la jornada
+      await pool.query(
+        "UPDATE mundial_jornadas SET cerrada = true WHERE id = $1",
+        [jornada.id]
+      );
+
+      console.log(`✅ Jornada ${jornada.numero} de Mundial cerrada automáticamente`);
+    }
   } catch (err) {
     console.error('❌ Error en cierre automático de jornadas:', err);
   }

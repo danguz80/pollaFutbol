@@ -14,16 +14,20 @@ router.get('/estadisticas', async (req, res) => {
     `);
     
     // Obtener todos los partidos con resultados (solo fase de grupos)
+    // Los nombres en partidos incluyen el país entre paréntesis (ej: "Boston River (URU)")
+    // por eso se normalizan con REGEXP_REPLACE para el JOIN y se retorna el nombre limpio
     const partidosResult = await pool.query(`
       SELECT 
         p.nombre_local,
         p.nombre_visita,
         p.goles_local,
         p.goles_visita,
+        REGEXP_REPLACE(p.nombre_local, ' \\([A-Z]{3}\\)$', '') AS nombre_local_limpio,
+        REGEXP_REPLACE(p.nombre_visita, ' \\([A-Z]{3}\\)$', '') AS nombre_visita_limpio,
         el.grupo as grupo_local
       FROM sudamericana_partidos p
       INNER JOIN sudamericana_jornadas j ON p.jornada_id = j.id
-      LEFT JOIN sudamericana_equipos el ON el.nombre = p.nombre_local
+      LEFT JOIN sudamericana_equipos el ON el.nombre = REGEXP_REPLACE(p.nombre_local, ' \\([A-Z]{3}\\)$', '')
       WHERE p.goles_local IS NOT NULL 
         AND p.goles_visita IS NOT NULL
         AND j.numero <= 6
@@ -54,8 +58,12 @@ router.get('/estadisticas', async (req, res) => {
 
     // Procesar cada partido
     partidos.forEach(partido => {
-      const local = estadisticas[partido.nombre_local];
-      const visita = estadisticas[partido.nombre_visita];
+      // Usar el nombre limpio (sin país) para buscar en el diccionario de estadísticas
+      const nombreLocal = partido.nombre_local_limpio;
+      const nombreVisita = partido.nombre_visita_limpio;
+
+      const local = estadisticas[nombreLocal];
+      const visita = estadisticas[nombreVisita];
       
       if (!local || !visita) return;
 
@@ -71,21 +79,21 @@ router.get('/estadisticas', async (req, res) => {
         local.pg++;
         local.pts += 3;
         visita.pp++;
-        local.enfrentamientos[partido.nombre_visita] = 'ganado';
-        visita.enfrentamientos[partido.nombre_local] = 'perdido';
+        local.enfrentamientos[nombreVisita] = 'ganado';
+        visita.enfrentamientos[nombreLocal] = 'perdido';
       } else if (partido.goles_local < partido.goles_visita) {
         visita.pg++;
         visita.pts += 3;
         local.pp++;
-        visita.enfrentamientos[partido.nombre_local] = 'ganado';
-        local.enfrentamientos[partido.nombre_visita] = 'perdido';
+        visita.enfrentamientos[nombreLocal] = 'ganado';
+        local.enfrentamientos[nombreVisita] = 'perdido';
       } else {
         local.pe++;
         visita.pe++;
         local.pts += 1;
         visita.pts += 1;
-        local.enfrentamientos[partido.nombre_visita] = 'empatado';
-        visita.enfrentamientos[partido.nombre_local] = 'empatado';
+        local.enfrentamientos[nombreVisita] = 'empatado';
+        visita.enfrentamientos[nombreLocal] = 'empatado';
       }
 
       local.dif = local.gf - local.gc;

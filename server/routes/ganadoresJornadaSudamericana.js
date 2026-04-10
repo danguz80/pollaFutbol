@@ -1172,7 +1172,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
             <h3 class="usuario-nombre">${usuario}</h3>
           </div>
           <div class="usuario-total">
-            Partidos: ${puntosTotal} pts
+            Puntaje: ${puntosTotal} pts
             ${puntosClasificacion > 0 ? `<br/>Clasificación: ${puntosClasificacion} pts` : ''}
           </div>
         </div>
@@ -1224,14 +1224,6 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
             </tr>
         `;
       });
-
-      // Agregar fila de TOTAL de partidos
-      html += `
-            <tr style="background-color: #f8f9fa; font-weight: bold; border-top: 3px solid #28a745;">
-              <td colspan="4" style="text-align: right; padding: 12px;">TOTAL PARTIDOS:</td>
-              <td style="text-align: center; font-size: 18px; color: #28a745;">${puntosTotal}</td>
-            </tr>
-      `;
 
       // AGREGAR FILAS DE CLASIFICACIÓN para jornada 6, 7, 8, 9 y 10
       if ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {

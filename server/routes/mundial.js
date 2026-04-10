@@ -427,11 +427,12 @@ router.patch('/jornadas/:numero/fecha-cierre', verifyToken, authorizeRoles('admi
     
     // Crear notificación de fecha de cierre actualizada
     if (fecha_cierre) {
-      const fechaFormateada = new Date(fecha_cierre).toLocaleString('es-ES', {
+      const fechaFormateada = new Date(fecha_cierre).toLocaleString('es-CL', {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'America/Santiago'
       });
       
       await pool.query(

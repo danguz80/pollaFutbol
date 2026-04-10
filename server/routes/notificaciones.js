@@ -5,15 +5,19 @@ import { verifyToken } from '../middleware/verifyToken.js';
 const router = express.Router();
 
 // GET: Obtener notificaciones pendientes para el usuario actual
-// Devuelve solo la notificación MÁS RECIENTE por competencia que el usuario no ha visto
+// Devuelve la notificación de ganador más reciente por competencia (si no vista) Y la informativa más reciente (si no vista)
 router.get('/pendientes', verifyToken, async (req, res) => {
   try {
     const usuarioId = req.usuario.id;
     
-    // Obtener la notificación más reciente de cada competencia que el usuario NO ha visto
+    // Obtener por separado: la más reciente de GANADORES y la más reciente de OTRAS por competencia
+    // Así, una nueva notificación de resultados no oculta una notificación de ganador no leída
     const notificaciones = await pool.query(`
       WITH ultimas_notificaciones AS (
-        SELECT DISTINCT ON (competencia)
+        SELECT DISTINCT ON (competencia, CASE
+            WHEN tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado') THEN 'ganador'
+            ELSE 'otra'
+          END)
           id,
           competencia,
           tipo,
@@ -25,7 +29,9 @@ router.get('/pendientes', verifyToken, async (req, res) => {
           url,
           fecha_calculo
         FROM notificaciones
-        ORDER BY competencia, fecha_calculo DESC
+        ORDER BY competencia,
+          CASE WHEN tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado') THEN 'ganador' ELSE 'otra' END,
+          fecha_calculo DESC
       )
       SELECT 
         un.id,
@@ -45,7 +51,9 @@ router.get('/pendientes', verifyToken, async (req, res) => {
         WHERE nl.notificacion_id = un.id 
           AND nl.usuario_id = $1
       )
-      ORDER BY un.fecha_calculo DESC
+      ORDER BY
+        CASE WHEN un.tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado') THEN 0 ELSE 1 END,
+        un.fecha_calculo DESC
     `, [usuarioId]);
     
     res.json(notificaciones.rows);
