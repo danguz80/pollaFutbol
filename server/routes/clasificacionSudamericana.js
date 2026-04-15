@@ -47,8 +47,8 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       INNER JOIN usuarios u ON sp.usuario_id = u.id
       INNER JOIN sudamericana_partidos p ON sp.partido_id = p.id
       INNER JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
-      LEFT JOIN sudamericana_equipos el ON p.nombre_local = el.nombre
-      LEFT JOIN sudamericana_equipos ev ON p.nombre_visita = ev.nombre
+      LEFT JOIN sudamericana_equipos el ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+      LEFT JOIN sudamericana_equipos ev ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_visita, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(ev.nombre))
       LEFT JOIN sudamericana_pronosticos_final_virtual spfv ON sp.usuario_id = spfv.usuario_id 
         AND sj.id = spfv.jornada_id
       WHERE 1=1
@@ -149,8 +149,8 @@ router.get('/partidos', verifyToken, async (req, res) => {
         ev.grupo as grupo_visita
       FROM sudamericana_partidos p
       INNER JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
-      LEFT JOIN sudamericana_equipos el ON p.nombre_local = el.nombre
-      LEFT JOIN sudamericana_equipos ev ON p.nombre_visita = ev.nombre
+      LEFT JOIN sudamericana_equipos el ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+      LEFT JOIN sudamericana_equipos ev ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_visita, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(ev.nombre))
       ORDER BY sj.numero, p.fecha
     `);
 

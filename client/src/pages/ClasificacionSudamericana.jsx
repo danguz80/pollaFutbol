@@ -1312,10 +1312,22 @@ export default function ClasificacionSudamericana() {
                       {/* TABLA DE PARTIDOS */}
                       <h5 className="mt-4 mb-3 text-success">⚽ Pronósticos de Partidos - {grupo.jugador}</h5>
                       <table className="table table-bordered table-hover">
-                        <thead className="table-success">
+                        <thead>
                           <tr>
-                            <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                            <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                            <th colSpan={6} className="py-2 text-center" style={{ background: '#000000' }}>
+                              <div className="d-flex align-items-center justify-content-center gap-2">
+                                <img
+                                  src={grupo.foto_perfil || '/perfil/default.png'}
+                                  alt={grupo.jugador}
+                                  className="rounded-circle"
+                                  style={{ width: '35px', height: '35px', objectFit: 'cover' }}
+                                  onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                                />
+                                <span className="fw-bold fs-5 text-white">Jugador: {grupo.jugador}</span>
+                              </div>
+                            </th>
+                          </tr>
+                          <tr className="table-dark">
                             <th className="text-center" style={{ width: '80px' }}>Grupo</th>
                             <th className="text-center">Partido</th>
                             <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
@@ -1327,23 +1339,6 @@ export default function ClasificacionSudamericana() {
                         <tbody>
                           {pronosticosPartidos.map((pronostico, index) => (
                             <tr key={`partido-${pronostico.id}-${index}`} className={getResultadoClase(pronostico)}>
-                              <td className="fw-bold">
-                                <div className="d-flex align-items-center gap-2">
-                                  <img
-                                    src={grupo.foto_perfil || '/perfil/default.png'}
-                                    alt={pronostico.usuario?.nombre || 'Usuario'}
-                                    className="rounded-circle"
-                                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                    onError={(e) => { e.target.src = '/perfil/default.png'; }}
-                                  />
-                                  <span>{pronostico.usuario?.nombre || '-'}</span>
-                                </div>
-                              </td>
-                              <td className="text-center">
-                                <span className="badge bg-success">
-                                  Jornada {pronostico.jornada?.numero || '-'}
-                                </span>
-                              </td>
                               <td className="text-center">
                                 {pronostico.partido?.grupo ? (
                                   <span className="badge bg-info">Grupo {pronostico.partido.grupo}</span>
@@ -1489,7 +1484,7 @@ export default function ClasificacionSudamericana() {
                           ))}
                           {/* TOTAL PARTIDOS */}
                           <tr className="table-dark fw-bold">
-                            <td colSpan="7" className="text-end">TOTAL PARTIDOS:</td>
+                            <td colSpan="5" className="text-end">TOTAL PARTIDOS:</td>
                             <td className="text-center">
                               <span className="badge bg-dark fs-5">{puntosPartidos} pts</span>
                             </td>
@@ -1502,10 +1497,22 @@ export default function ClasificacionSudamericana() {
                         <>
                           <h5 className="mt-4 mb-3 text-success">⚡ Equipos Clasificados - {grupo.jugador}</h5>
                           <table className="table table-bordered table-hover">
-                            <thead className="table-success">
+                            <thead>
                               <tr>
-                                <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                                <th className="text-center" style={{ width: '100px' }}>Jornada</th>
+                                <th colSpan={5} className="py-2 text-center" style={{ background: '#000000' }}>
+                                  <div className="d-flex align-items-center justify-content-center gap-2">
+                                    <img
+                                      src={grupo.foto_perfil || '/perfil/default.png'}
+                                      alt={grupo.jugador}
+                                      className="rounded-circle"
+                                      style={{ width: '35px', height: '35px', objectFit: 'cover' }}
+                                      onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                                    />
+                                    <span className="fw-bold fs-5 text-white">Jugador: {grupo.jugador}</span>
+                                  </div>
+                                </th>
+                              </tr>
+                              <tr className="table-dark">
                                 <th className="text-center" style={{ width: '80px' }}>Grupo</th>
                                 <th className="text-center">Clasificación</th>
                                 <th className="text-center" style={{ width: '150px' }}>Equipo Pronosticado</th>
@@ -1517,23 +1524,6 @@ export default function ClasificacionSudamericana() {
                               {pronosticosClasificados.length > 0 ? (
                                 pronosticosClasificados.map((pronostico, index) => (
                                   <tr key={`clasif-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
-                                    <td className="fw-bold">
-                                      <div className="d-flex align-items-center gap-2">
-                                        <img
-                                          src={grupo.foto_perfil || '/perfil/default.png'}
-                                          alt={pronostico.usuario?.nombre || 'Usuario'}
-                                          className="rounded-circle"
-                                          style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
-                                        />
-                                        <span>{pronostico.usuario.nombre}</span>
-                                      </div>
-                                    </td>
-                                    <td className="text-center">
-                                      <span className="badge bg-primary">
-                                        Jornada {pronostico.jornada.numero}
-                                      </span>
-                                    </td>
                                     <td className="text-center">
                                       <span className="badge bg-warning text-dark">{pronostico.partido.grupo}</span>
                                     </td>
@@ -1566,7 +1556,7 @@ export default function ClasificacionSudamericana() {
                                 if (!grupo.clasificacion || grupo.clasificacion.length === 0) {
                                   return (
                                     <tr className="table-warning">
-                                      <td colSpan="7" className="text-center">
+                                      <td colSpan="5" className="text-center">
                                         <em>Este usuario no ha completado sus pronósticos de la Jornada 10</em>
                                       </td>
                                     </tr>
@@ -1586,21 +1576,6 @@ export default function ClasificacionSudamericana() {
 
                                 return clasificacionesOrdenadas.map((clasif, idx) => (
                                   <tr key={idx} className={clasif.puntos > 0 ? 'table-success' : 'table-danger'}>
-                                    <td className="fw-bold">
-                                      <div className="d-flex align-items-center gap-2">
-                                        <img
-                                          src={grupo.foto_perfil || '/perfil/default.png'}
-                                          alt={grupo.jugador}
-                                          className="rounded-circle"
-                                          style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                          onError={(e) => { e.target.src = '/perfil/default.png'; }}
-                                        />
-                                        <span>{grupo.jugador}</span>
-                                      </div>
-                                    </td>
-                                    <td className="text-center">
-                                      <span className="badge bg-primary">Jornada 10</span>
-                                    </td>
                                     <td className="text-center">
                                       <span className="badge bg-warning text-dark">Clasificados</span>
                                     </td>
@@ -1633,23 +1608,6 @@ export default function ClasificacionSudamericana() {
                                 grupo.clasificacion && grupo.clasificacion.length > 0 ? (
                                   grupo.clasificacion.map((clasif, idx) => (
                                     <tr key={idx} className="table-light">
-                                      <td className="fw-bold">
-                                        {idx === 0 && (
-                                          <div className="d-flex align-items-center gap-2">
-                                            <img
-                                              src={grupo.foto_perfil || '/perfil/default.png'}
-                                              alt={grupo.jugador}
-                                              className="rounded-circle"
-                                              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
-                                            />
-                                            <span>{grupo.jugador}</span>
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="text-center">
-                                        {idx === 0 && <span className="badge bg-primary">Jornada {selectedJornada}</span>}
-                                      </td>
                                       <td className="text-center">
                                         {idx === 0 && <span className="badge bg-warning text-dark">Clasificados</span>}
                                       </td>
@@ -1680,7 +1638,7 @@ export default function ClasificacionSudamericana() {
                             </tbody>
                             <tfoot className="table-dark">
                               <tr>
-                                <td colSpan="6" className="text-end fw-bold">TOTAL CLASIFICACIÓN:</td>
+                                <td colSpan="4" className="text-end fw-bold">TOTAL CLASIFICACIÓN:</td>
                                 <td className="text-center">
                                   <span className="badge bg-dark fs-5">{puntosClasificados} pts</span>
                                 </td>
@@ -1709,58 +1667,38 @@ export default function ClasificacionSudamericana() {
             ) : (
               /* Para otras jornadas: tabla única como antes */
               <table className="table table-bordered table-hover">
-                <thead className="table-success">
-                  <tr>
-                    <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                    <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                    <th className="text-center" style={{ width: '80px' }}>Grupo</th>
-                    <th className="text-center">Partido</th>
-                    <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
-                    <th className="text-center" style={{ width: '100px' }}>Resultado</th>
-                    <th className="text-center" style={{ width: '60px' }}>Bonus</th>
-                    <th className="text-center" style={{ width: '80px' }}>Puntos</th>
-                  </tr>
-                </thead>
                 <tbody>
                   {agruparPronosticos().map((grupo, grupoIndex) => (
                     <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
-                      {/* Encabezado para cada grupo de usuario */}
-                      {grupoIndex > 0 && (
-                        <tr className="table-success">
-                          <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                          <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                          <th className="text-center" style={{ width: '80px' }}>Grupo</th>
-                          <th className="text-center">Partido</th>
-                          <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
-                          <th className="text-center" style={{ width: '100px' }}>Resultado</th>
-                          <th className="text-center" style={{ width: '60px' }}>Bonus</th>
-                          <th className="text-center" style={{ width: '80px' }}>Puntos</th>
-                        </tr>
-                      )}
+                      {/* Encabezado con foto y nombre del jugador */}
+                      <tr>
+                        <td colSpan={6} className="py-2" style={{ background: '#000000' }}>
+                          <div className="d-flex align-items-center justify-content-center gap-2">
+                            <img
+                              src={grupo.foto_perfil || '/perfil/default.png'}
+                              alt={grupo.jugador}
+                              className="rounded-circle"
+                              style={{ width: '35px', height: '35px', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                            />
+                            <span className="fw-bold fs-5 text-white">Jugador: {grupo.jugador}</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Cabeceras de columnas */}
+                      <tr className="table-dark">
+                        <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                        <th className="text-center">Partido</th>
+                        <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
+                        <th className="text-center" style={{ width: '100px' }}>Resultado</th>
+                        <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                        <th className="text-center" style={{ width: '80px' }}>Puntos</th>
+                      </tr>
                       {grupo.pronosticos.map((pronostico, index) => (
                       <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
                         {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
                         {pronostico.esClasificado ? (
                           <tr className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
-                            <td className="fw-bold">
-                              <div className="d-flex align-items-center gap-2">
-                                <img
-                                  src={grupo.foto_perfil || '/perfil/default.png'}
-                                  alt={pronostico.usuario?.nombre || 'Usuario'}
-                                  className="rounded-circle"
-                                  style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                  onError={(e) => {
-                                    e.target.src = '/perfil/default.png';
-                                  }}
-                                />
-                                <span>{pronostico.usuario.nombre}</span>
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <span className="badge bg-primary">
-                                Jornada {pronostico.jornada.numero}
-                              </span>
-                            </td>
                             <td className="text-center">
                               <span className="badge bg-warning text-dark">Clasificados</span>
                             </td>
@@ -1795,25 +1733,6 @@ export default function ClasificacionSudamericana() {
                         ) : (
                           /* FILA NORMAL DE PARTIDO */
                           <tr className={getResultadoClase(pronostico)}>
-                            <td className="fw-bold">
-                              <div className="d-flex align-items-center gap-2">
-                                <img
-                                  src={grupo.foto_perfil || '/perfil/default.png'}
-                                  alt={pronostico.usuario?.nombre || 'Usuario'}
-                                  className="rounded-circle"
-                                  style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                  onError={(e) => {
-                                    e.target.src = '/perfil/default.png';
-                                  }}
-                                />
-                                <span>{pronostico.usuario?.nombre || '-'}</span>
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <span className="badge bg-success">
-                                Jornada {pronostico.jornada?.numero || '-'}
-                              </span>
-                            </td>
                             <td className="text-center">
                               {pronostico.partido?.tipo_partido === 'IDA' || pronostico.partido?.tipo_partido === 'VUELTA' ? (
                                 <div className="d-flex flex-column gap-1">
@@ -1923,7 +1842,7 @@ export default function ClasificacionSudamericana() {
                       
                       {/* FILA TOTAL */}
                       <tr className="table-dark fw-bold">
-                        <td colSpan="7" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
+                        <td colSpan="5" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
                         <td className="text-center">
                           <span className="badge bg-dark fs-5">
                             {parseInt(grupo.puntaje_total, 10) || 0} pts
@@ -1933,7 +1852,7 @@ export default function ClasificacionSudamericana() {
                       {/* Separador entre grupos */}
                       {grupoIndex < agruparPronosticos().length - 1 && (
                         <tr style={{ height: '30px', backgroundColor: '#e9ecef' }}>
-                          <td colSpan="8" className="p-0 text-center align-middle">
+                          <td colSpan="6" className="p-0 text-center align-middle">
                             <button
                               className="btn btn-sm btn-outline-secondary"
                               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}

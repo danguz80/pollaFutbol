@@ -1371,7 +1371,6 @@ export default function ClasificacionLibertadores() {
                           </th>
                         </tr>
                         <tr className="table-dark">
-                          <th className="text-center" style={{ width: '100px' }}>Jornada</th>
                           <th className="text-center" style={{ width: '120px' }}>Grupo</th>
                           <th className="text-center">Partido</th>
                           <th className="text-center" style={{ width: '120px' }}>Pronóstico</th>
@@ -1383,11 +1382,6 @@ export default function ClasificacionLibertadores() {
                       <tbody>
                         {pronosticosPartidos.map((pronostico, index) => (
                           <tr key={`partido-${grupo.usuario_id}-${pronostico.id}-${index}`} className={getResultadoClase(pronostico)}>
-                            <td className="text-center">
-                              <span className="badge bg-primary">
-                                Jornada {pronostico.jornada.numero}
-                              </span>
-                            </td>
                             <td className="text-center">
                               {parseInt(filtroJornada) === 6 ? (
                                 pronostico.partido.grupo ? (
@@ -1519,7 +1513,7 @@ export default function ClasificacionLibertadores() {
                         ))}
                         {/* TOTAL PARTIDOS */}
                         <tr className="table-dark fw-bold">
-                          <td colSpan="6" className="text-end">TOTAL PARTIDOS:</td>
+                          <td colSpan="5" className="text-end">TOTAL PARTIDOS:</td>
                           <td className="text-center">
                             <span className="badge bg-dark fs-5">{puntosPartidos} pts</span>
                           </td>
@@ -1539,7 +1533,7 @@ export default function ClasificacionLibertadores() {
                           {/* ENCABEZADO CON JUGADOR */}
                           <thead>
                             <tr className="table-light">
-                              <th colSpan="6" className="text-center">
+                              <th colSpan="5" className="text-center">
                                 <div className="d-flex align-items-center justify-content-center gap-2">
                                   <img
                                     src={grupo.foto_perfil || '/perfil/default.png'}
@@ -1553,7 +1547,6 @@ export default function ClasificacionLibertadores() {
                               </th>
                             </tr>
                             <tr className="table-dark">
-                              <th className="text-center" style={{ width: '100px' }}>Jornada</th>
                               <th className="text-center" style={{ width: '120px' }}>Grupo</th>
                               <th className="text-center">Clasificación</th>
                               <th className="text-center" style={{ width: '200px' }}>Equipo Pronosticado</th>
@@ -1587,9 +1580,6 @@ export default function ClasificacionLibertadores() {
 
                               return clasificacionesOrdenadas.map((clasif, idx) => (
                                 <tr key={`j10-clasif-${grupo.usuario_id}-${idx}`} className={clasif.puntos > 0 ? 'table-success' : 'table-danger'}>
-                                  <td className="text-center">
-                                    <span className="badge bg-primary">Jornada 10</span>
-                                  </td>
                                   <td className="text-center">
                                     {clasif.fase_clasificado === 'FINALISTA' ? (
                                       <span className="badge bg-success">Semifinal</span>
@@ -1642,11 +1632,6 @@ export default function ClasificacionLibertadores() {
                             })() : pronosticosClasificados.length > 0 ? (
                               pronosticosClasificados.map((pronostico, index) => (
                                 <tr key={`j6-clasif-${grupo.usuario_id}-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
-                                  <td className="text-center">
-                                    <span className="badge bg-primary">
-                                      Jornada {pronostico.jornada.numero}
-                                    </span>
-                                  </td>
                                   <td className="text-center">
                                     {parseInt(filtroJornada) === 6 ? (
                                       <span className="badge bg-warning text-dark">Grupo {pronostico.partido.grupo}</span>
@@ -1791,9 +1776,6 @@ export default function ClasificacionLibertadores() {
                                 grupo.clasificacion.map((clasif, idx) => (
                                   <tr key={`j${filtroJornada}-clasif-${grupo.usuario_id}-${idx}`} className={clasif.puntos > 0 ? 'table-success' : 'table-danger'}>
                                     <td className="text-center">
-                                      <span className="badge bg-primary">Jornada {filtroJornada}</span>
-                                    </td>
-                                    <td className="text-center">
                                       {parseInt(filtroJornada) === 8 ? (
                                         <span className="badge bg-info">Octavos</span>
                                       ) : parseInt(filtroJornada) === 9 ? (
@@ -1850,7 +1832,7 @@ export default function ClasificacionLibertadores() {
                           <tfoot>
                             {/* TOTAL CLASIFICACIÓN */}
                             <tr className="table-dark fw-bold">
-                              <td colSpan="5" className="text-end">TOTAL CLASIFICACIÓN:</td>
+                              <td colSpan="4" className="text-end">TOTAL CLASIFICACIÓN:</td>
                               <td className="text-center">
                                 <span className="badge bg-dark fs-5">{puntosClasificados} pts</span>
                               </td>
@@ -1880,45 +1862,38 @@ export default function ClasificacionLibertadores() {
             /* Para otras jornadas: tabla única como antes */
             <div className="table-responsive">
               <table className="table table-bordered table-hover">
-                <thead className="table-dark">
-                  <tr>
-                    <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                    <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                    <th className="text-center" style={{ width: '80px' }}>Grupo</th>
-                    <th className="text-center">Partido</th>
-                    <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
-                    <th className="text-center" style={{ width: '100px' }}>Resultado</th>
-                    <th className="text-center" style={{ width: '60px' }}>Bonus</th>
-                    <th className="text-center" style={{ width: '80px' }}>Puntos</th>
-                  </tr>
-                </thead>
                 <tbody>
                   {agruparPronosticos().map((grupo, grupoIndex) => (
                     <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
-                      {/* Encabezado para cada grupo de usuario */}
-                      {grupoIndex > 0 && (
-                        <tr className="table-dark">
-                          <th className="text-center" style={{ width: '150px' }}>Jugador</th>
-                          <th className="text-center" style={{ width: '100px' }}>Jornada</th>
-                          <th className="text-center" style={{ width: '80px' }}>Grupo</th>
-                          <th className="text-center">Partido</th>
-                          <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
-                          <th className="text-center" style={{ width: '100px' }}>Resultado</th>
-                          <th className="text-center" style={{ width: '60px' }}>Bonus</th>
-                          <th className="text-center" style={{ width: '80px' }}>Puntos</th>
-                        </tr>
-                      )}
+                      {/* Encabezado con foto y nombre del jugador */}
+                      <tr>
+                        <td colSpan={6} className="py-2" style={{ background: '#000000' }}>
+                          <div className="d-flex align-items-center justify-content-center gap-2">
+                            <img
+                              src={grupo.foto_perfil || '/perfil/default.png'}
+                              alt={grupo.jugador}
+                              className="rounded-circle"
+                              style={{ width: '35px', height: '35px', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                            />
+                            <span className="fw-bold fs-5 text-white">Jugador: {grupo.jugador}</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Cabeceras de columnas */}
+                      <tr className="table-dark">
+                        <th className="text-center" style={{ width: '80px' }}>Grupo</th>
+                        <th className="text-center">Partido</th>
+                        <th className="text-center" style={{ width: '100px' }}>Pronóstico</th>
+                        <th className="text-center" style={{ width: '100px' }}>Resultado</th>
+                        <th className="text-center" style={{ width: '60px' }}>Bonus</th>
+                        <th className="text-center" style={{ width: '80px' }}>Puntos</th>
+                      </tr>
                       {grupo.pronosticos.map((pronostico, index) => (
                         <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
                           {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
                           {pronostico.esClasificado ? (
                           <tr className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
-                            <td className="fw-bold">{pronostico.usuario.nombre}</td>
-                            <td className="text-center">
-                              <span className="badge bg-primary">
-                                Jornada {pronostico.jornada.numero}
-                              </span>
-                            </td>
                             <td className="text-center">
                               <span className="badge bg-warning text-dark">Clasificados</span>
                             </td>
@@ -2051,12 +2026,6 @@ export default function ClasificacionLibertadores() {
                           /* FILA NORMAL DE PARTIDO */
                           <>
                             <tr key={pronostico.id} className={getResultadoClase(pronostico)}>
-                              <td className="fw-bold">{pronostico.usuario.nombre}</td>
-                              <td className="text-center">
-                                <span className="badge bg-primary">
-                                  Jornada {pronostico.jornada.numero}
-                                </span>
-                              </td>
                               <td className="text-center">
                                 {pronostico.jornada.numero >= 7 && pronostico.jornada.numero <= 10 && pronostico.partido.tipo_partido ? (
                                   <span className={`badge ${
@@ -2313,7 +2282,7 @@ export default function ClasificacionLibertadores() {
                       
                       return (
                         <tr className="table-info">
-                          <td colSpan="4" className="text-center">
+                          <td colSpan="2" className="text-center">
                             <div className="mb-2">
                               <strong>🏆 Cuadro Final</strong>
                             </div>
@@ -2372,7 +2341,7 @@ export default function ClasificacionLibertadores() {
                     
                     {/* FILA 9: TOTAL - Solo para todas las jornadas */}
                     <tr className="table-dark fw-bold">
-                      <td colSpan="7" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
+                      <td colSpan="5" className="text-end">TOTAL {grupo.jugador} - Jornada {grupo.jornada}:</td>
                       <td className="text-center">
                         <span className="badge bg-dark fs-5">
                           {(() => {
@@ -2390,7 +2359,7 @@ export default function ClasificacionLibertadores() {
                     {/* Separador entre grupos */}
                     {grupoIndex < agruparPronosticos().length - 1 && (
                       <tr style={{ height: '30px', backgroundColor: '#e9ecef' }}>
-                        <td colSpan="8" className="p-0 text-center align-middle">
+                        <td colSpan="6" className="p-0 text-center align-middle">
                           <button
                             className="btn btn-sm btn-outline-secondary"
                             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
