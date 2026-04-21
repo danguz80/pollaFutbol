@@ -27,6 +27,9 @@ export default function NavigationBar() {
             {rol === 'admin' && (
               <Nav.Link as={NavLink} to="/admin">⚙️ Admin</Nav.Link>
             )}
+            {(rol === 'admin' || rol === 'tesorero') && (
+              <Nav.Link as={NavLink} to="/tesoreria">💰 Tesorería</Nav.Link>
+            )}
           </Nav>
 
           <Nav className="align-items-center">

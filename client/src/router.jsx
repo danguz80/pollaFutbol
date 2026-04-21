@@ -57,6 +57,8 @@ import SimuladorLibertadores from "./pages/SimuladorLibertadores";
 import SimuladorSudamericana from "./pages/SimuladorSudamericana";
 import ResumenJornadaLibertadores from "./pages/ResumenJornadaLibertadores";
 import ResumenJornadaSudamericana from "./pages/ResumenJornadaSudamericana";
+import Tesoreria from "./pages/Tesoreria";
+import RutaProtegidaTesoreria from "./components/RutaProtegidaTesoreria";
 
 export default function AppRouter() {
   const { notificacionActual, mostrandoModal, cerrarNotificacion } = useNotificaciones();
@@ -79,6 +81,12 @@ export default function AppRouter() {
         <Route path="/resumen-jornada" element={<ResumenJornada />} />
         <Route path="/cuadro-final" element={<CuadroFinal />} />
         <Route path="/ganadores-jornada" element={<GanadoresJornada />} />
+
+        <Route path="/tesoreria" element={
+          <RutaProtegidaTesoreria>
+            <Tesoreria />
+          </RutaProtegidaTesoreria>
+        } />
 
         <Route path="/admin" element={
           <RutaProtegidaAdmin>

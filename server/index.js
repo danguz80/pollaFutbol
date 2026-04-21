@@ -52,6 +52,7 @@ import mundialClasificadosRoutes from "./routes/mundialClasificados.js";
 import clasificacionMundialRoutes from "./routes/clasificacionMundial.js";
 import puntuacionMundialRoutes from "./routes/puntuacionMundial.js";
 import calcularPuntosMundialRoutes from "./routes/calcularPuntosMundial.js";
+import tesoreriaRoutes from "./routes/tesoreria.js";
 
 dotenv.config();
 
@@ -332,10 +333,94 @@ app.use('/api/mundial-clasificacion', clasificacionMundialRoutes);
 app.use('/api/mundial-clasificados', mundialClasificadosRoutes);
 app.use('/api/mundial-puntuacion', puntuacionMundialRoutes);
 app.use('/api/mundial-calcular', calcularPuntosMundialRoutes);
+app.use('/api/tesoreria', tesoreriaRoutes);
 
 app.get("/", (req, res) => {
   res.send("API de Campeonato Itaú funcionando ✅");
 });
+
+// Migración automática: tablas de tesorería
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tesoreria_configuracion (
+        id              SERIAL PRIMARY KEY,
+        torneo          VARCHAR(50) UNIQUE NOT NULL,
+        cuota           INTEGER DEFAULT 0,
+        premio_jornada  INTEGER DEFAULT 0,
+        premio_acumulado_1 INTEGER DEFAULT 0,
+        premio_acumulado_2 INTEGER DEFAULT 0,
+        premio_acumulado_3 INTEGER DEFAULT 0,
+        actualizado_en  TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      INSERT INTO tesoreria_configuracion (torneo) VALUES
+        ('torneo_nacional'), ('libertadores'), ('sudamericana'), ('mundial')
+      ON CONFLICT (torneo) DO NOTHING
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tesoreria_pagos (
+        id            SERIAL PRIMARY KEY,
+        usuario_id    INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        torneo        VARCHAR(50) NOT NULL,
+        cuota_pagada  BOOLEAN DEFAULT false,
+        fecha_pago    TIMESTAMP,
+        confirmado_por INT REFERENCES usuarios(id),
+        UNIQUE (usuario_id, torneo)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tesoreria_premios_entregados (
+        id            SERIAL PRIMARY KEY,
+        usuario_id    INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        torneo        VARCHAR(50) NOT NULL,
+        tipo          VARCHAR(50) NOT NULL,
+        referencia    VARCHAR(100) NOT NULL,
+        monto         INTEGER DEFAULT 0,
+        entregado     BOOLEAN DEFAULT false,
+        fecha_entrega TIMESTAMP,
+        confirmado_por INT REFERENCES usuarios(id)
+      )
+    `);
+    console.log('✅ Tablas de tesorería listas');
+    // Convertir columnas DECIMAL a INTEGER si ya existían como DECIMAL
+    await pool.query(`
+      ALTER TABLE tesoreria_configuracion
+        ALTER COLUMN cuota              TYPE INTEGER USING cuota::INTEGER,
+        ALTER COLUMN premio_jornada     TYPE INTEGER USING premio_jornada::INTEGER,
+        ALTER COLUMN premio_acumulado_1 TYPE INTEGER USING premio_acumulado_1::INTEGER,
+        ALTER COLUMN premio_acumulado_2 TYPE INTEGER USING premio_acumulado_2::INTEGER,
+        ALTER COLUMN premio_acumulado_3 TYPE INTEGER USING premio_acumulado_3::INTEGER
+    `).catch(() => {});
+    // Agregar columna premio_fase_grupos si no existe
+    await pool.query(`
+      ALTER TABLE tesoreria_configuracion
+        ADD COLUMN IF NOT EXISTS premio_fase_grupos INTEGER DEFAULT 0
+    `).catch(() => {});
+    // Tabla para ganadores de fase de grupos del Mundial
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mundial_ganadores_fase_grupos (
+        id         SERIAL PRIMARY KEY,
+        usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        puntos     INTEGER DEFAULT 0,
+        posicion   INT NOT NULL DEFAULT 1,
+        UNIQUE (posicion)
+      )
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE tesoreria_premios_entregados
+        ALTER COLUMN monto TYPE INTEGER USING monto::INTEGER
+    `).catch(() => {});
+    // Agregar fecha_cierre a las tablas de jornadas que puedan no tenerla
+    await pool.query(`ALTER TABLE jornadas ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE libertadores_jornadas ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE sudamericana_jornadas ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE mundial_jornadas ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP`).catch(() => {});
+  } catch (error) {
+    console.error('❌ Error en migración tesorería:', error.message);
+  }
+})();
 
 // Cron para cierre automático de jornadas
 setInterval(cierreAutomaticoJornadas, 60000);
