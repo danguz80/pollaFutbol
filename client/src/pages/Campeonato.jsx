@@ -225,8 +225,8 @@ export default function Campeonato() {
     )
   );
 
-  if (usuario.rol === "jugador") {
-    // JUGADOR
+  if (usuario.rol === "jugador" || usuario.rol === "tesorero") {
+    // JUGADOR / TESORERO
     return (
       <div className="container mt-5">
         {subMenu}

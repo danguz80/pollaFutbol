@@ -539,6 +539,7 @@ export default function Home() {
                                                         onChange={(e) => setFormNuevo({...formNuevo, rol: e.target.value})}
                                                     >
                                                         <option value="jugador">Jugador</option>
+                                                        <option value="tesorero">Tesorero</option>
                                                         <option value="admin">Admin</option>
                                                     </select>
                                                 </div>
@@ -623,6 +624,7 @@ export default function Home() {
                                                                         onChange={(e) => handleCambioMasivo(index, 'rol', e.target.value)}
                                                                     >
                                                                         <option value="jugador">Jugador</option>
+                                                                        <option value="tesorero">Tesorero</option>
                                                                         <option value="admin">Admin</option>
                                                                     </select>
                                                                 </td>
@@ -727,6 +729,7 @@ export default function Home() {
                                                                         onChange={(e) => setUsuarioEditando({...usuarioEditando, rol: e.target.value})}
                                                                     >
                                                                         <option value="jugador">Jugador</option>
+                                                                        <option value="tesorero">Tesorero</option>
                                                                         <option value="admin">Admin</option>
                                                                     </select>
                                                                 </td>
