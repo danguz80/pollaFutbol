@@ -208,13 +208,22 @@ export default function Clasificacion() {
           
           console.log('⏳ Sin pronósticos:', usuariosSinPronosticos.length, usuariosSinPronosticos);
           setNoParticipantes(usuariosSinPronosticos);
+
+          // Mostrar solo los pronósticos del usuario actual
+          const tokenActual = localStorage.getItem("token");
+          try {
+            const decodedActual = jwtDecode(tokenActual);
+            setDetallePuntos(pronosticos.filter(p => p.usuario_id === decodedActual.id));
+          } catch (e) {
+            setDetallePuntos([]);
+          }
         })
         .catch((error) => {
           console.error('❌ Error cargando usuarios:', error);
           setParticipantes([]);
           setNoParticipantes([]);
+          setDetallePuntos([]);
         });
-      setDetallePuntos([]);
     }
   }, [jornadaActual, isAdmin, jornadaCerrada]);
 
@@ -961,11 +970,10 @@ export default function Clasificacion() {
           )}
         </h4>
         {!isAdmin && !jornadaCerrada ? (
-          <div>
-            <div className="alert alert-info text-center mb-4">
+          <div className="mb-4">
+            <div className="alert alert-info text-center">
               <h5>⏳ Jornada Abierta</h5>
-              <p className="mb-0">Los pronósticos se mostrarán una vez que se cierre la jornada.</p>
-              <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
+              <p className="mb-0">Puedes ver tus propios pronósticos abajo. Los de los demás estarán disponibles cuando se cierre la jornada.</p>
             </div>
             
             {participantes.length > 0 && (
@@ -1040,13 +1048,16 @@ export default function Clasificacion() {
               </div>
             )}
           </div>
-        ) : (
+        ) : null}
+        {detallePuntos.length > 0 ? (
           <table className="table table-bordered table-sm text-center">
             <tbody>
               {filasDetalleUnificado(detallePuntos)}
             </tbody>
           </table>
-        )}
+        ) : (!isAdmin && !jornadaCerrada ? (
+          <div className="alert alert-info text-center">Aún no tienes pronósticos ingresados para esta jornada.</div>
+        ) : null)}
         <a href="#top" className="btn btn-link">Volver arriba</a>
       </div>
 

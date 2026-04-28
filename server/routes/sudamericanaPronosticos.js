@@ -262,7 +262,9 @@ router.post('/guardar', verifyToken, async (req, res) => {
 
     // Guardar/actualizar cada pronóstico
     for (const pronostico of pronosticos) {
-      const { partido_id, goles_local, goles_visita, penales_local, penales_visita } = pronostico;
+      const { partido_id, penales_local, penales_visita } = pronostico;
+      const goles_local = pronostico.goles_local != null ? parseInt(pronostico.goles_local) : 0;
+      const goles_visita = pronostico.goles_visita != null ? parseInt(pronostico.goles_visita) : 0;
 
       if (!partido_id) continue;
 

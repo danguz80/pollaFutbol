@@ -341,13 +341,23 @@ export default function JornadaSudamericana() {
   const guardarPronosticos = async () => {
     try {
       const token = localStorage.getItem('token');
-      
+
+      const safeGoles = (val) => {
+        const n = parseInt(val);
+        return isNaN(n) ? 0 : n;
+      };
+      const safePenales = (val) => {
+        if (val === undefined || val === '') return null;
+        const n = parseInt(val);
+        return isNaN(n) ? null : n;
+      };
+
       const pronosticosArray = Object.entries(pronosticos).map(([partidoId, datos]) => ({
         partido_id: parseInt(partidoId),
-        goles_local: datos.goles_local !== undefined ? parseInt(datos.goles_local) : null,
-        goles_visita: datos.goles_visita !== undefined ? parseInt(datos.goles_visita) : null,
-        penales_local: datos.penales_local !== undefined ? parseInt(datos.penales_local) : null,
-        penales_visita: datos.penales_visita !== undefined ? parseInt(datos.penales_visita) : null
+        goles_local: safeGoles(datos.goles_local),
+        goles_visita: safeGoles(datos.goles_visita),
+        penales_local: safePenales(datos.penales_local),
+        penales_visita: safePenales(datos.penales_visita)
       }));
 
       // Si es jornada 10, incluir el pronóstico de la final
@@ -356,10 +366,10 @@ export default function JornadaSudamericana() {
         if (pronosticoFinal.goles_local !== undefined || pronosticoFinal.goles_visita !== undefined) {
           pronosticosArray.push({
             partido_id: partidoFinal.id,
-            goles_local: pronosticoFinal.goles_local !== undefined ? parseInt(pronosticoFinal.goles_local) : null,
-            goles_visita: pronosticoFinal.goles_visita !== undefined ? parseInt(pronosticoFinal.goles_visita) : null,
-            penales_local: pronosticoFinal.penales_local !== undefined ? parseInt(pronosticoFinal.penales_local) : null,
-            penales_visita: pronosticoFinal.penales_visita !== undefined ? parseInt(pronosticoFinal.penales_visita) : null
+            goles_local: safeGoles(pronosticoFinal.goles_local),
+            goles_visita: safeGoles(pronosticoFinal.goles_visita),
+            penales_local: safePenales(pronosticoFinal.penales_local),
+            penales_visita: safePenales(pronosticoFinal.penales_visita)
           });
         }
       }

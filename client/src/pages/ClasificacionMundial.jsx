@@ -147,7 +147,8 @@ export default function ClasificacionMundial() {
         });
 
         setParticipantes(usuariosUnicos);
-        setPronosticos([]);
+        const usuarioActual = JSON.parse(localStorage.getItem('usuario') || '{}');
+        setPronosticos(response.data.filter(p => p.usuario.id === usuarioActual.id));
 
         // Obtener todos los usuarios activos en mundial para mostrar quién no ha subido pronósticos
         try {
@@ -527,13 +528,15 @@ export default function ClasificacionMundial() {
       </div>
 
       {/* Tabla de Pronósticos */}
-      {!esAdmin && jornadaAbierta ? (
-        <div>
-          <div className="alert alert-info text-center mb-4">
-            <h5>⏳ Jornada Abierta</h5>
-            <p className="mb-0">Los pronósticos se mostrarán una vez que se cierre la jornada.</p>
-            <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
-          </div>
+      ) : (
+        <>
+          {/* Sección participantes - visible cuando jornada está abierta y no es admin */}
+          {!esAdmin && jornadaAbierta && (
+            <div className="mb-4">
+              <div className="alert alert-info text-center">
+                <h5>⏳ Jornada Abierta</h5>
+                <p className="mb-0">Puedes ver tus propios pronósticos abajo. Los de los demás estarán disponibles cuando se cierre la jornada.</p>
+              </div>
 
           {participantes.length > 0 && (
             <div className="card mb-3">
@@ -608,9 +611,11 @@ export default function ClasificacionMundial() {
               </div>
             </div>
           )}
-        </div>
-      ) : pronosticos.length > 0 ? (
-        <>
+            </div>
+          )}
+
+          {pronosticos.length > 0 ? (
+            <>
           {agruparPronosticos().map((grupo, grupoIndex) => (
             <div key={`grupo-${grupo.usuario_id}-${grupoIndex}`} className="mb-4">
               {/* Encabezado del Jugador */}
@@ -712,11 +717,14 @@ export default function ClasificacionMundial() {
             </div>
           ))}
         </>
-      ) : (
-        <div className="alert alert-warning text-center">
-          <strong>⚠️ Sin datos:</strong> No hay pronósticos con los filtros seleccionados.
-        </div>
-      )}
+          ) : (
+            <div className="alert alert-info text-center">
+              {!esAdmin && jornadaAbierta
+                ? 'Aún no tienes pronósticos ingresados para esta jornada.'
+                : '\u26a0\ufe0f Sin datos: No hay pronósticos con los filtros seleccionados.'}
+            </div>
+          )}
+        </>
 
       {/* Rankings al final */}
       <div className="mt-5">

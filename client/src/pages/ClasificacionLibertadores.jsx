@@ -258,7 +258,8 @@ export default function ClasificacionLibertadores() {
         });
         
         setParticipantes(usuariosUnicos);
-        setPronosticos([]);
+        const usuarioActual = JSON.parse(localStorage.getItem('usuario') || '{}');
+        setPronosticos(response.data.filter(p => p.usuario.id === usuarioActual.id));
 
         // Obtener todos los usuarios activos en libertadores para mostrar quién no ha subido pronósticos
         try {
@@ -1237,14 +1238,15 @@ export default function ClasificacionLibertadores() {
             <span className="visually-hidden">Cargando...</span>
           </div>
         </div>
-      ) : !esAdmin && jornadaAbierta ? (
-        /* Mostrar participantes y no participantes si la jornada está abierta */
-        <div>
-          <div className="alert alert-info text-center mb-4">
-            <h5>⏳ Jornada Abierta</h5>
-            <p className="mb-0">Los pronósticos se mostrarán una vez que se cierre la jornada.</p>
-            <small className="text-muted">(Solo administradores pueden ver pronósticos en jornadas abiertas)</small>
-          </div>
+      ) : (
+        <>
+          {/* Sección participantes - visible cuando jornada está abierta y no es admin */}
+          {!esAdmin && jornadaAbierta && (
+            <div className="mb-4">
+              <div className="alert alert-info text-center">
+                <h5>⏳ Jornada Abierta</h5>
+                <p className="mb-0">Puedes ver tus propios pronósticos abajo. Los de los demás estarán disponibles cuando se cierre la jornada.</p>
+              </div>
 
           {participantes.length > 0 && (
             <div className="card mb-3">
@@ -1319,13 +1321,17 @@ export default function ClasificacionLibertadores() {
               </div>
             </div>
           )}
-        </div>
-      ) : pronosticos.length === 0 ? (
-        <div className="alert alert-info text-center">
-          No se encontraron pronósticos con los filtros aplicados
-        </div>
-      ) : (
-        <>
+            </div>
+          )}
+
+          {pronosticos.length === 0 ? (
+            <div className="alert alert-info text-center">
+              {!esAdmin && jornadaAbierta
+                ? 'Aún no tienes pronósticos ingresados para esta jornada.'
+                : 'No se encontraron pronósticos con los filtros aplicados'}
+            </div>
+          ) : (
+            <>
           <div className="alert alert-info d-flex justify-content-between align-items-center">
             <span>Total de pronósticos: <strong>{pronosticos.length}</strong></span>
             <div>
@@ -2375,6 +2381,8 @@ export default function ClasificacionLibertadores() {
                 </tbody>
               </table>
             </div>
+          )}
+        </>
           )}
         </>
       )}
