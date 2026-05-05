@@ -42,6 +42,7 @@ export default function Home() {
             fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`)
                 .then(res => res.json())
                 .then(data => {
+                    if (!Array.isArray(data)) return;
                     setRankingCampeonato(data);
                     // Mapear fotos de ranking campeonato
                     setFotoPerfilMap(prev => {
