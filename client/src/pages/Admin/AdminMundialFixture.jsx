@@ -53,7 +53,9 @@ export default function AdminMundialFixture() {
 
         // Detectar líneas con formato: Equipo (PAÍS) vs Equipo (PAÍS) — Grupo X
         let matchPartidoPais = lineaTrim.match(/^(.+?)\s*\(([A-Z]{3})\)\s+vs\s+(.+?)\s*\(([A-Z]{3})\)\s*[—–-]?\s*Grupo\s+([A-L])/i);
-        
+        // Formato sin siglas: Equipo vs Equipo - Grupo X
+        let matchPartidoSimple = !matchPartidoPais && lineaTrim.match(/^(.+?)\s+vs\s+(.+?)\s*[—–-]\s*Grupo\s+([A-L])/i);
+
         if (matchPartidoPais) {
           const local = matchPartidoPais[1].trim();
           const paisLocal = matchPartidoPais[2].trim();
@@ -65,11 +67,9 @@ export default function AdminMundialFixture() {
             if (!equiposMap.has(local)) {
               equiposMap.set(local, { pais: paisLocal, grupo });
             }
-            
             if (!equiposMap.has(visita)) {
               equiposMap.set(visita, { pais: paisVisita, grupo });
             }
-            
             jornadasPartidos[jornadaActual].push({
               equipo_local: local,
               equipo_visitante: visita,
@@ -77,7 +77,27 @@ export default function AdminMundialFixture() {
               bonus: 1,
               grupo: grupo
             });
-            
+            console.log(`J${jornadaActual}: ${local} vs ${visita} - Grupo ${grupo}`);
+          }
+        } else if (matchPartidoSimple) {
+          const local = matchPartidoSimple[1].trim();
+          const visita = matchPartidoSimple[2].trim();
+          const grupo = matchPartidoSimple[3].toUpperCase();
+
+          if (local.length > 2 && visita.length > 2) {
+            if (!equiposMap.has(local)) {
+              equiposMap.set(local, { pais: '', grupo });
+            }
+            if (!equiposMap.has(visita)) {
+              equiposMap.set(visita, { pais: '', grupo });
+            }
+            jornadasPartidos[jornadaActual].push({
+              equipo_local: local,
+              equipo_visitante: visita,
+              fecha: new Date().toISOString(),
+              bonus: 1,
+              grupo: grupo
+            });
             console.log(`J${jornadaActual}: ${local} vs ${visita} - Grupo ${grupo}`);
           }
         }

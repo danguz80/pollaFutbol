@@ -3,6 +3,12 @@ import express from "express";
 import { pool } from "../db/pool.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import {
+  insertarPronosticosAusentesNacional,
+  insertarPronosticosAusentesLibertadores,
+  insertarPronosticosAusentesSudamericana,
+  insertarPronosticosAusentesMundial,
+} from '../utils/insertarPronosticosAusentes.js';
 
 const router = express.Router();
 
@@ -183,6 +189,67 @@ router.get("/cuadro-final/estado", async (req, res) => {
   } catch (error) {
     console.error("Error al obtener estado cuadro final:", error);
     res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+/**
+ * POST /api/admin/insertar-pronosticos-ausentes
+ * Inserta pronósticos 0-0 para usuarios activos sin pronósticos en una jornada cerrada.
+ * Body: { competencia: 'nacional'|'libertadores'|'sudamericana'|'mundial', jornadaNumero: number }
+ */
+router.post("/insertar-pronosticos-ausentes", verifyToken, authorizeRoles("admin"), async (req, res) => {
+  const { competencia, jornadaNumero } = req.body;
+
+  if (!competencia || !jornadaNumero) {
+    return res.status(400).json({ error: "Se requieren 'competencia' y 'jornadaNumero'" });
+  }
+
+  const competenciasValidas = ['nacional', 'libertadores', 'sudamericana', 'mundial'];
+  if (!competenciasValidas.includes(competencia)) {
+    return res.status(400).json({ error: `Competencia inválida. Válidas: ${competenciasValidas.join(', ')}` });
+  }
+
+  try {
+    let jornadaId;
+    let insertados = 0;
+
+    if (competencia === 'nacional') {
+      const r = await pool.query('SELECT id, cerrada FROM jornadas WHERE numero = $1', [jornadaNumero]);
+      if (r.rows.length === 0) return res.status(404).json({ error: `Jornada ${jornadaNumero} no encontrada en Torneo Nacional` });
+      jornadaId = r.rows[0].id;
+      insertados = await insertarPronosticosAusentesNacional(jornadaId);
+
+    } else if (competencia === 'libertadores') {
+      const r = await pool.query('SELECT id, cerrada FROM libertadores_jornadas WHERE numero = $1', [jornadaNumero]);
+      if (r.rows.length === 0) return res.status(404).json({ error: `Jornada ${jornadaNumero} no encontrada en Libertadores` });
+      jornadaId = r.rows[0].id;
+      insertados = await insertarPronosticosAusentesLibertadores(jornadaId);
+
+    } else if (competencia === 'sudamericana') {
+      const r = await pool.query('SELECT id, cerrada FROM sudamericana_jornadas WHERE numero = $1', [jornadaNumero]);
+      if (r.rows.length === 0) return res.status(404).json({ error: `Jornada ${jornadaNumero} no encontrada en Sudamericana` });
+      jornadaId = r.rows[0].id;
+      insertados = await insertarPronosticosAusentesSudamericana(jornadaId);
+
+    } else if (competencia === 'mundial') {
+      const r = await pool.query('SELECT id, cerrada FROM mundial_jornadas WHERE numero = $1', [jornadaNumero]);
+      if (r.rows.length === 0) return res.status(404).json({ error: `Jornada ${jornadaNumero} no encontrada en Mundial` });
+      jornadaId = r.rows[0].id;
+      insertados = await insertarPronosticosAusentesMundial(jornadaId);
+    }
+
+    console.log(`✅ [Admin] ${insertados} pronósticos 0-0 insertados - ${competencia} J${jornadaNumero}`);
+    res.json({
+      ok: true,
+      mensaje: `Se insertaron ${insertados} pronósticos 0-0 para usuarios sin pronósticos en ${competencia} Jornada ${jornadaNumero}`,
+      insertados,
+      competencia,
+      jornadaNumero,
+      jornadaId,
+    });
+  } catch (error) {
+    console.error("Error insertando pronósticos ausentes:", error);
+    res.status(500).json({ error: "Error al insertar pronósticos ausentes", detalle: error.message });
   }
 });
 

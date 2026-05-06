@@ -431,9 +431,29 @@ export default function AdminMundialResultados() {
             </div>
             <div className="card-body">
               <div className="row g-3">
-                {partidos.map((partido, index) => (
+                {partidos.map((partido, index) => {
+                  const getBorderClass = (bonus) => {
+                    if (Number(bonus) === 2) return 'border-warning border-3';
+                    if (Number(bonus) === 3) return 'border-danger border-3';
+                    return '';
+                  };
+                  const getBonusBanner = (bonus) => {
+                    if (Number(bonus) === 2) return (
+                      <div className="text-center py-2 fw-bold" style={{ backgroundColor: '#ffc107', color: '#000', fontSize: '1rem', borderTopLeftRadius: '0.375rem', borderTopRightRadius: '0.375rem' }}>
+                        ⚡ PARTIDO BONUS x2 ⚡
+                      </div>
+                    );
+                    if (Number(bonus) === 3) return (
+                      <div className="text-center py-2 fw-bold" style={{ backgroundColor: '#dc3545', color: '#fff', fontSize: '1rem', borderTopLeftRadius: '0.375rem', borderTopRightRadius: '0.375rem' }}>
+                        ⚡ PARTIDO BONUS x3 ⚡
+                      </div>
+                    );
+                    return null;
+                  };
+                  return (
                   <div key={partido.id} className="col-12 col-md-6 col-lg-4">
-                    <div className="card shadow-sm h-100">
+                    <div className={`card shadow-sm h-100 ${getBorderClass(partido.bonus)}`}>
+                      {getBonusBanner(partido.bonus)}
                       <div className="card-header bg-info text-white text-center">
                         <div className="d-flex justify-content-between align-items-center">
                           <small className="fw-bold">Partido {index + 1}</small>
@@ -526,7 +546,8 @@ export default function AdminMundialResultados() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="text-center d-flex gap-3 justify-content-center flex-wrap mt-4">

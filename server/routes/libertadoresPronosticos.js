@@ -467,6 +467,7 @@ router.get('/todos/jornada/:numero', verifyToken, async (req, res) => {
       JOIN libertadores_partidos p ON lp.partido_id = p.id
       JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
       WHERE lj.numero = $1
+        AND u.rol != 'admin'
       ORDER BY u.nombre, p.id
     `, [numero]);
     res.json(result.rows);

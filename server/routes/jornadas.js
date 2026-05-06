@@ -11,6 +11,12 @@ import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { getWhatsAppService } from "../services/whatsappService.js";
 import htmlPdf from 'html-pdf-node';
 import { getLogoBase64 } from '../utils/logoHelper.js';
+import {
+  insertarPronosticosAusentesNacional,
+  insertarPronosticosAusentesLibertadores,
+  insertarPronosticosAusentesSudamericana,
+  insertarPronosticosAusentesMundial,
+} from '../utils/insertarPronosticosAusentes.js';
 // COMENTADO - FASE 2: Moviendo código Sudamericana a archivos especializados
 // import { reemplazarSiglasPorNombres, calcularAvanceSiglas } from '../utils/sudamericanaSiglas.js';
 
@@ -1142,6 +1148,16 @@ async function cierreAutomaticoJornadas() {
         [jornada.id]
       );
 
+      // Insertar pronósticos 0-0 para usuarios sin pronósticos
+      try {
+        const insertados = await insertarPronosticosAusentesNacional(jornada.id);
+        if (insertados > 0) {
+          console.log(`  ⚽ ${insertados} pronósticos 0-0 insertados para usuarios sin pronósticos (Nacional J${jornada.numero})`);
+        }
+      } catch (errIns) {
+        console.error(`❌ Error insertando pronósticos ausentes Nacional J${jornada.numero}:`, errIns);
+      }
+
       // Enviar email de notificación
       try {
         const whatsappService = getWhatsAppService();
@@ -1175,6 +1191,16 @@ async function cierreAutomaticoJornadas() {
         [jornada.id]
       );
 
+      // Insertar pronósticos 0-0 para usuarios sin pronósticos
+      try {
+        const insertados = await insertarPronosticosAusentesLibertadores(jornada.id);
+        if (insertados > 0) {
+          console.log(`  ⚽ ${insertados} pronósticos 0-0 insertados para usuarios sin pronósticos (Libertadores J${jornada.numero})`);
+        }
+      } catch (errIns) {
+        console.error(`❌ Error insertando pronósticos ausentes Libertadores J${jornada.numero}:`, errIns);
+      }
+
       console.log(`✅ Jornada ${jornada.numero} de Libertadores cerrada automáticamente`);
     }
 
@@ -1196,6 +1222,16 @@ async function cierreAutomaticoJornadas() {
         [jornada.id]
       );
 
+      // Insertar pronósticos 0-0 para usuarios sin pronósticos
+      try {
+        const insertados = await insertarPronosticosAusentesSudamericana(jornada.id);
+        if (insertados > 0) {
+          console.log(`  ⚽ ${insertados} pronósticos 0-0 insertados para usuarios sin pronósticos (Sudamericana J${jornada.numero})`);
+        }
+      } catch (errIns) {
+        console.error(`❌ Error insertando pronósticos ausentes Sudamericana J${jornada.numero}:`, errIns);
+      }
+
       console.log(`✅ Jornada ${jornada.numero} de Sudamericana cerrada automáticamente`);
     }
 
@@ -1216,6 +1252,16 @@ async function cierreAutomaticoJornadas() {
         "UPDATE mundial_jornadas SET cerrada = true WHERE id = $1",
         [jornada.id]
       );
+
+      // Insertar pronósticos 0-0 para usuarios sin pronósticos
+      try {
+        const insertados = await insertarPronosticosAusentesMundial(jornada.id);
+        if (insertados > 0) {
+          console.log(`  ⚽ ${insertados} pronósticos 0-0 insertados para usuarios sin pronósticos (Mundial J${jornada.numero})`);
+        }
+      } catch (errIns) {
+        console.error(`❌ Error insertando pronósticos ausentes Mundial J${jornada.numero}:`, errIns);
+      }
 
       console.log(`✅ Jornada ${jornada.numero} de Mundial cerrada automáticamente`);
     }

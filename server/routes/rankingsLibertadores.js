@@ -30,6 +30,7 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           GROUP BY lp.usuario_id
         ) puntos_partidos ON u.id = puntos_partidos.usuario_id
         WHERE puntos_partidos.total IS NOT NULL
+          AND u.rol != 'admin'
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `
       : `
@@ -56,7 +57,8 @@ router.get('/jornada/:numero', verifyToken, async (req, res) => {
           GROUP BY usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
         `}
-        WHERE puntos_partidos.total IS NOT NULL ${jornadaNum === 6 || jornadaNum === 8 || jornadaNum === 9 || jornadaNum === 10 ? '' : 'OR puntos_clasificacion.total IS NOT NULL'}
+        WHERE (puntos_partidos.total IS NOT NULL ${jornadaNum === 6 || jornadaNum === 8 || jornadaNum === 9 || jornadaNum === 10 ? '' : 'OR puntos_clasificacion.total IS NOT NULL'})
+          AND u.rol != 'admin'
         ORDER BY puntos_jornada DESC, u.nombre ASC
       `;
 
@@ -124,9 +126,10 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
             AND lp.goles_local IS NOT NULL 
             AND lp.goles_visita IS NOT NULL
         ) puntos_final ON u.id = puntos_final.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL 
+        WHERE (puntos_partidos.total IS NOT NULL 
            OR puntos_clasificacion.total IS NOT NULL 
-           OR puntos_final.puntos IS NOT NULL
+           OR puntos_final.puntos IS NOT NULL)
+          AND u.rol != 'admin'
         ORDER BY puntos_acumulados DESC, u.nombre ASC
       `
       : `
@@ -150,8 +153,9 @@ router.get('/acumulado/:numero', verifyToken, async (req, res) => {
           WHERE lpc.jornada_numero <= $1 ${filtroClasificacion}
           GROUP BY lpc.usuario_id
         ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-        WHERE puntos_partidos.total IS NOT NULL 
-           OR puntos_clasificacion.total IS NOT NULL
+        WHERE (puntos_partidos.total IS NOT NULL 
+           OR puntos_clasificacion.total IS NOT NULL)
+          AND u.rol != 'admin'
         ORDER BY puntos_acumulados DESC, u.nombre ASC
       `;
 

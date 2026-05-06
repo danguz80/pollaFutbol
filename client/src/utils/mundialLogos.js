@@ -4,12 +4,14 @@ export const MUNDIAL_LOGOS_MAP = {
   'MEX': 'mexico.png',
   'KOR': 'corea_del_sur.png',
   'RSA': 'sudafrica.png',
+  'CZE': 'republica_checa.png',
   'TBD': null, // Por definir
   
   // Grupo B
   'CAN': 'canada.png',
   'QAT': 'qatar.png',
   'SUI': 'suiza.png',
+  'BIH': 'BOSNIA-HERZEGOVINA.png',
   
   // Grupo C
   'BRA': 'brasil.png',
@@ -21,6 +23,7 @@ export const MUNDIAL_LOGOS_MAP = {
   'AUS': 'australia.png',
   'USA': 'usa.png',
   'PAR': 'paraguay.png',
+  'TUR': 'TURQUIA.png',
   
   // Grupo E
   'GER': 'alemania.webp',
@@ -32,6 +35,7 @@ export const MUNDIAL_LOGOS_MAP = {
   'JPN': 'japon.png',
   'NED': 'paises_bajos.png',
   'TUN': 'tunez.webp',
+  'SWE': 'SUECIA.png',
   
   // Grupo G
   'BEL': 'belgica.png',
@@ -49,6 +53,7 @@ export const MUNDIAL_LOGOS_MAP = {
   'FRA': 'francia.png',
   'NOR': 'noruega.png',
   'SEN': 'senegal.png',
+  'IRQ': 'IRAK.png',
   
   // Grupo J
   'ALG': 'argelia.webp',
@@ -60,6 +65,7 @@ export const MUNDIAL_LOGOS_MAP = {
   'COL': 'colombia.png',
   'POR': 'portugal.png',
   'UZB': 'uzbekistan.png',
+  'COD': 'CONGO.png',
   
   // Grupo L
   'CRO': 'croacia.webp',
@@ -95,9 +101,11 @@ export function getMundialLogoPorNombre(nombreEquipo) {
     'México': 'MEX',
     'República de Corea': 'KOR',
     'Sudáfrica': 'RSA',
+    'República Checa': 'CZE',
     'Canadá': 'CAN',
     'Catar': 'QAT',
     'Suiza': 'SUI',
+    'Bosnia y Herzegovina': 'BIH',
     'Brasil': 'BRA',
     'Escocia': 'SCO',
     'Haití': 'HAI',
@@ -105,6 +113,7 @@ export function getMundialLogoPorNombre(nombreEquipo) {
     'Australia': 'AUS',
     'Estados Unidos': 'USA',
     'Paraguay': 'PAR',
+    'Turquía': 'TUR',
     'Alemania': 'GER',
     'Costa de Marfil': 'CIV',
     'Curazao': 'CUW',
@@ -112,6 +121,7 @@ export function getMundialLogoPorNombre(nombreEquipo) {
     'Japón': 'JPN',
     'Países Bajos': 'NED',
     'Túnez': 'TUN',
+    'Suecia': 'SWE',
     'Bélgica': 'BEL',
     'Egipto': 'EGY',
     'Irán': 'IRN',
@@ -123,6 +133,7 @@ export function getMundialLogoPorNombre(nombreEquipo) {
     'Francia': 'FRA',
     'Noruega': 'NOR',
     'Senegal': 'SEN',
+    'Irak': 'IRQ',
     'Argelia': 'ALG',
     'Argentina': 'ARG',
     'Austria': 'AUT',
@@ -130,6 +141,7 @@ export function getMundialLogoPorNombre(nombreEquipo) {
     'Colombia': 'COL',
     'Portugal': 'POR',
     'Uzbekistán': 'UZB',
+    'RD Congo': 'COD',
     'Croacia': 'CRO',
     'Ghana': 'GHA',
     'Inglaterra': 'ENG',

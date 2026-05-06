@@ -269,6 +269,22 @@ export default function JornadaMundial() {
         </button>
       </div>
 
+      {/* Botonera accesos directos */}
+      <div className="d-flex flex-wrap justify-content-center gap-2 mb-4">
+        <button className="btn btn-info" onClick={() => navigate('/mundial/estadisticas')}>
+          📊 Estadísticas
+        </button>
+        <button className="btn btn-info" onClick={() => navigate('/mundial/clasificacion')}>
+          📋 Clasificación
+        </button>
+        <button className="btn btn-info" onClick={() => navigate('/mundial/puntuacion')}>
+          📈 Puntuación
+        </button>
+        <button className="btn btn-info" onClick={() => navigate('/mundial/ganadores-jornada')}>
+          👑 Ganadores
+        </button>
+      </div>
+
       {/* Estado de la Jornada */}
       <div className="card mb-4">
         <div className={`card-header ${jornada.cerrada ? 'bg-danger' : jornada.activa ? 'bg-success' : 'bg-warning'} text-white`}>
