@@ -1712,6 +1712,19 @@ export default function ClasificacionSudamericana() {
                         </>
                       )}
                       
+                      {/* Botón ir arriba */}
+                      {grupoIndex < agruparPronosticos().length - 1 && (
+                        <div className="text-center my-2" style={{ backgroundColor: '#e9ecef', padding: '5px', borderRadius: '4px' }}>
+                          <button
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                            style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                          >
+                            ⬆️ Ir arriba
+                          </button>
+                        </div>
+                      )}
+
                       {/* Separador entre usuarios */}
                       {grupoIndex < agruparPronosticos().length - 1 && (
                         <hr className="my-4" style={{ borderTop: '3px solid #28a745' }} />
