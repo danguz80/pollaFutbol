@@ -45,6 +45,7 @@ export default function ClasificacionSudamericana() {
 
   // Clasificados J6
   const [clasificadosOficiales, setClasificadosOficiales] = useState([]);
+  const [gruposCerrados, setGruposCerrados] = useState([]);
   const [puntosClasificadosJ6, setPuntosClasificadosJ6] = useState([]);
   const [puntosClasificadosJ7, setPuntosClasificadosJ7] = useState([]);
   const [puntosClasificadosJ8, setPuntosClasificadosJ8] = useState([]);
@@ -271,7 +272,8 @@ export default function ClasificacionSudamericana() {
         `${API_URL}/api/sudamericana-clasificados/clasificados-oficiales`,
         { headers }
       );
-      setClasificadosOficiales(oficialesRes.data);
+      setClasificadosOficiales(oficialesRes.data.clasificados || []);
+      setGruposCerrados(oficialesRes.data.gruposCerrados || []);
 
       // Cargar puntos de clasificación desde la base de datos
       const params6 = new URLSearchParams();
@@ -330,6 +332,7 @@ export default function ClasificacionSudamericana() {
     } catch (error) {
       console.error('Error cargando clasificados:', error);
       setClasificadosOficiales([]);
+      setGruposCerrados([]);
       setPuntosClasificadosJ6([]);
       setPuntosClasificadosJ7([]);
       setPuntosClasificadosJ8([]);
@@ -753,7 +756,7 @@ export default function ClasificacionSudamericana() {
       }
       
       // Si es jornada 6, agregar pronósticos de clasificados
-      if (parseInt(filtroJornada) === 6 && clasificadosOficiales.length > 0) {
+      if (parseInt(filtroJornada) === 6) {
         Object.values(grupos).forEach(grupo => {
           // Para cada usuario, calcular tablas virtuales de TODOS los grupos (A-H)
           const gruposLetras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -764,6 +767,45 @@ export default function ClasificacionSudamericana() {
             
             // Solo agregar si hay equipos en la tabla (el usuario hizo pronósticos para este grupo)
             if (tablaVirtual.length >= 2) {
+              const grupoCerrado = gruposCerrados.includes(grupoLetra);
+
+              if (!grupoCerrado) {
+                // Grupo pendiente: agregar filas con estado pendiente
+                grupo.pronosticos.push({
+                  id: `clasif-octavos-${grupo.usuario_id}-${grupoLetra}`,
+                  esClasificado: true,
+                  grupoCerrado: false,
+                  tipoClasificado: 'octavos',
+                  usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                  jornada: { numero: 6, cerrada: false },
+                  partido: {
+                    grupo: grupoLetra,
+                    local: { nombre: `Clasificado a Octavos de Sudamericana del Grupo ${grupoLetra}` },
+                    visita: { nombre: '' }
+                  },
+                  equipo_pronosticado: tablaVirtual[0].nombre,
+                  equipo_oficial: null,
+                  puntos: null
+                });
+                grupo.pronosticos.push({
+                  id: `clasif-playoffs-${grupo.usuario_id}-${grupoLetra}`,
+                  esClasificado: true,
+                  grupoCerrado: false,
+                  tipoClasificado: 'playoffs',
+                  usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                  jornada: { numero: 6, cerrada: false },
+                  partido: {
+                    grupo: grupoLetra,
+                    local: { nombre: `Clasificado a Playoffs Sudamericana del Grupo ${grupoLetra}` },
+                    visita: { nombre: '' }
+                  },
+                  equipo_pronosticado: tablaVirtual[1]?.nombre || null,
+                  equipo_oficial: null,
+                  puntos: null
+                });
+                return;
+              }
+
               // Obtener clasificados oficiales del grupo (1ero y 2do)
               const primerOficial = clasificadosOficiales.find(c => c.grupo === grupoLetra && c.posicion === 1);
               const segundoOficial = clasificadosOficiales.find(c => c.grupo === grupoLetra && c.posicion === 2);
@@ -795,6 +837,7 @@ export default function ClasificacionSudamericana() {
               grupo.pronosticos.push({
                 id: `clasif-octavos-${grupo.usuario_id}-${grupoLetra}`,
                 esClasificado: true,
+                grupoCerrado: true,
                 tipoClasificado: 'octavos',
                 usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
                 jornada: { numero: 6, cerrada: true },
@@ -812,6 +855,7 @@ export default function ClasificacionSudamericana() {
               grupo.pronosticos.push({
                 id: `clasif-playoffs-${grupo.usuario_id}-${grupoLetra}`,
                 esClasificado: true,
+                grupoCerrado: true,
                 tipoClasificado: 'playoffs',
                 usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
                 jornada: { numero: 6, cerrada: true },
@@ -1529,7 +1573,7 @@ export default function ClasificacionSudamericana() {
                             <tbody>
                               {pronosticosClasificados.length > 0 ? (
                                 pronosticosClasificados.map((pronostico, index) => (
-                                  <tr key={`clasif-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                                  <tr key={`clasif-${pronostico.id}-${index}`} className={pronostico.grupoCerrado === false ? 'table-secondary' : pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
                                     <td className="text-center">
                                       <span className="badge bg-warning text-dark">{pronostico.partido.grupo}</span>
                                     </td>
@@ -1539,17 +1583,23 @@ export default function ClasificacionSudamericana() {
                                       </div>
                                     </td>
                                     <td className="text-center">
-                                      <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                      <div className={`fw-bold ${pronostico.grupoCerrado === false ? 'text-muted' : pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
                                         {pronostico.equipo_pronosticado || '-'}
                                       </div>
                                     </td>
                                     <td className="text-center">
-                                      <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : pronostico.equipo_oficial ? 'text-danger' : 'text-muted'}`}>
-                                        {pronostico.equipo_oficial || 'Pendiente'}
-                                      </div>
+                                      {pronostico.grupoCerrado === false ? (
+                                        <span className="text-muted">⏳ Pendiente</span>
+                                      ) : (
+                                        <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : pronostico.equipo_oficial ? 'text-danger' : 'text-muted'}`}>
+                                          {pronostico.equipo_oficial || 'Pendiente'}
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="text-center">
-                                      {pronostico.puntos > 0 ? (
+                                      {pronostico.grupoCerrado === false ? (
+                                        <span className="text-muted">⏳ Pendiente</span>
+                                      ) : pronostico.puntos > 0 ? (
                                         <span className="badge bg-success">+{pronostico.puntos} pts</span>
                                       ) : (
                                         <span className="badge bg-secondary">0 pts</span>
@@ -1704,7 +1754,7 @@ export default function ClasificacionSudamericana() {
                       <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
                         {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
                         {pronostico.esClasificado ? (
-                          <tr className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                          <tr className={pronostico.grupoCerrado === false ? 'table-secondary' : pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
                             <td className="text-center">
                               <span className="badge bg-warning text-dark">Clasificados</span>
                             </td>
@@ -1714,20 +1764,26 @@ export default function ClasificacionSudamericana() {
                               </div>
                             </td>
                             <td className="text-center">
-                              <div className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                              <div className={`fw-bold ${pronostico.grupoCerrado === false ? 'text-muted' : pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
                                 {pronostico.equipo_pronosticado || '-'}
                               </div>
                             </td>
                             <td className="text-center">
-                              <div className="fw-bold">
-                                {pronostico.equipo_oficial || '-'}
-                              </div>
+                              {pronostico.grupoCerrado === false ? (
+                                <span className="text-muted">⏳ Pendiente</span>
+                              ) : (
+                                <div className="fw-bold">
+                                  {pronostico.equipo_oficial || '-'}
+                                </div>
+                              )}
                             </td>
                             <td className="text-center">
                               {/* Columna Bonus vacía */}
                             </td>
                             <td className="text-center">
-                              {pronostico.puntos > 0 ? (
+                              {pronostico.grupoCerrado === false ? (
+                                <span className="text-muted">⏳ Pendiente</span>
+                              ) : pronostico.puntos > 0 ? (
                                 <span className="badge bg-success">
                                   +{pronostico.puntos} pts
                                 </span>

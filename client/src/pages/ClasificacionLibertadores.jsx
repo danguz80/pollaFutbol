@@ -46,6 +46,7 @@ export default function ClasificacionLibertadores() {
   // Clasificados para jornada 6
   const [clasificadosUsuarios, setClasificadosUsuarios] = useState({});
   const [clasificadosOficiales, setClasificadosOficiales] = useState([]);
+  const [gruposCerrados, setGruposCerrados] = useState([]);
   const [puntosClasificadosJ6, setPuntosClasificadosJ6] = useState({});
   
   // Clasificados para jornadas 7-10
@@ -301,7 +302,8 @@ export default function ClasificacionLibertadores() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      setClasificadosOficiales(oficialesRes.data);
+      setClasificadosOficiales(oficialesRes.data.clasificados || []);
+      setGruposCerrados(oficialesRes.data.gruposCerrados || []);
       
       // Cargar puntos de clasificados J6 desde la base de datos
       const puntosJ6Res = await axios.get(
@@ -686,7 +688,7 @@ export default function ClasificacionLibertadores() {
       });
       
       // Si es jornada 6, agregar pronósticos de clasificados
-      if (parseInt(filtroJornada) === 6 && clasificadosOficiales.length > 0) {
+      if (parseInt(filtroJornada) === 6) {
         Object.values(grupos).forEach(grupo => {
           // Para cada usuario, calcular tablas virtuales de TODOS los grupos (A-H)
           const gruposLetras = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -697,82 +699,124 @@ export default function ClasificacionLibertadores() {
             
             // Solo agregar si hay equipos en la tabla (el usuario hizo pronósticos para este grupo)
             if (tablaVirtual.length >= 2) {
-              // Obtener clasificados oficiales del grupo (solo top 2 para octavos, sin 3ero)
-              const clasificadosOficialesGrupo = clasificadosOficiales
-                .filter(c => c.grupo === grupoLetra && c.posicion <= 2)
-                .map(c => c.equipo_nombre);
+              const grupoCerrado = gruposCerrados.includes(grupoLetra);
               
-              // Top 2 del usuario
-              const equiposUsuario = [tablaVirtual[0].nombre, tablaVirtual[1].nombre];
-              
-              // Separar aciertos y fallos
-              const aciertos = equiposUsuario.filter(e => clasificadosOficialesGrupo.includes(e));
-              const fallos = equiposUsuario.filter(e => !clasificadosOficialesGrupo.includes(e));
-              
-              // Ordenar equipos pronosticados: aciertos primero
-              const equiposOrdenados = [...aciertos, ...fallos];
-              
-              // Ordenar equipos oficiales para alinear con pronósticos
-              // Los que coinciden van primero (en el mismo orden que aciertos)
-              // Los que no coinciden van después
-              const oficialesOrdenados = [
-                ...aciertos, // Los mismos equipos que acertó (alineados)
-                ...clasificadosOficialesGrupo.filter(e => !equiposUsuario.includes(e)) // Los oficiales que no pronosticó
-              ];
-              
-              // Calcular puntos de cada línea
-              const puntosDetalle = equiposOrdenados.map(e => 
-                clasificadosOficialesGrupo.includes(e) ? 2 : 0
-              );
-              
-              // Calcular puntos totales
-              const totalPuntos = aciertos.length * 2;
-              
-              // Agregar UNA SOLA fila para este grupo con los 2 clasificados a OCTAVOS
-              grupo.pronosticos.push({
-                id: `clasif-octavos-${grupo.usuario_id}-${grupoLetra}`,
-                esClasificado: true,
-                tipoClasificado: 'octavos',
-                usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
-                jornada: { numero: 6, cerrada: true },
-                partido: {
-                  grupo: grupoLetra,
-                  local: { nombre: `Clasificados a Octavos de Libertadores Grupo ${grupoLetra}` },
-                  visita: { nombre: '' }
-                },
-                // Arrays con 2 equipos cada uno
-                equipos_pronosticados: equiposOrdenados, // Aciertos primero
-                equipos_oficiales: oficialesOrdenados, // Alineados con pronósticos
-                // Array con puntos de cada equipo
-                puntos_detalle: puntosDetalle,
-                puntos: totalPuntos
-              });
-              
-              // Agregar fila para 3er lugar (Play-offs Sudamericana)
-              if (tablaVirtual.length >= 3) {
-                const terceroUsuario = tablaVirtual[2].nombre;
-                const clasificadosOficialesTerceros = clasificadosOficiales
-                  .filter(c => c.grupo === grupoLetra && c.posicion === 3)
+              if (grupoCerrado) {
+                // Obtener clasificados oficiales del grupo (solo top 2 para octavos, sin 3ero)
+                const clasificadosOficialesGrupo = clasificadosOficiales
+                  .filter(c => c.grupo === grupoLetra && c.posicion <= 2)
                   .map(c => c.equipo_nombre);
                 
-                const terceroOficial = clasificadosOficialesTerceros.length > 0 ? clasificadosOficialesTerceros[0] : null;
-                const puntosPlayoffs = (terceroOficial && terceroUsuario === terceroOficial) ? 2 : 0;
+                // Top 2 del usuario
+                const equiposUsuario = [tablaVirtual[0].nombre, tablaVirtual[1].nombre];
                 
+                // Separar aciertos y fallos
+                const aciertos = equiposUsuario.filter(e => clasificadosOficialesGrupo.includes(e));
+                const fallos = equiposUsuario.filter(e => !clasificadosOficialesGrupo.includes(e));
+                
+                // Ordenar equipos pronosticados: aciertos primero
+                const equiposOrdenados = [...aciertos, ...fallos];
+                
+                // Ordenar equipos oficiales para alinear con pronósticos
+                const oficialesOrdenados = [
+                  ...aciertos,
+                  ...clasificadosOficialesGrupo.filter(e => !equiposUsuario.includes(e))
+                ];
+                
+                // Calcular puntos de cada línea
+                const puntosDetalle = equiposOrdenados.map(e => 
+                  clasificadosOficialesGrupo.includes(e) ? 2 : 0
+                );
+                
+                // Calcular puntos totales
+                const totalPuntos = aciertos.length * 2;
+                
+                // Agregar fila de OCTAVOS para grupo cerrado
                 grupo.pronosticos.push({
-                  id: `clasif-playoffs-${grupo.usuario_id}-${grupoLetra}`,
+                  id: `clasif-octavos-${grupo.usuario_id}-${grupoLetra}`,
                   esClasificado: true,
-                  tipoClasificado: 'playoffs',
+                  tipoClasificado: 'octavos',
+                  grupoCerrado: true,
                   usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
                   jornada: { numero: 6, cerrada: true },
                   partido: {
                     grupo: grupoLetra,
-                    local: { nombre: `Clasificados a Playoffs Sudamericana Grupo ${grupoLetra}` },
+                    local: { nombre: `Clasificados a Octavos de Libertadores Grupo ${grupoLetra}` },
                     visita: { nombre: '' }
                   },
-                  equipo_pronosticado: terceroUsuario,
-                  equipo_oficial: terceroOficial,
-                  puntos: puntosPlayoffs
+                  equipos_pronosticados: equiposOrdenados,
+                  equipos_oficiales: oficialesOrdenados,
+                  puntos_detalle: puntosDetalle,
+                  puntos: totalPuntos
                 });
+                
+                // Agregar fila para 3er lugar (Play-offs Sudamericana)
+                if (tablaVirtual.length >= 3) {
+                  const terceroUsuario = tablaVirtual[2].nombre;
+                  const clasificadosOficialesTerceros = clasificadosOficiales
+                    .filter(c => c.grupo === grupoLetra && c.posicion === 3)
+                    .map(c => c.equipo_nombre);
+                  
+                  const terceroOficial = clasificadosOficialesTerceros.length > 0 ? clasificadosOficialesTerceros[0] : null;
+                  const puntosPlayoffs = (terceroOficial && terceroUsuario === terceroOficial) ? 2 : 0;
+                  
+                  grupo.pronosticos.push({
+                    id: `clasif-playoffs-${grupo.usuario_id}-${grupoLetra}`,
+                    esClasificado: true,
+                    tipoClasificado: 'playoffs',
+                    grupoCerrado: true,
+                    usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                    jornada: { numero: 6, cerrada: true },
+                    partido: {
+                      grupo: grupoLetra,
+                      local: { nombre: `Clasificados a Playoffs Sudamericana Grupo ${grupoLetra}` },
+                      visita: { nombre: '' }
+                    },
+                    equipo_pronosticado: terceroUsuario,
+                    equipo_oficial: terceroOficial,
+                    puntos: puntosPlayoffs
+                  });
+                }
+              } else {
+                // Grupo NO cerrado: filas "Pendiente"
+                const equiposUsuario = [tablaVirtual[0].nombre, tablaVirtual[1].nombre];
+                
+                grupo.pronosticos.push({
+                  id: `clasif-octavos-${grupo.usuario_id}-${grupoLetra}`,
+                  esClasificado: true,
+                  tipoClasificado: 'octavos',
+                  grupoCerrado: false,
+                  usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                  jornada: { numero: 6, cerrada: false },
+                  partido: {
+                    grupo: grupoLetra,
+                    local: { nombre: `Clasificados a Octavos de Libertadores Grupo ${grupoLetra}` },
+                    visita: { nombre: '' }
+                  },
+                  equipos_pronosticados: equiposUsuario,
+                  equipos_oficiales: null,
+                  puntos_detalle: null,
+                  puntos: null
+                });
+                
+                if (tablaVirtual.length >= 3) {
+                  grupo.pronosticos.push({
+                    id: `clasif-playoffs-${grupo.usuario_id}-${grupoLetra}`,
+                    esClasificado: true,
+                    tipoClasificado: 'playoffs',
+                    grupoCerrado: false,
+                    usuario: { id: grupo.usuario_id, nombre: grupo.jugador },
+                    jornada: { numero: 6, cerrada: false },
+                    partido: {
+                      grupo: grupoLetra,
+                      local: { nombre: `Clasificados a Playoffs Sudamericana Grupo ${grupoLetra}` },
+                      visita: { nombre: '' }
+                    },
+                    equipo_pronosticado: tablaVirtual[2].nombre,
+                    equipo_oficial: null,
+                    puntos: null
+                  });
+                }
               }
             }
           });
@@ -1637,7 +1681,7 @@ export default function ClasificacionLibertadores() {
                               ));
                             })() : pronosticosClasificados.length > 0 ? (
                               pronosticosClasificados.map((pronostico, index) => (
-                                <tr key={`j6-clasif-${grupo.usuario_id}-${pronostico.id}-${index}`} className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                                <tr key={`j6-clasif-${grupo.usuario_id}-${pronostico.id}-${index}`} className={pronostico.grupoCerrado === false ? 'table-secondary' : pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
                                   <td className="text-center">
                                     {parseInt(filtroJornada) === 6 ? (
                                       <span className="badge bg-warning text-dark">Grupo {pronostico.partido.grupo}</span>
@@ -1678,7 +1722,7 @@ export default function ClasificacionLibertadores() {
                                             onError={(e) => e.target.style.display = 'none'}
                                           />
                                         )}
-                                        <span className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                        <span className={`fw-bold ${pronostico.grupoCerrado === false ? 'text-muted' : pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
                                           {pronostico.equipo_pronosticado}
                                         </span>
                                       </div>
@@ -1686,7 +1730,7 @@ export default function ClasificacionLibertadores() {
                                       pronostico.equipos_pronosticados?.map((equipo, idx) => (
                                         <div 
                                           key={idx} 
-                                          className={`fw-bold ${pronostico.puntos_detalle[idx] > 0 ? 'text-success' : 'text-danger'}`}
+                                          className={`fw-bold ${pronostico.grupoCerrado === false ? 'text-muted' : (pronostico.puntos_detalle?.[idx] > 0 ? 'text-success' : 'text-danger')}`}
                                           style={{ 
                                             borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
                                             padding: '4px 0'
@@ -1708,7 +1752,9 @@ export default function ClasificacionLibertadores() {
                                     )}
                                   </td>
                                   <td className="text-center">
-                                    {pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
+                                    {pronostico.grupoCerrado === false ? (
+                                      <span className="text-muted">⏳ Pendiente</span>
+                                    ) : pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
                                       <div className="d-flex align-items-center justify-content-center gap-2">
                                         {getLogoEquipo(pronostico.equipo_oficial) && (
                                           <img 
@@ -1746,7 +1792,9 @@ export default function ClasificacionLibertadores() {
                                     )}
                                   </td>
                                   <td className="text-center">
-                                    {pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
+                                    {pronostico.grupoCerrado === false ? (
+                                      <span className="text-muted">⏳ Pendiente</span>
+                                    ) : pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
                                       pronostico.puntos > 0 ? (
                                         <span className="badge bg-success">
                                           +{pronostico.puntos} pts
@@ -1899,7 +1947,7 @@ export default function ClasificacionLibertadores() {
                         <React.Fragment key={`pronostico-${pronostico.id}-${index}`}>
                           {/* SI ES FILA DE CLASIFICADO - Renderizado especial */}
                           {pronostico.esClasificado ? (
-                          <tr className={pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
+                          <tr className={pronostico.grupoCerrado === false ? 'table-secondary' : pronostico.puntos > 0 ? 'table-success' : 'table-danger'}>
                             <td className="text-center">
                               <span className="badge bg-warning text-dark">Clasificados</span>
                             </td>
@@ -1921,7 +1969,7 @@ export default function ClasificacionLibertadores() {
                                       onError={(e) => e.target.style.display = 'none'}
                                     />
                                   )}
-                                  <span className={`fw-bold ${pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
+                                  <span className={`fw-bold ${pronostico.grupoCerrado === false ? 'text-muted' : pronostico.puntos > 0 ? 'text-success' : 'text-danger'}`}>
                                     {pronostico.equipo_pronosticado}
                                   </span>
                                 </div>
@@ -1930,7 +1978,7 @@ export default function ClasificacionLibertadores() {
                                 pronostico.equipos_pronosticados?.map((equipo, idx) => (
                                   <div 
                                     key={idx} 
-                                    className={`fw-bold ${pronostico.puntos_detalle[idx] > 0 ? 'text-success' : 'text-danger'}`}
+                                    className={`fw-bold ${pronostico.grupoCerrado === false ? 'text-muted' : pronostico.puntos_detalle[idx] > 0 ? 'text-success' : 'text-danger'}`}
                                     style={{ 
                                       borderBottom: idx === 0 ? '1px solid #ddd' : 'none',
                                       padding: '4px 0'
@@ -1952,8 +2000,10 @@ export default function ClasificacionLibertadores() {
                               )}
                             </td>
                             <td className="text-center">
-                              {/* Renderizado condicional según tipo de clasificado */}
-                              {pronostico.tipoClasificado === 'playoffs' ? (
+                              {/* Grupo no cerrado: Pendiente */}
+                              {pronostico.grupoCerrado === false ? (
+                                <span className="text-muted">⏳ Pendiente</span>
+                              ) : pronostico.tipoClasificado === 'playoffs' ? (
                                 // Para playoffs: mostrar 1 solo equipo
                                 <div className="d-flex align-items-center justify-content-center gap-2">
                                   {getLogoEquipo(pronostico.equipo_oficial) && (
@@ -1996,8 +2046,10 @@ export default function ClasificacionLibertadores() {
                               {/* Columna Bonus vacía */}
                             </td>
                             <td className="text-center">
-                              {/* Renderizado condicional según tipo de clasificado */}
-                              {pronostico.tipoClasificado === 'playoffs' ? (
+                              {/* Grupo no cerrado: Pendiente */}
+                              {pronostico.grupoCerrado === false ? (
+                                <span className="text-muted">⏳ Pendiente</span>
+                              ) : pronostico.tipoClasificado === 'playoffs' ? (
                                 // Para playoffs: mostrar puntos totales
                                 pronostico.puntos > 0 ? (
                                   <span className="badge bg-success">

@@ -53,14 +53,35 @@ router.get('/clasificados-oficiales', verifyToken, async (req, res) => {
   try {
     const jornadasNumeros = [1, 2, 3, 4, 5, 6];
     const clasificados = [];
+    const gruposCerrados = [];
     const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
-    // Calcular tabla oficial de cada grupo
     for (const grupo of grupos) {
+      // Verificar si el grupo está cerrado (todos los partidos de jornadas 1-6 tienen resultado)
+      const closedCheck = await pool.query(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN p.goles_local IS NOT NULL AND p.goles_visita IS NOT NULL THEN 1 ELSE 0 END) as con_resultado
+        FROM libertadores_partidos p
+        INNER JOIN libertadores_jornadas j ON p.jornada_id = j.id
+        WHERE j.numero = ANY($1)
+          AND EXISTS (
+            SELECT 1 FROM libertadores_equipos el WHERE el.nombre = p.nombre_local AND el.grupo = $2
+          )
+      `, [jornadasNumeros, grupo]);
+
+      const { total, con_resultado } = closedCheck.rows[0];
+      const grupoCerrado = parseInt(total) > 0 && parseInt(total) === parseInt(con_resultado);
+
+      if (grupoCerrado) {
+        gruposCerrados.push(grupo);
+      }
+
+      // Calcular tabla oficial de cada grupo
       const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
-      
-      // Top 2 clasifican a Octavos
-      if (tabla.length >= 2) {
+
+      // Top 2 clasifican a Octavos (solo si el grupo está cerrado)
+      if (grupoCerrado && tabla.length >= 2) {
         clasificados.push({
           grupo,
           posicion: 1,
@@ -72,9 +93,9 @@ router.get('/clasificados-oficiales', verifyToken, async (req, res) => {
           equipo_nombre: tabla[1].nombre
         });
       }
-      
-      // 3er lugar clasifica a Playoffs Sudamericana
-      if (tabla.length >= 3) {
+
+      // 3er lugar clasifica a Playoffs Sudamericana (solo si el grupo está cerrado)
+      if (grupoCerrado && tabla.length >= 3) {
         clasificados.push({
           grupo,
           posicion: 3,
@@ -83,7 +104,7 @@ router.get('/clasificados-oficiales', verifyToken, async (req, res) => {
       }
     }
 
-    res.json(clasificados);
+    res.json({ clasificados, gruposCerrados });
   } catch (error) {
     console.error('Error calculando clasificados oficiales:', error);
     res.status(500).json({ error: 'Error calculando clasificados oficiales' });

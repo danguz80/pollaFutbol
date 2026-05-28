@@ -13,11 +13,13 @@ export async function calcularTablaOficial(grupo, jornadasNumeros) {
      WHERE j.numero = ANY($1)
        AND EXISTS (
          SELECT 1 FROM sudamericana_equipos el 
-         WHERE el.nombre = p.nombre_local AND el.grupo = $2
+         WHERE LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+         AND el.grupo = $2
        )
        AND EXISTS (
          SELECT 1 FROM sudamericana_equipos ev 
-         WHERE ev.nombre = p.nombre_visita AND ev.grupo = $2
+         WHERE LOWER(TRIM(REGEXP_REPLACE(p.nombre_visita, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(ev.nombre))
+         AND ev.grupo = $2
        )
      ORDER BY j.numero`,
     [jornadasNumeros, grupo]
@@ -93,27 +95,7 @@ export async function calcularTablaUsuario(usuarioId, grupo, jornadas) {
   const client = await pool.connect();
   
   try {
-    // Obtener equipos del grupo
-    const equiposResult = await client.query(`
-      SELECT id, nombre FROM sudamericana_equipos WHERE grupo = $1
-    `, [grupo]);
-    
-    const equipos = {};
-    equiposResult.rows.forEach(e => {
-      equipos[e.nombre] = {
-        nombre: e.nombre,
-        puntos: 0,
-        pj: 0,
-        pg: 0,
-        pe: 0,
-        pp: 0,
-        gf: 0,
-        gc: 0,
-        dif: 0
-      };
-    });
-
-    // Obtener pronósticos del usuario para este grupo en las jornadas especificadas
+    // Obtener pronósticos del usuario para este grupo
     const pronosticosResult = await client.query(`
       SELECT p.nombre_local, p.nombre_visita, lp.goles_local, lp.goles_visita
       FROM sudamericana_pronosticos lp
@@ -123,13 +105,22 @@ export async function calcularTablaUsuario(usuarioId, grupo, jornadas) {
         AND j.numero = ANY($2)
         AND EXISTS (
           SELECT 1 FROM sudamericana_equipos el 
-          WHERE el.nombre = p.nombre_local AND el.grupo = $3
+          WHERE LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+          AND el.grupo = $3
         )
         AND EXISTS (
           SELECT 1 FROM sudamericana_equipos ev 
-          WHERE ev.nombre = p.nombre_visita AND ev.grupo = $3
+          WHERE LOWER(TRIM(REGEXP_REPLACE(p.nombre_visita, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(ev.nombre))
+          AND ev.grupo = $3
         )
     `, [usuarioId, jornadas, grupo]);
+
+    // Inicializar equipos desde los partidos encontrados (con nombres en formato largo)
+    const equipos = {};
+    pronosticosResult.rows.forEach(p => {
+      if (!equipos[p.nombre_local]) equipos[p.nombre_local] = { nombre: p.nombre_local, puntos: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+      if (!equipos[p.nombre_visita]) equipos[p.nombre_visita] = { nombre: p.nombre_visita, puntos: 0, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, dif: 0 };
+    });
 
     // Procesar pronósticos
     pronosticosResult.rows.forEach(pronostico => {

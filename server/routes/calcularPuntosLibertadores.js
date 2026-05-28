@@ -710,8 +710,32 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
       const clasificadosOficiales = {};
       const tercerosOficiales = {};
-      
+      // Determinar qué grupos están cerrados (todos sus partidos de J1-J6 tienen resultado)
+      const gruposCerrados = new Set();
+
       for (const grupo of grupos) {
+        // Verificar si el grupo está cerrado
+        const closedCheck = await pool.query(`
+          SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN p.goles_local IS NOT NULL AND p.goles_visita IS NOT NULL THEN 1 ELSE 0 END) as con_resultado
+          FROM libertadores_partidos p
+          INNER JOIN libertadores_jornadas j ON p.jornada_id = j.id
+          WHERE j.numero = ANY($1)
+            AND EXISTS (
+              SELECT 1 FROM libertadores_equipos el WHERE el.nombre = p.nombre_local AND el.grupo = $2
+            )
+        `, [jornadasNumeros, grupo]);
+
+        const { total, con_resultado } = closedCheck.rows[0];
+        const grupoCerrado = parseInt(total) > 0 && parseInt(total) === parseInt(con_resultado);
+
+        if (!grupoCerrado) {
+          console.log(`  ⏳ Grupo ${grupo} no cerrado (${con_resultado}/${total} partidos con resultado) - omitiendo clasificación`);
+          continue;
+        }
+
+        gruposCerrados.add(grupo);
         const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
         if (tabla.length >= 2) {
           clasificadosOficiales[grupo] = [tabla[0].nombre, tabla[1].nombre];
@@ -742,6 +766,8 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         );
         
         for (const grupo of grupos) {
+          // Solo procesar grupos cerrados
+          if (!gruposCerrados.has(grupo)) continue;
           try {
             const tablaUsuario = await calcularTablaUsuario(usuario_id, grupo, jornadasNumeros);
             

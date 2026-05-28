@@ -7,7 +7,12 @@ const router = express.Router();
 // Endpoint para obtener los clasificados oficiales de la J6
 router.get('/clasificados-oficiales', verifyToken, async (req, res) => {
   try {
-    // Obtener todos los partidos de las jornadas 1-6 con sus resultados
+    const jornadasNumeros = [1, 2, 3, 4, 5, 6];
+    const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const clasificados = [];
+    const gruposCerrados = [];
+
+    // Obtener todos los partidos de las jornadas 1-6 con sus resultados (para tabla offline)
     const partidosQuery = `
       SELECT 
         p.id,
@@ -18,45 +23,49 @@ router.get('/clasificados-oficiales', verifyToken, async (req, res) => {
         p.goles_visita
       FROM sudamericana_partidos p
       INNER JOIN sudamericana_jornadas j ON p.jornada_id = j.id
-      LEFT JOIN sudamericana_equipos el ON p.nombre_local = el.nombre
+      LEFT JOIN sudamericana_equipos el ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
       WHERE j.numero IN (1, 2, 3, 4, 5, 6)
-        AND p.goles_local IS NOT NULL
-        AND p.goles_visita IS NOT NULL
         AND el.grupo IS NOT NULL
       ORDER BY el.grupo, j.numero
     `;
-    
     const partidosRes = await pool.query(partidosQuery);
-    
-    // Calcular tabla oficial para cada grupo
-    const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    const clasificados = [];
-    
+
     for (const grupo of grupos) {
+      // Verificar si el grupo está cerrado (todos los partidos tienen resultado)
+      const closedCheck = await pool.query(`
+        SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN p.goles_local IS NOT NULL AND p.goles_visita IS NOT NULL THEN 1 ELSE 0 END) as con_resultado
+        FROM sudamericana_partidos p
+        INNER JOIN sudamericana_jornadas j ON p.jornada_id = j.id
+        WHERE j.numero = ANY($1)
+          AND EXISTS (
+            SELECT 1 FROM sudamericana_equipos el
+            WHERE LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+            AND el.grupo = $2
+          )
+      `, [jornadasNumeros, grupo]);
+
+      const { total, con_resultado } = closedCheck.rows[0];
+      const grupoCerrado = parseInt(total) > 0 && parseInt(total) === parseInt(con_resultado);
+
+      if (!grupoCerrado) continue;
+
+      gruposCerrados.push(grupo);
+
       // Calcular tabla del grupo
       const tabla = calcularTablaOficial(partidosRes.rows, grupo);
-      
-      // Los clasificados son el 1ero y 2do de cada grupo
+
+      // 1ero clasifica a Octavos, 2do a Playoffs
       if (tabla.length >= 1) {
-        clasificados.push({
-          grupo: grupo,
-          equipo_nombre: tabla[0].nombre,
-          posicion: 1,
-          fase: 'OCTAVOS'
-        });
+        clasificados.push({ grupo, equipo_nombre: tabla[0].nombre, posicion: 1, fase: 'OCTAVOS' });
       }
-      
       if (tabla.length >= 2) {
-        clasificados.push({
-          grupo: grupo,
-          equipo_nombre: tabla[1].nombre,
-          posicion: 2,
-          fase: 'PLAYOFFS'
-        });
+        clasificados.push({ grupo, equipo_nombre: tabla[1].nombre, posicion: 2, fase: 'PLAYOFFS' });
       }
     }
-    
-    res.json(clasificados);
+
+    res.json({ clasificados, gruposCerrados });
   } catch (error) {
     console.error('Error obteniendo clasificados oficiales:', error);
     res.status(500).json({ error: 'Error al obtener clasificados' });

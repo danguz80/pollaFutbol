@@ -192,8 +192,32 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
       const primerosOficiales = {};
       const segundosOficiales = {};
-      
+      const gruposCerrados = new Set();
+
       for (const grupo of grupos) {
+        // Verificar si el grupo está cerrado (todos los partidos tienen resultado)
+        const closedCheck = await pool.query(`
+          SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN p.goles_local IS NOT NULL AND p.goles_visita IS NOT NULL THEN 1 ELSE 0 END) as con_resultado
+          FROM sudamericana_partidos p
+          INNER JOIN sudamericana_jornadas j ON p.jornada_id = j.id
+          WHERE j.numero = ANY($1)
+            AND EXISTS (
+              SELECT 1 FROM sudamericana_equipos el
+              WHERE LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+              AND el.grupo = $2
+            )
+        `, [jornadasNumeros, grupo]);
+
+        const { total, con_resultado } = closedCheck.rows[0];
+        const grupoCerrado = parseInt(total) > 0 && parseInt(total) === parseInt(con_resultado);
+        if (!grupoCerrado) {
+          console.log(`⏳ J6 - Grupo ${grupo} NO cerrado (${con_resultado}/${total}), se omite`);
+          continue;
+        }
+        gruposCerrados.add(grupo);
+
         const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
         console.log(`🔍 DEBUG J6 - Grupo ${grupo} tabla oficial:`, tabla.slice(0, 3));
         if (tabla.length >= 1) {
@@ -228,6 +252,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         );
         
         for (const grupo of grupos) {
+          if (!gruposCerrados.has(grupo)) continue;
           try {
             const tablaUsuario = await calcularTablaUsuario(usuario_id, grupo, jornadasNumeros);
             console.log(`🔍 DEBUG J6 - Usuario ${usuario_id} Grupo ${grupo} tabla:`, tablaUsuario.slice(0, 2).map(e => ({nombre: e.nombre, puntos: e.puntos})));
