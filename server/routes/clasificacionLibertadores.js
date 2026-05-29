@@ -91,8 +91,8 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       INNER JOIN usuarios u ON lp.usuario_id = u.id
       INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
       INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
-      LEFT JOIN libertadores_equipos el ON p.nombre_local = el.nombre
-      LEFT JOIN libertadores_equipos ev ON p.nombre_visita = ev.nombre
+      LEFT JOIN libertadores_equipos el ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+      LEFT JOIN libertadores_equipos ev ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_visita, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(ev.nombre))
       LEFT JOIN libertadores_puntos_clasificacion lpc ON lp.usuario_id = lpc.usuario_id 
         AND lp.partido_id = lpc.partido_id 
         AND lj.numero = lpc.jornada_numero
@@ -444,7 +444,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         partido: {
           id: row.partido_id,
           fecha: row.partido_fecha,
-          grupo: row.grupo_local,
+          grupo: row.grupo_local || row.grupo_visita,
           tipo_partido: row.tipo_partido,
           bonus: row.bonus,
           local: {
@@ -514,8 +514,8 @@ router.get('/partidos', verifyToken, async (req, res) => {
         el.grupo as grupo,
         lj.numero as jornada_numero
       FROM libertadores_partidos p
-      LEFT JOIN libertadores_equipos el ON p.nombre_local = el.nombre
-      LEFT JOIN libertadores_equipos ev ON p.nombre_visita = ev.nombre
+      LEFT JOIN libertadores_equipos el ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
+      LEFT JOIN libertadores_equipos ev ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_visita, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(ev.nombre))
       LEFT JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
       ORDER BY lj.numero DESC, p.fecha DESC
     `);
