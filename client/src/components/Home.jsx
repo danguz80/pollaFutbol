@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import CuentaRegresivaGlobal from "./CuentaRegresivaGlobal";
 import CuentaRegresivaLibertadores from "./CuentaRegresivaLibertadores";
 import CuentaRegresivaSudamericana from "./CuentaRegresivaSudamericana";
+import CuentaRegresivaMundial from "./CuentaRegresivaMundial";
 import HeroSection from "./HeroSection";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -420,6 +421,9 @@ export default function Home() {
 
                     {/* Cuenta Regresiva Sudamericana */}
                     <CuentaRegresivaSudamericana />
+
+                    {/* Cuenta Regresiva Mundial */}
+                    <CuentaRegresivaMundial />
 
                     {/* Top 3 Ranking Torneo Nacional - Solo si hay puntos */}
                     {rankingCampeonato.length > 0 && rankingCampeonato[0]?.puntaje_total > 0 && (

@@ -214,10 +214,10 @@ export default function JornadaMundial() {
       );
 
       setMensaje("✅ Pronósticos guardados exitosamente");
-      setTimeout(() => setMensaje(""), 3000);
+      setTimeout(() => setMensaje(""), 4000);
     } catch (error) {
       console.error("Error guardando pronósticos:", error);
-      alert(`❌ Error: ${error.response?.data?.error || error.message}`);
+      setMensaje(`❌ Error: ${error.response?.data?.error || error.message}`);
     }
   };
 
@@ -302,14 +302,6 @@ export default function JornadaMundial() {
           )}
         </div>
       </div>
-
-      {/* Mensaje de confirmación */}
-      {mensaje && (
-        <div className="alert alert-success alert-dismissible fade show" role="alert">
-          {mensaje}
-          <button type="button" className="btn-close" onClick={() => setMensaje("")}></button>
-        </div>
-      )}
 
       {/* Partidos */}
       {partidos.length === 0 ? (
@@ -472,6 +464,14 @@ export default function JornadaMundial() {
               >
                 Siguiente →
               </button>
+            </div>
+          )}
+
+          {/* Mensaje de confirmación - visible al guardar */}
+          {mensaje && (
+            <div className={`alert ${mensaje.includes('✅') ? 'alert-success' : 'alert-danger'} alert-dismissible fade show text-center fw-bold mt-3`} role="alert">
+              {mensaje}
+              <button type="button" className="btn-close" onClick={() => setMensaje("")}></button>
             </div>
           )}
 

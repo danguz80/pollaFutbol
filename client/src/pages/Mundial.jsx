@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import HeroSection from '../components/HeroSection';
+import CuentaRegresivaMundial from '../components/CuentaRegresivaMundial';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -167,6 +168,9 @@ export default function Mundial() {
           👑 Ganadores
         </button>
       </div>
+
+      {/* Cuenta Regresiva */}
+      <CuentaRegresivaMundial />
 
       {/* Hero Section con partidos destacados del Mundial */}
       <HeroSection competencia="mundial" />
