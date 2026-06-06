@@ -1356,23 +1356,9 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
     console.log(`📄 Generando PDF Sudamericana jornada ${jornadaNumero}...`);
     const pdfBuffer = await htmlPdf.generatePdf(file, options);
 
-    // Enviar por email
-    console.log(`📧 Enviando PDF por email...`);
-    const nombreArchivo = `Resultados_Sudamericana_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
-    const resultadoEmail = await whatsappService.enviarEmailConPDF(
-      pdfBuffer,
-      nombreArchivo,
-      jornadaNumero,
-      'Sudamericana'
-    );
-
-    if (!resultadoEmail.success) {
-      throw new Error(resultadoEmail.mensaje);
-    }
-
-    console.log(`✅ PDF Sudamericana jornada ${jornadaNumero} generado y enviado correctamente`);
+    console.log(`✅ PDF Sudamericana jornada ${jornadaNumero} generado correctamente`);
     
-    return true;
+    return pdfBuffer;
   } catch (error) {
     console.error('Error generando PDF Sudamericana:', error);
     throw error;
@@ -1406,9 +1392,11 @@ router.post('/:jornadaNumero/pdf-final', verifyToken, checkRole('admin'), async 
       puntaje: r.puntaje
     }));
 
-    await generarPDFSudamericanaConGanadores(jornadaNumero, ganadores);
-
-    res.json({ ok: true, mensaje: 'PDF generado y enviado exitosamente' });
+    const pdfBuffer = await generarPDFSudamericanaConGanadores(jornadaNumero, ganadores);
+    const nombreArchivo = `Resultados_Sudamericana_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(pdfBuffer);
   } catch (error) {
     console.error('Error generando PDF Final Sudamericana:', error);
     res.status(500).json({ error: 'Error generando PDF completo', details: error.message });

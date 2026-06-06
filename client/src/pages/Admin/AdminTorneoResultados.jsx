@@ -232,10 +232,25 @@ export default function AdminTorneoResultados() {
         throw new Error(errorData.error || 'Error al generar PDF');
       }
 
-      const data = await res.json();
-      
-      setModalType("success");
-      setModalMessage(`✅ PDF testigo generado exitosamente\n\n📧 ${data.mensaje}\n\n📄 El PDF contiene todos los pronósticos de los participantes para la Jornada ${jornadaSeleccionada}`);
+      const contentType = res.headers.get('content-type') || '';
+
+      if (contentType.includes('application/pdf')) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `TorneoNacional_Jornada_${jornadaSeleccionada}_${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setModalType("success");
+        setModalMessage(`✅ PDF testigo descargado en tu equipo\n\n📄 El PDF contiene todos los pronósticos de la Jornada ${jornadaSeleccionada}`);
+      } else {
+        const data = await res.json();
+        setModalType("success");
+        setModalMessage(`✅ PDF testigo generado exitosamente\n\n📧 ${data.mensaje}`);
+      }
       setShowModal(true);
     } catch (error) {
       console.error("Error al generar PDF testigo:", error);
@@ -248,7 +263,7 @@ export default function AdminTorneoResultados() {
   const generarPDFCompleto = async () => {
     if (!jornadaSeleccionada) return;
     
-    if (!confirm(`¿Generar PDF completo con resultados de la Jornada ${jornadaSeleccionada}?\n\nIncluirá: pronósticos, resultados reales, puntos, rankings y ganadores.\n\nEl PDF se enviará automáticamente por email.`)) {
+    if (!confirm(`¿Generar PDF completo con resultados de la Jornada ${jornadaSeleccionada}?\n\nIncluirá: pronósticos, resultados reales, puntos, rankings y ganadores.`)) {
       return;
     }
 
@@ -270,10 +285,18 @@ export default function AdminTorneoResultados() {
         throw new Error(errorData.error || 'Error al generar PDF');
       }
 
-      const data = await res.json();
-      
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TorneoNacional_Jornada_${jornadaSeleccionada}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
       setModalType("success");
-      setModalMessage(`✅ PDF completo generado exitosamente\n\n📧 ${data.mensaje}\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario`);
+      setModalMessage(`✅ PDF completo descargado en tu equipo\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario`);
       setShowModal(true);
     } catch (error) {
       console.error("Error al generar PDF completo:", error);

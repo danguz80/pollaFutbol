@@ -785,27 +785,10 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
     
     console.log('✅ PDF generado exitosamente');
 
-    // Enviar PDF por email
     const nombreArchivo = `Sudamericana_Jornada_${numero}_${new Date().toISOString().split('T')[0]}.pdf`;
-    const whatsappService = getWhatsAppService();
-    const resultado = await whatsappService.enviarEmailConPDF(
-      pdfBuffer, 
-      nombreArchivo, 
-      numero,
-      'Copa Sudamericana'
-    );
-
-    if (resultado.success) {
-      res.json({ 
-        mensaje: 'PDF generado y enviado exitosamente',
-        detalles: resultado.mensaje
-      });
-    } else {
-      res.status(500).json({ 
-        error: 'PDF generado pero hubo un error al enviarlo',
-        detalles: resultado.mensaje 
-      });
-    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(pdfBuffer);
 
   } catch (error) {
     console.error('Error generando PDF:', error);

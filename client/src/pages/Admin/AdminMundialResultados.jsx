@@ -12,6 +12,10 @@ export default function AdminMundialResultados() {
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
   const [jornadaActiva, setJornadaActiva] = useState(false);
   const [jornadaId, setJornadaId] = useState(null);
+  const [fechaCierre, setFechaCierre] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalType, setModalType] = useState("success");
 
   const jornadasOrdenadas = jornadas.sort((a, b) => a.numero - b.numero);
 
@@ -82,10 +86,87 @@ export default function AdminMundialResultados() {
       setJornadaCerrada(!!jornada?.cerrada);
       setJornadaActiva(!!jornada?.activa);
       setJornadaId(jornada?.id);
+
+      if (jornada?.fecha_cierre) {
+        const fechaUTC = new Date(jornada.fecha_cierre);
+        const anio = fechaUTC.getFullYear();
+        const mes = String(fechaUTC.getMonth() + 1).padStart(2, '0');
+        const dia = String(fechaUTC.getDate()).padStart(2, '0');
+        const hora = String(fechaUTC.getHours()).padStart(2, '0');
+        const minutos = String(fechaUTC.getMinutes()).padStart(2, '0');
+        setFechaCierre(`${anio}-${mes}-${dia}T${hora}:${minutos}`);
+      } else {
+        setFechaCierre("");
+      }
     } catch (err) {
       setJornadaCerrada(false);
       setJornadaActiva(false);
       setJornadaId(null);
+      setFechaCierre("");
+    }
+  };
+
+  const configurarFechaCierre = async () => {
+    if (!jornadaSeleccionada || !fechaCierre) {
+      alert("⚠️ Debes seleccionar una fecha y hora");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const fechaLocal = new Date(fechaCierre);
+      const fechaUTCString = fechaLocal.toISOString();
+
+      const res = await fetch(`${API_BASE_URL}/api/mundial/jornadas/${jornadaSeleccionada}/fecha-cierre`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ fecha_cierre: fechaUTCString })
+      });
+
+      if (res.ok) {
+        await fetchJornadaInfo(jornadaSeleccionada);
+        const [fecha, hora] = fechaCierre.split('T');
+        const [year, month, day] = fecha.split('-');
+        setModalType("success");
+        setModalMessage(`✅ Fecha configurada: ${day}/${month}/${year} a las ${hora} hrs (hora local Chile)\n\nLa jornada ${jornadaSeleccionada} del Mundial se cerrará automáticamente a esa hora.\n\nEl sistema revisa cada minuto.`);
+        setShowModal(true);
+      } else {
+        alert("❌ Error al guardar la fecha de cierre");
+      }
+    } catch (error) {
+      alert("❌ Error al configurar fecha de cierre");
+    }
+  };
+
+  const eliminarFechaCierre = async () => {
+    if (!jornadaSeleccionada) return;
+    if (!confirm("¿Eliminar la fecha de cierre automático?")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/mundial/jornadas/${jornadaSeleccionada}/fecha-cierre`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ fecha_cierre: null })
+      });
+
+      if (res.ok) {
+        setFechaCierre("");
+        await fetchJornadaInfo(jornadaSeleccionada);
+        setModalType("success");
+        setModalMessage("✅ Fecha de cierre eliminada correctamente\n\nLa jornada ya no se cerrará automáticamente.");
+        setShowModal(true);
+      } else {
+        alert("❌ Error al eliminar fecha de cierre");
+      }
+    } catch (error) {
+      alert("❌ Error al eliminar fecha de cierre");
     }
   };
 
@@ -422,6 +503,58 @@ export default function AdminMundialResultados() {
         </div>
       )}
 
+      {/* Cierre Automático de Jornada */}
+      {jornadaSeleccionada && (
+        <div className="card mb-4">
+          <div className="card-header bg-warning text-dark">
+            <h5>⏰ Cierre Automático de Jornada</h5>
+          </div>
+          <div className="card-body">
+            <p className="text-muted">
+              Configura una fecha y hora para que la jornada se cierre automáticamente.
+              El sistema revisará cada minuto y cerrará la jornada cuando llegue la fecha configurada.
+            </p>
+            <div className="row align-items-end">
+              <div className="col-md-6">
+                <label className="form-label fw-bold">Fecha y Hora de Cierre (Hora de Chile GMT-3)</label>
+                <input
+                  type="datetime-local"
+                  className="form-control form-control-lg"
+                  value={fechaCierre}
+                  onChange={(e) => setFechaCierre(e.target.value)}
+                />
+                {fechaCierre && (
+                  <div className="alert alert-success mt-2 mb-0">
+                    <strong>✅ Configurado:</strong> Se cerrará el {fechaCierre.split('T')[0].split('-').reverse().join('/')} a las {fechaCierre.split('T')[1]} hrs (Chile GMT-3)
+                    <br/>
+                    <small className="text-muted">La jornada se cerrará automáticamente a esta hora, sin importar dónde estés ubicado.</small>
+                  </div>
+                )}
+              </div>
+              <div className="col-md-6">
+                <div className="d-flex gap-2">
+                  <button
+                    className="btn btn-primary btn-lg"
+                    onClick={configurarFechaCierre}
+                    disabled={!fechaCierre}
+                  >
+                    💾 Guardar Fecha de Cierre
+                  </button>
+                  {fechaCierre && (
+                    <button
+                      className="btn btn-outline-danger btn-lg"
+                      onClick={eliminarFechaCierre}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cards de resultados */}
       {partidos.length > 0 && (
         <>
@@ -598,6 +731,28 @@ export default function AdminMundialResultados() {
         <div className="alert alert-info">
           <h5>📋 No hay partidos en esta jornada</h5>
           <p className="mb-0">El fixture aún no ha sido creado para esta jornada.</p>
+        </div>
+      )}
+
+      {/* Modal */}
+      {showModal && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className={`modal-header ${modalType === 'error' ? 'bg-danger text-white' : 'bg-success text-white'}`}>
+                <h5 className="modal-title">{modalType === 'error' ? '❌ Error' : '✅ Éxito'}</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowModal(false)} />
+              </div>
+              <div className="modal-body">
+                {modalMessage.split('\n').map((line, i) => (
+                  <p key={i} className="mb-1">{line}</p>
+                ))}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

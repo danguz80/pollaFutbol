@@ -1771,20 +1771,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
     const file = { content: html };
     const pdfBuffer = await htmlPdf.generatePdf(file, options);
 
-    // Enviar por email
-    const nombreArchivo = `Resultados_Libertadores_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
-    const resultadoEmail = await whatsappService.enviarEmailConPDF(
-      pdfBuffer,
-      nombreArchivo,
-      jornadaNumero,
-      'Libertadores'
-    );
-
-    if (!resultadoEmail.success) {
-      throw new Error(resultadoEmail.mensaje);
-    }
-
-    return true;
+    return pdfBuffer;
 
   } catch (error) {
     console.error('Error al generar PDF de Libertadores:', error);
@@ -1819,9 +1806,11 @@ router.post('/:jornadaNumero/pdf-final', verifyToken, checkRole('admin'), async 
       puntaje: r.puntaje
     }));
 
-    await generarPDFLibertadoresConGanadores(jornadaNumero, ganadores);
-
-    res.json({ ok: true, mensaje: 'PDF generado y enviado exitosamente' });
+    const pdfBuffer = await generarPDFLibertadoresConGanadores(jornadaNumero, ganadores);
+    const nombreArchivo = `Resultados_Libertadores_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(pdfBuffer);
   } catch (error) {
     console.error('Error generando PDF Final Libertadores:', error);
     res.status(500).json({ error: 'Error generando PDF completo', details: error.message });

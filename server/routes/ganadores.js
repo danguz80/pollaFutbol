@@ -38,12 +38,12 @@ router.post("/jornada/:numero/pdf-final", verifyToken, authorizeRoles('admin'), 
     
     console.log(`📄 Generando PDF Final para Jornada ${numero}...`);
     
-    await generarPDFCompleto(numero);
-    
-    res.json({
-      ok: true,
-      mensaje: 'PDF generado y enviado exitosamente'
-    });
+    const pdfBuffer = await generarPDFCompleto(numero);
+    const nombreArchivo = `TorneoNacional_Jornada_${numero}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(pdfBuffer);
   } catch (error) {
     console.error('Error generando PDF completo:', error);
     res.status(500).json({ error: 'Error generando PDF completo', details: error.message });
@@ -612,24 +612,7 @@ async function generarPDFCompleto(jornadaNumero) {
     const pdfBuffer = await htmlPdf.generatePdf(file, options);
     console.log('✅ PDF generado exitosamente');
 
-    // Enviar PDF por email
-    const whatsappService = getWhatsAppService();
-    const nombreArchivo = `TorneoNacional_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
-
-    const resultado = await whatsappService.enviarEmailConPDF(
-      pdfBuffer,
-      nombreArchivo,
-      `Resultados Torneo Nacional - Jornada ${jornadaNumero}`,
-      `Adjunto encontrarás los resultados completos de la jornada ${jornadaNumero} del Torneo Nacional con pronósticos, rankings y ganadores.`
-    );
-
-    if (resultado.success) {
-      console.log('✅ PDF enviado por email exitosamente');
-    } else {
-      console.error('❌ Error al enviar PDF por email:', resultado.error);
-    }
-
-    return true;
+    return pdfBuffer;
   } catch (error) {
     console.error('Error en generarPDFCompleto:', error);
     throw error;

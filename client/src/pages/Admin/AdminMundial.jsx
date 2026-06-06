@@ -10,6 +10,7 @@ export default function AdminMundial() {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [jornadas, setJornadas] = useState([]);
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState(null);
+  const [fechaCierreEdicion, setFechaCierreEdicion] = useState({});  // { [numero]: "YYYY-MM-DDTHH:mm" }
 
   useEffect(() => {
     cargarJornadas();
@@ -22,9 +23,58 @@ export default function AdminMundial() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setJornadas(response.data);
+
+      // Cargar fechas de cierre existentes
+      const fechas = {};
+      response.data.forEach(j => {
+        if (j.fecha_cierre) {
+          const fechaUTC = new Date(j.fecha_cierre);
+          const anio = fechaUTC.getFullYear();
+          const mes = String(fechaUTC.getMonth() + 1).padStart(2, '0');
+          const dia = String(fechaUTC.getDate()).padStart(2, '0');
+          const hora = String(fechaUTC.getHours()).padStart(2, '0');
+          const min = String(fechaUTC.getMinutes()).padStart(2, '0');
+          fechas[j.numero] = `${anio}-${mes}-${dia}T${hora}:${min}`;
+        }
+      });
+      setFechaCierreEdicion(fechas);
     } catch (error) {
       console.error('Error cargando jornadas:', error);
       showMessage('danger', 'Error cargando jornadas');
+    }
+  };
+
+  const guardarFechaCierre = async (numero) => {
+    const fechaLocal = fechaCierreEdicion[numero];
+    if (!fechaLocal) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `${API_URL}/api/mundial/jornadas/${numero}/fecha-cierre`,
+        { fecha_cierre: new Date(fechaLocal).toISOString() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showMessage('success', `⏰ Cierre automático configurado para J${numero}`);
+      cargarJornadas();
+    } catch (error) {
+      showMessage('danger', 'Error guardando fecha de cierre');
+    }
+  };
+
+  const eliminarFechaCierre = async (numero) => {
+    if (!window.confirm('¿Eliminar la fecha de cierre automático?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `${API_URL}/api/mundial/jornadas/${numero}/fecha-cierre`,
+        { fecha_cierre: null },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setFechaCierreEdicion(prev => { const n = { ...prev }; delete n[numero]; return n; });
+      showMessage('success', `Fecha de cierre eliminada para J${numero}`);
+      cargarJornadas();
+    } catch (error) {
+      showMessage('danger', 'Error eliminando fecha de cierre');
     }
   };
 
@@ -220,6 +270,7 @@ export default function AdminMundial() {
                     <th>Nombre</th>
                     <th>Fase</th>
                     <th>Estado</th>
+                    <th>⏰ Cierre Automático</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -230,6 +281,34 @@ export default function AdminMundial() {
                       <td>{jornada.nombre}</td>
                       <td className="text-muted small">{getSubtitulo(jornada.numero)}</td>
                       <td>{getEstadoBadge(jornada)}</td>
+                      <td style={{ minWidth: '260px' }}>
+                        {!jornada.cerrada ? (
+                          <div className="d-flex gap-1 align-items-center flex-wrap">
+                            <input
+                              type="datetime-local"
+                              className="form-control form-control-sm"
+                              style={{ width: '175px' }}
+                              value={fechaCierreEdicion[jornada.numero] || ''}
+                              onChange={e => setFechaCierreEdicion(prev => ({ ...prev, [jornada.numero]: e.target.value }))}
+                            />
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={() => guardarFechaCierre(jornada.numero)}
+                              disabled={!fechaCierreEdicion[jornada.numero]}
+                              title="Guardar fecha de cierre"
+                            >💾</button>
+                            {jornada.fecha_cierre && (
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => eliminarFechaCierre(jornada.numero)}
+                                title="Eliminar fecha de cierre"
+                              >🗑️</button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted small">Jornada cerrada</span>
+                        )}
+                      </td>
                       <td>
                         <div className="btn-group btn-group-sm" role="group">
                           {!jornada.cerrada && (

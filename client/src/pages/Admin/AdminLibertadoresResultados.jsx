@@ -203,7 +203,7 @@ export default function AdminLibertadoresResultados() {
   const generarPDFTestigo = async () => {
     if (!jornadaSeleccionada) return;
 
-    if (!confirm(`¿Generar PDF testigo con los pronósticos de la Jornada ${jornadaSeleccionada}?\n\nEl PDF se enviará automáticamente por email.`)) {
+    if (!confirm(`¿Generar PDF testigo con los pronósticos de la Jornada ${jornadaSeleccionada}?`)) {
       return;
     }
 
@@ -223,9 +223,17 @@ export default function AdminLibertadoresResultados() {
         throw new Error(errorData.error || 'Error al generar PDF');
       }
 
-      const data = await res.json();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Libertadores_Jornada_${jornadaSeleccionada}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       setModalType("success");
-      setModalMessage(`✅ PDF testigo generado exitosamente\n\n📧 ${data.mensaje}\n\n📄 El PDF contiene todos los pronósticos de los participantes para la Jornada ${jornadaSeleccionada}`);
+      setModalMessage(`✅ PDF testigo descargado en tu equipo\n\n📄 El PDF contiene todos los pronósticos de la Jornada ${jornadaSeleccionada}`);
       setShowModal(true);
     } catch (error) {
       console.error("Error al generar PDF testigo:", error);
@@ -238,7 +246,7 @@ export default function AdminLibertadoresResultados() {
   const generarPDFCompleto = async () => {
     if (!jornadaSeleccionada) return;
 
-    if (!confirm(`¿Generar PDF completo con resultados de la Jornada ${jornadaSeleccionada}?\n\nIncluirá: pronósticos, resultados reales, puntos, rankings y ganadores.\n\nEl PDF se enviará automáticamente por email.`)) {
+    if (!confirm(`¿Generar PDF completo con resultados de la Jornada ${jornadaSeleccionada}?\n\nIncluirá: pronósticos, resultados reales, puntos, rankings y ganadores.`)) {
       return;
     }
 
@@ -258,9 +266,17 @@ export default function AdminLibertadoresResultados() {
         throw new Error(errorData.error || 'Error al generar PDF');
       }
 
-      const data = await res.json();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Resultados_Libertadores_Jornada_${jornadaSeleccionada}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       setModalType("success");
-      setModalMessage(`✅ PDF completo generado exitosamente\n\n📧 ${data.mensaje}\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario`);
+      setModalMessage(`✅ PDF completo descargado en tu equipo\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario`);
       setShowModal(true);
     } catch (error) {
       console.error("Error al generar PDF completo:", error);
@@ -336,16 +352,16 @@ export default function AdminLibertadoresResultados() {
         return;
       }
       
-      // Si se está cerrando la jornada, generar y enviar PDF primero
+      // Si se está cerrando la jornada, generar y descargar PDF primero
       if (!jornadaCerrada) {
         const confirmarCierre = confirm(
           `¿Cerrar la jornada ${jornadaSeleccionada}?\n\n` +
-          `Se generará un PDF con todos los pronósticos y se enviará por email antes de cerrar.`
+          `Se generará un PDF con todos los pronósticos y se descargará en tu equipo antes de cerrar.`
         );
         
         if (!confirmarCierre) return;
         
-        // Generar y enviar PDF
+        // Generar y descargar PDF
         try {
           const pdfResponse = await fetch(
             `${API_BASE_URL}/api/libertadores-pronosticos/generar-pdf/${jornadaSeleccionada}`,
@@ -363,11 +379,19 @@ export default function AdminLibertadoresResultados() {
             throw new Error(errorData.error || 'Error al generar PDF');
           }
           
-          const pdfData = await pdfResponse.json();
-          console.log('PDF generado:', pdfData.mensaje);
+          const blob = await pdfResponse.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Libertadores_Jornada_${jornadaSeleccionada}_${new Date().toISOString().split('T')[0]}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          console.log('PDF descargado');
         } catch (pdfError) {
           const continuar = confirm(
-            `⚠️ Error al generar/enviar PDF: ${pdfError.message}\n\n` +
+            `⚠️ Error al generar PDF: ${pdfError.message}\n\n` +
             `¿Deseas cerrar la jornada de todos modos?`
           );
           
@@ -388,7 +412,7 @@ export default function AdminLibertadoresResultados() {
       setJornadaCerrada(!!data.jornada?.cerrada);
       
       if (data.jornada?.cerrada) {
-        alert("🔒 Jornada cerrada exitosamente\n\n✉️ PDF testigo enviado por email");
+        alert("🔒 Jornada cerrada exitosamente\n\n📄 PDF testigo descargado en tu equipo");
       } else {
         alert("🔓 Jornada abierta");
       }
