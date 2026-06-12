@@ -13,6 +13,7 @@ export default function Home() {
     const [rankingCampeonato, setRankingCampeonato] = useState([]);
     const [rankingLibertadores, setRankingLibertadores] = useState([]);
     const [rankingSudamericana, setRankingSudamericana] = useState([]);
+    const [rankingMundial, setRankingMundial] = useState([]);
     const [fotoPerfilMap, setFotoPerfilMap] = useState({});
     const [usuarios, setUsuarios] = useState([]);
     const [mostrarAdmin, setMostrarAdmin] = useState(false);
@@ -96,6 +97,27 @@ export default function Home() {
                     }
                 })
                 .catch(err => console.error('Error al cargar ranking Sudamericana:', err));
+
+            // Ranking Mundial
+            fetch(`${API_BASE_URL}/api/mundial-rankings/actual`, {
+                headers: { 
+                    'Authorization': `Bearer ${token}` 
+                }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ranking) {
+                        setRankingMundial(data.ranking);
+                        setFotoPerfilMap(prev => {
+                            const map = { ...prev };
+                            data.ranking.forEach(u => { 
+                                map[u.nombre] = u.foto_perfil; 
+                            });
+                            return map;
+                        });
+                    }
+                })
+                .catch(err => console.error('Error al cargar ranking Mundial:', err));
 
             // Si es admin, cargar todos los usuarios
             if (currentUser.rol === 'admin') {
@@ -449,6 +471,15 @@ export default function Home() {
                             title="Top 3 Copa Sudamericana" 
                             ranking={rankingSudamericana} 
                             emoji="🟢"
+                        />
+                    )}
+
+                    {/* Top 3 Ranking Mundial - Solo si hay puntos */}
+                    {rankingMundial.length > 0 && rankingMundial[0]?.puntos_acumulados > 0 && (
+                        <Top3Component 
+                            title="Top 3 Mundial 2026" 
+                            ranking={rankingMundial} 
+                            emoji="🌍"
                         />
                     )}
 
