@@ -129,11 +129,6 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
     console.log(`✅ Puntos calculados: ${pronosticosActualizados} pronósticos actualizados, ${puntosAsignados} puntos totales asignados`);
 
-    // Calcular ganadores de la jornada si se especificó
-    if (jornadaNumero) {
-      await calcularGanadoresJornada(jornadaNumero);
-    }
-
     // Actualizar ranking acumulado
     await actualizarRankingAcumulado();
 
@@ -146,6 +141,22 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
   } catch (error) {
     console.error('❌ Error calculando puntos Mundial:', error);
     res.status(500).json({ error: 'Error calculando puntos', details: error.message });
+  }
+});
+
+// POST /api/mundial-calcular/ganadores — calcular y guardar ganadores de una jornada
+router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { jornadaNumero } = req.body;
+    if (!jornadaNumero) {
+      return res.status(400).json({ error: 'Se requiere jornadaNumero' });
+    }
+    await calcularGanadoresJornada(parseInt(jornadaNumero));
+    await actualizarRankingAcumulado();
+    res.json({ mensaje: `✅ Ganadores de Jornada ${jornadaNumero} calculados exitosamente` });
+  } catch (error) {
+    console.error('❌ Error calculando ganadores:', error);
+    res.status(500).json({ error: 'Error calculando ganadores', details: error.message });
   }
 });
 

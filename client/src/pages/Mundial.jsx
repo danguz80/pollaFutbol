@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import HeroSection from '../components/HeroSection';
 import CuentaRegresivaMundial from '../components/CuentaRegresivaMundial';
+import NavegacionMundial from '../components/NavegacionMundial';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -154,20 +155,7 @@ export default function Mundial() {
       </div>
 
       {/* Botonera Principal */}
-      <div className="d-flex flex-wrap justify-content-center gap-2 mb-4">
-        <button className="btn btn-info" onClick={() => navigate('/mundial/estadisticas')}>
-          📊 Estadísticas
-        </button>
-        <button className="btn btn-info" onClick={() => navigate('/mundial/clasificacion')}>
-          📋 Clasificación
-        </button>
-        <button className="btn btn-info" onClick={() => navigate('/mundial/puntuacion')}>
-          📈 Puntuación
-        </button>
-        <button className="btn btn-info" onClick={() => navigate('/mundial/ganadores-jornada')}>
-          👑 Ganadores
-        </button>
-      </div>
+      <NavegacionMundial />
 
       {/* Cuenta Regresiva */}
       <CuentaRegresivaMundial />

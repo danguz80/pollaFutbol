@@ -465,6 +465,28 @@ export default function AdminMundialResultados() {
     }
   };
 
+  const calcularGanadoresJornada = async () => {
+    if (!jornadaSeleccionada) return;
+    if (!confirm(`¿Calcular ganadores de la jornada ${jornadaSeleccionada} del Mundial 2026?\n\nEsto determinará quién ganó esta jornada.`)) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/mundial-calcular/ganadores`, {
+        method: "POST",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ jornadaNumero: parseInt(jornadaSeleccionada) })
+      });
+      const data = await res.json();
+      alert(data.mensaje || "✅ Ganadores calculados correctamente");
+    } catch (error) {
+      console.error("Error al calcular ganadores:", error);
+      alert("❌ Error al calcular ganadores");
+    }
+  };
+
   const getSubtitulo = (numero) => {
     if (numero <= 3) return 'Fase de Grupos';
     if (numero === 4) return '16vos de Final';
@@ -784,6 +806,9 @@ export default function AdminMundialResultados() {
                 </button>
                 <button className="btn btn-success btn-lg px-4" onClick={calcularPuntajes}>
                   🧮 Calcular Puntajes
+                </button>
+                <button className="btn btn-warning btn-lg px-4" onClick={calcularGanadoresJornada}>
+                  🏆 Calcular Ganadores
                 </button>
                 <button
                   className="btn btn-outline-secondary btn-lg"
