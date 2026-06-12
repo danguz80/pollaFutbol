@@ -31,6 +31,8 @@ import PuntuacionMundial from "./pages/PuntuacionMundial";
 import GanadoresJornadaLibertadores from "./pages/GanadoresJornadaLibertadores";
 import GanadoresJornadaSudamericana from "./pages/GanadoresJornadaSudamericana";
 import GanadoresJornadaMundial from "./pages/GanadoresJornadaMundial";
+import SimuladorMundial from "./pages/SimuladorMundial";
+import ResumenJornadaMundial from "./pages/ResumenJornadaMundial";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
 import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
@@ -216,6 +218,8 @@ export default function AppRouter() {
         <Route path="/mundial/estadisticas" element={<EstadisticasMundial />} />
         <Route path="/mundial/puntuacion" element={<PuntuacionMundial />} />
         <Route path="/mundial/ganadores-jornada" element={<GanadoresJornadaMundial />} />
+        <Route path="/mundial/simulador" element={<SimuladorMundial />} />
+        <Route path="/mundial/resumen" element={<ResumenJornadaMundial />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/notificaciones" element={<TodasNotificaciones />} />
         <Route path="/register" element={<Register />} />

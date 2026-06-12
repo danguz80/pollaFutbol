@@ -28,6 +28,18 @@ export default function NavegacionMundial() {
       icono: '⭐',
       texto: 'Ganadores',
       color: 'success'
+    },
+    {
+      ruta: '/mundial/simulador',
+      icono: '🎮',
+      texto: 'Simulador',
+      color: 'info'
+    },
+    {
+      ruta: '/mundial/resumen',
+      icono: '📋',
+      texto: 'Resumen',
+      color: 'secondary'
     }
   ];
 

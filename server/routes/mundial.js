@@ -854,4 +854,102 @@ router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin')
   }
 });
 
+// GET /api/mundial/pronosticos-todos/jornada/:numero — todos los pronósticos de una jornada (para simulador)
+router.get('/pronosticos-todos/jornada/:numero', verifyToken, async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const result = await pool.query(`
+      SELECT 
+        mp.id,
+        mp.partido_id,
+        mp.resultado_local AS goles_local,
+        mp.resultado_visitante AS goles_visita,
+        mp.puntos,
+        u.nombre AS usuario,
+        u.foto_perfil AS usuario_foto_perfil
+      FROM mundial_pronosticos mp
+      JOIN usuarios u ON mp.usuario_id = u.id
+      JOIN mundial_partidos mpa ON mp.partido_id = mpa.id
+      JOIN mundial_jornadas mj ON mpa.jornada_id = mj.id
+      WHERE mj.numero = $1
+      ORDER BY u.nombre
+    `, [numero]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo pronósticos:', error);
+    res.status(500).json({ error: 'Error obteniendo pronósticos' });
+  }
+});
+
+// GET /api/mundial/resumen/jornada/:numero — resumen agrupado de pronósticos (para resumen jornada)
+router.get('/resumen/jornada/:numero', verifyToken, async (req, res) => {
+  try {
+    const { numero } = req.params;
+
+    const partidosResult = await pool.query(`
+      SELECT mpa.id, mpa.equipo_local, mpa.equipo_visitante, mpa.fecha
+      FROM mundial_partidos mpa
+      JOIN mundial_jornadas mj ON mpa.jornada_id = mj.id
+      WHERE mj.numero = $1
+      ORDER BY mpa.fecha, mpa.id
+    `, [numero]);
+
+    const partidos = [];
+
+    for (const partido of partidosResult.rows) {
+      const pronosticosResult = await pool.query(`
+        SELECT 
+          mp.resultado_local AS goles_local,
+          mp.resultado_visitante AS goles_visita,
+          u.id,
+          u.nombre,
+          u.foto_perfil
+        FROM mundial_pronosticos mp
+        JOIN usuarios u ON mp.usuario_id = u.id
+        WHERE mp.partido_id = $1
+        ORDER BY mp.resultado_local, mp.resultado_visitante, u.nombre
+      `, [partido.id]);
+
+      // Agrupar por resultado
+      const grupos = {};
+      for (const p of pronosticosResult.rows) {
+        const key = `${p.goles_local}-${p.goles_visita}`;
+        if (!grupos[key]) {
+          grupos[key] = {
+            resultado: key,
+            goles_local: p.goles_local,
+            goles_visita: p.goles_visita,
+            cantidad: 0,
+            usuarios: []
+          };
+        }
+        grupos[key].cantidad++;
+        grupos[key].usuarios.push({ id: p.id, nombre: p.nombre, foto_perfil: p.foto_perfil });
+      }
+
+      const totalPronosticos = pronosticosResult.rows.length;
+      const gruposArray = Object.values(grupos)
+        .sort((a, b) => b.cantidad - a.cantidad)
+        .map(g => ({
+          ...g,
+          porcentaje: totalPronosticos > 0 ? ((g.cantidad / totalPronosticos) * 100).toFixed(1) : '0'
+        }));
+
+      partidos.push({
+        partido_id: partido.id,
+        nombre_local: partido.equipo_local,
+        nombre_visita: partido.equipo_visitante,
+        fecha: partido.fecha,
+        total_pronosticos: totalPronosticos,
+        grupos: gruposArray
+      });
+    }
+
+    res.json({ partidos });
+  } catch (error) {
+    console.error('Error obteniendo resumen:', error);
+    res.status(500).json({ error: 'Error obteniendo resumen' });
+  }
+});
+
 export default router;
