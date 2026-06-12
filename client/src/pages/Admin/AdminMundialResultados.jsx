@@ -387,6 +387,84 @@ export default function AdminMundialResultados() {
     }
   };
 
+  const generarPDFTestigo = async () => {
+    if (!jornadaSeleccionada) return;
+
+    if (!confirm(`¿Generar PDF testigo con los pronósticos de la Jornada ${jornadaSeleccionada}?`)) {
+      return;
+    }
+
+    try {
+      setModalMessage("⏳ Generando PDF testigo...");
+      setModalType("success");
+      setShowModal(true);
+
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/mundial/generar-pdf-testigo/${jornadaSeleccionada}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error al generar PDF');
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Mundial_Testigo_Jornada_${jornadaSeleccionada}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setModalType("success");
+      setModalMessage(`✅ PDF testigo descargado en tu equipo\n\n📄 El PDF contiene todos los pronósticos de la Jornada ${jornadaSeleccionada}`);
+      setShowModal(true);
+    } catch (error) {
+      console.error("Error al generar PDF testigo:", error);
+      setModalType("error");
+      setModalMessage(`❌ Error al generar PDF testigo\n\n${error.message}`);
+      setShowModal(true);
+    }
+  };
+
+  const generarPDFCompleto = async () => {
+    if (!jornadaSeleccionada) return;
+
+    if (!confirm(`¿Generar PDF completo con resultados de la Jornada ${jornadaSeleccionada}?\n\nIncluirá: pronósticos, resultados reales, puntos, rankings y ganadores.`)) {
+      return;
+    }
+
+    try {
+      setModalMessage("⏳ Generando PDF completo...");
+      setModalType("success");
+      setShowModal(true);
+
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/mundial-ganadores-jornada/${jornadaSeleccionada}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error al generar PDF');
+      }
+
+      const data = await res.json();
+      setModalType("success");
+      setModalMessage(`✅ PDF Final generado y enviado por email\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario\n\n${data.mensaje || ''}`);
+      setShowModal(true);
+    } catch (error) {
+      console.error("Error al generar PDF completo:", error);
+      setModalType("error");
+      setModalMessage(`❌ Error al generar PDF completo\n\n${error.message}`);
+      setShowModal(true);
+    }
+  };
+
   const getSubtitulo = (numero) => {
     if (numero <= 3) return 'Fase de Grupos';
     if (numero === 4) return '16vos de Final';
@@ -694,6 +772,12 @@ export default function AdminMundialResultados() {
                 </button>
                 <button className="btn btn-outline-secondary btn-lg px-4" onClick={resetearTodos}>
                   🔄 Resetear
+                </button>
+                <button className="btn btn-warning btn-lg px-4" onClick={generarPDFTestigo}>
+                  📄 PDF Testigo
+                </button>
+                <button className="btn btn-info btn-lg px-4" onClick={generarPDFCompleto}>
+                  📊 PDF Final
                 </button>
                 <button className="btn btn-primary btn-lg px-4" onClick={guardarResultados}>
                   💾 Guardar Resultados

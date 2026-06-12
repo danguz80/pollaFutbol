@@ -179,6 +179,74 @@ const LOGOS_SUDAMERICANA = {
   'Universidad Central de Venezuela': 'ucentral_ven.png'
 };
 
+// Mapeo de equipos del Mundial
+const LOGOS_MUNDIAL = {
+  'Alemania': 'alemania.webp',
+  'Arabia Saudita': 'arabia_saudita.png',
+  'Argelia': 'argelia.webp',
+  'Argentina': 'argentina.webp',
+  'Australia': 'australia.png',
+  'Austria': 'austria.png',
+  'Bélgica': 'belgica.png',
+  'Belgica': 'belgica.png',
+  'Bosnia y Herzegovina': 'BOSNIA-HERZEGOVINA.png',
+  'Bosnia-Herzegovina': 'BOSNIA-HERZEGOVINA.png',
+  'Brasil': 'brasil.png',
+  'Cabo Verde': 'cabo_verde.png',
+  'Canadá': 'canada.png',
+  'Canada': 'canada.png',
+  'Colombia': 'colombia.png',
+  'Congo': 'CONGO.png',
+  'Corea del Sur': 'corea_del_sur.png',
+  'Costa de Marfil': 'costa_de_marfil.webp',
+  'Croacia': 'croacia.webp',
+  'Curazao': 'curazao.webp',
+  'Ecuador': 'ecuador.png',
+  'Egipto': 'egipto.webp',
+  'Escocia': 'escocia.png',
+  'España': 'espana.png',
+  'Espana': 'espana.png',
+  'Estados Unidos': 'usa.png',
+  'USA': 'usa.png',
+  'Francia': 'francia.png',
+  'Ghana': 'ghana.png',
+  'Haití': 'haiti.webp',
+  'Haiti': 'haiti.webp',
+  'Inglaterra': 'inglaterra.png',
+  'Irak': 'IRAK.png',
+  'Irán': 'iran.png',
+  'Iran': 'iran.png',
+  'Japón': 'japon.png',
+  'Japon': 'japon.png',
+  'Jordania': 'jordania.png',
+  'Marruecos': 'marruecos.webp',
+  'México': 'mexico.png',
+  'Mexico': 'mexico.png',
+  'Noruega': 'noruega.png',
+  'Nueva Zelanda': 'nueva_zelanda.webp',
+  'Países Bajos': 'paises_bajos.png',
+  'Paises Bajos': 'paises_bajos.png',
+  'Panamá': 'panama.png',
+  'Panama': 'panama.png',
+  'Paraguay': 'paraguay.png',
+  'Portugal': 'portugal.png',
+  'Qatar': 'qatar.png',
+  'República Checa': 'republica_checa.png',
+  'Republica Checa': 'republica_checa.png',
+  'Senegal': 'senegal.png',
+  'Sudáfrica': 'sudafrica.png',
+  'Sudafrica': 'sudafrica.png',
+  'Suecia': 'SUECIA.png',
+  'Suiza': 'suiza.png',
+  'Túnez': 'tunez.webp',
+  'Tunez': 'tunez.webp',
+  'Turquía': 'TURQUIA.png',
+  'Turquia': 'TURQUIA.png',
+  'Uruguay': 'uruguay.png',
+  'Uzbekistán': 'uzbekistan.png',
+  'Uzbekistan': 'uzbekistan.png',
+};
+
 // Cache para almacenar logos en base64
 const logoCache = {};
 
@@ -225,6 +293,12 @@ export function getLogoBase64(nombreEquipo) {
   if (!archivoLogo) {
     archivoLogo = LOGOS_SUDAMERICANA[nombreNormalizado];
     carpeta = 'copa_sudamericana_logos_equipos';
+  }
+
+  // Si no está en sudamericana, buscar en mundial
+  if (!archivoLogo) {
+    archivoLogo = LOGOS_MUNDIAL[nombreNormalizado];
+    carpeta = 'logos_mundial';
   }
   
   if (!archivoLogo) {
@@ -274,6 +348,26 @@ export function getLogoBase64(nombreEquipo) {
     console.log(`⚠️ Error leyendo logo, usando URL: ${nombreEquipo}`);
     return urlLogo;
   }
+}
+
+/**
+ * Siempre devuelve una URL (nunca base64). Ideal para PDFs con muchos equipos.
+ * @param {string} nombreEquipo
+ * @returns {string|null}
+ */
+export function getLogoUrl(nombreEquipo) {
+  let nombreNormalizado = nombreEquipo?.replace(/[\u2018\u2019]/g, "'");
+  nombreNormalizado = nombreNormalizado?.replace(/\s*\([A-Z]{3}\)\s*$/i, '').trim();
+  if (!nombreNormalizado) return null;
+
+  let archivoLogo = LOGOS_EQUIPOS[nombreNormalizado];
+  let carpeta = 'logos_torneo_nacional';
+  if (!archivoLogo) { archivoLogo = LOGOS_LIBERTADORES[nombreNormalizado]; carpeta = 'copa_libertadores_logos_equipos'; }
+  if (!archivoLogo) { archivoLogo = LOGOS_SUDAMERICANA[nombreNormalizado]; carpeta = 'copa_sudamericana_logos_equipos'; }
+  if (!archivoLogo) { archivoLogo = LOGOS_MUNDIAL[nombreNormalizado]; carpeta = 'logos_mundial'; }
+  if (!archivoLogo) return null;
+
+  return `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
 }
 
 /**

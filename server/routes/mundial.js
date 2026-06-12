@@ -2,6 +2,9 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
+import htmlPdf from 'html-pdf-node';
+import { getLogoUrl } from '../utils/logoHelper.js';
+import { insertarPronosticosAusentesMundial } from '../utils/insertarPronosticosAusentes.js';
 
 const router = express.Router();
 
@@ -360,6 +363,16 @@ router.patch('/jornadas/:numero/cerrar', verifyToken, authorizeRoles('admin'), a
 
     const jornada = result.rows[0];
     
+    // Insertar pronósticos aleatorios para usuarios sin pronósticos
+    try {
+      const insertados = await insertarPronosticosAusentesMundial(jornada.id);
+      if (insertados > 0) {
+        console.log(`⚽ ${insertados} pronósticos aleatorios insertados para usuarios sin pronósticos (Mundial J${jornada.numero})`);
+      }
+    } catch (errIns) {
+      console.error(`❌ Error insertando pronósticos ausentes Mundial J${jornada.numero}:`, errIns);
+    }
+
     // Crear notificación cuando se cierra la jornada
     await pool.query(
       `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
@@ -592,6 +605,252 @@ router.post('/pronosticos/:numero', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error guardando pronósticos:', error);
     res.status(500).json({ error: 'Error guardando pronósticos', details: error.message });
+  }
+});
+
+// ==================== PDF TESTIGO (pronósticos antes del inicio) ====================
+
+// Generar PDF testigo con pronósticos de una jornada del Mundial
+router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+
+    console.log(`📄 Generando PDF Testigo Mundial para jornada ${numero}...`);
+
+    // Obtener todos los pronósticos de la jornada
+    const pronosticosResult = await pool.query(`
+      SELECT 
+        u.nombre AS usuario,
+        mpa.equipo_local,
+        mpa.equipo_visitante,
+        mpa.fecha,
+        mp.resultado_local AS goles_local,
+        mp.resultado_visitante AS goles_visita
+      FROM mundial_pronosticos mp
+      JOIN usuarios u ON mp.usuario_id = u.id
+      JOIN mundial_partidos mpa ON mp.partido_id = mpa.id
+      JOIN mundial_jornadas mj ON mpa.jornada_id = mj.id
+      WHERE mj.numero = $1
+      ORDER BY u.nombre, mpa.fecha
+    `, [numero]);
+
+    if (pronosticosResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No hay pronósticos para esta jornada' });
+    }
+
+    const pronosticos = pronosticosResult.rows;
+
+    // Obtener nombre de la jornada
+    const jornadaResult = await pool.query(
+      'SELECT nombre FROM mundial_jornadas WHERE numero = $1',
+      [numero]
+    );
+    const nombreJornada = jornadaResult.rows[0]?.nombre || `Jornada ${numero}`;
+
+    // Obtener lista única de partidos ordenados por fecha
+    const partidosUnicos = [];
+    const partidosVistos = new Set();
+    pronosticos.forEach(p => {
+      const key = `${p.equipo_local}|${p.equipo_visitante}|${p.fecha}`;
+      if (!partidosVistos.has(key)) {
+        partidosVistos.add(key);
+        partidosUnicos.push({
+          equipo_local: p.equipo_local,
+          equipo_visitante: p.equipo_visitante,
+          fecha: p.fecha
+        });
+      }
+    });
+    partidosUnicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+    // Agrupar pronósticos por usuario
+    const pronosticosPorUsuario = {};
+    pronosticos.forEach(p => {
+      if (!pronosticosPorUsuario[p.usuario]) {
+        pronosticosPorUsuario[p.usuario] = {};
+      }
+      const key = `${p.equipo_local}|${p.equipo_visitante}`;
+      pronosticosPorUsuario[p.usuario][key] = p;
+    });
+
+    // Generar HTML para el PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+          }
+          .header {
+            text-align: center;
+            color: #1a5490;
+            margin-bottom: 15px;
+            border-bottom: 3px solid #1a5490;
+            padding-bottom: 10px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 34px;
+          }
+          .header p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 19px;
+          }
+          .usuario-section {
+            background: white;
+            padding: 10px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            page-break-inside: avoid;
+          }
+          .usuario-nombre {
+            font-size: 22px;
+            font-weight: bold;
+            color: #1a5490;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 6px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+          }
+          th {
+            background-color: #1a5490;
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-size: 18px;
+            font-weight: bold;
+          }
+          td {
+            padding: 6px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 17px;
+            font-weight: bold;
+          }
+          tr:hover { background-color: #f9f9f9; }
+          .pronostico {
+            font-weight: bold;
+            color: #1a5490;
+            font-size: 22px;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #999;
+            font-size: 15px;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🌍 Pronósticos Mundial 2026</h1>
+          <p>${nombreJornada}</p>
+          <p><strong>Documento Testigo - Pronósticos Registrados</strong></p>
+          <p>Fecha de generación: ${new Date().toLocaleDateString('es-ES', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</p>
+        </div>
+
+        ${Object.keys(pronosticosPorUsuario).sort().map(usuario => `
+          <div class="usuario-section">
+            <div class="usuario-nombre">👤 ${usuario}</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Partido</th>
+                  <th>Pronóstico</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${partidosUnicos.map(partido => {
+                  const key = `${partido.equipo_local}|${partido.equipo_visitante}`;
+                  const p = pronosticosPorUsuario[usuario][key];
+
+                  const logoLocal = getLogoUrl(partido.equipo_local) || '';
+                  const logoVisita = getLogoUrl(partido.equipo_visitante) || '';
+
+                  if (!p) {
+                    return `
+                      <tr>
+                        <td>
+                          <div style="display: flex; align-items: center;">
+                            ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                            <span>${partido.equipo_local}</span>
+                            <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
+                            ${logoVisita ? `<img src="${logoVisita}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                            <span>${partido.equipo_visitante}</span>
+                          </div>
+                        </td>
+                        <td class="pronostico" style="color: #999;">Sin pronóstico</td>
+                      </tr>
+                    `;
+                  }
+
+                  return `
+                    <tr>
+                      <td>
+                        <div style="display: flex; align-items: center;">
+                          ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                          <span>${p.equipo_local}</span>
+                          <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
+                          ${logoVisita ? `<img src="${logoVisita}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
+                          <span>${p.equipo_visitante}</span>
+                        </div>
+                      </td>
+                      <td class="pronostico">${p.goles_local}-${p.goles_visita}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+
+        <div class="footer">
+          <p>Campeonato Itaú - Mundial 2026</p>
+          <p>Este documento certifica los pronósticos registrados antes del inicio de la jornada</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Generar PDF con html-pdf-node
+    console.log('📄 Generando PDF Testigo Mundial...');
+    const options = {
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+    };
+    const file = { content: htmlContent };
+    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    console.log('✅ PDF Testigo Mundial generado exitosamente');
+
+    const nombreArchivo = `Mundial_Testigo_Jornada_${numero}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('Error generando PDF Testigo Mundial:', error);
+    res.status(500).json({
+      error: 'Error generando PDF Testigo',
+      detalles: error.message
+    });
   }
 });
 
