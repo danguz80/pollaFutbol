@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { checkRole } from '../middleware/checkRole.js';
@@ -238,6 +239,28 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
   } catch (error) {
     console.error('Error calculando ganadores:', error);
     res.status(500).json({ error: 'Error calculando ganadores', details: error.message });
+  }
+});
+
+// POST /api/mundial-ganadores-jornada/:jornadaNumero/pdf-final - Generar PDF y descargarlo
+router.post('/:jornadaNumero/pdf-final', verifyToken, checkRole('admin'), async (req, res) => {
+  const jornadaNumero = parseInt(req.params.jornadaNumero);
+
+  if (isNaN(jornadaNumero)) {
+    return res.status(400).json({ error: 'Número de jornada inválido' });
+  }
+
+  try {
+    console.log(`📄 Generando PDF Final Mundial Jornada ${jornadaNumero}...`);
+    const pdfPath = await generarYEnviarPDFMundial(jornadaNumero);
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    const nombreArchivo = `Resultados_Mundial_Jornada_${jornadaNumero}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error generando PDF Final Mundial:', error);
+    res.status(500).json({ error: 'Error generando PDF completo', details: error.message });
   }
 });
 

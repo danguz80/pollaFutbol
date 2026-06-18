@@ -237,14 +237,14 @@ function agregarHeader(doc, jornada, yPos) {
   doc.fontSize(24)
      .font('Helvetica-Bold')
      .fillColor('#1a5490')
-     .text('MUNDIAL 2026', 50, yPos, { align: 'center', width: 512 });
+     .text('MUNDIAL 2026', 50, yPos, { align: 'center', width: 512, lineBreak: false });
   
   yPos += 35;
   
   // Jornada
   doc.fontSize(18)
      .fillColor('#333333')
-     .text(`${jornada.nombre}`, 50, yPos, { align: 'center', width: 512 });
+     .text(`${jornada.nombre}`, 50, yPos, { align: 'center', width: 512, lineBreak: false });
   
   yPos += 30;
   
@@ -267,7 +267,7 @@ function agregarGanadores(doc, ganadores, yPos) {
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor('#DAA520')
-     .text('*** GANADORES DE LA JORNADA ***', 50, yPos);
+     .text('*** GANADORES DE LA JORNADA ***', 50, yPos, { lineBreak: false });
   
   yPos += 30;
 
@@ -310,16 +310,16 @@ function agregarGanadores(doc, ganadores, yPos) {
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor('#000000')
-       .text(`${index + 1}`, 100, yPos + 7, { width: 20 });
+       .text(`${index + 1}`, 100, yPos + 7, { width: 20, lineBreak: false });
     
     doc.fontSize(13)
        .font('Helvetica')
-       .text(ganador.nombre, 130, yPos + 7, { width: 280 });
+       .text(ganador.nombre, 130, yPos + 7, { width: 280, lineBreak: false });
     
     doc.fontSize(13)
        .font('Helvetica-Bold')
        .fillColor('#DAA520')
-       .text(`${ganador.puntos} puntos`, 420, yPos + 7, { width: 130, align: 'right' });
+       .text(`${ganador.puntos} puntos`, 420, yPos + 7, { width: 130, align: 'right', lineBreak: false });
     
     yPos += 38;
   });
@@ -340,7 +340,7 @@ function agregarRankingJornada(doc, ranking, jornadaNumero, yPos) {
   doc.fontSize(12)
      .font('Helvetica-Bold')
      .fillColor('#FFFFFF')
-     .text(`RANKING JORNADA ${jornadaNumero}`, 50, yPos + 5, { width: 512, align: 'center' });
+     .text(`RANKING JORNADA ${jornadaNumero}`, 50, yPos + 5, { width: 512, align: 'center', lineBreak: false });
   
   yPos += 20;
   
@@ -350,18 +350,24 @@ function agregarRankingJornada(doc, ranking, jornadaNumero, yPos) {
      .fillColor('#FFFFFF');
   
   doc.rect(50, yPos, 50, 15).fill('#ab402e');
-  doc.text('Pos', 55, yPos + 2, { width: 40, align: 'center' });
+  doc.text('Pos', 55, yPos + 2, { width: 40, align: 'center', lineBreak: false });
   
   doc.rect(100, yPos, 362, 15).fill('#ab402e');
-  doc.text('Jugador', 105, yPos + 2, { width: 350 });
+  doc.text('Jugador', 105, yPos + 2, { width: 350, lineBreak: false });
   
   doc.rect(462, yPos, 100, 15).fill('#ab402e');
-  doc.text('Puntos', 467, yPos + 2, { width: 90, align: 'center' });
+  doc.text('Puntos', 467, yPos + 2, { width: 90, align: 'center', lineBreak: false });
   
   yPos += 15;
 
   // Filas de datos
   ranking.slice(0, 10).forEach((jugador, index) => {
+    // Verificar salto de página antes de dibujar cada fila
+    if (yPos + 30 > 742) {
+      doc.addPage();
+      yPos = 50;
+    }
+
     const bgColor = index === 0 ? '#ffcccb' : index === 1 ? '#c8e6c9' : index === 2 ? '#d4edda' : '#FFFFFF';
     
     doc.rect(50, yPos, 512, 30).fill(bgColor).stroke('#CCCCCC');
@@ -370,7 +376,7 @@ function agregarRankingJornada(doc, ranking, jornadaNumero, yPos) {
     doc.fontSize(13)
        .font('Helvetica-Bold')
        .fillColor('#000000')
-       .text(`${index + 1}`, 55, yPos + 10, { width: 40, align: 'center' });
+       .text(`${index + 1}`, 55, yPos + 10, { width: 40, align: 'center', lineBreak: false });
     
     // Foto de perfil circular
     if (jugador.foto_perfil) {
@@ -395,12 +401,12 @@ function agregarRankingJornada(doc, ranking, jornadaNumero, yPos) {
     doc.fontSize(13)
        .font('Helvetica-Bold')
        .fillColor('#000000')
-       .text(jugador.nombre, 130, yPos + 10, { width: 320 });
+       .text(jugador.nombre, 130, yPos + 10, { width: 320, lineBreak: false });
     
     // Puntos
     doc.fontSize(13)
        .font('Helvetica-Bold')
-       .text(jugador.puntos_jornada.toString(), 467, yPos + 10, { width: 90, align: 'center' });
+       .text(jugador.puntos_jornada.toString(), 467, yPos + 10, { width: 90, align: 'center', lineBreak: false });
     
     yPos += 30;
   });
@@ -421,7 +427,7 @@ function agregarRankingAcumulado(doc, ranking, yPos) {
   doc.fontSize(12)
      .font('Helvetica-Bold')
      .fillColor('#FFFFFF')
-     .text('RANKING ACUMULADO', 50, yPos + 5, { width: 512, align: 'center' });
+     .text('RANKING ACUMULADO', 50, yPos + 5, { width: 512, align: 'center', lineBreak: false });
   
   yPos += 20;
   
@@ -431,18 +437,24 @@ function agregarRankingAcumulado(doc, ranking, yPos) {
      .fillColor('#FFFFFF');
   
   doc.rect(50, yPos, 50, 15).fill('#4c929c');
-  doc.text('Pos', 55, yPos + 2, { width: 40, align: 'center' });
+  doc.text('Pos', 55, yPos + 2, { width: 40, align: 'center', lineBreak: false });
   
   doc.rect(100, yPos, 362, 15).fill('#4c929c');
-  doc.text('Jugador', 105, yPos + 2, { width: 350 });
+  doc.text('Jugador', 105, yPos + 2, { width: 350, lineBreak: false });
   
   doc.rect(462, yPos, 100, 15).fill('#4c929c');
-  doc.text('Puntos', 467, yPos + 2, { width: 90, align: 'center' });
+  doc.text('Puntos', 467, yPos + 2, { width: 90, align: 'center', lineBreak: false });
   
   yPos += 15;
 
   // Filas de datos
   ranking.slice(0, 10).forEach((jugador, index) => {
+    // Verificar salto de página antes de dibujar cada fila
+    if (yPos + 30 > 742) {
+      doc.addPage();
+      yPos = 50;
+    }
+
     const bgColor = index === 0 ? '#fff8dc' : index === 1 ? '#d0e8ea' : index === 2 ? '#dff0f1' : '#FFFFFF';
     
     doc.rect(50, yPos, 512, 30).fill(bgColor).stroke('#CCCCCC');
@@ -451,7 +463,7 @@ function agregarRankingAcumulado(doc, ranking, yPos) {
     doc.fontSize(13)
        .font('Helvetica-Bold')
        .fillColor('#000000')
-       .text(`${index + 1}`, 55, yPos + 10, { width: 40, align: 'center' });
+       .text(`${index + 1}`, 55, yPos + 10, { width: 40, align: 'center', lineBreak: false });
     
     // Foto de perfil circular
     if (jugador.foto_perfil) {
@@ -476,12 +488,12 @@ function agregarRankingAcumulado(doc, ranking, yPos) {
     doc.fontSize(13)
        .font('Helvetica-Bold')
        .fillColor('#000000')
-       .text(jugador.nombre, 130, yPos + 10, { width: 320 });
+       .text(jugador.nombre, 130, yPos + 10, { width: 320, lineBreak: false });
     
     // Puntos
     doc.fontSize(13)
        .font('Helvetica-Bold')
-       .text(jugador.puntos_acumulados.toString(), 467, yPos + 10, { width: 90, align: 'center' });
+       .text(jugador.puntos_acumulados.toString(), 467, yPos + 10, { width: 90, align: 'center', lineBreak: false });
     
     yPos += 30;
   });

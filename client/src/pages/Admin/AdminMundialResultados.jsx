@@ -443,7 +443,7 @@ export default function AdminMundialResultados() {
       setShowModal(true);
 
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE_URL}/api/mundial-ganadores-jornada/${jornadaSeleccionada}`, {
+      const res = await fetch(`${API_BASE_URL}/api/mundial-ganadores-jornada/${jornadaSeleccionada}/pdf-final`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -453,9 +453,17 @@ export default function AdminMundialResultados() {
         throw new Error(errorData.error || 'Error al generar PDF');
       }
 
-      const data = await res.json();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Resultados_Mundial_Jornada_${jornadaSeleccionada}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       setModalType("success");
-      setModalMessage(`✅ PDF Final generado y enviado por email\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario\n\n${data.mensaje || ''}`);
+      setModalMessage(`✅ PDF completo descargado en tu equipo\n\n📄 El PDF incluye:\n• Ganadores de la jornada\n• Ranking de jornada\n• Ranking acumulado\n• Pronósticos y resultados\n• Puntos por usuario`);
       setShowModal(true);
     } catch (error) {
       console.error("Error al generar PDF completo:", error);
