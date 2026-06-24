@@ -41,14 +41,14 @@ const NotificacionesCampana = () => {
     
     cargarContador();
     
-    // Recargar cada 10 segundos (más frecuente para detectar cambios)
+    // Recargar cada 2 minutos
     const interval = setInterval(() => {
       // Verificar token antes de cada llamada
       const currentToken = localStorage.getItem('token');
       if (currentToken) {
         cargarContador();
       }
-    }, 10000);
+    }, 120000);
     
     // Escuchar evento de notificación leída
     const handleNotificacionLeida = () => {

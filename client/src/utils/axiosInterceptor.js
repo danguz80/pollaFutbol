@@ -1,44 +1,59 @@
 import axios from 'axios';
 
+// Contador de fallos consecutivos de autenticación
+let authFailureCount = 0;
+let authFailureTimer = null;
+
+const registrarFalloAuth = () => {
+  authFailureCount++;
+
+  // Reiniciar el contador después de 30 segundos sin fallos
+  clearTimeout(authFailureTimer);
+  authFailureTimer = setTimeout(() => {
+    authFailureCount = 0;
+  }, 30000);
+
+  // Solo cerrar sesión si hay 3 fallos consecutivos
+  if (authFailureCount >= 3) {
+    authFailureCount = 0;
+    handleAuthError();
+  }
+};
+
 // ===== INTERCEPTOR PARA AXIOS =====
 axios.interceptors.response.use(
-  // Si la respuesta es exitosa, simplemente la retorna
-  (response) => response,
+  (response) => {
+    // Respuesta exitosa: reiniciar contador de fallos
+    authFailureCount = 0;
+    return response;
+  },
   
-  // Si hay un error, interceptarlo
   (error) => {
-    // Si el error es 401 (Unauthorized) o 403 (Forbidden) por token expirado
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       const errorMessage = error.response.data?.error || '';
       
-      // Detectar si es error de token
       if (
         errorMessage.includes('Token') || 
         errorMessage.includes('token') ||
         errorMessage.includes('expirado') ||
         errorMessage.includes('inválido')
       ) {
-        handleAuthError();
+        registrarFalloAuth();
       }
     }
     
-    // Rechazar la promesa para que el error pueda ser manejado donde se hizo la petición
     return Promise.reject(error);
   }
 );
 
 // ===== INTERCEPTOR PARA FETCH =====
-// Guardar el fetch original
 const originalFetch = window.fetch;
 
-// Sobreescribir fetch con manejo automático de errores de autenticación
 window.fetch = async (...args) => {
   const response = await originalFetch(...args);
   
-  // Si es 401 o 403, verificar si es error de token
   if (response.status === 401 || response.status === 403) {
     try {
-      // Clonar la respuesta para poder leerla sin consumirla
       const clonedResponse = response.clone();
       const data = await clonedResponse.json();
       const errorMessage = data?.error || '';
@@ -49,11 +64,14 @@ window.fetch = async (...args) => {
         errorMessage.includes('expirado') ||
         errorMessage.includes('inválido')
       ) {
-        handleAuthError();
+        registrarFalloAuth();
       }
     } catch (e) {
       // Si no puede parsear JSON, ignorar
     }
+  } else if (response.status >= 200 && response.status < 300) {
+    // Respuesta exitosa: reiniciar contador de fallos
+    authFailureCount = 0;
   }
   
   return response;
@@ -61,20 +79,15 @@ window.fetch = async (...args) => {
 
 // Función centralizada para manejar errores de autenticación
 function handleAuthError() {
-  // Evitar múltiples redirecciones simultáneas
   if (window.isRedirectingToLogin) return;
   window.isRedirectingToLogin = true;
   
-  // Limpiar sesión del usuario
   localStorage.removeItem('token');
   localStorage.removeItem('usuario');
   
-  // Notificar al usuario
   alert('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
   
-  // Redirigir al login
   window.location.href = '/login';
 }
 
-// Exportar axios configurado (opcional, por si quieres importarlo en lugar del axios global)
 export default axios;
