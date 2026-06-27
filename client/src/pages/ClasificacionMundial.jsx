@@ -776,7 +776,11 @@ export default function ClasificacionMundial() {
                         {clasificadosGuardados[grupo.usuario_id].clasificados.map((c, ci) => (
                           <tr key={ci} className={c.puntos > 0 ? 'table-success' : 'table-danger'}>
                             <td className="text-center fw-bold">Grupo {c.grupo}</td>
-                            <td className="text-center">Clasificado #{c.posicion} a 16vos</td>
+                            <td className="text-center">
+                              {c.posicion <= 2
+                                ? `Clasificado #${c.posicion} a 16vos`
+                                : '⭐ Mejor Tercero'}
+                            </td>
                             <td className="text-center">
                               <div className="d-flex align-items-center justify-content-center gap-2">
                                 <img

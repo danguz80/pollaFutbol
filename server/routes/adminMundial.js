@@ -179,4 +179,49 @@ router.delete('/eliminar-datos-mundial', verifyToken, authorizeRoles('admin'), a
   }
 });
 
+// GET /admin/mejores-terceros-mundial — obtiene la lista de mejores terceros guardada
+router.get('/mejores-terceros-mundial', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, equipo, grupo FROM mundial_mejores_terceros ORDER BY grupo'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo mejores terceros:', error);
+    res.status(500).json({ error: 'Error obteniendo mejores terceros' });
+  }
+});
+
+// POST /admin/mejores-terceros-mundial — guarda (reemplaza) la lista de mejores terceros
+router.post('/mejores-terceros-mundial', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { equipos } = req.body; // Array de { equipo, grupo }
+  if (!Array.isArray(equipos)) {
+    return res.status(400).json({ error: 'Se requiere un array de equipos' });
+  }
+  if (equipos.length > 8) {
+    return res.status(400).json({ error: 'Solo se pueden seleccionar máximo 8 mejores terceros' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM mundial_mejores_terceros');
+    for (const { equipo, grupo } of equipos) {
+      if (equipo && grupo) {
+        await client.query(
+          'INSERT INTO mundial_mejores_terceros (equipo, grupo) VALUES ($1, $2)',
+          [equipo, grupo]
+        );
+      }
+    }
+    await client.query('COMMIT');
+    res.json({ mensaje: `✅ ${equipos.length} mejores terceros guardados correctamente` });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error guardando mejores terceros:', error);
+    res.status(500).json({ error: 'Error guardando mejores terceros' });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;

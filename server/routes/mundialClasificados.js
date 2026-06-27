@@ -161,6 +161,19 @@ router.get('/todas-tablas-oficiales', verifyToken, async (req, res) => {
   }
 });
 
+// GET /mejores-terceros — obtiene la lista de mejores terceros (público autenticado)
+router.get('/mejores-terceros', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT equipo, grupo FROM mundial_mejores_terceros ORDER BY grupo'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo mejores terceros:', error);
+    res.status(500).json({ error: 'Error obteniendo mejores terceros' });
+  }
+});
+
 // GET /clasificacion-guardada — clasificados guardados del usuario actual (o usuario_id si es admin)
 router.get('/clasificacion-guardada', verifyToken, async (req, res) => {
   try {
@@ -188,6 +201,9 @@ router.get('/clasificacion-guardada', verifyToken, async (req, res) => {
         clasificadosReales[`${grupo}_POS2`] = tabla[1].nombre;
       }
     }
+    // Añadir mejores terceros como equipo real para POS3
+    const tercR = await pool.query('SELECT equipo, grupo FROM mundial_mejores_terceros');
+    tercR.rows.forEach(r => { clasificadosReales[`${r.grupo}_POS3`] = r.equipo; });
 
     const clasificados = predsResult.rows.map(row => {
       const match = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
@@ -245,6 +261,9 @@ router.get('/clasificacion-guardada-todos', verifyToken, async (req, res) => {
         clasificadosReales[`${grupo}_POS2`] = tabla[1].nombre;
       }
     }
+    // Añadir mejores terceros como equipo real para POS3
+    const tercerosTodosR = await pool.query('SELECT equipo, grupo FROM mundial_mejores_terceros');
+    tercerosTodosR.rows.forEach(r => { clasificadosReales[`${r.grupo}_POS3`] = r.equipo; });
 
     // Agrupar por usuario
     const porUsuario = {};

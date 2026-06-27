@@ -17,10 +17,16 @@ export default function AdminMundialResultados() {
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("success");
 
+  // Mejores terceros
+  const [tablasOficialesFaseGrupos, setTablasOficialesFaseGrupos] = useState({});
+  const [mejoresTercerosSeleccionados, setMejoresTercerosSeleccionados] = useState({}); // grupo → equipo seleccionado
+  const [guardandoTerceros, setGuardandoTerceros] = useState(false);
+
   const jornadasOrdenadas = jornadas.sort((a, b) => a.numero - b.numero);
 
   useEffect(() => {
     cargarJornadas();
+    cargarDatosTerceros();
   }, []);
 
   useEffect(() => {
@@ -28,6 +34,75 @@ export default function AdminMundialResultados() {
     fetchPartidos(jornadaSeleccionada);
     fetchJornadaInfo(jornadaSeleccionada);
   }, [jornadaSeleccionada]);
+
+  const cargarDatosTerceros = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const [tablasRes, tercerosRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/mundial-clasificados/todas-tablas-oficiales`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${API_BASE_URL}/api/admin/mejores-terceros-mundial`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+      const tablas = await tablasRes.json();
+      const terceros = await tercerosRes.json();
+      setTablasOficialesFaseGrupos(tablas);
+      // Precargar selección guardada: grupo → equipo
+      const seleccionGuardada = {};
+      if (Array.isArray(terceros)) {
+        terceros.forEach(t => { seleccionGuardada[t.grupo] = t.equipo; });
+      }
+      setMejoresTercerosSeleccionados(seleccionGuardada);
+    } catch (err) {
+      console.error('Error cargando datos terceros:', err);
+    }
+  };
+
+  const toggleTercero = (grupo, equipo) => {
+    setMejoresTercerosSeleccionados(prev => {
+      const next = { ...prev };
+      if (next[grupo] === equipo) {
+        delete next[grupo]; // deseleccionar
+      } else {
+        next[grupo] = equipo;
+      }
+      return next;
+    });
+  };
+
+  const guardarMejoresTerceros = async () => {
+    const equipos = Object.entries(mejoresTercerosSeleccionados).map(([grupo, equipo]) => ({ grupo, equipo }));
+    if (equipos.length > 8) {
+      alert('⚠️ Solo puedes seleccionar máximo 8 mejores terceros (uno por grupo)');
+      return;
+    }
+    setGuardandoTerceros(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/admin/mejores-terceros-mundial`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ equipos })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setModalType('success');
+        setModalMessage(`${data.mensaje}\n\nRecuerda recalcular los puntajes de J3 para que los cambios se reflejen en los rankings.`);
+      } else {
+        setModalType('error');
+        setModalMessage(`❌ ${data.error}`);
+      }
+      setShowModal(true);
+    } catch (err) {
+      setModalType('error');
+      setModalMessage('❌ Error al guardar los mejores terceros');
+      setShowModal(true);
+    } finally {
+      setGuardandoTerceros(false);
+    }
+  };
 
   const cargarJornadas = async () => {
     try {
@@ -850,6 +925,123 @@ export default function AdminMundialResultados() {
           <p className="mb-0">El fixture aún no ha sido creado para esta jornada.</p>
         </div>
       )}
+
+      {/* ===== SECCIÓN MEJORES TERCEROS ===== */}
+      <div className="card mb-4 border-warning">
+        <div className="card-header bg-warning text-dark">
+          <h5 className="mb-0">🥉 8 Mejores Terceros — Clasificados a 16vos de Final</h5>
+        </div>
+        <div className="card-body">
+          <p className="text-muted mb-3">
+            Selecciona los <strong>8 mejores terceros</strong> de los 12 grupos. Solo los equipos marcados aquí
+            (además de los 1ros y 2dos de cada grupo) recibirán puntos de clasificación.
+            Los usuarios solo obtienen puntos si ese equipo aparece en sus posiciones 1°, 2° o 3° en su tabla virtual del grupo.
+          </p>
+
+          {Object.keys(tablasOficialesFaseGrupos).length === 0 ? (
+            <div className="alert alert-info">
+              Cargando tablas oficiales... (requiere que haya partidos de fase de grupos con resultados)
+            </div>
+          ) : (
+            <>
+              <div className="d-flex align-items-center justify-content-between mb-3">
+                <span className="badge bg-warning text-dark fs-6">
+                  {Object.keys(mejoresTercerosSeleccionados).length} / 8 seleccionados
+                </span>
+                {Object.keys(mejoresTercerosSeleccionados).length > 8 && (
+                  <span className="text-danger fw-bold">⚠️ Máximo 8 grupos permitidos</span>
+                )}
+              </div>
+
+              <div className="row g-3">
+                {Object.entries(tablasOficialesFaseGrupos)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([grupo, tabla]) => {
+                    const tercero = tabla[2]; // equipo en 3ra posición oficial
+                    const cuarto = tabla[3];  // equipo en 4ta posición oficial
+                    const seleccionadoEnEsteGrupo = mejoresTercerosSeleccionados[grupo];
+                    // Mostrar los equipos 3ro y 4to para que el admin pueda seleccionar
+                    const candidatos = [];
+                    if (tercero) candidatos.push({ equipo: tercero.nombre, label: `3° ${tercero.nombre} (${tercero.puntos} pts, DG: ${tercero.dif > 0 ? '+' : ''}${tercero.dif})` });
+                    if (cuarto) candidatos.push({ equipo: cuarto.nombre, label: `4° ${cuarto.nombre} (${cuarto.puntos} pts)` });
+                    // También incluir los primeros 2 como opción por si hay empate técnico
+                    if (tabla[0]) candidatos.unshift({ equipo: tabla[0].nombre, label: `1° ${tabla[0].nombre} (${tabla[0].puntos} pts)` });
+                    if (tabla[1]) candidatos.splice(1, 0, { equipo: tabla[1].nombre, label: `2° ${tabla[1].nombre} (${tabla[1].puntos} pts)` });
+
+                    return (
+                      <div key={grupo} className="col-12 col-sm-6 col-md-4 col-lg-3">
+                        <div className={`card h-100 shadow-sm ${seleccionadoEnEsteGrupo ? 'border-warning border-2' : ''}`}>
+                          <div className={`card-header text-center fw-bold py-2 ${seleccionadoEnEsteGrupo ? 'bg-warning text-dark' : 'bg-light'}`}>
+                            Grupo {grupo}
+                            {seleccionadoEnEsteGrupo && <span className="ms-1">✅</span>}
+                          </div>
+                          <div className="card-body p-2">
+                            {/* Tabla mini del grupo */}
+                            <table className="table table-sm mb-2" style={{ fontSize: '0.78rem' }}>
+                              <thead><tr><th>#</th><th>Equipo</th><th>Pts</th></tr></thead>
+                              <tbody>
+                                {tabla.slice(0, 4).map((eq, idx) => (
+                                  <tr key={eq.nombre} className={idx < 2 ? 'table-success' : (seleccionadoEnEsteGrupo === eq.nombre ? 'table-warning' : '')}>
+                                    <td>{idx + 1}</td>
+                                    <td>
+                                      <div className="d-flex align-items-center gap-1">
+                                        <img src={getMundialLogoPorNombre(eq.nombre)} alt="" style={{ width: '16px', height: '16px', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                                        <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>{eq.nombre}</span>
+                                      </div>
+                                    </td>
+                                    <td>{eq.puntos}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {/* Select para elegir qué equipo de este grupo va como mejor tercero */}
+                            <label className="form-label small fw-bold mb-1">Marcar como mejor 3°:</label>
+                            <select
+                              className="form-select form-select-sm"
+                              value={seleccionadoEnEsteGrupo || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                  setMejoresTercerosSeleccionados(prev => { const n = { ...prev }; delete n[grupo]; return n; });
+                                } else {
+                                  setMejoresTercerosSeleccionados(prev => ({ ...prev, [grupo]: val }));
+                                }
+                              }}
+                            >
+                              <option value="">— Sin selección —</option>
+                              {tabla.slice(0, 4).map((eq, idx) => (
+                                <option key={eq.nombre} value={eq.nombre}>
+                                  {idx + 1}° {eq.nombre} ({eq.puntos} pts, DG:{eq.dif > 0 ? '+' : ''}{eq.dif}, GF:{eq.gf})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              <div className="text-center mt-4">
+                <button
+                  className="btn btn-warning btn-lg px-5"
+                  onClick={guardarMejoresTerceros}
+                  disabled={guardandoTerceros || Object.keys(mejoresTercerosSeleccionados).length > 8}
+                >
+                  {guardandoTerceros ? (
+                    <><span className="spinner-border spinner-border-sm me-2"></span>Guardando...</>
+                  ) : (
+                    <>💾 Guardar {Object.keys(mejoresTercerosSeleccionados).length} Mejores Terceros</>
+                  )}
+                </button>
+                <p className="text-muted small mt-2">
+                  Después de guardar, recalcula los puntajes de J3 para que los cambios se apliquen.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Modal */}
       {showModal && (

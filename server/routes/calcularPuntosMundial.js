@@ -140,12 +140,21 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         );
         const grupos = gruposResult.rows.map(r => r.grupo);
 
-        // Clasificados oficiales: top 2 de cada grupo con al menos 1 partido jugado
+        // Cargar mejores terceros definidos por el admin
+        const mejoresTercerosResult = await pool.query(
+          'SELECT equipo, grupo FROM mundial_mejores_terceros'
+        );
+        const mejoresTerceros = {}; // grupo → equipo (el 3ero que clasifica)
+        mejoresTercerosResult.rows.forEach(r => { mejoresTerceros[r.grupo] = r.equipo; });
+
+        // Clasificados completos por grupo: top 2 siempre + mejores terceros si están definidos
         const clasificadosOficiales = {};
         for (const grupo of grupos) {
           const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
           if (tabla.length >= 2 && tabla[0].pj > 0) {
-            clasificadosOficiales[grupo] = [tabla[0].nombre, tabla[1].nombre];
+            const calificados = [tabla[0].nombre, tabla[1].nombre];
+            if (mejoresTerceros[grupo]) calificados.push(mejoresTerceros[grupo]);
+            clasificadosOficiales[grupo] = calificados;
           }
         }
 
@@ -168,14 +177,18 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
               const tablaUser = await calcularTablaUsuario(uid, grupo, [1, 2, 3]);
               if (tablaUser.length < 2) continue;
 
-              const reales = clasificadosOficiales[grupo];
+              const clasificados = clasificadosOficiales[grupo]; // todos los que clasifican en este grupo
               const predicciones = [
                 { equipo: tablaUser[0].nombre, fase: `16VOS_GRUPO_${grupo}_POS1` },
                 { equipo: tablaUser[1].nombre, fase: `16VOS_GRUPO_${grupo}_POS2` }
               ];
+              // Posición 3: solo se evalúa si hay un mejor tercero definido para este grupo
+              if (tablaUser.length >= 3 && mejoresTerceros[grupo] !== undefined) {
+                predicciones.push({ equipo: tablaUser[2].nombre, fase: `16VOS_GRUPO_${grupo}_POS3` });
+              }
 
               for (const pred of predicciones) {
-                const pts = reales.includes(pred.equipo) ? 2 : 0;
+                const pts = clasificados.includes(pred.equipo) ? 2 : 0;
                 await pool.query(
                   `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
                    VALUES ($1, $2, $3, $4)
