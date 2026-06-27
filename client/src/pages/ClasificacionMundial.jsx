@@ -42,6 +42,10 @@ export default function ClasificacionMundial() {
   const [filtroNombre, setFiltroNombre] = useState('');
   const [filtroPartido, setFiltroPartido] = useState('');
   const [filtroJornada, setFiltroJornada] = useState('1');
+
+  // Clasificados J3
+  const [clasificadosGuardados, setClasificadosGuardados] = useState({});
+  const [cargandoClasificados, setCargandoClasificados] = useState(false);
   
   // Datos para los selectores
   const [partidos, setPartidos] = useState([]);
@@ -61,12 +65,15 @@ export default function ClasificacionMundial() {
     cargarPronosticos();
     cargarRankings();
     if (filtroJornada) {
-      // Solo cargar ganadores si la jornada está cerrada
       const jornadaSel = jornadas.find(j => j.numero === parseInt(filtroJornada));
       if (jornadaSel?.cerrada) {
         cargarGanadoresJornada(filtroJornada);
+        if (filtroJornada === '3') {
+          cargarClasificadosGuardados();
+        }
       } else {
         setGanadores(null);
+        if (filtroJornada !== '3') setClasificadosGuardados({});
       }
     }
   }, [filtroNombre, filtroPartido, filtroJornada, jornadas.length]);
@@ -202,6 +209,25 @@ export default function ClasificacionMundial() {
   };
 
   // Cargar ganadores de la jornada
+  const cargarClasificadosGuardados = async () => {
+    try {
+      setCargandoClasificados(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.get(
+        `${API_URL}/api/mundial-clasificados/clasificacion-guardada-todos`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const porUsuario = {};
+      res.data.forEach(u => { porUsuario[u.usuario_id] = u; });
+      setClasificadosGuardados(porUsuario);
+    } catch (err) {
+      console.error('Error cargando clasificados guardados:', err);
+      setClasificadosGuardados({});
+    } finally {
+      setCargandoClasificados(false);
+    }
+  };
+
   const cargarGanadoresJornada = async (jornadaNumero) => {
     try {
       const token = localStorage.getItem('token');
@@ -408,6 +434,11 @@ export default function ClasificacionMundial() {
             <a href="#detalle-pronosticos" className="btn btn-outline-primary">
               📋 Detalle de Pronósticos
             </a>
+            {filtroJornada === '3' && !jornadaAbierta && Object.keys(clasificadosGuardados).length > 0 && (
+              <a href="#clasificados-16vos" className="btn btn-outline-warning">
+                ⭐ Clasificados 16vos
+              </a>
+            )}
             <a href="#ranking-jornada" className="btn btn-outline-success">
               🏆 Ranking Jornada
             </a>
@@ -714,6 +745,76 @@ export default function ClasificacionMundial() {
                   ⬆️ Volver arriba
                 </a>
               </div>
+
+              {/* Tabla de clasificados a 16vos cuando se ve J3 cerrada */}
+              {filtroJornada === '3' && !jornadaAbierta && clasificadosGuardados[grupo.usuario_id] && (
+                <div className="mt-3 mb-2">
+                  <div className="d-flex align-items-center justify-content-center gap-3 mb-2 p-2 rounded" style={{ background: '#fff3cd' }}>
+                    {grupo.foto_perfil && (
+                      <img
+                        src={grupo.foto_perfil}
+                        alt={grupo.jugador}
+                        className="rounded-circle"
+                        style={{ width: '44px', height: '44px', objectFit: 'cover', border: '2px solid #ffc107' }}
+                        onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                      />
+                    )}
+                    <h5 className="mb-0 text-warning-emphasis fw-bold">⭐ Equipos Clasificados — {grupo.jugador}</h5>
+                  </div>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-hover" style={{ fontSize: '1.05rem' }}>
+                      <thead className="table-warning">
+                        <tr>
+                          <th className="text-center">Grupo</th>
+                          <th className="text-center">Clasificación</th>
+                          <th className="text-center">Equipo Pronosticado</th>
+                          <th className="text-center">Equipo Real</th>
+                          <th className="text-center">Puntos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clasificadosGuardados[grupo.usuario_id].clasificados.map((c, ci) => (
+                          <tr key={ci} className={c.puntos > 0 ? 'table-success' : 'table-danger'}>
+                            <td className="text-center fw-bold">Grupo {c.grupo}</td>
+                            <td className="text-center">Clasificado #{c.posicion} a 16vos</td>
+                            <td className="text-center">
+                              <div className="d-flex align-items-center justify-content-center gap-2">
+                                <img
+                                  src={getMundialLogoPorNombre(c.equipo_pronosticado)}
+                                  alt={c.equipo_pronosticado}
+                                  style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                                {c.equipo_pronosticado}
+                              </div>
+                            </td>
+                            <td className="text-center">
+                              {c.equipo_real ? (
+                                <div className="d-flex align-items-center justify-content-center gap-2">
+                                  <img
+                                    src={getMundialLogoPorNombre(c.equipo_real)}
+                                    alt={c.equipo_real}
+                                    style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                  />
+                                  {c.equipo_real}
+                                </div>
+                              ) : <span className="text-muted">Pendiente</span>}
+                            </td>
+                            <td className="text-center">
+                              <strong className={c.puntos > 0 ? 'text-success' : 'text-danger'}>{c.puntos}</strong>
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="table-dark fw-bold">
+                          <td colSpan="4" className="text-end">TOTAL CLASIFICACIÓN {grupo.jugador} :</td>
+                          <td className="text-center">{clasificadosGuardados[grupo.usuario_id].totalPuntos}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </>
@@ -745,6 +846,22 @@ export default function ClasificacionMundial() {
                 <>🏆 Calcular Ganadores Jornada {filtroJornada}</>
               )}
             </button>
+          </div>
+        )}
+
+        {/* Sección resumen Clasificados 16vos (solo J3 cerrada) */}
+        {filtroJornada === '3' && !jornadaAbierta && (
+          <div id="clasificados-16vos" className="mb-5">
+            <h4 className="text-center mb-3">⭐ Clasificados a 16vos de Final</h4>
+            {cargandoClasificados ? (
+              <div className="text-center py-3">
+                <div className="spinner-border text-warning" role="status"></div>
+              </div>
+            ) : Object.keys(clasificadosGuardados).length === 0 ? (
+              <div className="alert alert-warning text-center">
+                Aún no se han calculado los puntos de clasificación. El admin debe presionar "Calcular Ganadores J3".
+              </div>
+            ) : null}
           </div>
         )}
 

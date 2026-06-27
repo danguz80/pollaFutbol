@@ -143,4 +143,144 @@ router.get('/puntos-clasificados/:usuarioId', verifyToken, async (req, res) => {
   }
 });
 
+// GET /todas-tablas-oficiales — tablas de posiciones reales de todos los grupos
+router.get('/todas-tablas-oficiales', verifyToken, async (req, res) => {
+  try {
+    const gruposResult = await pool.query(
+      `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
+    );
+    const grupos = gruposResult.rows.map(r => r.grupo);
+    const tablas = {};
+    for (const grupo of grupos) {
+      tablas[grupo] = await calcularTablaOficial(grupo, [1, 2, 3]);
+    }
+    res.json(tablas);
+  } catch (error) {
+    console.error('Error calculando tablas oficiales:', error);
+    res.status(500).json({ error: 'Error calculando tablas oficiales' });
+  }
+});
+
+// GET /clasificacion-guardada — clasificados guardados del usuario actual (o usuario_id si es admin)
+router.get('/clasificacion-guardada', verifyToken, async (req, res) => {
+  try {
+    const usuarioId = req.query.usuario_id || req.usuario.id;
+
+    const predsResult = await pool.query(
+      `SELECT equipo, fase, puntos FROM mundial_puntos_clasificacion
+       WHERE usuario_id = $1 AND fase LIKE '16VOS_%' ORDER BY fase`,
+      [usuarioId]
+    );
+
+    if (predsResult.rows.length === 0) {
+      return res.json({ clasificados: [], totalPuntos: 0 });
+    }
+
+    const gruposResult = await pool.query(
+      `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
+    );
+    const grupos = gruposResult.rows.map(r => r.grupo);
+    const clasificadosReales = {};
+    for (const grupo of grupos) {
+      const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
+      if (tabla.length >= 2) {
+        clasificadosReales[`${grupo}_POS1`] = tabla[0].nombre;
+        clasificadosReales[`${grupo}_POS2`] = tabla[1].nombre;
+      }
+    }
+
+    const clasificados = predsResult.rows.map(row => {
+      const match = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
+      if (!match) return null;
+      const grupo = match[1];
+      const pos = match[2];
+      return {
+        grupo,
+        posicion: parseInt(pos),
+        equipo_pronosticado: row.equipo,
+        equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
+        puntos: row.puntos
+      };
+    }).filter(Boolean).sort((a, b) => a.grupo.localeCompare(b.grupo) || a.posicion - b.posicion);
+
+    const totalPuntos = clasificados.reduce((sum, c) => sum + c.puntos, 0);
+    res.json({ clasificados, totalPuntos });
+  } catch (error) {
+    console.error('Error obteniendo clasificación guardada:', error);
+    res.status(500).json({ error: 'Error obteniendo clasificación guardada' });
+  }
+});
+
+// GET /clasificacion-guardada-todos — clasificados guardados de todos los usuarios (para admin y vista general)
+router.get('/clasificacion-guardada-todos', verifyToken, async (req, res) => {
+  try {
+    const { usuario_id } = req.query;
+
+    let sql = `
+      SELECT mpc.usuario_id, u.nombre as nombre_usuario, u.foto_perfil,
+             mpc.equipo, mpc.fase, mpc.puntos
+      FROM mundial_puntos_clasificacion mpc
+      INNER JOIN usuarios u ON mpc.usuario_id = u.id
+      WHERE mpc.fase LIKE '16VOS_%'
+    `;
+    const params = [];
+    if (usuario_id) {
+      params.push(usuario_id);
+      sql += ` AND mpc.usuario_id = $${params.length}`;
+    }
+    sql += ` ORDER BY u.nombre, mpc.fase`;
+
+    const result = await pool.query(sql, params);
+
+    // Clasificados reales para comparativa
+    const gruposResult = await pool.query(
+      `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
+    );
+    const grupos = gruposResult.rows.map(r => r.grupo);
+    const clasificadosReales = {};
+    for (const grupo of grupos) {
+      const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
+      if (tabla.length >= 2) {
+        clasificadosReales[`${grupo}_POS1`] = tabla[0].nombre;
+        clasificadosReales[`${grupo}_POS2`] = tabla[1].nombre;
+      }
+    }
+
+    // Agrupar por usuario
+    const porUsuario = {};
+    result.rows.forEach(row => {
+      if (!porUsuario[row.usuario_id]) {
+        porUsuario[row.usuario_id] = {
+          usuario_id: row.usuario_id,
+          nombre: row.nombre_usuario,
+          foto_perfil: row.foto_perfil,
+          clasificados: []
+        };
+      }
+      const match = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
+      if (!match) return;
+      const grupo = match[1];
+      const pos = match[2];
+      porUsuario[row.usuario_id].clasificados.push({
+        grupo,
+        posicion: parseInt(pos),
+        equipo_pronosticado: row.equipo,
+        equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
+        puntos: row.puntos
+      });
+    });
+
+    Object.values(porUsuario).forEach(u => {
+      u.clasificados.sort((a, b) => a.grupo.localeCompare(b.grupo) || a.posicion - b.posicion);
+      u.totalPuntos = u.clasificados.reduce((sum, c) => sum + c.puntos, 0);
+    });
+
+    res.json(Object.values(porUsuario));
+  } catch (error) {
+    console.error('Error obteniendo clasificación guardada todos:', error);
+    res.status(500).json({ error: 'Error obteniendo clasificación guardada' });
+  }
+});
+
 export default router;
+

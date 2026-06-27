@@ -2,6 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
+import { calcularTablaOficial, calcularTablaUsuario } from '../utils/calcularClasificadosMundial.js';
 
 const router = express.Router();
 
@@ -129,6 +130,68 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
     console.log(`✅ Puntos calculados: ${pronosticosActualizados} pronósticos actualizados, ${puntosAsignados} puntos totales asignados`);
 
+    // Para jornada 3 (o recalculo total): calcular puntos de clasificación a 16vos de Final
+    if (!jornadaNumero || jornadaNumero == 3) {
+      try {
+        console.log('🔄 Calculando puntos de clasificación J3 (16vos de Final)...');
+
+        const gruposResult = await pool.query(
+          `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
+        );
+        const grupos = gruposResult.rows.map(r => r.grupo);
+
+        // Clasificados oficiales: top 2 de cada grupo con al menos 1 partido jugado
+        const clasificadosOficiales = {};
+        for (const grupo of grupos) {
+          const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
+          if (tabla.length >= 2 && tabla[0].pj > 0) {
+            clasificadosOficiales[grupo] = [tabla[0].nombre, tabla[1].nombre];
+          }
+        }
+
+        if (Object.keys(clasificadosOficiales).length > 0) {
+          const usuariosResult = await pool.query(
+            `SELECT DISTINCT u.id FROM usuarios u
+             INNER JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
+             INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
+             WHERE mj.numero IN (1,2,3) AND u.rol != 'admin'`
+          );
+
+          for (const { id: uid } of usuariosResult.rows) {
+            await pool.query(
+              `DELETE FROM mundial_puntos_clasificacion WHERE usuario_id = $1 AND fase LIKE '16VOS_%'`,
+              [uid]
+            );
+
+            for (const grupo of grupos) {
+              if (!clasificadosOficiales[grupo]) continue;
+              const tablaUser = await calcularTablaUsuario(uid, grupo, [1, 2, 3]);
+              if (tablaUser.length < 2) continue;
+
+              const reales = clasificadosOficiales[grupo];
+              const predicciones = [
+                { equipo: tablaUser[0].nombre, fase: `16VOS_GRUPO_${grupo}_POS1` },
+                { equipo: tablaUser[1].nombre, fase: `16VOS_GRUPO_${grupo}_POS2` }
+              ];
+
+              for (const pred of predicciones) {
+                const pts = reales.includes(pred.equipo) ? 2 : 0;
+                await pool.query(
+                  `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = $4`,
+                  [uid, pred.equipo, pred.fase, pts]
+                );
+              }
+            }
+          }
+          console.log(`✅ Puntos clasificación J3 calculados: ${usuariosResult.rows.length} usuarios`);
+        }
+      } catch (classifErr) {
+        console.error('⚠️ Error en puntos clasificación J3:', classifErr.message);
+      }
+    }
+
     // Actualizar ranking acumulado
     await actualizarRankingAcumulado();
 
@@ -250,19 +313,29 @@ async function calcularGanadoresJornada(jornadaNumero) {
 // Función auxiliar para actualizar el ranking acumulado
 async function actualizarRankingAcumulado() {
   try {
-    // Calcular puntos totales por usuario
+    // Calcular puntos totales por usuario (pronósticos + clasificación)
     const rankingQuery = `
-      SELECT 
+      SELECT
         u.id,
         u.nombre,
-        COALESCE(SUM(mp.puntos), 0) as puntos_totales,
-        COUNT(DISTINCT CASE WHEN mgj.posicion = 1 THEN mgj.jornada_numero END) as jornadas_ganadas
+        COALESCE(pts.total_partidos, 0) + COALESCE(clasif.total_clasif, 0) as puntos_totales,
+        COALESCE(jg.jornadas_ganadas, 0) as jornadas_ganadas
       FROM usuarios u
-      LEFT JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
-      LEFT JOIN mundial_ganadores_jornada mgj ON u.id = mgj.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total_partidos
+        FROM mundial_pronosticos GROUP BY usuario_id
+      ) pts ON u.id = pts.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) as total_clasif
+        FROM mundial_puntos_clasificacion GROUP BY usuario_id
+      ) clasif ON u.id = clasif.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, COUNT(DISTINCT jornada_numero) as jornadas_ganadas
+        FROM mundial_ganadores_jornada WHERE posicion = 1
+        GROUP BY usuario_id
+      ) jg ON u.id = jg.usuario_id
       WHERE u.rol != 'admin'
-      GROUP BY u.id, u.nombre
-      HAVING COALESCE(SUM(mp.puntos), 0) > 0
+        AND (COALESCE(pts.total_partidos, 0) + COALESCE(clasif.total_clasif, 0)) > 0
       ORDER BY puntos_totales DESC, u.nombre ASC
     `;
 
