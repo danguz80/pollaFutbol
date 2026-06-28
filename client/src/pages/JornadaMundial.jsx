@@ -24,6 +24,8 @@ export default function JornadaMundial() {
   const [pronosticos, setPronosticos] = useState({});
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
+  const [participantes, setParticipantes] = useState([]);
+  const [noParticipantes, setNoParticipantes] = useState([]);
 
   useEffect(() => {
     if (!usuario) {
@@ -53,6 +55,14 @@ export default function JornadaMundial() {
       );
       const jornadaActual = jornadaResponse.data.find(j => j.numero === Number(numero));
       setJornada(jornadaActual);
+
+      // Si la jornada está abierta, cargar quién ya ingresó pronósticos
+      if (jornadaActual?.activa && !jornadaActual?.cerrada) {
+        cargarEstadoParticipantes(token);
+      } else {
+        setParticipantes([]);
+        setNoParticipantes([]);
+      }
 
       // Cargar partidos de esta jornada
       const partidosResponse = await axios.get(
@@ -89,6 +99,31 @@ export default function JornadaMundial() {
       setMensaje("Error cargando datos de la jornada");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarEstadoParticipantes = async (token) => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const [pronosRes, jugadoresRes] = await Promise.all([
+        axios.get(`${API_URL}/api/mundial-clasificacion/pronosticos?jornada_numero=${numero}`, { headers }),
+        axios.get(`${API_URL}/api/mundial-clasificacion/jugadores`, { headers })
+      ]);
+
+      const idsVistos = new Set();
+      const yaSubieron = [];
+      pronosRes.data.forEach(p => {
+        if (!idsVistos.has(p.usuario.id)) {
+          idsVistos.add(p.usuario.id);
+          yaSubieron.push({ id: p.usuario.id, nombre: p.usuario.nombre, foto_perfil: p.usuario.foto_perfil });
+        }
+      });
+      setParticipantes(yaSubieron);
+
+      const sinPronosticos = jugadoresRes.data.filter(u => !idsVistos.has(u.id));
+      setNoParticipantes(sinPronosticos);
+    } catch (error) {
+      console.error("Error cargando estado participantes:", error);
     }
   };
 
@@ -324,6 +359,77 @@ export default function JornadaMundial() {
           )}
         </div>
       </div>
+
+      {/* Estado de participantes - visible solo cuando la jornada está abierta */}
+      {jornada.activa && !jornada.cerrada && (
+        <div className="mb-4">
+          {participantes.length > 0 && (
+            <div className="card mb-3">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">✅ Ya ingresaron sus pronósticos ({participantes.length})</h5>
+              </div>
+              <div className="card-body py-3">
+                <div className="row g-2">
+                  {participantes.map((p) => (
+                    <div key={p.id} className="col-4 col-md-3 col-lg-2">
+                      <div className="text-center p-1">
+                        {p.foto_perfil ? (
+                          <img
+                            src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
+                            alt={p.nombre}
+                            className="rounded-circle mb-1"
+                            style={{ width: '55px', height: '55px', objectFit: 'cover', border: '2px solid #0d6efd' }}
+                            onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                          />
+                        ) : (
+                          <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center mb-1 mx-auto"
+                            style={{ width: '55px', height: '55px' }}>
+                            <span className="text-white fw-bold">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                          </div>
+                        )}
+                        <p className="mb-0 small fw-bold text-truncate">{p.nombre}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {noParticipantes.length > 0 && (
+            <div className="card">
+              <div className="card-header bg-warning text-dark">
+                <h5 className="mb-0">⏳ Aún no han ingresado pronósticos ({noParticipantes.length})</h5>
+              </div>
+              <div className="card-body py-3">
+                <div className="row g-2">
+                  {noParticipantes.map((p) => (
+                    <div key={p.id} className="col-4 col-md-3 col-lg-2">
+                      <div className="text-center p-1">
+                        {p.foto_perfil ? (
+                          <img
+                            src={p.foto_perfil.startsWith('/') ? p.foto_perfil : `/perfil/${p.foto_perfil}`}
+                            alt={p.nombre}
+                            className="rounded-circle mb-1 opacity-50"
+                            style={{ width: '55px', height: '55px', objectFit: 'cover', border: '2px solid #ffc107' }}
+                            onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                          />
+                        ) : (
+                          <div className="rounded-circle bg-warning d-flex align-items-center justify-content-center mb-1 mx-auto opacity-50"
+                            style={{ width: '55px', height: '55px' }}>
+                            <span className="text-dark fw-bold">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                          </div>
+                        )}
+                        <p className="mb-0 small text-muted text-truncate">{p.nombre}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Partidos */}
       {partidos.length === 0 ? (
