@@ -292,8 +292,8 @@ router.post('/ganador-fase-grupos', verifyToken, authorizeRoles('admin'), async 
       const puntos = parseFloat(row.puntos_totales);
       if (prevPuntos !== null && puntos < prevPuntos) pos = i + 1;
       await pool.query(
-        `INSERT INTO mundial_ganadores_fase_grupos (usuario_id, jornada_numero, puntos, posicion) VALUES ($1, $2, $3, $4)`,
-        [row.id, 3, puntos, pos]
+        `INSERT INTO mundial_ganadores_fase_grupos (usuario_id, puntos, posicion) VALUES ($1, $2, $3)`,
+        [row.id, puntos, pos]
       );
       prevPuntos = puntos;
     }
