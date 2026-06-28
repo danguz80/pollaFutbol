@@ -76,6 +76,7 @@ export default function JornadaMundial() {
           pronosticosMap[p.partido_id] = {
             goles_local: p.resultado_local,
             goles_visita: p.resultado_visitante,
+            quien_avanza: p.quien_avanza || "",
           };
         });
         setPronosticos(pronosticosMap);
@@ -92,13 +93,22 @@ export default function JornadaMundial() {
   };
 
   const handlePronosticoChange = (partidoId, campo, valor) => {
-    setPronosticos(prev => ({
-      ...prev,
-      [partidoId]: {
-        ...prev[partidoId],
-        [campo]: valor === "" ? "" : Number(valor)
+    setPronosticos(prev => {
+      const current = prev[partidoId] || {};
+      const updated = {
+        ...current,
+        [campo]: campo === 'quien_avanza' ? valor : (valor === "" ? "" : Number(valor))
+      };
+      // Auto-limpiar quien_avanza si los goles ya no forman un empate
+      if (campo === 'goles_local' || campo === 'goles_visita') {
+        const newLocal = campo === 'goles_local' ? (valor === "" ? "" : Number(valor)) : current.goles_local;
+        const newVisita = campo === 'goles_visita' ? (valor === "" ? "" : Number(valor)) : current.goles_visita;
+        if (newLocal !== "" && newVisita !== "" && Number(newLocal) !== Number(newVisita)) {
+          updated.quien_avanza = "";
+        }
       }
-    }));
+      return { ...prev, [partidoId]: updated };
+    });
   };
 
   const generarAleatorioTodos = () => {
@@ -190,7 +200,8 @@ export default function JornadaMundial() {
       return {
         partido_id: partido.id,
         resultado_local: pronostico.goles_local ?? 0,
-        resultado_visitante: pronostico.goles_visita ?? 0
+        resultado_visitante: pronostico.goles_visita ?? 0,
+        quien_avanza: pronostico.quien_avanza || null
       };
     });
 
@@ -203,6 +214,17 @@ export default function JornadaMundial() {
     if (hayVacios) {
       alert("⚠️ Debes completar todos los pronósticos antes de guardar");
       return;
+    }
+
+    // En eliminatorias: validar que haya quien_avanza cuando hay empate
+    if (Number(numero) >= 4) {
+      const empatesSinGanador = pronosticosArray.filter(
+        p => p.resultado_local === p.resultado_visitante && !p.quien_avanza
+      );
+      if (empatesSinGanador.length > 0) {
+        alert("⚠️ En rondas eliminatorias, cuando pronosticas un empate debes seleccionar qué equipo avanza a la siguiente fase");
+        return;
+      }
     }
 
     try {
@@ -413,6 +435,27 @@ export default function JornadaMundial() {
                           />
                         </div>
                       </div>
+
+                      {/* Quién avanza en empate de eliminatoria */}
+                      {Number(numero) >= 4 &&
+                       pronostico.goles_local !== "" && pronostico.goles_visita !== "" &&
+                       Number(pronostico.goles_local) === Number(pronostico.goles_visita) && (
+                        <div className="mt-3">
+                          <div className="alert alert-warning py-2 mb-0">
+                            <small className="fw-bold d-block mb-1">⚽ Empate — ¿Quién avanza a la siguiente ronda?</small>
+                            <select
+                              className="form-select form-select-sm"
+                              value={pronostico.quien_avanza || ""}
+                              onChange={(e) => handlePronosticoChange(partido.id, 'quien_avanza', e.target.value)}
+                              disabled={!puedeEditar}
+                            >
+                              <option value="">-- Seleccionar --</option>
+                              <option value={partido.equipo_local}>{partido.equipo_local}</option>
+                              <option value={partido.equipo_visitante}>{partido.equipo_visitante}</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Mostrar resultado si existe y jornada cerrada */}
                       {jornada.cerrada && partido.resultado_local !== null && partido.resultado_visitante !== null && (

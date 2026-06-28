@@ -340,7 +340,7 @@ router.post('/jornadas/:numero/fixture', verifyToken, authorizeRoles('admin'), a
 router.patch('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { resultado_local, resultado_visitante, bonus } = req.body;
+    const { resultado_local, resultado_visitante, bonus, quien_avanzo } = req.body;
 
     // Construir la query dinámicamente según los campos enviados
     const updates = [];
@@ -362,6 +362,12 @@ router.patch('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, 
     if (bonus !== undefined) {
       updates.push(`bonus = $${paramCounter}`);
       values.push(bonus);
+      paramCounter++;
+    }
+
+    if (quien_avanzo !== undefined) {
+      updates.push(`quien_avanzo = $${paramCounter}`);
+      values.push(quien_avanzo);
       paramCounter++;
     }
 
@@ -680,19 +686,21 @@ router.post('/pronosticos/:numero', verifyToken, async (req, res) => {
     for (const pronostico of pronosticos) {
       await pool.query(`
         INSERT INTO mundial_pronosticos 
-        (usuario_id, jornada_id, partido_id, resultado_local, resultado_visitante)
-        VALUES ($1, $2, $3, $4, $5)
+        (usuario_id, jornada_id, partido_id, resultado_local, resultado_visitante, quien_avanza)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (usuario_id, partido_id)
         DO UPDATE SET 
           resultado_local = EXCLUDED.resultado_local,
           resultado_visitante = EXCLUDED.resultado_visitante,
+          quien_avanza = EXCLUDED.quien_avanza,
           actualizado_en = NOW()
       `, [
         usuario_id,
         jornada.id,
         pronostico.partido_id,
         pronostico.resultado_local,
-        pronostico.resultado_visitante
+        pronostico.resultado_visitante,
+        pronostico.quien_avanza || null
       ]);
     }
 

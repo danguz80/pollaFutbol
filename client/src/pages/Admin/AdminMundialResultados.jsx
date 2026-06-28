@@ -137,6 +137,7 @@ export default function AdminMundialResultados() {
         visita: p.equipo_visitante,
         golesLocal: p.resultado_local ?? "",
         golesVisita: p.resultado_visitante ?? "",
+        quienAvanzo: p.quien_avanzo || "",
         bonus: p.bonus ?? 1,
         jornadaId: p.jornada_id,
         grupo: p.grupo,
@@ -291,6 +292,7 @@ export default function AdminMundialResultados() {
         id: p.id,
         resultado_local: p.golesLocal === "" ? null : Number(p.golesLocal),
         resultado_visitante: p.golesVisita === "" ? null : Number(p.golesVisita),
+        quien_avanzo: p.quienAvanzo || null,
         bonus: p.bonus
       }));
 
@@ -305,6 +307,7 @@ export default function AdminMundialResultados() {
           body: JSON.stringify({ 
             resultado_local: partido.resultado_local, 
             resultado_visitante: partido.resultado_visitante,
+            quien_avanzo: partido.quien_avanzo,
             bonus: partido.bonus
           }),
         });
@@ -846,6 +849,26 @@ export default function AdminMundialResultados() {
                           </div>
                         </div>
 
+                        {/* Quién avanzó en empate de eliminatoria */}
+                        {Number(jornadaSeleccionada) >= 4 &&
+                         partido.golesLocal !== "" && partido.golesVisita !== "" &&
+                         Number(partido.golesLocal) === Number(partido.golesVisita) && (
+                          <div className="mt-3">
+                            <div className="alert alert-warning py-2 mb-0">
+                              <small className="fw-bold d-block mb-1">⚽ Empate — ¿Quién avanzó realmente?</small>
+                              <select
+                                className="form-select form-select-sm"
+                                value={partido.quienAvanzo || ""}
+                                onChange={(e) => handleCambiarGoles(partido.id, "quienAvanzo", e.target.value)}
+                              >
+                                <option value="">-- Seleccionar --</option>
+                                <option value={partido.local}>{partido.local}</option>
+                                <option value={partido.visita}>{partido.visita}</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Botón limpiar */}
                         <div className="text-center mt-3">
                           <button
@@ -853,6 +876,7 @@ export default function AdminMundialResultados() {
                             onClick={() => {
                               handleCambiarGoles(partido.id, "golesLocal", "");
                               handleCambiarGoles(partido.id, "golesVisita", "");
+                              handleCambiarGoles(partido.id, "quienAvanzo", "");
                             }}
                             title="Limpiar resultado"
                           >

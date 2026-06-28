@@ -40,9 +40,11 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         mp.usuario_id,
         mp.resultado_local as pronostico_local,
         mp.resultado_visitante as pronostico_visita,
+        mp.quien_avanza as pronostico_quien_avanza,
         p.id as partido_id,
         p.resultado_local,
         p.resultado_visitante,
+        p.quien_avanzo,
         p.equipo_local,
         p.equipo_visitante,
         p.bonus,
@@ -70,8 +72,10 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         id,
         pronostico_local,
         pronostico_visita,
+        pronostico_quien_avanza,
         resultado_local,
         resultado_visitante,
+        quien_avanzo,
         bonus,
         jornada_numero
       } = pronostico;
@@ -114,6 +118,17 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       }
 
       // Multiplicar puntos por el bonus del partido
+      // En eliminatorias: +2 pts extra por predecir correctamente quién avanza en caso de empate
+      if (
+        jornada_numero >= 4 &&
+        resultado_local === resultado_visitante &&
+        pronostico_local === pronostico_visita &&
+        quien_avanzo &&
+        pronostico_quien_avanza === quien_avanzo
+      ) {
+        puntosGanados += 2;
+      }
+
       const puntosFinales = puntosGanados * bonusMultiplicador;
 
       // Actualizar puntos en la base de datos
