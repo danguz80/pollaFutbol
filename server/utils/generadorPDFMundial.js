@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../db/pool.js';
 import { getWhatsAppService } from '../services/whatsappService.js';
+import { calcularTablaOficial } from './calcularClasificadosMundial.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,12 +19,13 @@ export async function generarPDFMundial(jornadaNumero) {
     console.log(`📄 Generando PDF Mundial Jornada ${jornadaNumero} con PDFKit...`);
 
     // 1. Obtener datos necesarios de la BD
-    const [pronosticosData, rankingJornada, rankingAcumulado, ganadores, jornada] = await Promise.all([
+    const [pronosticosData, rankingJornada, rankingAcumulado, ganadores, jornada, clasificadosMap] = await Promise.all([
       obtenerPronosticos(jornadaNumero),
       obtenerRankingJornada(jornadaNumero),
       obtenerRankingAcumulado(),
       obtenerGanadores(jornadaNumero),
-      obtenerJornada(jornadaNumero)
+      obtenerJornada(jornadaNumero),
+      jornadaNumero === 3 ? obtenerClasificados() : Promise.resolve({})
     ]);
 
     // 2. Crear documento PDF
@@ -57,7 +59,7 @@ export async function generarPDFMundial(jornadaNumero) {
     yPos = agregarRankingAcumulado(doc, rankingAcumulado, yPos);
     
     // Pronósticos detallados por jugador
-    agregarPronosticos(doc, pronosticosData, yPos);
+    agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos);
 
     // 5. Finalizar documento
     doc.end();
@@ -169,12 +171,30 @@ async function obtenerRankingAcumulado() {
     SELECT 
       u.nombre,
       u.foto_perfil,
-      COALESCE(SUM(mp.puntos), 0) as puntos_acumulados
+      COALESCE(puntos_partidos.total, 0) +
+      COALESCE(puntos_clasificacion.total, 0) +
+      COALESCE(puntos_campeon.puntos, 0) as puntos_acumulados
     FROM usuarios u
-    LEFT JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
+    LEFT JOIN (
+      SELECT mp.usuario_id, SUM(mp.puntos) as total
+      FROM mundial_pronosticos mp
+      GROUP BY mp.usuario_id
+    ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+    LEFT JOIN (
+      SELECT mpc.usuario_id, SUM(mpc.puntos) as total
+      FROM mundial_puntos_clasificacion mpc
+      GROUP BY mpc.usuario_id
+    ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
+    LEFT JOIN (
+      SELECT usuario_id, puntos
+      FROM mundial_predicciones_campeon
+    ) puntos_campeon ON u.id = puntos_campeon.usuario_id
     WHERE u.rol != 'admin'
-    GROUP BY u.id, u.nombre, u.foto_perfil
-    HAVING COALESCE(SUM(mp.puntos), 0) > 0
+      AND (
+        puntos_partidos.total IS NOT NULL
+        OR puntos_clasificacion.total IS NOT NULL
+        OR puntos_campeon.puntos IS NOT NULL
+      )
     ORDER BY puntos_acumulados DESC, u.nombre ASC
     LIMIT 10
   `);
@@ -182,9 +202,67 @@ async function obtenerRankingAcumulado() {
   return result.rows;
 }
 
+async function obtenerClasificados() {
+  const result = await pool.query(`
+    SELECT mpc.usuario_id, u.nombre as nombre_usuario, u.foto_perfil,
+           mpc.equipo, mpc.fase, mpc.puntos
+    FROM mundial_puntos_clasificacion mpc
+    INNER JOIN usuarios u ON mpc.usuario_id = u.id
+    WHERE mpc.fase LIKE '16VOS_%' AND u.rol != 'admin'
+    ORDER BY u.nombre, mpc.fase
+  `);
+
+  const gruposResult = await pool.query(
+    `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
+  );
+  const grupos = gruposResult.rows.map(r => r.grupo);
+  const clasificadosReales = {};
+  for (const grupo of grupos) {
+    const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
+    if (tabla.length >= 2) {
+      clasificadosReales[`${grupo}_POS1`] = tabla[0].nombre;
+      clasificadosReales[`${grupo}_POS2`] = tabla[1].nombre;
+    }
+  }
+  const tercR = await pool.query('SELECT equipo, grupo FROM mundial_mejores_terceros');
+  tercR.rows.forEach(r => { clasificadosReales[`${r.grupo}_POS3`] = r.equipo; });
+
+  const porUsuario = {};
+  result.rows.forEach(row => {
+    if (!porUsuario[row.usuario_id]) {
+      porUsuario[row.usuario_id] = {
+        nombre: row.nombre_usuario,
+        foto_perfil: row.foto_perfil,
+        clasificados: []
+      };
+    }
+    const match = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
+    if (!match) return;
+    const grupo = match[1];
+    const pos = match[2];
+    const posLabel = pos === '1' ? 'Clasificado #1 a 16vos'
+      : pos === '2' ? 'Clasificado #2 a 16vos'
+      : 'Mejor Tercero';
+    porUsuario[row.usuario_id].clasificados.push({
+      grupo,
+      posicion: parseInt(pos),
+      posLabel,
+      equipo_pronosticado: row.equipo,
+      equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
+      puntos: row.puntos
+    });
+  });
+  Object.values(porUsuario).forEach(u => {
+    u.clasificados.sort((a, b) => a.grupo.localeCompare(b.grupo) || a.posicion - b.posicion);
+    u.totalPuntos = u.clasificados.reduce((sum, c) => sum + c.puntos, 0);
+  });
+  return porUsuario; // keyed by usuario_id
+}
+
 async function obtenerPronosticos(jornadaNumero) {
   const result = await pool.query(`
     SELECT 
+      u.id as usuario_id,
       u.nombre as usuario,
       u.foto_perfil,
       mp.resultado_local as pred_local,
@@ -210,6 +288,7 @@ async function obtenerPronosticos(jornadaNumero) {
   result.rows.forEach(row => {
     if (!grouped[row.usuario]) {
       grouped[row.usuario] = {
+        usuario_id: row.usuario_id,
         nombre: row.usuario,
         foto_perfil: row.foto_perfil,
         pronosticos: []
@@ -501,7 +580,7 @@ function agregarRankingAcumulado(doc, ranking, yPos) {
   return yPos + 20;
 }
 
-function agregarPronosticos(doc, pronosticosData, yPos) {
+function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos) {
   pronosticosData.forEach((usuario, usuarioIndex) => {
     // Nueva página para cada usuario
     doc.addPage();
@@ -509,6 +588,9 @@ function agregarPronosticos(doc, pronosticosData, yPos) {
 
     // Calcular total de puntos
     const totalPuntos = usuario.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
+    const clasifData = clasificadosMap[usuario.usuario_id];
+    const totalClasif = clasifData ? clasifData.totalPuntos : 0;
+    const totalGeneral = totalPuntos + totalClasif;
 
     // Header de usuario (reducido a 28px)
     doc.rect(50, yPos, 512, 28).fill('#1a5490');
@@ -538,7 +620,7 @@ function agregarPronosticos(doc, pronosticosData, yPos) {
     doc.fontSize(12)
        .font('Helvetica-Bold')
        .fillColor('#FFD700')
-       .text(`Total: ${totalPuntos} pts`, 420, yPos + 10, { width: 130, align: 'right', lineBreak: false });
+       .text(`Total jornada: ${totalPuntos} pts`, 360, yPos + 10, { width: 190, align: 'right', lineBreak: false });
     
     yPos += 32;
 
@@ -600,6 +682,53 @@ function agregarPronosticos(doc, pronosticosData, yPos) {
 
       yPos += 22;
     });
+
+    // ==================== TABLA EQUIPOS CLASIFICADOS (solo J3) ====================
+    if (clasifData && clasifData.clasificados.length > 0) {
+      // Verificar espacio — si queda poco, nueva página
+      if (yPos > 600) {
+        doc.addPage();
+        yPos = 50;
+      } else {
+        yPos += 15;
+      }
+
+      // Título de la sección
+      doc.rect(50, yPos, 512, 20).fill('#b8860b');
+      doc.fontSize(11)
+         .font('Helvetica-Bold')
+         .fillColor('#FFFFFF')
+         .text(`⭐ EQUIPOS CLASIFICADOS A 16VOS — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
+      yPos += 20;
+
+      // Sub-headers
+      const colWidths = [55, 140, 150, 150, 67]; // Grupo | Clasificación | Pronosticado | Real | Pts
+      const colX = [50, 105, 245, 395, 495];
+      const headers = ['Grupo', 'Clasificación', 'Pronosticado', 'Real', 'Pts'];
+
+      headers.forEach((h, i) => {
+        doc.rect(colX[i], yPos, colWidths[i], 15).fill('#daa520').stroke('#999');
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000')
+           .text(h, colX[i] + 3, yPos + 4, { width: colWidths[i] - 6, align: 'center', lineBreak: false });
+      });
+      yPos += 15;
+
+      clasifData.clasificados.forEach((c) => {
+        if (yPos + 18 > 742) {
+          doc.addPage();
+          yPos = 50;
+        }
+        const correcto = c.puntos > 0;
+        const bg = correcto ? '#d4edda' : '#f8d7da';
+        const cells = [c.grupo, c.posLabel, c.equipo_pronosticado || '-', c.equipo_real || '-', c.puntos.toString()];
+        cells.forEach((txt, i) => {
+          doc.rect(colX[i], yPos, colWidths[i], 18).fill(bg).stroke('#ccc');
+          doc.fontSize(8).font('Helvetica').fillColor('#000')
+             .text(txt, colX[i] + 3, yPos + 5, { width: colWidths[i] - 6, align: i === 4 ? 'center' : 'left', lineBreak: false });
+        });
+        yPos += 18;
+      });
+    }
   });
 }
 
