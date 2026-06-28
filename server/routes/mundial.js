@@ -190,6 +190,104 @@ router.get('/partidos', async (req, res) => {
   }
 });
 
+// GET /jornadas/:numero/partidos — partidos de una jornada con conteo de pronósticos (Admin)
+router.get('/jornadas/:numero/partidos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const result = await pool.query(`
+      SELECT
+        p.*,
+        j.numero as jornada_numero,
+        COALESCE(pc.cnt, 0)::int as pronosticos_count
+      FROM mundial_partidos p
+      INNER JOIN mundial_jornadas j ON j.id = p.jornada_id
+      LEFT JOIN (
+        SELECT partido_id, COUNT(*) as cnt
+        FROM mundial_pronosticos
+        GROUP BY partido_id
+      ) pc ON p.id = pc.partido_id
+      WHERE j.numero = $1
+      ORDER BY p.fecha, p.id
+    `, [numero]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo partidos de jornada:', error);
+    res.status(500).json({ error: 'Error obteniendo partidos de jornada' });
+  }
+});
+
+// POST /jornadas/:numero/fixture-append — agrega partidos SIN borrar los existentes (Admin)
+router.post('/jornadas/:numero/fixture-append', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const { partidos } = req.body;
+
+    if (!Array.isArray(partidos) || partidos.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de partidos' });
+    }
+
+    const jornadaResult = await pool.query(
+      'SELECT id FROM mundial_jornadas WHERE numero = $1',
+      [numero]
+    );
+    if (jornadaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Jornada no encontrada' });
+    }
+    const jornadaId = jornadaResult.rows[0].id;
+
+    // Insertar sin borrar lo existente
+    for (const partido of partidos) {
+      await pool.query(`
+        INSERT INTO mundial_partidos (jornada_id, equipo_local, equipo_visitante, fecha, estadio, api_id, partido_numero, grupo, bonus)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        jornadaId,
+        partido.equipo_local,
+        partido.equipo_visitante,
+        partido.fecha || null,
+        partido.estadio || null,
+        partido.api_id || null,
+        partido.partido_numero || null,
+        partido.grupo || null,
+        partido.bonus || 1
+      ]);
+    }
+
+    res.json({ mensaje: `${partidos.length} partido(s) agregado(s) exitosamente`, agregados: partidos.length });
+  } catch (error) {
+    console.error('Error en fixture-append:', error);
+    res.status(500).json({ error: 'Error agregando partidos', details: error.message });
+  }
+});
+
+// DELETE /partidos/:id — elimina un partido individual (solo si no tiene pronósticos) (Admin)
+router.delete('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verificar que el partido existe
+    const existeResult = await pool.query('SELECT id FROM mundial_partidos WHERE id = $1', [id]);
+    if (existeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Partido no encontrado' });
+    }
+
+    // Bloquear si tiene pronósticos
+    const pronosticosResult = await pool.query(
+      'SELECT COUNT(*) as cnt FROM mundial_pronosticos WHERE partido_id = $1',
+      [id]
+    );
+    if (parseInt(pronosticosResult.rows[0].cnt) > 0) {
+      return res.status(409).json({ error: 'No se puede eliminar: este partido tiene pronósticos ingresados' });
+    }
+
+    await pool.query('DELETE FROM mundial_partidos WHERE id = $1', [id]);
+    res.json({ mensaje: 'Partido eliminado correctamente' });
+  } catch (error) {
+    console.error('Error eliminando partido:', error);
+    res.status(500).json({ error: 'Error eliminando partido', details: error.message });
+  }
+});
+
 // Guardar fixture de una jornada (Admin)
 router.post('/jornadas/:numero/fixture', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {

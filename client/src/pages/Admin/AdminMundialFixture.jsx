@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getMundialLogoPorNombre } from '../../utils/mundialLogos';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -9,16 +10,31 @@ export default function AdminMundialFixture() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // Estados para cada fase
+  // Fase de grupos (sin cambios)
   const [textFaseGrupos, setTextFaseGrupos] = useState('');
-  const [text16vos, setText16vos] = useState('');
-  const [textOctavos, setTextOctavos] = useState('');
-  const [textCuartos, setTextCuartos] = useState('');
-  const [textFinales, setTextFinales] = useState('');
+
+  // Equipos del Mundial para selects
+  const [equipos, setEquipos] = useState([]);
+
+  // Partidos ya cargados por jornada eliminatoria
+  const [existentes, setExistentes] = useState({ 4: [], 5: [], 6: [], 7: [] });
+
+  // Filas del formulario de nuevos cruces por jornada
+  const [nuevos, setNuevos] = useState({
+    4: [{ local: '', visitante: '', bonus: 1 }],
+    5: [{ local: '', visitante: '', bonus: 1 }],
+    6: [{ local: '', visitante: '', bonus: 1 }],
+    7: [{ local: '', visitante: '', bonus: 2 }],
+  });
+  const [saving, setSaving] = useState({});
+
+  useEffect(() => {
+    cargarEquiposYPartidos();
+  }, []);
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
-    setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+    setTimeout(() => setMessage({ type: '', text: '' }), 6000);
   };
 
   // ==================== FASE DE GRUPOS ====================
@@ -159,6 +175,8 @@ export default function AdminMundialFixture() {
       showMessage('success', `✅ Fase de grupos generada: ${equiposArray.length} equipos, ${partidosCreados} partidos`);
       alert(`✅ Fase de Grupos generada exitosamente\n\n📊 Resumen:\n- ${equiposArray.length} equipos creados\n- ${partidosCreados} partidos generados\n- Jornadas: J1, J2, J3`);
       setTextFaseGrupos('');
+      // Recargar equipos por si se crearon nuevos
+      cargarEquiposYPartidos();
       
     } catch (error) {
       console.error('Error procesando fase de grupos:', error);
@@ -168,209 +186,292 @@ export default function AdminMundialFixture() {
     }
   };
 
-  // ==================== 16VOS DE FINAL ====================
-  const generar16vos = async () => {
-    if (!text16vos.trim()) {
-      showMessage('danger', 'Por favor ingresa los 16 cruces de 16vos de final');
-      return;
-    }
-
-    setLoading(true);
+  // ==================== CARGA DE EQUIPOS Y PARTIDOS ELIMINATORIOS ====================
+  const cargarEquiposYPartidos = async () => {
     try {
-      const lineas = text16vos.split('\n').filter(l => l.trim());
-      const cruces = lineas.map(linea => {
-        const [local, visita] = linea.split(/vs|VS|Vs/).map(s => s.trim());
-        return { local, visita };
-      });
-
-      if (cruces.length !== 16) {
-        showMessage('danger', 'Debes ingresar exactamente 16 cruces (uno por línea)');
-        return;
-      }
-
-      const partidos = cruces.map(cruce => ({
-        equipo_local: cruce.local,
-        equipo_visitante: cruce.visita,
-        fecha: new Date().toISOString(),
-        bonus: 1
-      }));
-
       const token = localStorage.getItem('token');
-
-      await axios.post(
-        `${API_URL}/api/mundial/jornadas/4/fixture`,
-        { partidos },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      showMessage('success', `✅ 16vos generados: 16 partidos en Jornada 4`);
-      alert(`✅ 16vos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 4: 16 partidos\n- Bonus predefinido: x1`);
-      setText16vos('');
-    } catch (error) {
-      console.error('Error generando 16vos:', error);
-      showMessage('danger', `Error: ${error.response?.data?.error || error.message}`);
-    } finally {
-      setLoading(false);
+      const headers = { Authorization: `Bearer ${token}` };
+      const [equiposRes, j4, j5, j6, j7] = await Promise.all([
+        axios.get(`${API_URL}/api/mundial/equipos`),
+        axios.get(`${API_URL}/api/mundial/jornadas/4/partidos`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/mundial/jornadas/5/partidos`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/mundial/jornadas/6/partidos`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/mundial/jornadas/7/partidos`, { headers }).catch(() => ({ data: [] })),
+      ]);
+      setEquipos(equiposRes.data);
+      setExistentes({ 4: j4.data, 5: j5.data, 6: j6.data, 7: j7.data });
+    } catch (err) {
+      console.error('Error cargando datos iniciales:', err);
     }
   };
 
-  // ==================== OCTAVOS DE FINAL ====================
-  const generarOctavos = async () => {
-    if (!textOctavos.trim()) {
-      showMessage('danger', 'Por favor ingresa los 8 cruces de octavos');
-      return;
-    }
-
-    setLoading(true);
+  const recargarJornada = async (jornada) => {
     try {
-      const lineas = textOctavos.split('\n').filter(l => l.trim());
-      const cruces = lineas.map(linea => {
-        const [local, visita] = linea.split(/vs|VS|Vs/).map(s => s.trim());
-        return { local, visita };
-      });
-
-      if (cruces.length !== 8) {
-        showMessage('danger', 'Debes ingresar exactamente 8 cruces (uno por línea)');
-        return;
-      }
-
-      const partidos = cruces.map(cruce => ({
-        equipo_local: cruce.local,
-        equipo_visitante: cruce.visita,
-        fecha: new Date().toISOString(),
-        bonus: 1
-      }));
-
       const token = localStorage.getItem('token');
-
-      await axios.post(
-        `${API_URL}/api/mundial/jornadas/5/fixture`,
-        { partidos },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      showMessage('success', `✅ Octavos generados: 8 partidos en Jornada 5`);
-      alert(`✅ Octavos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 5: 8 partidos\n- Bonus predefinido: x1`);
-      setTextOctavos('');
-    } catch (error) {
-      console.error('Error generando octavos:', error);
-      showMessage('danger', `Error: ${error.response?.data?.error || error.message}`);
-    } finally {
-      setLoading(false);
+      const res = await axios.get(`${API_URL}/api/mundial/jornadas/${jornada}/partidos`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setExistentes(prev => ({ ...prev, [jornada]: res.data }));
+    } catch (err) {
+      console.error('Error recargando jornada:', err);
     }
   };
 
-  // ==================== CUARTOS DE FINAL ====================
-  const generarCuartos = async () => {
-    if (!textCuartos.trim()) {
-      showMessage('danger', 'Por favor ingresa los 4 cruces de cuartos');
+  const getEquiposPorGrupo = () => {
+    const porGrupo = {};
+    equipos.forEach(e => {
+      const g = e.grupo || 'Sin grupo';
+      if (!porGrupo[g]) porGrupo[g] = [];
+      porGrupo[g].push(e);
+    });
+    return porGrupo;
+  };
+
+  const agregarFila = (jornada) => {
+    setNuevos(prev => ({
+      ...prev,
+      [jornada]: [...prev[jornada], { local: '', visitante: '', bonus: jornada === 7 ? 2 : 1 }]
+    }));
+  };
+
+  const eliminarFilaForm = (jornada, idx) => {
+    setNuevos(prev => ({
+      ...prev,
+      [jornada]: prev[jornada].filter((_, i) => i !== idx)
+    }));
+  };
+
+  const actualizarFila = (jornada, idx, field, value) => {
+    setNuevos(prev => {
+      const filas = [...prev[jornada]];
+      filas[idx] = { ...filas[idx], [field]: value };
+      return { ...prev, [jornada]: filas };
+    });
+  };
+
+  const guardarNuevosCruces = async (jornada) => {
+    const filas = nuevos[jornada].filter(f => f.local && f.visitante);
+    if (filas.length === 0) {
+      showMessage('danger', 'Completa al menos un cruce (local y visitante)');
       return;
     }
-
-    setLoading(true);
+    const duplicado = filas.find(f => f.local === f.visitante);
+    if (duplicado) {
+      showMessage('danger', `❌ "${duplicado.local}" no puede jugar contra sí mismo`);
+      return;
+    }
+    setSaving(prev => ({ ...prev, [jornada]: true }));
     try {
-      const lineas = textCuartos.split('\n').filter(l => l.trim());
-      const cruces = lineas.map(linea => {
-        const [local, visita] = linea.split(/vs|VS|Vs/).map(s => s.trim());
-        return { local, visita };
-      });
-
-      if (cruces.length !== 4) {
-        showMessage('danger', 'Debes ingresar exactamente 4 cruces (uno por línea)');
-        return;
-      }
-
-      const partidos = cruces.map(cruce => ({
-        equipo_local: cruce.local,
-        equipo_visitante: cruce.visita,
-        fecha: new Date().toISOString(),
-        bonus: 1
-      }));
-
       const token = localStorage.getItem('token');
-
+      const partidos = filas.map(f => ({
+        equipo_local: f.local,
+        equipo_visitante: f.visitante,
+        fecha: new Date().toISOString(),
+        bonus: f.bonus,
+      }));
       await axios.post(
-        `${API_URL}/api/mundial/jornadas/6/fixture`,
+        `${API_URL}/api/mundial/jornadas/${jornada}/fixture-append`,
         { partidos },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      showMessage('success', `✅ Cuartos generados: 4 partidos en Jornada 6`);
-     alert(`✅ Cuartos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 6: 4 partidos\n- Bonus predefinido: x1`);
-      setTextCuartos('');
-    } catch (error) {
-      console.error('Error generando cuartos:', error);
-      showMessage('danger', `Error: ${error.response?.data?.error || error.message}`);
+      showMessage('success', `✅ ${filas.length} cruce(s) agregado(s) a la Jornada ${jornada}`);
+      await recargarJornada(jornada);
+      setNuevos(prev => ({
+        ...prev,
+        [jornada]: [{ local: '', visitante: '', bonus: jornada === 7 ? 2 : 1 }]
+      }));
+    } catch (err) {
+      showMessage('danger', `Error: ${err.response?.data?.error || err.message}`);
     } finally {
-      setLoading(false);
+      setSaving(prev => ({ ...prev, [jornada]: false }));
     }
   };
 
-  // ==================== FINALES ====================
-  const generarFinales = async () => {
-    if (!textFinales.trim()) {
-      showMessage('danger', 'Por favor ingresa los 2 cruces de semifinales');
-      return;
-    }
-
-    setLoading(true);
+  const borrarPartido = async (partidoId, jornada) => {
+    if (!confirm('¿Eliminar este partido? Solo es posible si nadie ha ingresado pronósticos.')) return;
     try {
-      const lineas = textFinales.split('\n').filter(l => l.trim());
-      const cruces = lineas.map(linea => {
-        const [local, visita] = linea.split(/vs|VS|Vs/).map(s => s.trim());
-        return { local, visita };
-      });
-
-      if (cruces.length !== 2) {
-        showMessage('danger', 'Debes ingresar exactamente 2 cruces de semifinales (uno por línea)');
-        return;
-      }
-
-      const partidos = [];
-      
-      // 2 Semifinales
-      cruces.forEach(cruce => {
-        partidos.push({
-          equipo_local: cruce.local,
-          equipo_visitante: cruce.visita,
-          fecha: new Date().toISOString(),
-          bonus: 2
-        });
-      });
-
-      // 3er lugar (perdedores semifinales)
-      partidos.push({
-        equipo_local: 'Perdedor SF1',
-        equipo_visitante: 'Perdedor SF2',
-        fecha: new Date().toISOString(),
-        bonus: 1
-      });
-
-      // Final (ganadores semifinales)
-      partidos.push({
-        equipo_local: 'Ganador SF1',
-        equipo_visitante: 'Ganador SF2',
-        fecha: new Date().toISOString(),
-        bonus: 3
-      });
-
       const token = localStorage.getItem('token');
-
-      await axios.post(
-        `${API_URL}/api/mundial/jornadas/7/fixture`,
-        { partidos },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      showMessage('success', `✅ Finales generadas: 4 partidos en Jornada 7 (2 SF + 3er lugar + Final)`);
-      alert(`✅ Finales generadas exitosamente\n\n📊 Resumen:\n- Jornada 7: 4 partidos\n  * 2 Semifinales (bonus x2)\n  * 1 Tercer lugar (bonus x1)\n  * 1 Final (bonus x3)\n\n⚠️ Recuerda actualizar los equipos del 3er lugar y Final cuando se definan`);
-      setTextFinales('');
-    } catch (error) {
-      console.error('Error generando finales:', error);
-      showMessage('danger', `Error: ${error.response?.data?.error || error.message}`);
-    } finally {
-      setLoading(false);
+      await axios.delete(`${API_URL}/api/mundial/partidos/${partidoId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await recargarJornada(jornada);
+      showMessage('success', '✅ Partido eliminado correctamente');
+    } catch (err) {
+      showMessage('danger', err.response?.data?.error || 'Error eliminando partido');
     }
+  };
+
+  // ==================== RENDER REUTILIZABLE FASE ELIMINATORIA ====================
+  const renderFaseEliminatoria = ({ jornada, titulo, colorHeader, colorBtn, maxPartidos }) => {
+    const partidos = existentes[jornada] || [];
+    const filas = nuevos[jornada] || [];
+    const equiposPorGrupo = getEquiposPorGrupo();
+    const isSaving = saving[jornada];
+    const filasValidas = filas.filter(f => f.local && f.visitante).length;
+
+    const SelectEquipo = ({ value, onChange, placeholder }) => (
+      <select
+        className="form-select"
+        style={{ maxWidth: '240px' }}
+        value={value}
+        onChange={onChange}
+      >
+        <option value="">{placeholder}</option>
+        {Object.entries(equiposPorGrupo)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([grupo, equips]) => (
+            <optgroup key={grupo} label={`Grupo ${grupo}`}>
+              {equips.map(e => (
+                <option key={e.nombre} value={e.nombre}>{e.nombre}</option>
+              ))}
+            </optgroup>
+          ))}
+      </select>
+    );
+
+    return (
+      <div className="card mb-4">
+        <div className={`card-header ${colorHeader}`}>
+          <div className="d-flex align-items-center justify-content-between">
+            <h5 className="mb-0">{titulo}</h5>
+            <span className="badge bg-light text-dark fs-6">{partidos.length} / {maxPartidos} cruces</span>
+          </div>
+        </div>
+        <div className="card-body">
+
+          {/* Cruces ya cargados */}
+          {partidos.length > 0 && (
+            <div className="mb-4">
+              <h6 className="fw-bold text-muted mb-2">✅ Cruces cargados ({partidos.length}):</h6>
+              <div className="table-responsive">
+                <table className="table table-sm table-bordered align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th className="text-center" style={{ width: '32px' }}>#</th>
+                      <th>Local</th>
+                      <th className="text-center" style={{ width: '30px' }}>vs</th>
+                      <th>Visitante</th>
+                      <th className="text-center" style={{ width: '56px' }}>Bonus</th>
+                      <th className="text-center" style={{ width: '80px' }}>Pronóst.</th>
+                      <th className="text-center" style={{ width: '70px' }}>Borrar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partidos.map((p, idx) => (
+                      <tr key={p.id}>
+                        <td className="text-center text-muted small">{idx + 1}</td>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            <img src={getMundialLogoPorNombre(p.equipo_local)} alt="" style={{ width: '22px', height: '22px', objectFit: 'contain' }} onError={e => e.target.style.display = 'none'} />
+                            <span className="fw-semibold">{p.equipo_local}</span>
+                          </div>
+                        </td>
+                        <td className="text-center text-muted small">vs</td>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            <img src={getMundialLogoPorNombre(p.equipo_visitante)} alt="" style={{ width: '22px', height: '22px', objectFit: 'contain' }} onError={e => e.target.style.display = 'none'} />
+                            <span className="fw-semibold">{p.equipo_visitante}</span>
+                          </div>
+                        </td>
+                        <td className="text-center">
+                          <span className={`badge ${p.bonus >= 2 ? 'bg-warning text-dark' : 'bg-secondary'}`}>x{p.bonus}</span>
+                        </td>
+                        <td className="text-center">
+                          {p.pronosticos_count > 0
+                            ? <span className="badge bg-success">{p.pronosticos_count} 👤</span>
+                            : <span className="text-muted small">—</span>}
+                        </td>
+                        <td className="text-center">
+                          <button
+                            className="btn btn-outline-danger btn-sm py-0 px-1"
+                            onClick={() => borrarPartido(p.id, jornada)}
+                            disabled={p.pronosticos_count > 0}
+                            title={p.pronosticos_count > 0 ? 'No se puede borrar: tiene pronósticos' : 'Eliminar partido'}
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Formulario de agregar nuevos cruces */}
+          {partidos.length < maxPartidos ? (
+            <>
+              <h6 className="fw-bold text-muted mb-3">
+                ➕ Agregar nuevos cruces ({maxPartidos - partidos.length} restantes):
+              </h6>
+              <div className="d-flex flex-column gap-3 mb-3">
+                {filas.map((fila, idx) => (
+                  <div key={idx} className="d-flex align-items-center gap-2 flex-wrap">
+                    <span className="fw-bold text-muted" style={{ minWidth: '28px' }}>{partidos.length + idx + 1}.</span>
+                    <SelectEquipo
+                      value={fila.local}
+                      onChange={e => actualizarFila(jornada, idx, 'local', e.target.value)}
+                      placeholder="— Local —"
+                    />
+                    <span className="fw-bold text-muted">vs</span>
+                    <SelectEquipo
+                      value={fila.visitante}
+                      onChange={e => actualizarFila(jornada, idx, 'visitante', e.target.value)}
+                      placeholder="— Visitante —"
+                    />
+                    <select
+                      className="form-select"
+                      style={{ width: '80px' }}
+                      value={fila.bonus}
+                      onChange={e => actualizarFila(jornada, idx, 'bonus', Number(e.target.value))}
+                    >
+                      <option value={1}>x1</option>
+                      <option value={2}>x2</option>
+                      <option value={3}>x3</option>
+                    </select>
+                    {filas.length > 1 && (
+                      <button
+                        className="btn btn-outline-secondary btn-sm"
+                        onClick={() => eliminarFilaForm(jornada, idx)}
+                        title="Quitar fila"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="d-flex gap-2 flex-wrap align-items-center">
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => agregarFila(jornada)}
+                  disabled={partidos.length + filas.length >= maxPartidos}
+                >
+                  + Agregar fila
+                </button>
+                <button
+                  className={`btn ${colorBtn}`}
+                  onClick={() => guardarNuevosCruces(jornada)}
+                  disabled={isSaving || filasValidas === 0}
+                >
+                  {isSaving
+                    ? <><span className="spinner-border spinner-border-sm me-1"></span>Guardando...</>
+                    : `💾 Guardar ${filasValidas > 0 ? filasValidas + ' cruce(s)' : '...'}`}
+                </button>
+              </div>
+              {partidos.length === 0 && (
+                <p className="text-muted small mt-2">
+                  💡 Puedes guardar de a pocos. Los pronósticos que los usuarios ya ingresaron no se borran al agregar más cruces.
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="alert alert-success mb-0">
+              ✅ Los {maxPartidos} cruces están completos.
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -459,134 +560,51 @@ export default function AdminMundialFixture() {
         </div>
       </div>
 
-      {/* ==================== SECCIÓN 2: 16VOS ==================== */}
-      <div className="card mb-4">
-        <div className="card-header bg-info text-white">
-          <h5 className="mb-0">⚽ 16vos de Final (Jornada 4)</h5>
-        </div>
-        <div className="card-body">
-          <p className="text-muted">
-            Ingresa los 16 cruces (uno por línea). Formato: <code>Equipo Local vs Equipo Visitante</code>
-          </p>
-          <div className="mb-3">
-            <label className="form-label">Cruces de 16vos (16 líneas):</label>
-            <textarea
-              className="form-control font-monospace"
-              rows="16"
-              placeholder="Ejemplo:&#10;México vs Uruguay&#10;Argentina vs Brasil&#10;..."
-              value={text16vos}
-              onChange={(e) => setText16vos(e.target.value)}
-            />
-          </div>
-          <button
-            className="btn btn-info"
-            onClick={generar16vos}
-            disabled={loading || !text16vos.trim()}
-          >
-            {loading ? '⏳ Generando...' : '🚀 Generar 16vos (J4)'}
-          </button>
-        </div>
-      </div>
+      {/* ==================== SECCIÓN 2: 16VOS (incremental con selects) ==================== */}
+      {renderFaseEliminatoria({
+        jornada: 4,
+        titulo: '⚽ 16vos de Final (Jornada 4)',
+        colorHeader: 'bg-info text-white',
+        colorBtn: 'btn-info',
+        maxPartidos: 16,
+      })}
 
       {/* ==================== SECCIÓN 3: OCTAVOS ==================== */}
-      <div className="card mb-4">
-        <div className="card-header bg-success text-white">
-          <h5 className="mb-0">🏅 Octavos de Final (Jornada 5)</h5>
-        </div>
-        <div className="card-body">
-          <p className="text-muted">
-            Ingresa los 8 cruces (uno por línea). Formato: <code>Equipo Local vs Equipo Visitante</code>
-          </p>
-          <div className="mb-3">
-            <label className="form-label">Cruces de Octavos (8 líneas):</label>
-            <textarea
-              className="form-control font-monospace"
-              rows="8"
-              placeholder="Ejemplo:&#10;México vs Argentina&#10;Brasil vs España&#10;..."
-              value={textOctavos}
-              onChange={(e) => setTextOctavos(e.target.value)}
-            />
-          </div>
-          <button
-            className="btn btn-success"
-            onClick={generarOctavos}
-            disabled={loading || !textOctavos.trim()}
-          >
-            {loading ? '⏳ Generando...' : '🚀 Generar Octavos (J5)'}
-          </button>
-        </div>
-      </div>
+      {renderFaseEliminatoria({
+        jornada: 5,
+        titulo: '🏅 Octavos de Final (Jornada 5)',
+        colorHeader: 'bg-success text-white',
+        colorBtn: 'btn-success',
+        maxPartidos: 8,
+      })}
 
       {/* ==================== SECCIÓN 4: CUARTOS ==================== */}
-      <div className="card mb-4">
-        <div className="card-header bg-warning text-dark">
-          <h5 className="mb-0">🏆 Cuartos de Final (Jornada 6)</h5>
-        </div>
-        <div className="card-body">
-          <p className="text-muted">
-            Ingresa los 4 cruces (uno por línea). Formato: <code>Equipo Local vs Equipo Visitante</code>
-          </p>
-          <div className="mb-3">
-            <label className="form-label">Cruces de Cuartos (4 líneas):</label>
-            <textarea
-              className="form-control font-monospace"
-              rows="4"
-              placeholder="Ejemplo:&#10;México vs Brasil&#10;Argentina vs España&#10;..."
-              value={textCuartos}
-              onChange={(e) => setTextCuartos(e.target.value)}
-            />
-          </div>
-          <button
-            className="btn btn-warning"
-            onClick={generarCuartos}
-            disabled={loading || !textCuartos.trim()}
-          >
-            {loading ? '⏳ Generando...' : '🚀 Generar Cuartos (J6)'}
-          </button>
-        </div>
-      </div>
+      {renderFaseEliminatoria({
+        jornada: 6,
+        titulo: '🏆 Cuartos de Final (Jornada 6)',
+        colorHeader: 'bg-warning text-dark',
+        colorBtn: 'btn-warning',
+        maxPartidos: 4,
+      })}
 
       {/* ==================== SECCIÓN 5: FINALES ==================== */}
-      <div className="card mb-4">
-        <div className="card-header bg-danger text-white">
-          <h5 className="mb-0">🥇 Semifinales, 3er lugar y Final (Jornada 7)</h5>
-        </div>
-        <div className="card-body">
-          <p className="text-muted">
-            Ingresa los 2 cruces de semifinales (uno por línea). Formato: <code>Equipo Local vs Equipo Visitante</code>
-            <br />
-            Se generarán automáticamente las 2 semifinales, el partido por 3er lugar y la final.
-          </p>
-          <div className="mb-3">
-            <label className="form-label">Cruces de Semifinales (2 líneas):</label>
-            <textarea
-              className="form-control font-monospace"
-              rows="2"
-              placeholder="Ejemplo:&#10;México vs Argentina&#10;Brasil vs España"
-              value={textFinales}
-              onChange={(e) => setTextFinales(e.target.value)}
-            />
-          </div>
-          <button
-            className="btn btn-danger"
-            onClick={generarFinales}
-            disabled={loading || !textFinales.trim()}
-          >
-            {loading ? '⏳ Generando...' : '🚀 Generar Finales (J7)'}
-          </button>
-        </div>
-      </div>
+      {renderFaseEliminatoria({
+        jornada: 7,
+        titulo: '🥇 Semifinales, 3er lugar y Final (Jornada 7)',
+        colorHeader: 'bg-danger text-white',
+        colorBtn: 'btn-danger',
+        maxPartidos: 4,
+      })}
 
-      {/* Información adicional */}
+      {/* Información */}
       <div className="alert alert-info">
         <h6>ℹ️ Información Importante:</h6>
         <ul className="mb-0">
-          <li><strong>Fase de Grupos:</strong> 3 jornadas con formato "Equipo (PAÍS) vs Equipo (PAÍS) — Grupo X"</li>
-          <li><strong>16vos:</strong> 16 partidos directos en J4</li>
-          <li><strong>Octavos:</strong> 8 partidos directos en J5</li>
-          <li><strong>Cuartos:</strong> 4 partidos directos en J6</li>
-          <li><strong>Finales:</strong> 2 semifinales + 3er lugar + final (4 partidos totales en J7)</li>
-          <li>Los bonus se pueden ajustar después desde Resultados</li>
+          <li><strong>Fase de Grupos:</strong> texto con formato "Equipo (PAÍS) vs Equipo (PAÍS) — Grupo X"</li>
+          <li><strong>Fases eliminatorias (J4-J7):</strong> usa los selects para elegir equipos — los nombres serán exactamente los mismos que en la BD, garantizando los escudos.</li>
+          <li>Puedes guardar cruces <strong>de a poco</strong>. Los pronósticos ya ingresados no se borran al agregar nuevos partidos.</li>
+          <li>Solo se puede eliminar un partido si <strong>ningún jugador ha ingresado pronósticos</strong> para él.</li>
+          <li>Los bonus se pueden ajustar desde la sección <strong>Resultados y Jornadas</strong>.</li>
         </ul>
       </div>
     </div>
