@@ -251,6 +251,65 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
   }
 });
 
+// POST /api/mundial-calcular/ganador-fase-grupos — Ganador acumulado J1+J2+J3
+router.post('/ganador-fase-grupos', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    console.log('🌟 Calculando Ganador Fase de Grupos Mundial...');
+
+    const result = await pool.query(`
+      SELECT
+        u.id, u.nombre, u.foto_perfil,
+        COALESCE(partidos.total, 0) + COALESCE(clasificacion.total, 0) AS puntos_totales
+      FROM usuarios u
+      LEFT JOIN (
+        SELECT mp.usuario_id, SUM(mp.puntos) AS total
+        FROM mundial_pronosticos mp
+        INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
+        WHERE mj.numero IN (1, 2, 3)
+        GROUP BY mp.usuario_id
+      ) partidos ON u.id = partidos.usuario_id
+      LEFT JOIN (
+        SELECT usuario_id, SUM(puntos) AS total
+        FROM mundial_puntos_clasificacion
+        WHERE fase LIKE '16VOS_%'
+        GROUP BY usuario_id
+      ) clasificacion ON u.id = clasificacion.usuario_id
+      WHERE u.rol != 'admin'
+        AND (partidos.total IS NOT NULL OR clasificacion.total IS NOT NULL)
+      ORDER BY puntos_totales DESC, u.nombre ASC
+    `);
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'No hay pronósticos en J1-J3 para calcular el ganador' });
+    }
+
+    await pool.query('DELETE FROM mundial_ganadores_fase_grupos');
+
+    let pos = 1;
+    let prevPuntos = null;
+    for (let i = 0; i < Math.min(result.rows.length, 3); i++) {
+      const row = result.rows[i];
+      const puntos = parseFloat(row.puntos_totales);
+      if (prevPuntos !== null && puntos < prevPuntos) pos = i + 1;
+      await pool.query(
+        `INSERT INTO mundial_ganadores_fase_grupos (usuario_id, jornada_numero, puntos, posicion) VALUES ($1, $2, $3, $4)`,
+        [row.id, 3, puntos, pos]
+      );
+      prevPuntos = puntos;
+    }
+
+    const winner = result.rows[0];
+    console.log(`✅ Ganador Fase de Grupos: ${winner.nombre} — ${winner.puntos_totales} pts`);
+    res.json({
+      mensaje: `✅ Ganador Fase de Grupos: ${winner.nombre}`,
+      ganador: { nombre: winner.nombre, foto_perfil: winner.foto_perfil, puntos: parseFloat(winner.puntos_totales) }
+    });
+  } catch (error) {
+    console.error('❌ Error calculando ganador fase de grupos:', error);
+    res.status(500).json({ error: 'Error calculando ganador fase de grupos', details: error.message });
+  }
+});
+
 // POST /api/mundial-calcular/ganadores — calcular y guardar ganadores de una jornada
 router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {

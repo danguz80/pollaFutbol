@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMundialLogoPorNombre } from '../../utils/mundialLogos';
 
@@ -16,6 +16,24 @@ export default function AdminMundialResultados() {
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("success");
+
+  // Modal Ganador Fase de Grupos
+  const [showFaseGruposModal, setShowFaseGruposModal] = useState(false);
+  const [faseGruposGanador, setFaseGruposGanador] = useState(null);
+  const [calculandoFaseGrupos, setCalculandoFaseGrupos] = useState(false);
+
+  const confettiPieces = useMemo(() => {
+    const colors = ['#ff4444','#ffdd00','#44cc44','#4488ff','#ff44cc','#44dddd','#ff8800','#aa44ff'];
+    return Array.from({ length: 70 }, (_, i) => ({
+      id: i,
+      left: `${(i * 41 + 7) % 100}%`,
+      color: colors[i % colors.length],
+      delay: `${((i * 0.11) % 2.8).toFixed(2)}s`,
+      duration: `${(2.2 + (i % 12) * 0.15).toFixed(2)}s`,
+      size: `${6 + (i % 7)}px`,
+      isCircle: i % 3 === 0,
+    }));
+  }, []);
 
   // Mejores terceros
   const [tablasOficialesFaseGrupos, setTablasOficialesFaseGrupos] = useState({});
@@ -573,6 +591,27 @@ export default function AdminMundialResultados() {
     }
   };
 
+  const calcularGanadorFaseGrupos = async () => {
+    if (!confirm('¿Calcular el Ganador de la Fase de Grupos?\n\nSe determinará quién tuvo el mayor puntaje acumulado en J1+J2+J3.')) return;
+    setCalculandoFaseGrupos(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/mundial-calcular/ganador-fase-grupos`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error calculando');
+      setFaseGruposGanador(data.ganador);
+      setShowFaseGruposModal(true);
+    } catch (error) {
+      console.error('Error calculando ganador fase de grupos:', error);
+      alert('❌ ' + error.message);
+    } finally {
+      setCalculandoFaseGrupos(false);
+    }
+  };
+
   const getSubtitulo = (numero) => {
     if (numero <= 3) return 'Fase de Grupos';
     if (numero === 4) return '16vos de Final';
@@ -918,6 +957,13 @@ export default function AdminMundialResultados() {
                   🏆 Calcular Ganadores
                 </button>
                 <button
+                  className="btn btn-primary btn-lg px-4"
+                  onClick={calcularGanadorFaseGrupos}
+                  disabled={calculandoFaseGrupos}
+                >
+                  {calculandoFaseGrupos ? <><span className="spinner-border spinner-border-sm me-2"/></> : '🌟'} Ganador Fase de Grupos
+                </button>
+                <button
                   className="btn btn-outline-secondary btn-lg"
                   onClick={() => {
                     const nuevaJornada = Number(jornadaSeleccionada) - 1;
@@ -1067,7 +1113,7 @@ export default function AdminMundialResultados() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal general */}
       {showModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered">
@@ -1083,6 +1129,64 @@ export default function AdminMundialResultados() {
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ganador Fase de Grupos — azul con confeti */}
+      {showFaseGruposModal && faseGruposGanador && (
+        <div className="modal show d-block" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,10,0.75)', zIndex: 1060 }}>
+          <style>{`
+            @keyframes fgConfetti {
+              0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+              100% { transform: translateY(650px) rotate(540deg); opacity: 0; }
+            }
+          `}</style>
+          <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 1061 }}>
+            {confettiPieces.map(p => (
+              <div key={p.id} style={{
+                position: 'absolute', left: p.left, top: '-20px',
+                width: p.size, height: p.size, backgroundColor: p.color,
+                borderRadius: p.isCircle ? '50%' : '2px',
+                animation: `fgConfetti ${p.duration} ${p.delay} ease-in both infinite`,
+              }} />
+            ))}
+          </div>
+          <div className="modal-dialog modal-dialog-centered" style={{ position: 'relative', zIndex: 1062 }}>
+            <div className="modal-content" style={{ border: '3px solid #1a5bc4', overflow: 'hidden' }}>
+              <div className="modal-header" style={{ background: '#0d3b8e' }}>
+                <h4 className="modal-title w-100 text-center fw-bold text-white fs-3">
+                  🌟 GANADOR FASE DE GRUPOS 🌟
+                </h4>
+              </div>
+              <div className="modal-body text-center py-5" style={{ background: 'linear-gradient(160deg,#e8f0fe 0%,#fff 55%,#dff0ff 100%)' }}>
+                <div className="mb-4">
+                  {faseGruposGanador.foto_perfil ? (
+                    <img
+                      src={faseGruposGanador.foto_perfil.startsWith('/') ? faseGruposGanador.foto_perfil : `/perfil/${faseGruposGanador.foto_perfil}`}
+                      alt={faseGruposGanador.nombre}
+                      className="rounded-circle shadow-lg"
+                      style={{ width: '140px', height: '140px', objectFit: 'cover', border: '5px solid #ffd700' }}
+                      onError={e => { e.target.src = '/perfil/default.png'; }}
+                    />
+                  ) : (
+                    <div className="rounded-circle d-inline-flex align-items-center justify-content-center shadow-lg"
+                      style={{ width: '140px', height: '140px', background: '#0d3b8e', fontSize: '3.5rem', color: 'white', border: '5px solid #ffd700' }}>
+                      {faseGruposGanador.nombre.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <h2 className="fw-bold mb-1" style={{ color: '#0d3b8e' }}>{faseGruposGanador.nombre}</h2>
+                <p className="text-muted fs-6 mb-3">Mejor acumulado en la Fase de Grupos (J1 + J2 + J3)</p>
+                <span className="badge fs-5 px-4 py-2 shadow" style={{ background: '#0d3b8e', color: 'white' }}>
+                  ⭐ {faseGruposGanador.puntos} puntos
+                </span>
+                <p className="mt-4 fw-bold fs-4 text-success">🏆 ¡Felicitaciones!</p>
+              </div>
+              <div className="modal-footer justify-content-center" style={{ background: '#0d3b8e' }}>
+                <button className="btn btn-light btn-lg px-5" onClick={() => setShowFaseGruposModal(false)}>Cerrar</button>
               </div>
             </div>
           </div>

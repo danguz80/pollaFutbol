@@ -24,6 +24,7 @@ export default function Mundial() {
   const [ranking, setRanking] = useState([]);
   const [ganadores, setGanadores] = useState([]);
   const [ultimosGanadores, setUltimosGanadores] = useState(null);
+  const [ganadorFaseGrupos, setGanadorFaseGrupos] = useState(null);
   const [fotoPerfilMap, setFotoPerfilMap] = useState({});
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export default function Mundial() {
     cargarRanking();
     cargarGanadores();
     cargarUltimosGanadores();
+    cargarGanadorFaseGrupos();
   }, []);
 
   const cargarJornadas = async () => {
@@ -122,6 +124,18 @@ export default function Mundial() {
     }
   };
 
+  const cargarGanadorFaseGrupos = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/mundial-ganadores-jornada/fase-grupos`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setGanadorFaseGrupos(response.data);
+    } catch (error) {
+      console.error('Error cargando ganador fase de grupos:', error);
+    }
+  };
+
   const getSubtitulo = (numero) => {
     if (numero <= 3) return 'Fase de Grupos';
     if (numero === 4) return '16vos de Final (16 partidos)';
@@ -183,6 +197,35 @@ export default function Mundial() {
                   <strong className="text-dark">{ganador.nombre}</strong>
                 </span>
               ))}
+            </h5>
+          </div>
+        </div>
+      )}
+
+      {/* Banner Ganador Fase de Grupos */}
+      {ganadorFaseGrupos && (
+        <div className="alert text-center mb-4 py-3" style={{ background: 'linear-gradient(135deg,#0d3b8e,#1a5bc4)', border: '2px solid #ffd700', borderRadius: '12px' }}>
+          <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3">
+            <h5 className="mb-0 text-white d-flex align-items-center gap-3 flex-wrap justify-content-center">
+              <span>🌟 Ganador Fase de Grupos:</span>
+              <span className="d-inline-flex align-items-center gap-2 bg-white px-3 py-2 rounded shadow">
+                {ganadorFaseGrupos.foto_perfil ? (
+                  <img
+                    src={ganadorFaseGrupos.foto_perfil.startsWith('/') ? ganadorFaseGrupos.foto_perfil : `/perfil/${ganadorFaseGrupos.foto_perfil}`}
+                    alt={ganadorFaseGrupos.nombre}
+                    className="rounded-circle"
+                    style={{ width: '40px', height: '40px', objectFit: 'cover', border: '2px solid #0d3b8e' }}
+                    onError={e => { e.target.src = '/perfil/default.png'; }}
+                  />
+                ) : (
+                  <div className="rounded-circle d-inline-flex align-items-center justify-content-center"
+                    style={{ width: '40px', height: '40px', background: '#0d3b8e', color: 'white', fontWeight: 'bold' }}>
+                    {ganadorFaseGrupos.nombre.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <strong className="text-dark">{ganadorFaseGrupos.nombre}</strong>
+                <span className="badge ms-1" style={{ background: '#0d3b8e', color: 'white' }}>{ganadorFaseGrupos.puntos} pts</span>
+              </span>
             </h5>
           </div>
         </div>

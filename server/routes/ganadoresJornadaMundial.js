@@ -58,6 +58,25 @@ router.get('/acumulado', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/mundial-ganadores-jornada/fase-grupos — ganador acumulado fase de grupos
+router.get('/fase-grupos', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT mfg.usuario_id, u.nombre, u.foto_perfil, mfg.puntos, mfg.posicion
+      FROM mundial_ganadores_fase_grupos mfg
+      INNER JOIN usuarios u ON u.id = mfg.usuario_id
+      WHERE mfg.posicion = 1
+      ORDER BY mfg.puntos DESC, u.nombre ASC
+      LIMIT 1
+    `);
+    if (result.rows.length === 0) return res.json(null);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo ganador fase de grupos:', error);
+    res.status(500).json({ error: 'Error obteniendo ganador fase de grupos' });
+  }
+});
+
 // GET /api/mundial-ganadores-jornada/:jornadaNumero - Obtener ganadores de una jornada específica
 router.get('/:jornadaNumero', verifyToken, async (req, res) => {
   try {
