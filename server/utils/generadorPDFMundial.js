@@ -718,30 +718,35 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos) {
          .text(`⭐ EQUIPOS CLASIFICADOS A 16VOS — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
       yPos += 20;
 
-      // Sub-headers
-      const colWidths = [55, 140, 150, 150, 67]; // Grupo | Clasificación | Pronosticado | Real | Pts
-      const colX = [50, 105, 245, 395, 495];
-      const headers = ['Grupo', 'Clasificación', 'Pronosticado', 'Real', 'Pts'];
-
-      headers.forEach((h, i) => {
-        doc.rect(colX[i], yPos, colWidths[i], 15).fill('#daa520').stroke('#999');
+      // Sub-headers: 2 columnas + pts
+      const colW = [225, 225, 62];
+      const colX2 = [50, 275, 500];
+      const hdrs = ['Clasificados Pronosticados', 'Clasificados Reales', 'Pts'];
+      hdrs.forEach((h, i) => {
+        doc.rect(colX2[i], yPos, colW[i], 15).fill('#daa520').stroke('#999');
         doc.fontSize(8).font('Helvetica-Bold').fillColor('#000')
-           .text(h, colX[i] + 3, yPos + 4, { width: colWidths[i] - 6, align: 'center', lineBreak: false });
+           .text(h, colX2[i] + 3, yPos + 4, { width: colW[i] - 6, align: 'center', lineBreak: false });
       });
       yPos += 15;
 
-      clasifData.clasificados.forEach((c) => {
+      // Ordenar: aciertos (verde) primero, errores (rojo) al final
+      const sortedClasif = [...clasifData.clasificados]
+        .sort((a, b) => b.puntos - a.puntos || a.equipo_pronosticado.localeCompare(b.equipo_pronosticado));
+
+      sortedClasif.forEach((c) => {
         if (yPos + 18 > 742) {
           doc.addPage();
           yPos = 50;
         }
         const correcto = c.puntos > 0;
         const bg = correcto ? '#d4edda' : '#f8d7da';
-        const cells = [c.grupo, c.posLabel, c.equipo_pronosticado || '-', c.equipo_real || '-', c.puntos.toString()];
-        cells.forEach((txt, i) => {
-          doc.rect(colX[i], yPos, colWidths[i], 18).fill(bg).stroke('#ccc');
-          doc.fontSize(8).font('Helvetica').fillColor('#000')
-             .text(txt, colX[i] + 3, yPos + 5, { width: colWidths[i] - 6, align: i === 4 ? 'center' : 'left', lineBreak: false });
+        const pronosticado = c.equipo_pronosticado || '-';
+        const real = correcto ? `${pronosticado} ✓` : 'No clasificó';
+
+        [pronosticado, real, c.puntos.toString()].forEach((txt, i) => {
+          doc.rect(colX2[i], yPos, colW[i], 18).fill(bg).stroke('#ccc');
+          doc.fontSize(8).font('Helvetica').fillColor(i === 1 && !correcto ? '#cc0000' : '#000')
+             .text(txt, colX2[i] + 4, yPos + 5, { width: colW[i] - 8, align: i === 2 ? 'center' : 'left', lineBreak: false });
         });
         yPos += 18;
       });

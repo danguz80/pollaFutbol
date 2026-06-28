@@ -775,45 +775,41 @@ export default function ClasificacionMundial() {
                     <table className="table table-bordered table-hover" style={{ fontSize: '1.05rem' }}>
                       <thead className="table-warning">
                         <tr>
-                          <th className="text-center">Grupo</th>
-                          <th className="text-center">Clasificación</th>
-                          <th className="text-center">Equipo Pronosticado</th>
-                          <th className="text-center">Equipo Real</th>
-                          <th className="text-center">Puntos</th>
+                          <th className="text-center">Clasificados Pronosticados</th>
+                          <th className="text-center">Clasificados Reales</th>
+                          <th className="text-center" style={{ width: '70px' }}>Pts</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {clasificadosGuardados[grupo.usuario_id].clasificados.map((c, ci) => (
+                        {[...clasificadosGuardados[grupo.usuario_id].clasificados]
+                          .sort((a, b) => b.puntos - a.puntos || a.equipo_pronosticado.localeCompare(b.equipo_pronosticado))
+                          .map((c, ci) => (
                           <tr key={ci} className={c.puntos > 0 ? 'table-success' : 'table-danger'}>
-                            <td className="text-center fw-bold">Grupo {c.grupo}</td>
-                            <td className="text-center">
-                              {c.posicion <= 2
-                                ? `Clasificado #${c.posicion} a 16vos`
-                                : '⭐ Mejor Tercero'}
-                            </td>
-                            <td className="text-center">
-                              <div className="d-flex align-items-center justify-content-center gap-2">
+                            <td>
+                              <div className="d-flex align-items-center gap-2">
                                 <img
                                   src={getMundialLogoPorNombre(c.equipo_pronosticado)}
                                   alt={c.equipo_pronosticado}
                                   style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                   onError={(e) => { e.target.style.display = 'none'; }}
                                 />
-                                {c.equipo_pronosticado}
+                                <span>{c.equipo_pronosticado}</span>
                               </div>
                             </td>
-                            <td className="text-center">
-                              {c.equipo_real ? (
-                                <div className="d-flex align-items-center justify-content-center gap-2">
+                            <td>
+                              {c.puntos > 0 ? (
+                                <div className="d-flex align-items-center gap-2">
                                   <img
-                                    src={getMundialLogoPorNombre(c.equipo_real)}
-                                    alt={c.equipo_real}
+                                    src={getMundialLogoPorNombre(c.equipo_pronosticado)}
+                                    alt={c.equipo_pronosticado}
                                     style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                     onError={(e) => { e.target.style.display = 'none'; }}
                                   />
-                                  {c.equipo_real}
+                                  <span>{c.equipo_pronosticado} ✓</span>
                                 </div>
-                              ) : <span className="text-muted">Pendiente</span>}
+                              ) : (
+                                <span className="text-danger fst-italic">No clasificó</span>
+                              )}
                             </td>
                             <td className="text-center">
                               <strong className={c.puntos > 0 ? 'text-success' : 'text-danger'}>{c.puntos}</strong>
@@ -821,7 +817,7 @@ export default function ClasificacionMundial() {
                           </tr>
                         ))}
                         <tr className="table-dark fw-bold">
-                          <td colSpan="4" className="text-end">TOTAL CLASIFICACIÓN {grupo.jugador} :</td>
+                          <td colSpan="2" className="text-end">TOTAL CLASIFICACIÓN {grupo.jugador} :</td>
                           <td className="text-center">{clasificadosGuardados[grupo.usuario_id].totalPuntos}</td>
                         </tr>
                       </tbody>
