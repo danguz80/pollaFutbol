@@ -132,13 +132,22 @@ export default function ClasificacionMundial() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Verificar si la jornada seleccionada está abierta (no cerrada)
-      const jornadaSeleccionada = jornadas.find(j => j.numero === parseInt(filtroJornada));
-      const estaAbierta = jornadaSeleccionada && !jornadaSeleccionada.cerrada;
-      setJornadaAbierta(estaAbierta);
+      // Leer estado del usuario directamente del localStorage (evita race conditions de estado React)
+      const usuarioActual = JSON.parse(localStorage.getItem('usuario') || '{}');
+      const esAdminLocal = usuarioActual.rol === 'admin';
 
-      // Si no es admin y la jornada está abierta, mostrar participantes y no participantes
-      if (!esAdmin && estaAbierta) {
+      // Verificar si la jornada seleccionada está abierta (no cerrada)
+      const jornadaSeleccionada = filtroJornada
+        ? jornadas.find(j => j.numero === parseInt(filtroJornada))
+        : null;
+      // Si hay jornada específica: usar su estado. Si es "todas": abierta si alguna prediction viene de jornada no cerrada
+      const estaAbierta = jornadaSeleccionada
+        ? !jornadaSeleccionada.cerrada
+        : response.data.some(p => !p.jornada.cerrada);
+      setJornadaAbierta(!!estaAbierta);
+
+      // Si no es admin y la jornada está abierta, ocultar predicciones y mostrar grids
+      if (!esAdminLocal && estaAbierta) {
         const usuariosUnicos = [];
         const idsVistos = new Set();
 
@@ -154,15 +163,16 @@ export default function ClasificacionMundial() {
         });
 
         setParticipantes(usuariosUnicos);
-        const usuarioActual = JSON.parse(localStorage.getItem('usuario') || '{}');
         setPronosticos(response.data.filter(p => p.usuario.id === usuarioActual.id));
 
-        // Obtener todos los usuarios activos en mundial para mostrar quién no ha subido pronósticos
+        // Obtener todos los jugadores activos para mostrar quién no ha subido pronósticos
         try {
-          const todosRes = await fetch(`${API_URL}/api/usuarios`);
-          const todosUsuarios = await todosRes.json();
-          const usuariosSinPronosticos = todosUsuarios
-            .filter(u => u.activo_mundial === true && !idsVistos.has(u.id) && u.rol !== 'admin')
+          const jugadoresRes = await axios.get(
+            `${API_URL}/api/mundial-clasificacion/jugadores`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const usuariosSinPronosticos = jugadoresRes.data
+            .filter(u => !idsVistos.has(u.id))
             .map(u => ({ id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil || null }));
           setNoParticipantes(usuariosSinPronosticos);
         } catch (err) {
