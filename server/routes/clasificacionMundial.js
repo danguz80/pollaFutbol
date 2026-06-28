@@ -152,7 +152,7 @@ router.get('/jugadores', verifyToken, async (req, res) => {
         nombre,
         foto_perfil
       FROM usuarios
-      WHERE activo = true AND activo_mundial = true
+      WHERE activo = true AND activo_mundial = true AND rol != 'admin'
       ORDER BY nombre
     `);
 
