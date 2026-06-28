@@ -214,3 +214,29 @@ export async function calcularTablaUsuario(usuarioId, grupo, jornadas) {
     client.release();
   }
 }
+
+/**
+ * Calcula los 8 mejores terceros de un usuario según sus propios pronósticos.
+ * Criterio: pts DESC → dif DESC → gf DESC (reglamento FIFA).
+ * @param {number} usuarioId
+ * @param {string[]} grupos - lista de letras de grupo
+ * @param {number[]} jornadas - ej. [1,2,3]
+ * @returns {Array<{equipo, grupo, puntos, dif, gf}>} top 8
+ */
+export async function calcularMejoresTercerosUsuario(usuarioId, grupos, jornadas) {
+  const terceros = [];
+  for (const grupo of grupos) {
+    const tabla = await calcularTablaUsuario(usuarioId, grupo, jornadas);
+    if (tabla.length >= 3) {
+      const t = tabla[2]; // 3er lugar virtual
+      terceros.push({ equipo: t.nombre, grupo, puntos: t.puntos, dif: t.dif, gf: t.gf });
+    }
+  }
+  terceros.sort((a, b) => {
+    if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+    if (b.dif !== a.dif) return b.dif - a.dif;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return a.equipo.localeCompare(b.equipo);
+  });
+  return terceros.slice(0, 8);
+}

@@ -161,6 +161,24 @@ router.get('/todas-tablas-oficiales', verifyToken, async (req, res) => {
   }
 });
 
+// GET /mejores-terceros-usuario — 8 mejores terceros virtuales del usuario actual (guardados en BD tras calcular J3)
+router.get('/mejores-terceros-usuario', verifyToken, async (req, res) => {
+  try {
+    const usuarioId = req.query.usuario_id || req.usuario.id;
+    const result = await pool.query(
+      `SELECT equipo, grupo, puntos_grupo, dif_grupo, gf_grupo, posicion_virtual
+       FROM mundial_mejores_terceros_usuario
+       WHERE usuario_id = $1
+       ORDER BY posicion_virtual`,
+      [usuarioId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo mejores terceros usuario:', error);
+    res.status(500).json({ error: 'Error obteniendo mejores terceros del usuario' });
+  }
+});
+
 // GET /mejores-terceros — obtiene la lista de mejores terceros (público autenticado)
 router.get('/mejores-terceros', verifyToken, async (req, res) => {
   try {
@@ -200,23 +218,46 @@ router.get('/clasificacion-guardada', verifyToken, async (req, res) => {
         clasificadosReales[`${grupo}_POS1`] = tabla[0].nombre;
         clasificadosReales[`${grupo}_POS2`] = tabla[1].nombre;
       }
+      if (tabla.length >= 3) {
+        clasificadosReales[`${grupo}_POS3_REAL`] = tabla[2].nombre;
+      }
     }
-    // Añadir mejores terceros como equipo real para POS3
+    // Añadir mejores terceros como equipo real para POS3 (admin-defined)
     const tercR = await pool.query('SELECT equipo, grupo FROM mundial_mejores_terceros');
     tercR.rows.forEach(r => { clasificadosReales[`${r.grupo}_POS3`] = r.equipo; });
 
     const clasificados = predsResult.rows.map(row => {
-      const match = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
-      if (!match) return null;
-      const grupo = match[1];
-      const pos = match[2];
-      return {
-        grupo,
-        posicion: parseInt(pos),
-        equipo_pronosticado: row.equipo,
-        equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
-        puntos: row.puntos
-      };
+      // Formato POS1/POS2
+      const matchPos = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
+      if (matchPos) {
+        const grupo = matchPos[1];
+        const pos = matchPos[2];
+        const posLabel = pos === '1' ? 'Clasificado #1 a 16vos'
+          : pos === '2' ? 'Clasificado #2 a 16vos'
+          : 'Mejor Tercero (grupo)';
+        return {
+          grupo,
+          posicion: parseInt(pos),
+          posLabel,
+          equipo_pronosticado: row.equipo,
+          equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
+          puntos: row.puntos
+        };
+      }
+      // Formato MEJOR_TERCERO virtual del usuario
+      const matchTercero = row.fase.match(/16VOS_MEJOR_TERCERO_GRUPO_([A-Z]+)/);
+      if (matchTercero) {
+        const grupo = matchTercero[1];
+        return {
+          grupo,
+          posicion: 3,
+          posLabel: 'Mejor Tercero',
+          equipo_pronosticado: row.equipo,
+          equipo_real: clasificadosReales[`${grupo}_POS3_REAL`] || null,
+          puntos: row.puntos
+        };
+      }
+      return null;
     }).filter(Boolean).sort((a, b) => a.grupo.localeCompare(b.grupo) || a.posicion - b.posicion);
 
     const totalPuntos = clasificados.reduce((sum, c) => sum + c.puntos, 0);
@@ -249,21 +290,24 @@ router.get('/clasificacion-guardada-todos', verifyToken, async (req, res) => {
     const result = await pool.query(sql, params);
 
     // Clasificados reales para comparativa
-    const gruposResult = await pool.query(
+    const gruposResult2 = await pool.query(
       `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
     );
-    const grupos = gruposResult.rows.map(r => r.grupo);
-    const clasificadosReales = {};
-    for (const grupo of grupos) {
+    const grupos2 = gruposResult2.rows.map(r => r.grupo);
+    const clasificadosReales2 = {};
+    for (const grupo of grupos2) {
       const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
       if (tabla.length >= 2) {
-        clasificadosReales[`${grupo}_POS1`] = tabla[0].nombre;
-        clasificadosReales[`${grupo}_POS2`] = tabla[1].nombre;
+        clasificadosReales2[`${grupo}_POS1`] = tabla[0].nombre;
+        clasificadosReales2[`${grupo}_POS2`] = tabla[1].nombre;
+      }
+      if (tabla.length >= 3) {
+        clasificadosReales2[`${grupo}_POS3_REAL`] = tabla[2].nombre;
       }
     }
     // Añadir mejores terceros como equipo real para POS3
     const tercerosTodosR = await pool.query('SELECT equipo, grupo FROM mundial_mejores_terceros');
-    tercerosTodosR.rows.forEach(r => { clasificadosReales[`${r.grupo}_POS3`] = r.equipo; });
+    tercerosTodosR.rows.forEach(r => { clasificadosReales2[`${r.grupo}_POS3`] = r.equipo; });
 
     // Agrupar por usuario
     const porUsuario = {};
@@ -276,17 +320,37 @@ router.get('/clasificacion-guardada-todos', verifyToken, async (req, res) => {
           clasificados: []
         };
       }
-      const match = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
-      if (!match) return;
-      const grupo = match[1];
-      const pos = match[2];
-      porUsuario[row.usuario_id].clasificados.push({
-        grupo,
-        posicion: parseInt(pos),
-        equipo_pronosticado: row.equipo,
-        equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
-        puntos: row.puntos
-      });
+      // Formato POS1/POS2
+      const matchPos = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
+      if (matchPos) {
+        const grupo = matchPos[1];
+        const pos = matchPos[2];
+        const posLabel = pos === '1' ? 'Clasificado #1 a 16vos'
+          : pos === '2' ? 'Clasificado #2 a 16vos'
+          : 'Mejor Tercero (grupo)';
+        porUsuario[row.usuario_id].clasificados.push({
+          grupo,
+          posicion: parseInt(pos),
+          posLabel,
+          equipo_pronosticado: row.equipo,
+          equipo_real: clasificadosReales2[`${grupo}_POS${pos}`] || null,
+          puntos: row.puntos
+        });
+        return;
+      }
+      // Formato MEJOR_TERCERO virtual
+      const matchTercero = row.fase.match(/16VOS_MEJOR_TERCERO_GRUPO_([A-Z]+)/);
+      if (matchTercero) {
+        const grupo = matchTercero[1];
+        porUsuario[row.usuario_id].clasificados.push({
+          grupo,
+          posicion: 3,
+          posLabel: 'Mejor Tercero',
+          equipo_pronosticado: row.equipo,
+          equipo_real: clasificadosReales2[`${grupo}_POS3_REAL`] || null,
+          puntos: row.puntos
+        });
+      }
     });
 
     Object.values(porUsuario).forEach(u => {

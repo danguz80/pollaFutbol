@@ -2,7 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
-import { calcularTablaOficial, calcularTablaUsuario } from '../utils/calcularClasificadosMundial.js';
+import { calcularTablaOficial, calcularTablaUsuario, calcularMejoresTercerosUsuario } from '../utils/calcularClasificadosMundial.js';
 
 const router = express.Router();
 
@@ -148,32 +148,31 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
     // Para jornada 3 (o recalculo total): calcular puntos de clasificación a 16vos de Final
     if (!jornadaNumero || jornadaNumero == 3) {
       try {
-        console.log('🔄 Calculando puntos de clasificación J3 (16vos de Final)...');
+        console.log('🔄 Calculando puntos de clasificación J3 (16vos de Final) — sistema 32 vs 32...');
 
         const gruposResult = await pool.query(
           `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
         );
         const grupos = gruposResult.rows.map(r => r.grupo);
 
-        // Cargar mejores terceros definidos por el admin
-        const mejoresTercerosResult = await pool.query(
-          'SELECT equipo, grupo FROM mundial_mejores_terceros'
-        );
-        const mejoresTerceros = {}; // grupo → equipo (el 3ero que clasifica)
-        mejoresTercerosResult.rows.forEach(r => { mejoresTerceros[r.grupo] = r.equipo; });
-
-        // Clasificados completos por grupo: top 2 siempre + mejores terceros si están definidos
-        const clasificadosOficiales = {};
+        // ---- Construir los 32 clasificados REALES ----
+        const real32 = new Set();
         for (const grupo of grupos) {
           const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
           if (tabla.length >= 2 && tabla[0].pj > 0) {
-            const calificados = [tabla[0].nombre, tabla[1].nombre];
-            if (mejoresTerceros[grupo]) calificados.push(mejoresTerceros[grupo]);
-            clasificadosOficiales[grupo] = calificados;
+            real32.add(tabla[0].nombre);
+            real32.add(tabla[1].nombre);
           }
         }
+        // Los 8 mejores terceros definidos por el admin
+        const mejoresTercerosResult = await pool.query(
+          'SELECT equipo FROM mundial_mejores_terceros'
+        );
+        mejoresTercerosResult.rows.forEach(r => real32.add(r.equipo));
 
-        if (Object.keys(clasificadosOficiales).length > 0) {
+        if (real32.size === 0) {
+          console.log('⚠️ Sin resultados reales, omitiendo puntos clasificación');
+        } else {
           const usuariosResult = await pool.query(
             `SELECT DISTINCT u.id FROM usuarios u
              INNER JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
@@ -182,38 +181,55 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           );
 
           for (const { id: uid } of usuariosResult.rows) {
+            // Limpiar puntos de clasificación anteriores y mejores terceros virtuales
             await pool.query(
               `DELETE FROM mundial_puntos_clasificacion WHERE usuario_id = $1 AND fase LIKE '16VOS_%'`,
               [uid]
             );
+            await pool.query(
+              `DELETE FROM mundial_mejores_terceros_usuario WHERE usuario_id = $1`,
+              [uid]
+            );
 
+            const predicciones = [];
+
+            // Top 2 por grupo → 24 clasificados virtuales
             for (const grupo of grupos) {
-              if (!clasificadosOficiales[grupo]) continue;
               const tablaUser = await calcularTablaUsuario(uid, grupo, [1, 2, 3]);
-              if (tablaUser.length < 2) continue;
-
-              const clasificados = clasificadosOficiales[grupo]; // todos los que clasifican en este grupo
-              const predicciones = [
-                { equipo: tablaUser[0].nombre, fase: `16VOS_GRUPO_${grupo}_POS1` },
-                { equipo: tablaUser[1].nombre, fase: `16VOS_GRUPO_${grupo}_POS2` }
-              ];
-              // Posición 3: solo se evalúa si hay un mejor tercero definido para este grupo
-              if (tablaUser.length >= 3 && mejoresTerceros[grupo] !== undefined) {
-                predicciones.push({ equipo: tablaUser[2].nombre, fase: `16VOS_GRUPO_${grupo}_POS3` });
-              }
-
-              for (const pred of predicciones) {
-                const pts = clasificados.includes(pred.equipo) ? 2 : 0;
-                await pool.query(
-                  `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
-                   VALUES ($1, $2, $3, $4)
-                   ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = $4`,
-                  [uid, pred.equipo, pred.fase, pts]
-                );
+              if (tablaUser.length >= 2) {
+                predicciones.push({ equipo: tablaUser[0].nombre, fase: `16VOS_GRUPO_${grupo}_POS1` });
+                predicciones.push({ equipo: tablaUser[1].nombre, fase: `16VOS_GRUPO_${grupo}_POS2` });
               }
             }
+
+            // 8 mejores terceros VIRTUALES del usuario
+            const mejoresTercerosUser = await calcularMejoresTercerosUsuario(uid, grupos, [1, 2, 3]);
+            for (let i = 0; i < mejoresTercerosUser.length; i++) {
+              const t = mejoresTercerosUser[i];
+              // Guardar en tabla propia del usuario
+              await pool.query(
+                `INSERT INTO mundial_mejores_terceros_usuario
+                   (usuario_id, equipo, grupo, puntos_grupo, dif_grupo, gf_grupo, posicion_virtual)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7)
+                 ON CONFLICT (usuario_id, grupo) DO UPDATE
+                   SET equipo=$2, puntos_grupo=$4, dif_grupo=$5, gf_grupo=$6, posicion_virtual=$7`,
+                [uid, t.equipo, t.grupo, t.puntos, t.dif, t.gf, i + 1]
+              );
+              predicciones.push({ equipo: t.equipo, fase: `16VOS_MEJOR_TERCERO_GRUPO_${t.grupo}` });
+            }
+
+            // Comparar cada clasificado virtual contra el set real (sin importar posición)
+            for (const pred of predicciones) {
+              const pts = real32.has(pred.equipo) ? 2 : 0;
+              await pool.query(
+                `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
+                 VALUES ($1,$2,$3,$4)
+                 ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = EXCLUDED.puntos`,
+                [uid, pred.equipo, pred.fase, pts]
+              );
+            }
           }
-          console.log(`✅ Puntos clasificación J3 calculados: ${usuariosResult.rows.length} usuarios`);
+          console.log(`✅ Puntos clasificación J3 calculados: ${usuariosResult.rows.length} usuarios, ${real32.size} equipos clasificados reales`);
         }
       } catch (classifErr) {
         console.error('⚠️ Error en puntos clasificación J3:', classifErr.message);

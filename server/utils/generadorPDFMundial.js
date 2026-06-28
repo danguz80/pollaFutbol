@@ -226,6 +226,11 @@ async function obtenerClasificados() {
   }
   const tercR = await pool.query('SELECT equipo, grupo FROM mundial_mejores_terceros');
   tercR.rows.forEach(r => { clasificadosReales[`${r.grupo}_POS3`] = r.equipo; });
+  // Real 3rd of each group (for MEJOR_TERCERO display)
+  for (const grupo of grupos) {
+    const tablaR = await calcularTablaOficial(grupo, [1, 2, 3]);
+    if (tablaR.length >= 3) clasificadosReales[`${grupo}_POS3_REAL`] = tablaR[2].nombre;
+  }
 
   const porUsuario = {};
   result.rows.forEach(row => {
@@ -236,21 +241,33 @@ async function obtenerClasificados() {
         clasificados: []
       };
     }
-    const match = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
-    if (!match) return;
-    const grupo = match[1];
-    const pos = match[2];
-    const posLabel = pos === '1' ? 'Clasificado #1 a 16vos'
-      : pos === '2' ? 'Clasificado #2 a 16vos'
-      : 'Mejor Tercero';
-    porUsuario[row.usuario_id].clasificados.push({
-      grupo,
-      posicion: parseInt(pos),
-      posLabel,
-      equipo_pronosticado: row.equipo,
-      equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
-      puntos: row.puntos
-    });
+    // Formato POS1/POS2
+    const matchPos = row.fase.match(/16VOS_GRUPO_([A-Z]+)_POS(\d)/);
+    if (matchPos) {
+      const grupo = matchPos[1];
+      const pos = matchPos[2];
+      const posLabel = pos === '1' ? 'Clasificado #1 a 16vos'
+        : pos === '2' ? 'Clasificado #2 a 16vos'
+        : 'Mejor Tercero (grupo)';
+      porUsuario[row.usuario_id].clasificados.push({
+        grupo, posicion: parseInt(pos), posLabel,
+        equipo_pronosticado: row.equipo,
+        equipo_real: clasificadosReales[`${grupo}_POS${pos}`] || null,
+        puntos: row.puntos
+      });
+      return;
+    }
+    // Formato MEJOR_TERCERO virtual
+    const matchTercero = row.fase.match(/16VOS_MEJOR_TERCERO_GRUPO_([A-Z]+)/);
+    if (matchTercero) {
+      const grupo = matchTercero[1];
+      porUsuario[row.usuario_id].clasificados.push({
+        grupo, posicion: 3, posLabel: 'Mejor Tercero',
+        equipo_pronosticado: row.equipo,
+        equipo_real: clasificadosReales[`${grupo}_POS3_REAL`] || null,
+        puntos: row.puntos
+      });
+    }
   });
   Object.values(porUsuario).forEach(u => {
     u.clasificados.sort((a, b) => a.grupo.localeCompare(b.grupo) || a.posicion - b.posicion);

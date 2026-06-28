@@ -21,6 +21,7 @@ export default function EstadisticasMundial() {
   const [grupos, setGrupos] = useState([]);
   const [tablasUsuario, setTablasUsuario] = useState({});
   const [tablasOficiales, setTablasOficiales] = useState({});
+  const [mejoresTerceros, setMejoresTerceros] = useState([]);
 
   useEffect(() => {
     cargarDatos();
@@ -37,11 +38,28 @@ export default function EstadisticasMundial() {
         axios.get(`${API_URL}/api/mundial-clasificados/todas-tablas-oficiales`, { headers })
       ]);
 
-      setTablasUsuario(tablasUsuarioRes.data);
+      const tablas = tablasUsuarioRes.data;
+      setTablasUsuario(tablas);
       setTablasOficiales(tablasOficialesRes.data);
 
       const gruposUnicos = Object.keys(tablasOficialesRes.data).sort();
       setGrupos(gruposUnicos);
+
+      // Calcular 8 mejores terceros virtuales del usuario desde sus propias tablas
+      const terceros = [];
+      Object.entries(tablas).forEach(([letra, tabla]) => {
+        if (tabla.length >= 3) {
+          const t = tabla[2];
+          terceros.push({ nombre: t.nombre, grupo: letra, puntos: t.puntos, dif: t.dif, gf: t.gf });
+        }
+      });
+      terceros.sort((a, b) => {
+        if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+        if (b.dif !== a.dif) return b.dif - a.dif;
+        if (b.gf !== a.gf) return b.gf - a.gf;
+        return a.nombre.localeCompare(b.nombre);
+      });
+      setMejoresTerceros(terceros.slice(0, 8));
     } catch (error) {
       console.error('Error cargando datos:', error);
       if (error.response?.status === 401 || error.response?.status === 403) {
@@ -182,6 +200,56 @@ export default function EstadisticasMundial() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ===== MIS 8 MEJORES TERCEROS ===== */}
+      {mejoresTerceros.length > 0 && (
+        <div className="card shadow-sm mt-4">
+          <div className="card-header text-center fw-bold fs-5" style={{ background: '#fff3cd' }}>
+            🥉 Mis 8 Mejores Terceros (según mis pronósticos)
+          </div>
+          <div className="card-body p-0">
+            <div className="table-responsive">
+              <table className="table table-sm table-hover mb-0" style={{ fontSize: '0.88rem' }}>
+                <thead className="table-warning">
+                  <tr>
+                    <th className="text-center" style={{ width: '36px' }}>#</th>
+                    <th>Equipo</th>
+                    <th className="text-center" style={{ width: '50px' }}>Grupo</th>
+                    <th className="text-center" style={{ width: '40px' }}>PTS</th>
+                    <th className="text-center" style={{ width: '40px' }}>DIF</th>
+                    <th className="text-center" style={{ width: '40px' }}>GF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mejoresTerceros.map((t, idx) => (
+                    <tr key={t.nombre} className="table-warning bg-opacity-50">
+                      <td className="text-center fw-bold">{idx + 1}</td>
+                      <td>
+                        <div className="d-flex align-items-center gap-1">
+                          <img
+                            src={getMundialLogoPorNombre(t.nombre)}
+                            alt={t.nombre}
+                            style={{ width: '22px', height: '22px', objectFit: 'contain' }}
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                          <span className="fw-semibold">{t.nombre}</span>
+                        </div>
+                      </td>
+                      <td className="text-center">{t.grupo}</td>
+                      <td className="text-center fw-bold">{t.puntos}</td>
+                      <td className="text-center">{t.dif > 0 ? '+' : ''}{t.dif}</td>
+                      <td className="text-center">{t.gf}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-3 py-2 text-muted" style={{ fontSize: '0.8rem' }}>
+              <strong>Criterio:</strong> Mejor puntuación obtenida como 3er lugar de cada grupo según tus pronósticos, ordenados por pts → diferencia de goles → goles a favor.
+            </div>
+          </div>
         </div>
       )}
 
