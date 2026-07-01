@@ -15,7 +15,7 @@ router.get('/pendientes', verifyToken, async (req, res) => {
     const notificaciones = await pool.query(`
       WITH ultimas_notificaciones AS (
         SELECT DISTINCT ON (competencia, CASE
-            WHEN tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado') THEN 'ganador'
+            WHEN tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado', 'ganador_fase_grupos') THEN 'ganador'
             ELSE 'otra'
           END)
           id,
@@ -30,7 +30,7 @@ router.get('/pendientes', verifyToken, async (req, res) => {
           fecha_calculo
         FROM notificaciones
         ORDER BY competencia,
-          CASE WHEN tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado') THEN 'ganador' ELSE 'otra' END,
+          CASE WHEN tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado', 'ganador_fase_grupos') THEN 'ganador' ELSE 'otra' END,
           fecha_calculo DESC
       )
       SELECT 
@@ -52,7 +52,7 @@ router.get('/pendientes', verifyToken, async (req, res) => {
           AND nl.usuario_id = $1
       )
       ORDER BY
-        CASE WHEN un.tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado') THEN 0 ELSE 1 END,
+        CASE WHEN un.tipo_notificacion IN ('ganador_jornada', 'ganador_acumulado', 'ganador_fase_grupos') THEN 0 ELSE 1 END,
         un.fecha_calculo DESC
     `, [usuarioId]);
     
