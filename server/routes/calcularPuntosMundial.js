@@ -118,17 +118,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       }
 
       // Multiplicar puntos por el bonus del partido
-      // En eliminatorias: +2 pts extra por predecir correctamente quién avanza en caso de empate
-      if (
-        jornada_numero >= 4 &&
-        resultado_local === resultado_visitante &&
-        pronostico_local === pronostico_visita &&
-        quien_avanzo &&
-        pronostico_quien_avanza === quien_avanzo
-      ) {
-        puntosGanados += 2;
-      }
-
+      // NOTA: +2 pts por quien avanza NO van aquí, van en mundial_puntos_clasificacion (sin bonus)
       const puntosFinales = puntosGanados * bonusMultiplicador;
 
       // Actualizar puntos en la base de datos
@@ -145,27 +135,10 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
     console.log(`✅ Puntos calculados: ${pronosticosActualizados} pronósticos actualizados, ${puntosAsignados} puntos totales asignados`);
 
-    // Calcular puntos de clasificación según la jornada
-    // J1-J3: calcular clasificación a 16vos
-    // J4: calcular clasificación a 8vos
-    // J5: calcular clasificación a cuartos
-    // J6: calcular clasificación a semifinales
-    // J7: calcular clasificación a final
+    // J3: clasificación a 16vos se calcula aquí (basada en tabla de grupos)
+    // J4-J7: clasificación (quien avanza) se calcula en POST /ganadores
     if (!jornadaNumero || jornadaNumero === 3) {
-      // J3: clasificación a 16vos
       await calcularPuntosClasificacionPorJornada(3, '16VOS');
-    } else if (jornadaNumero === 4) {
-      // J4: clasificación a 8vos
-      await calcularPuntosClasificacionPorJornada(4, '8VOS');
-    } else if (jornadaNumero === 5) {
-      // J5: clasificación a cuartos
-      await calcularPuntosClasificacionPorJornada(5, 'CUARTOS');
-    } else if (jornadaNumero === 6) {
-      // J6: clasificación a semifinales
-      await calcularPuntosClasificacionPorJornada(6, 'SEMIFINALES');
-    } else if (jornadaNumero === 7) {
-      // J7: clasificación a final
-      await calcularPuntosClasificacionPorJornada(7, 'FINAL');
     }
 
     // Actualizar ranking acumulado
@@ -277,8 +250,21 @@ router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res)
       return res.status(400).json({ error: 'Se requiere jornadaNumero' });
     }
     
-    // Solo calcular ganadores de la jornada (clasificación ya se calculó en POST /puntos)
-    await calcularGanadoresJornada(parseInt(jornadaNumero));
+    const jNum = parseInt(jornadaNumero);
+
+    // Para J4-J7: calcular primero los puntos de clasificación (quien avanza en empates)
+    // SIN bonus — van a mundial_puntos_clasificacion por separado
+    if (jNum === 4) {
+      await calcularPuntosClasificacionPorJornada(4, '8VOS');
+    } else if (jNum === 5) {
+      await calcularPuntosClasificacionPorJornada(5, 'CUARTOS');
+    } else if (jNum === 6) {
+      await calcularPuntosClasificacionPorJornada(6, 'SEMIFINALES');
+    } else if (jNum === 7) {
+      await calcularPuntosClasificacionPorJornada(7, 'FINAL');
+    }
+
+    await calcularGanadoresJornada(jNum);
     await actualizarRankingAcumulado();
     
     res.json({ mensaje: `✅ Ganadores de Jornada ${jornadaNumero} calculados exitosamente` });
@@ -460,14 +446,65 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
       return;
     }
 
-    // Para J4+: clasificación según qué ronda pase a la siguiente
-    // J4 (16vos) -> clasificación a 8vos
-    // J5 (8vos) -> clasificación a cuartos
-    // J6 (cuartos) -> clasificación a semifinales
-    // J7 (semifinales) -> clasificación a final
+    // Para J4-J7: 2 pts por acertar quien avanza en partidos de empate
+    // SIN aplicar bonus — puntos fijos en mundial_puntos_clasificacion
+    const drawMatchesResult = await pool.query(`
+      SELECT p.id as partido_id, p.quien_avanzo, p.equipo_local, p.equipo_visitante
+      FROM mundial_partidos p
+      INNER JOIN mundial_jornadas mj ON p.jornada_id = mj.id
+      WHERE mj.numero = $1
+        AND p.resultado_local = p.resultado_visitante
+        AND p.quien_avanzo IS NOT NULL
+    `, [jornadaNumero]);
 
-    const faseActual = getFaseDeJornada(jornadaNumero);
-    console.log(`⚠️ Clasificación para ${faseActual} aún no implementada en esta versión`);
+    if (drawMatchesResult.rows.length === 0) {
+      console.log(`⚠️ No hay empates con quien_avanzo definido para J${jornadaNumero}`);
+      return;
+    }
+
+    // Borrar clasificación anterior de esta fase
+    await pool.query(
+      `DELETE FROM mundial_puntos_clasificacion WHERE fase LIKE $1`,
+      [`${faseClasif}_%`]
+    );
+
+    const usuariosResult = await pool.query(`
+      SELECT DISTINCT u.id FROM usuarios u
+      INNER JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
+      INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
+      WHERE mj.numero = $1 AND u.rol != 'admin'
+    `, [jornadaNumero]);
+
+    let insertados = 0;
+    for (const match of drawMatchesResult.rows) {
+      for (const { id: uid } of usuariosResult.rows) {
+        const predResult = await pool.query(`
+          SELECT resultado_local, resultado_visitante, quien_avanza
+          FROM mundial_pronosticos
+          WHERE partido_id = $1 AND usuario_id = $2
+        `, [match.partido_id, uid]);
+
+        if (predResult.rows.length === 0) continue;
+        const pred = predResult.rows[0];
+
+        // Solo si el usuario predijo empate Y acertó quien avanza
+        if (
+          pred.resultado_local === pred.resultado_visitante &&
+          pred.quien_avanza === match.quien_avanzo
+        ) {
+          const fase = `${faseClasif}_PARTIDO_${match.partido_id}`;
+          await pool.query(
+            `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
+             VALUES ($1, $2, $3, 2)
+             ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = 2`,
+            [uid, match.quien_avanzo, fase]
+          );
+          insertados++;
+        }
+      }
+    }
+
+    console.log(`✅ Clasificación ${faseClasif} calculada: ${insertados} registros para ${usuariosResult.rows.length} usuarios`);
 
   } catch (classifErr) {
     console.error(`⚠️ Error calculando clasificación J${jornadaNumero}:`, classifErr.message);
