@@ -145,98 +145,17 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
     console.log(`✅ Puntos calculados: ${pronosticosActualizados} pronósticos actualizados, ${puntosAsignados} puntos totales asignados`);
 
-    // Para jornada 3 (o recalculo total): calcular puntos de clasificación a 16vos de Final
-    if (!jornadaNumero || jornadaNumero == 3) {
-      try {
-        console.log('🔄 Calculando puntos de clasificación J3 (16vos de Final) — sistema 32 vs 32...');
-
-        const gruposResult = await pool.query(
-          `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
-        );
-        const grupos = gruposResult.rows.map(r => r.grupo);
-
-        // ---- Construir los 32 clasificados REALES ----
-        const real32 = new Set();
-        for (const grupo of grupos) {
-          const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
-          if (tabla.length >= 2 && tabla[0].pj > 0) {
-            real32.add(tabla[0].nombre);
-            real32.add(tabla[1].nombre);
-          }
-        }
-        // Los 8 mejores terceros definidos por el admin
-        const mejoresTercerosResult = await pool.query(
-          'SELECT equipo FROM mundial_mejores_terceros'
-        );
-        mejoresTercerosResult.rows.forEach(r => real32.add(r.equipo));
-
-        if (real32.size === 0) {
-          console.log('⚠️ Sin resultados reales, omitiendo puntos clasificación');
-        } else {
-          const usuariosResult = await pool.query(
-            `SELECT DISTINCT u.id FROM usuarios u
-             INNER JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
-             INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
-             WHERE mj.numero IN (1,2,3) AND u.rol != 'admin'`
-          );
-
-          for (const { id: uid } of usuariosResult.rows) {
-            // Limpiar puntos de clasificación anteriores y mejores terceros virtuales
-            await pool.query(
-              `DELETE FROM mundial_puntos_clasificacion WHERE usuario_id = $1 AND fase LIKE '16VOS_%'`,
-              [uid]
-            );
-            await pool.query(
-              `DELETE FROM mundial_mejores_terceros_usuario WHERE usuario_id = $1`,
-              [uid]
-            );
-
-            const predicciones = [];
-
-            // Top 2 por grupo → 24 clasificados virtuales
-            for (const grupo of grupos) {
-              const tablaUser = await calcularTablaUsuario(uid, grupo, [1, 2, 3]);
-              if (tablaUser.length >= 2) {
-                predicciones.push({ equipo: tablaUser[0].nombre, fase: `16VOS_GRUPO_${grupo}_POS1` });
-                predicciones.push({ equipo: tablaUser[1].nombre, fase: `16VOS_GRUPO_${grupo}_POS2` });
-              }
-            }
-
-            // 8 mejores terceros VIRTUALES del usuario
-            const mejoresTercerosUser = await calcularMejoresTercerosUsuario(uid, grupos, [1, 2, 3]);
-            for (let i = 0; i < mejoresTercerosUser.length; i++) {
-              const t = mejoresTercerosUser[i];
-              // Guardar en tabla propia del usuario
-              await pool.query(
-                `INSERT INTO mundial_mejores_terceros_usuario
-                   (usuario_id, equipo, grupo, puntos_grupo, dif_grupo, gf_grupo, posicion_virtual)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7)
-                 ON CONFLICT (usuario_id, grupo) DO UPDATE
-                   SET equipo=$2, puntos_grupo=$4, dif_grupo=$5, gf_grupo=$6, posicion_virtual=$7`,
-                [uid, t.equipo, t.grupo, t.puntos, t.dif, t.gf, i + 1]
-              );
-              predicciones.push({ equipo: t.equipo, fase: `16VOS_MEJOR_TERCERO_GRUPO_${t.grupo}` });
-            }
-
-            // Comparar cada clasificado virtual contra el set real (sin importar posición)
-            for (const pred of predicciones) {
-              const pts = real32.has(pred.equipo) ? 2 : 0;
-              await pool.query(
-                `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
-                 VALUES ($1,$2,$3,$4)
-                 ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = EXCLUDED.puntos`,
-                [uid, pred.equipo, pred.fase, pts]
-              );
-            }
-          }
-          console.log(`✅ Puntos clasificación J3 calculados: ${usuariosResult.rows.length} usuarios, ${real32.size} equipos clasificados reales`);
-        }
-      } catch (classifErr) {
-        console.error('⚠️ Error en puntos clasificación J3:', classifErr.message);
-      }
+    // Limpiar puntos de clasificación para que no se contabilicen al calcular puntajes normales.
+    // Solo se recalculan al ejecutar el cálculo de ganadores/jornada.
+    try {
+      await pool.query('DELETE FROM mundial_puntos_clasificacion');
+      await pool.query('DELETE FROM mundial_mejores_terceros_usuario');
+      console.log('🧹 Puntos de clasificación limpiados; se recalcularán solo al ejecutar el cálculo de ganadores');
+    } catch (cleanupErr) {
+      console.error('⚠️ Error limpiando puntos clasificación:', cleanupErr.message);
     }
 
-    // Actualizar ranking acumulado
+    // Actualizar ranking acumulado solo con puntos de partidos
     await actualizarRankingAcumulado();
 
     res.json({ 
@@ -300,6 +219,33 @@ router.post('/ganador-fase-grupos', verifyToken, authorizeRoles('admin'), async 
 
     const winner = result.rows[0];
     console.log(`✅ Ganador Fase de Grupos: ${winner.nombre} — ${winner.puntos_totales} pts`);
+
+    // Registrar notificación para todos los usuarios
+    try {
+      await pool.query(
+        `DELETE FROM notificaciones WHERE competencia = 'mundial' AND tipo_notificacion = 'ganador_fase_grupos'`
+      );
+      await pool.query(
+        `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, jornada_numero, ganadores, mensaje, icono, url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          'mundial',
+          'fase_grupos',
+          'ganador_fase_grupos',
+          3,
+          JSON.stringify([{ nombre: winner.nombre, puntaje: parseFloat(winner.puntos_totales), foto_perfil: winner.foto_perfil }]),
+          `🌟 Ganador Fase de Grupos Mundial: ${winner.nombre} con ${parseFloat(winner.puntos_totales)} pts`,
+          '🌟',
+          '/mundial'
+        ]
+      );
+      console.log('🔔 Notificación ganador fase de grupos creada');
+      // Emitir evento para que los clientes conectados recarguen notificaciones
+      if (req.app.get('io')) req.app.get('io').emit('nuevaNotificacion');
+    } catch (notifError) {
+      console.error('⚠️ Error creando notificación fase de grupos:', notifError.message);
+    }
+
     res.json({
       mensaje: `✅ Ganador Fase de Grupos: ${winner.nombre}`,
       ganador: { nombre: winner.nombre, foto_perfil: winner.foto_perfil, puntos: parseFloat(winner.puntos_totales) }
@@ -317,6 +263,7 @@ router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res)
     if (!jornadaNumero) {
       return res.status(400).json({ error: 'Se requiere jornadaNumero' });
     }
+    await calcularPuntosClasificacionMundial();
     await calcularGanadoresJornada(parseInt(jornadaNumero));
     await actualizarRankingAcumulado();
     res.json({ mensaje: `✅ Ganadores de Jornada ${jornadaNumero} calculados exitosamente` });
@@ -325,6 +272,91 @@ router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res)
     res.status(500).json({ error: 'Error calculando ganadores', details: error.message });
   }
 });
+
+// Función auxiliar para calcular los puntos de clasificación a 16vos de Final
+async function calcularPuntosClasificacionMundial() {
+  try {
+    console.log('🔄 Calculando puntos de clasificación para el Mundial (16vos de Final)');
+
+    const gruposResult = await pool.query(
+      `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
+    );
+    const grupos = gruposResult.rows.map(r => r.grupo);
+
+    const real32 = new Set();
+    for (const grupo of grupos) {
+      const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
+      if (tabla.length >= 2 && tabla[0].pj > 0) {
+        real32.add(tabla[0].nombre);
+        real32.add(tabla[1].nombre);
+      }
+    }
+
+    const mejoresTercerosResult = await pool.query('SELECT equipo FROM mundial_mejores_terceros');
+    mejoresTercerosResult.rows.forEach(r => real32.add(r.equipo));
+
+    if (real32.size === 0) {
+      console.log('⚠️ Sin resultados reales, omitiendo puntos clasificación');
+      return;
+    }
+
+    const usuariosResult = await pool.query(
+      `SELECT DISTINCT u.id FROM usuarios u
+       INNER JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
+       INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
+       WHERE mj.numero IN (1,2,3) AND u.rol != 'admin'`
+    );
+
+    for (const { id: uid } of usuariosResult.rows) {
+      await pool.query(
+        `DELETE FROM mundial_puntos_clasificacion WHERE usuario_id = $1 AND fase LIKE '16VOS_%'`,
+        [uid]
+      );
+      await pool.query(
+        `DELETE FROM mundial_mejores_terceros_usuario WHERE usuario_id = $1`,
+        [uid]
+      );
+
+      const predicciones = [];
+
+      for (const grupo of grupos) {
+        const tablaUser = await calcularTablaUsuario(uid, grupo, [1, 2, 3]);
+        if (tablaUser.length >= 2) {
+          predicciones.push({ equipo: tablaUser[0].nombre, fase: `16VOS_GRUPO_${grupo}_POS1` });
+          predicciones.push({ equipo: tablaUser[1].nombre, fase: `16VOS_GRUPO_${grupo}_POS2` });
+        }
+      }
+
+      const mejoresTercerosUser = await calcularMejoresTercerosUsuario(uid, grupos, [1, 2, 3]);
+      for (let i = 0; i < mejoresTercerosUser.length; i++) {
+        const t = mejoresTercerosUser[i];
+        await pool.query(
+          `INSERT INTO mundial_mejores_terceros_usuario
+             (usuario_id, equipo, grupo, puntos_grupo, dif_grupo, gf_grupo, posicion_virtual)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)
+           ON CONFLICT (usuario_id, grupo) DO UPDATE
+             SET equipo=$2, puntos_grupo=$4, dif_grupo=$5, gf_grupo=$6, posicion_virtual=$7`,
+          [uid, t.equipo, t.grupo, t.puntos, t.dif, t.gf, i + 1]
+        );
+        predicciones.push({ equipo: t.equipo, fase: `16VOS_MEJOR_TERCERO_GRUPO_${t.grupo}` });
+      }
+
+      for (const pred of predicciones) {
+        const pts = real32.has(pred.equipo) ? 2 : 0;
+        await pool.query(
+          `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = EXCLUDED.puntos`,
+          [uid, pred.equipo, pred.fase, pts]
+        );
+      }
+    }
+
+    console.log(`✅ Puntos de clasificación recalculados para ${usuariosResult.rows.length} usuarios`);
+  } catch (classifErr) {
+    console.error('⚠️ Error calculando puntos de clasificación:', classifErr.message);
+  }
+}
 
 // Función auxiliar para calcular ganadores de una jornada
 async function calcularGanadoresJornada(jornadaNumero) {
