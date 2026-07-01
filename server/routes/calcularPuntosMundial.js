@@ -145,17 +145,30 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
     console.log(`✅ Puntos calculados: ${pronosticosActualizados} pronósticos actualizados, ${puntosAsignados} puntos totales asignados`);
 
-    // Limpiar puntos de clasificación para que no se contabilicen al calcular puntajes normales.
-    // Solo se recalculan al ejecutar el cálculo de ganadores/jornada.
-    try {
-      await pool.query('DELETE FROM mundial_puntos_clasificacion');
-      await pool.query('DELETE FROM mundial_mejores_terceros_usuario');
-      console.log('🧹 Puntos de clasificación limpiados; se recalcularán solo al ejecutar el cálculo de ganadores');
-    } catch (cleanupErr) {
-      console.error('⚠️ Error limpiando puntos clasificación:', cleanupErr.message);
+    // Calcular puntos de clasificación según la jornada
+    // J1-J3: calcular clasificación a 16vos
+    // J4: calcular clasificación a 8vos
+    // J5: calcular clasificación a cuartos
+    // J6: calcular clasificación a semifinales
+    // J7: calcular clasificación a final
+    if (!jornadaNumero || jornadaNumero === 3) {
+      // J3: clasificación a 16vos
+      await calcularPuntosClasificacionPorJornada(3, '16VOS');
+    } else if (jornadaNumero === 4) {
+      // J4: clasificación a 8vos
+      await calcularPuntosClasificacionPorJornada(4, '8VOS');
+    } else if (jornadaNumero === 5) {
+      // J5: clasificación a cuartos
+      await calcularPuntosClasificacionPorJornada(5, 'CUARTOS');
+    } else if (jornadaNumero === 6) {
+      // J6: clasificación a semifinales
+      await calcularPuntosClasificacionPorJornada(6, 'SEMIFINALES');
+    } else if (jornadaNumero === 7) {
+      // J7: clasificación a final
+      await calcularPuntosClasificacionPorJornada(7, 'FINAL');
     }
 
-    // Actualizar ranking acumulado solo con puntos de partidos
+    // Actualizar ranking acumulado
     await actualizarRankingAcumulado();
 
     res.json({ 
@@ -263,9 +276,11 @@ router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res)
     if (!jornadaNumero) {
       return res.status(400).json({ error: 'Se requiere jornadaNumero' });
     }
-    await calcularPuntosClasificacionMundial();
+    
+    // Solo calcular ganadores de la jornada (clasificación ya se calculó en POST /puntos)
     await calcularGanadoresJornada(parseInt(jornadaNumero));
     await actualizarRankingAcumulado();
+    
     res.json({ mensaje: `✅ Ganadores de Jornada ${jornadaNumero} calculados exitosamente` });
   } catch (error) {
     console.error('❌ Error calculando ganadores:', error);
@@ -355,6 +370,107 @@ async function calcularPuntosClasificacionMundial() {
     console.log(`✅ Puntos de clasificación recalculados para ${usuariosResult.rows.length} usuarios`);
   } catch (classifErr) {
     console.error('⚠️ Error calculando puntos de clasificación:', classifErr.message);
+  }
+}
+
+// Función para calcular clasificación según la jornada (SIN aplicar bonus)
+async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) {
+  try {
+    console.log(`🔄 Calculando puntos de clasificación para J${jornadaNumero} (${faseClasif})...`);
+
+    if (jornadaNumero === 3 && faseClasif === '16VOS') {
+      // J3: clasificación a 16vos de Final basada en tabla de grupos
+      const gruposResult = await pool.query(
+        `SELECT DISTINCT grupo FROM mundial_partidos WHERE grupo IS NOT NULL ORDER BY grupo`
+      );
+      const grupos = gruposResult.rows.map(r => r.grupo);
+
+      // Clasificados oficiales: top 2 + mejores 3ros
+      const real32 = new Set();
+      for (const grupo of grupos) {
+        const tabla = await calcularTablaOficial(grupo, [1, 2, 3]);
+        if (tabla.length >= 2 && tabla[0].pj > 0) {
+          real32.add(tabla[0].nombre);
+          real32.add(tabla[1].nombre);
+        }
+      }
+
+      const mejoresTercerosResult = await pool.query('SELECT equipo FROM mundial_mejores_terceros');
+      mejoresTercerosResult.rows.forEach(r => real32.add(r.equipo));
+
+      if (real32.size === 0) {
+        console.log('⚠️ Sin resultados reales, omitiendo puntos clasificación');
+        return;
+      }
+
+      const usuariosResult = await pool.query(
+        `SELECT DISTINCT u.id FROM usuarios u
+         INNER JOIN mundial_pronosticos mp ON u.id = mp.usuario_id
+         INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
+         WHERE mj.numero IN (1,2,3) AND u.rol != 'admin'`
+      );
+
+      for (const { id: uid } of usuariosResult.rows) {
+        // Limpiar registros anteriores
+        await pool.query(
+          `DELETE FROM mundial_puntos_clasificacion WHERE usuario_id = $1 AND fase LIKE '16VOS_%'`,
+          [uid]
+        );
+        await pool.query(
+          `DELETE FROM mundial_mejores_terceros_usuario WHERE usuario_id = $1`,
+          [uid]
+        );
+
+        const predicciones = [];
+
+        for (const grupo of grupos) {
+          const tablaUser = await calcularTablaUsuario(uid, grupo, [1, 2, 3]);
+          if (tablaUser.length >= 2) {
+            predicciones.push({ equipo: tablaUser[0].nombre, fase: `16VOS_GRUPO_${grupo}_POS1` });
+            predicciones.push({ equipo: tablaUser[1].nombre, fase: `16VOS_GRUPO_${grupo}_POS2` });
+          }
+        }
+
+        const mejoresTercerosUser = await calcularMejoresTercerosUsuario(uid, grupos, [1, 2, 3]);
+        for (let i = 0; i < mejoresTercerosUser.length; i++) {
+          const t = mejoresTercerosUser[i];
+          await pool.query(
+            `INSERT INTO mundial_mejores_terceros_usuario
+               (usuario_id, equipo, grupo, puntos_grupo, dif_grupo, gf_grupo, posicion_virtual)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)
+             ON CONFLICT (usuario_id, grupo) DO UPDATE
+               SET equipo=$2, puntos_grupo=$4, dif_grupo=$5, gf_grupo=$6, posicion_virtual=$7`,
+            [uid, t.equipo, t.grupo, t.puntos, t.dif, t.gf, i + 1]
+          );
+          predicciones.push({ equipo: t.equipo, fase: `16VOS_MEJOR_TERCERO_GRUPO_${t.grupo}` });
+        }
+
+        for (const pred of predicciones) {
+          const pts = real32.has(pred.equipo) ? 2 : 0; // 2 puntos SIN bonus
+          await pool.query(
+            `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
+             VALUES ($1,$2,$3,$4)
+             ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = EXCLUDED.puntos`,
+            [uid, pred.equipo, pred.fase, pts]
+          );
+        }
+      }
+
+      console.log(`✅ Clasificación a 16vos calculada para ${usuariosResult.rows.length} usuarios`);
+      return;
+    }
+
+    // Para J4+: clasificación según qué ronda pase a la siguiente
+    // J4 (16vos) -> clasificación a 8vos
+    // J5 (8vos) -> clasificación a cuartos
+    // J6 (cuartos) -> clasificación a semifinales
+    // J7 (semifinales) -> clasificación a final
+
+    const faseActual = getFaseDeJornada(jornadaNumero);
+    console.log(`⚠️ Clasificación para ${faseActual} aún no implementada en esta versión`);
+
+  } catch (classifErr) {
+    console.error(`⚠️ Error calculando clasificación J${jornadaNumero}:`, classifErr.message);
   }
 }
 
