@@ -580,6 +580,19 @@ function TablaPremiosPorTorneo({ premios, configuracion, montoSugerido, togglePr
 
   const TIPO_ORDEN = { jornada: 0, fase_grupos: 1, acumulado_1: 2, acumulado_2: 3, acumulado_3: 4 };
 
+  // Clave de ordenamiento: jornadas por número, fase_grupos entre J3 y J4
+  const getSortKey = (p) => {
+    if (p.tipo === 'jornada') {
+      const n = parseInt(p.referencia.replace(/\D/g, ''), 10) || 0;
+      return n * 100;
+    }
+    if (p.tipo === 'fase_grupos') return 350; // entre J3(300) y J4(400)
+    if (p.tipo === 'acumulado_1') return 10000;
+    if (p.tipo === 'acumulado_2') return 10001;
+    if (p.tipo === 'acumulado_3') return 10002;
+    return 9999;
+  };
+
   // Agrupar por torneo
   const porTorneo = {};
   premios.forEach((p) => {
@@ -622,12 +635,9 @@ function TablaPremiosPorTorneo({ premios, configuracion, montoSugerido, togglePr
                     });
                     // Ordenar: por tipo, luego por número en referencia
                     const filasOrdenadas = [...filas].sort((a, b) => {
-                      const ta = TIPO_ORDEN[a.tipo] ?? 99;
-                      const tb = TIPO_ORDEN[b.tipo] ?? 99;
-                      if (ta !== tb) return ta - tb;
-                      const na = parseInt(a.referencia.replace(/\D/g, ""), 10);
-                      const nb = parseInt(b.referencia.replace(/\D/g, ""), 10);
-                      if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+                      const ka = getSortKey(a);
+                      const kb = getSortKey(b);
+                      if (ka !== kb) return ka - kb;
                       return (a.ganador_nombre || "").localeCompare(b.ganador_nombre || "");
                     });
                     return filasOrdenadas.map((p, i) => {
@@ -692,6 +702,7 @@ function TablaPremiosPorTorneo({ premios, configuracion, montoSugerido, togglePr
 function TipoPremioLabel({ tipo }) {
   const map = {
     jornada: "🏅 Jornada",
+    fase_grupos: "🌟 Ganador Fase de Grupos",
     acumulado_1: "🥇 Acumulado 1°",
     acumulado_2: "🥈 Acumulado 2°",
     acumulado_3: "🥉 Acumulado 3°",

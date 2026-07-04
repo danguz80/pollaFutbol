@@ -21,6 +21,8 @@ export default function AdminMundialResultados() {
   const [showFaseGruposModal, setShowFaseGruposModal] = useState(false);
   const [faseGruposGanador, setFaseGruposGanador] = useState(null);
   const [calculandoFaseGrupos, setCalculandoFaseGrupos] = useState(false);
+  // Acumulado final
+  const [calculandoAcumuladoFinal, setCalculandoAcumuladoFinal] = useState(false);
 
   const confettiPieces = useMemo(() => {
     const colors = ['#ff4444','#ffdd00','#44cc44','#4488ff','#ff44cc','#44dddd','#ff8800','#aa44ff'];
@@ -612,6 +614,25 @@ export default function AdminMundialResultados() {
     }
   };
 
+  const calcularAcumuladoFinal = async () => {
+    if (!confirm('¿Declarar los campeones finales del Ranking Acumulado?\n\nEsto publicará el pódio (1°, 2°, 3°) en Tesorería.')) return;
+    setCalculandoAcumuladoFinal(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/mundial-calcular/ganadores-acumulado-final`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      alert('✅ ' + data.mensaje);
+    } catch (error) {
+      alert('❌ ' + error.message);
+    } finally {
+      setCalculandoAcumuladoFinal(false);
+    }
+  };
+
   const getSubtitulo = (numero) => {
     if (numero <= 3) return 'Fase de Grupos';
     if (numero === 4) return '16vos de Final';
@@ -962,6 +983,13 @@ export default function AdminMundialResultados() {
                   disabled={calculandoFaseGrupos}
                 >
                   {calculandoFaseGrupos ? <><span className="spinner-border spinner-border-sm me-2"/></> : '🌟'} Ganador Fase de Grupos
+                </button>
+                <button
+                  className="btn btn-success btn-lg px-4"
+                  onClick={calcularAcumuladoFinal}
+                  disabled={calculandoAcumuladoFinal}
+                >
+                  {calculandoAcumuladoFinal ? <><span className="spinner-border spinner-border-sm me-2"/></> : '🏆'} Campeón Acumulado Final
                 </button>
                 <button
                   className="btn btn-outline-secondary btn-lg"

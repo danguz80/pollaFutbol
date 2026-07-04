@@ -372,7 +372,7 @@ router.get("/premios", ...soloAdminOTesorero, async (req, res) => {
           COALESCE(mga.puntos_totales, 0) AS posicion_raw,
           mga.posicion              AS posicion
         FROM mundial_ganadores_acumulado mga
-        WHERE mga.posicion IN (1,2,3)
+        WHERE mga.posicion IN (1,2,3) AND mga.definitivo = TRUE
       `);
     }
     if (existentes.has('mundial_ganadores_fase_grupos')) {

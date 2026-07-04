@@ -274,6 +274,42 @@ router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res)
   }
 });
 
+// POST /api/mundial-calcular/ganadores-acumulado-final — declara el pódio definitivo del acumulado
+router.post('/ganadores-acumulado-final', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    console.log('🏆 Declarando campeones finales del acumulado Mundial...');
+    // Primero recalcular el ranking con los datos actuales
+    await actualizarRankingAcumulado();
+
+    // Marcar como NO definitivo todos, luego marcar los 3 primeros como definitivo
+    await pool.query(`UPDATE mundial_ganadores_acumulado SET definitivo = FALSE`);
+    const result = await pool.query(`
+      UPDATE mundial_ganadores_acumulado SET definitivo = TRUE
+      WHERE posicion IN (1,2,3)
+      RETURNING usuario_id, posicion, puntos_totales
+    `);
+
+    const ganadores = await pool.query(`
+      SELECT u.nombre, mga.posicion, mga.puntos_totales
+      FROM mundial_ganadores_acumulado mga
+      INNER JOIN usuarios u ON u.id = mga.usuario_id
+      WHERE mga.definitivo = TRUE
+      ORDER BY mga.posicion
+    `);
+
+    const resumen = ganadores.rows.map(g => `${g.posicion}°: ${g.nombre} (${g.puntos_totales} pts)`).join(', ');
+    console.log(`✅ Campeones definitivos: ${resumen}`);
+
+    res.json({
+      mensaje: `✅ Campeones del Acumulado declarados: ${resumen}`,
+      ganadores: ganadores.rows
+    });
+  } catch (error) {
+    console.error('❌ Error declarando campeones finales:', error);
+    res.status(500).json({ error: 'Error declarando campeones finales', details: error.message });
+  }
+});
+
 // Función auxiliar para calcular los puntos de clasificación a 16vos de Final
 async function calcularPuntosClasificacionMundial() {
   try {
