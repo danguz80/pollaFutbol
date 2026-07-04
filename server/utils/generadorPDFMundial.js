@@ -25,7 +25,9 @@ export async function generarPDFMundial(jornadaNumero) {
       obtenerRankingAcumulado(),
       obtenerGanadores(jornadaNumero),
       obtenerJornada(jornadaNumero),
-      jornadaNumero === 3 ? obtenerClasificados() : Promise.resolve({})
+      jornadaNumero === 3 ? obtenerClasificados() :
+      jornadaNumero === 4 ? obtenerClasificadosKnockout(4, '8VOS') :
+      Promise.resolve({})
     ]);
 
     // 2. Crear documento PDF
@@ -59,7 +61,7 @@ export async function generarPDFMundial(jornadaNumero) {
     yPos = agregarRankingAcumulado(doc, rankingAcumulado, yPos);
     
     // Pronósticos detallados por jugador
-    agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos);
+    agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornadaNumero);
 
     // 5. Finalizar documento
     doc.end();
@@ -200,6 +202,59 @@ async function obtenerRankingAcumulado() {
   `);
   
   return result.rows;
+}
+
+async function obtenerClasificadosKnockout(jornadaNumero, fasePrefijo) {
+  const result = await pool.query(`
+    SELECT mpc.usuario_id, u.nombre as nombre_usuario, u.foto_perfil,
+           mpc.equipo as equipo_pronosticado, mpc.fase, mpc.puntos
+    FROM mundial_puntos_clasificacion mpc
+    INNER JOIN usuarios u ON mpc.usuario_id = u.id
+    WHERE mpc.fase LIKE $1 AND u.rol != 'admin'
+    ORDER BY u.nombre, mpc.fase
+  `, [`${fasePrefijo}_%`]);
+
+  // Mapa de partidos: partido_id → { avanzado, local, visitante }
+  const matchesResult = await pool.query(`
+    SELECT p.id, p.equipo_local, p.equipo_visitante,
+           p.resultado_local, p.resultado_visitante, p.quien_avanzo
+    FROM mundial_partidos p
+    INNER JOIN mundial_jornadas mj ON p.jornada_id = mj.id
+    WHERE mj.numero = $1
+  `, [jornadaNumero]);
+
+  const matchMap = {};
+  matchesResult.rows.forEach(m => {
+    let avanzado;
+    if (m.resultado_local > m.resultado_visitante) avanzado = m.equipo_local;
+    else if (m.resultado_visitante > m.resultado_local) avanzado = m.equipo_visitante;
+    else avanzado = m.quien_avanzo;
+    matchMap[m.id] = { avanzado, local: m.equipo_local, visitante: m.equipo_visitante };
+  });
+
+  const porUsuario = {};
+  result.rows.forEach(row => {
+    if (!porUsuario[row.usuario_id]) {
+      porUsuario[row.usuario_id] = { nombre: row.nombre_usuario, foto_perfil: row.foto_perfil, clasificados: [] };
+    }
+    const matchFase = row.fase.match(new RegExp(`${fasePrefijo}_PARTIDO_(\\d+)`));
+    if (matchFase) {
+      const partidoId = parseInt(matchFase[1]);
+      const match = matchMap[partidoId];
+      porUsuario[row.usuario_id].clasificados.push({
+        equipo_pronosticado: row.equipo_pronosticado,
+        equipo_real: match ? match.avanzado : null,
+        puntos: row.puntos,
+        posLabel: match ? `${match.local} vs ${match.visitante}` : `Partido ${partidoId}`
+      });
+    }
+  });
+
+  Object.values(porUsuario).forEach(u => {
+    u.clasificados.sort((a, b) => a.posLabel.localeCompare(b.posLabel));
+    u.totalPuntos = u.clasificados.reduce((sum, c) => sum + c.puntos, 0);
+  });
+  return porUsuario;
 }
 
 async function obtenerClasificados() {
@@ -597,7 +652,7 @@ function agregarRankingAcumulado(doc, ranking, yPos) {
   return yPos + 20;
 }
 
-function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos) {
+function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornadaNumero) {
   pronosticosData.forEach((usuario, usuarioIndex) => {
     // Nueva página para cada usuario
     doc.addPage();
@@ -700,7 +755,7 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos) {
       yPos += 22;
     });
 
-    // ==================== TABLA EQUIPOS CLASIFICADOS (solo J3) ====================
+      // ==================== TABLA EQUIPOS CLASIFICADOS (J3 y J4) ====================
     if (clasifData && clasifData.clasificados.length > 0) {
       // Verificar espacio — si queda poco, nueva página
       if (yPos > 600) {
@@ -715,7 +770,7 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos) {
       doc.fontSize(11)
          .font('Helvetica-Bold')
          .fillColor('#FFFFFF')
-         .text(`⭐ EQUIPOS CLASIFICADOS A 16VOS — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
+         .text(`⭐ ${jornadaNumero === 4 ? 'EQUIPOS QUE AVANZAN A CUARTOS' : 'EQUIPOS CLASIFICADOS A 16VOS'} — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
       yPos += 20;
 
       // Sub-headers: 2 columnas + pts

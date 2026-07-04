@@ -447,18 +447,35 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
     }
 
     // Para J4-J7: 2 pts por acertar quien avanza en partidos de empate
+    // 2 pts por acertar el equipo que avanza en cada partido (independiente de si fue empate o victoria)
     // SIN aplicar bonus — puntos fijos en mundial_puntos_clasificacion
-    const drawMatchesResult = await pool.query(`
-      SELECT p.id as partido_id, p.quien_avanzo, p.equipo_local, p.equipo_visitante
+    const allMatchesResult = await pool.query(`
+      SELECT p.id as partido_id, p.equipo_local, p.equipo_visitante,
+             p.resultado_local, p.resultado_visitante, p.quien_avanzo
       FROM mundial_partidos p
       INNER JOIN mundial_jornadas mj ON p.jornada_id = mj.id
       WHERE mj.numero = $1
-        AND p.resultado_local = p.resultado_visitante
-        AND p.quien_avanzo IS NOT NULL
+        AND p.resultado_local IS NOT NULL
+        AND p.resultado_visitante IS NOT NULL
+      ORDER BY p.id
     `, [jornadaNumero]);
 
-    if (drawMatchesResult.rows.length === 0) {
-      console.log(`⚠️ No hay empates con quien_avanzo definido para J${jornadaNumero}`);
+    if (allMatchesResult.rows.length === 0) {
+      console.log(`⚠️ No hay partidos con resultados para J${jornadaNumero}`);
+      return;
+    }
+
+    // Determinar el equipo que realmente avanzó en cada partido
+    const matchesConAvanzado = allMatchesResult.rows.map(m => {
+      let avanzado;
+      if (m.resultado_local > m.resultado_visitante) avanzado = m.equipo_local;
+      else if (m.resultado_visitante > m.resultado_local) avanzado = m.equipo_visitante;
+      else avanzado = m.quien_avanzo; // empate → penales
+      return { ...m, avanzado };
+    }).filter(m => m.avanzado !== null);
+
+    if (matchesConAvanzado.length === 0) {
+      console.log(`⚠️ No hay partidos con ganador/avanzado definido para J${jornadaNumero}`);
       return;
     }
 
@@ -476,7 +493,7 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
     `, [jornadaNumero]);
 
     let insertados = 0;
-    for (const match of drawMatchesResult.rows) {
+    for (const match of matchesConAvanzado) {
       for (const { id: uid } of usuariosResult.rows) {
         const predResult = await pool.query(`
           SELECT resultado_local, resultado_visitante, quien_avanza
@@ -487,24 +504,26 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
         if (predResult.rows.length === 0) continue;
         const pred = predResult.rows[0];
 
-        // Solo si el usuario predijo empate Y acertó quien avanza
-        if (
-          pred.resultado_local === pred.resultado_visitante &&
-          pred.quien_avanza === match.quien_avanzo
-        ) {
+        // Determinar el equipo que el usuario predijo que avanzaría
+        let predAvanzado;
+        if (pred.resultado_local > pred.resultado_visitante) predAvanzado = match.equipo_local;
+        else if (pred.resultado_visitante > pred.resultado_local) predAvanzado = match.equipo_visitante;
+        else predAvanzado = pred.quien_avanza; // el usuario predijo empate, ¿quién avanza?
+
+        if (predAvanzado && predAvanzado === match.avanzado) {
           const fase = `${faseClasif}_PARTIDO_${match.partido_id}`;
           await pool.query(
             `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
              VALUES ($1, $2, $3, 2)
              ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = 2`,
-            [uid, match.quien_avanzo, fase]
+            [uid, match.avanzado, fase]
           );
           insertados++;
         }
       }
     }
 
-    console.log(`✅ Clasificación ${faseClasif} calculada: ${insertados} registros para ${usuariosResult.rows.length} usuarios`);
+    console.log(`✅ Clasificación ${faseClasif} calculada: ${insertados} aciertos / ${matchesConAvanzado.length} partidos / ${usuariosResult.rows.length} usuarios`);
 
   } catch (classifErr) {
     console.error(`⚠️ Error calculando clasificación J${jornadaNumero}:`, classifErr.message);
