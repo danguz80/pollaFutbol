@@ -365,5 +365,75 @@ router.get('/clasificacion-guardada-todos', verifyToken, async (req, res) => {
   }
 });
 
+// GET /clasificacion-knockout/:jornadaNumero — clasificados para fases eliminatorias (J4+)
+router.get('/clasificacion-knockout/:jornadaNumero', verifyToken, async (req, res) => {
+  try {
+    const jornada = parseInt(req.params.jornadaNumero);
+    const fasePrefijos = { 4: '8VOS', 5: 'CUARTOS', 6: 'SEMIFINALES', 7: 'FINAL' };
+    const fasePrefijo = fasePrefijos[jornada];
+    if (!fasePrefijo) return res.status(400).json({ error: 'Jornada no soportada' });
+
+    const result = await pool.query(`
+      SELECT mpc.usuario_id, u.nombre as nombre_usuario, u.foto_perfil,
+             mpc.equipo as equipo_pronosticado, mpc.fase, mpc.puntos
+      FROM mundial_puntos_clasificacion mpc
+      INNER JOIN usuarios u ON mpc.usuario_id = u.id
+      WHERE mpc.fase LIKE $1 AND u.rol != 'admin'
+      ORDER BY u.nombre, mpc.fase
+    `, [`${fasePrefijo}_%`]);
+
+    // Mapa de partidos: id → { avanzado, local, visitante }
+    const matchesResult = await pool.query(`
+      SELECT p.id, p.equipo_local, p.equipo_visitante,
+             p.resultado_local, p.resultado_visitante, p.quien_avanzo
+      FROM mundial_partidos p
+      INNER JOIN mundial_jornadas mj ON p.jornada_id = mj.id
+      WHERE mj.numero = $1
+    `, [jornada]);
+
+    const matchMap = {};
+    matchesResult.rows.forEach(m => {
+      let avanzado;
+      if (m.resultado_local > m.resultado_visitante) avanzado = m.equipo_local;
+      else if (m.resultado_visitante > m.resultado_local) avanzado = m.equipo_visitante;
+      else avanzado = m.quien_avanzo;
+      matchMap[m.id] = { avanzado, local: m.equipo_local, visitante: m.equipo_visitante };
+    });
+
+    const porUsuario = {};
+    result.rows.forEach(row => {
+      if (!porUsuario[row.usuario_id]) {
+        porUsuario[row.usuario_id] = {
+          usuario_id: row.usuario_id,
+          nombre: row.nombre_usuario,
+          foto_perfil: row.foto_perfil,
+          clasificados: []
+        };
+      }
+      const m = row.fase.match(new RegExp(`${fasePrefijo}_PARTIDO_(\\d+)`));
+      if (m) {
+        const pid = parseInt(m[1]);
+        const match = matchMap[pid];
+        porUsuario[row.usuario_id].clasificados.push({
+          equipo_pronosticado: row.equipo_pronosticado,
+          equipo_real: match ? match.avanzado : null,
+          puntos: row.puntos,
+          posLabel: match ? `${match.local} vs ${match.visitante}` : `Partido ${pid}`
+        });
+      }
+    });
+
+    Object.values(porUsuario).forEach(u => {
+      u.clasificados.sort((a, b) => a.posLabel.localeCompare(b.posLabel));
+      u.totalPuntos = u.clasificados.reduce((sum, c) => sum + c.puntos, 0);
+    });
+
+    res.json(Object.values(porUsuario));
+  } catch (error) {
+    console.error('Error obteniendo clasificación knockout:', error);
+    res.status(500).json({ error: 'Error obteniendo clasificación knockout' });
+  }
+});
+
 export default router;
 

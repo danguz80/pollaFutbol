@@ -43,9 +43,12 @@ export default function ClasificacionMundial() {
   const [filtroPartido, setFiltroPartido] = useState('');
   const [filtroJornada, setFiltroJornada] = useState('1');
 
-  // Clasificados J3
+  // Clasificados J3 (16vos de final)
   const [clasificadosGuardados, setClasificadosGuardados] = useState({});
   const [cargandoClasificados, setCargandoClasificados] = useState(false);
+  // Clasificados J4 (8vos de final → cuartos)
+  const [clasificadosJ4, setClasificadosJ4] = useState({});
+  const [cargandoClasificadosJ4, setCargandoClasificadosJ4] = useState(false);
   
   // Datos para los selectores
   const [partidos, setPartidos] = useState([]);
@@ -70,10 +73,13 @@ export default function ClasificacionMundial() {
         cargarGanadoresJornada(filtroJornada);
         if (filtroJornada === '3') {
           cargarClasificadosGuardados();
+        } else if (filtroJornada === '4') {
+          cargarClasificadosJ4();
         }
       } else {
         setGanadores(null);
         if (filtroJornada !== '3') setClasificadosGuardados({});
+        if (filtroJornada !== '4') setClasificadosJ4({});
       }
     }
   }, [filtroNombre, filtroPartido, filtroJornada, jornadas.length]);
@@ -235,6 +241,25 @@ export default function ClasificacionMundial() {
       setClasificadosGuardados({});
     } finally {
       setCargandoClasificados(false);
+    }
+  };
+
+  const cargarClasificadosJ4 = async () => {
+    try {
+      setCargandoClasificadosJ4(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.get(
+        `${API_URL}/api/mundial-clasificados/clasificacion-knockout/4`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const porUsuario = {};
+      res.data.forEach(u => { porUsuario[u.usuario_id] = u; });
+      setClasificadosJ4(porUsuario);
+    } catch (err) {
+      console.error('Error cargando clasificados J4:', err);
+      setClasificadosJ4({});
+    } finally {
+      setCargandoClasificadosJ4(false);
     }
   };
 
@@ -449,6 +474,11 @@ export default function ClasificacionMundial() {
                 ⭐ Clasificados 16vos
               </a>
             )}
+            {filtroJornada === '4' && !jornadaAbierta && Object.keys(clasificadosJ4).length > 0 && (
+              <a href="#clasificados-8vos" className="btn btn-outline-primary">
+                ⭐ Clasificados Cuartos
+              </a>
+            )}
             <a href="#ranking-jornada" className="btn btn-outline-success">
               🏆 Ranking Jornada
             </a>
@@ -569,8 +599,6 @@ export default function ClasificacionMundial() {
       </div>
 
       {/* Tabla de Pronósticos */}
-      ) : (
-        <>
           {/* Sección participantes - visible cuando jornada está abierta y no es admin */}
           {!esAdmin && jornadaAbierta && (
             <div className="mb-4">
@@ -825,6 +853,66 @@ export default function ClasificacionMundial() {
                   </div>
                 </div>
               )}
+
+              {/* Tabla de clasificados a Cuartos cuando se ve J4 cerrada */}
+              {filtroJornada === '4' && !jornadaAbierta && clasificadosJ4[grupo.usuario_id] && (
+                <div id="clasificados-8vos" className="mt-3 mb-2">
+                  <div className="d-flex align-items-center justify-content-center gap-3 mb-2 p-2 rounded" style={{ background: '#cfe2ff' }}>
+                    {grupo.foto_perfil && (
+                      <img
+                        src={grupo.foto_perfil}
+                        alt={grupo.jugador}
+                        className="rounded-circle"
+                        style={{ width: '44px', height: '44px', objectFit: 'cover', border: '2px solid #0d6efd' }}
+                        onError={(e) => { e.target.src = '/perfil/default.png'; }}
+                      />
+                    )}
+                    <h5 className="mb-0 fw-bold" style={{ color: '#0d3b8e' }}>⭐ Equipos a Cuartos — {grupo.jugador}</h5>
+                  </div>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-hover" style={{ fontSize: '1.05rem' }}>
+                      <thead style={{ background: '#cfe2ff' }}>
+                        <tr>
+                          <th className="text-center">Pronosticado que avanza</th>
+                          <th className="text-center">Real que avanzó</th>
+                          <th className="text-center" style={{ width: '70px' }}>Pts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...clasificadosJ4[grupo.usuario_id].clasificados]
+                          .sort((a, b) => b.puntos - a.puntos || a.equipo_pronosticado.localeCompare(b.equipo_pronosticado))
+                          .map((c, ci) => (
+                          <tr key={ci} className={c.puntos > 0 ? 'table-success' : 'table-danger'}>
+                            <td>
+                              <div className="d-flex align-items-center gap-2">
+                                <img src={getMundialLogoPorNombre(c.equipo_pronosticado)} alt={c.equipo_pronosticado} style={{ width: '24px', height: '24px', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                                <span>{c.equipo_pronosticado}</span>
+                              </div>
+                            </td>
+                            <td>
+                              {c.puntos > 0 ? (
+                                <div className="d-flex align-items-center gap-2">
+                                  <img src={getMundialLogoPorNombre(c.equipo_pronosticado)} alt={c.equipo_pronosticado} style={{ width: '24px', height: '24px', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                                  <span>{c.equipo_pronosticado} ✓</span>
+                                </div>
+                              ) : (
+                                <span className="text-danger fst-italic">{c.equipo_real || 'No avanzó'}</span>
+                              )}
+                            </td>
+                            <td className="text-center">
+                              <strong className={c.puntos > 0 ? 'text-success' : 'text-danger'}>{c.puntos}</strong>
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="table-dark fw-bold">
+                          <td colSpan="2" className="text-end">TOTAL CLASIFICACIÓN {grupo.jugador} :</td>
+                          <td className="text-center">{clasificadosJ4[grupo.usuario_id].totalPuntos}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </>
@@ -835,7 +923,6 @@ export default function ClasificacionMundial() {
                 : '\u26a0\ufe0f Sin datos: No hay pronósticos con los filtros seleccionados.'}
             </div>
           )}
-        </>
 
       {/* Rankings al final */}
       <div className="mt-5">
