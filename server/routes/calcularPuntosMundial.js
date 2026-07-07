@@ -528,6 +528,10 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
       WHERE mj.numero = $1 AND u.rol != 'admin'
     `, [jornadaNumero]);
 
+    // Puntos por acierto según jornada: J4=2pts (→Octavos), J5=3pts (→Cuartos), J6=3pts (→Semis), J7=5pts (→Final)
+    const puntosClasif = { 4: 2, 5: 3, 6: 3, 7: 5 };
+    const ptsAcierto = puntosClasif[jornadaNumero] || 2;
+
     let insertados = 0;
     for (const match of matchesConAvanzado) {
       for (const { id: uid } of usuariosResult.rows) {
@@ -550,9 +554,9 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
           const fase = `${faseClasif}_PARTIDO_${match.partido_id}`;
           await pool.query(
             `INSERT INTO mundial_puntos_clasificacion (usuario_id, equipo, fase, puntos)
-             VALUES ($1, $2, $3, 2)
-             ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = 2`,
-            [uid, match.avanzado, fase]
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (usuario_id, equipo, fase) DO UPDATE SET puntos = $4`,
+            [uid, match.avanzado, fase, ptsAcierto]
           );
           insertados++;
         }

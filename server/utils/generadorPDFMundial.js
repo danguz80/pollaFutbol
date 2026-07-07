@@ -27,6 +27,7 @@ export async function generarPDFMundial(jornadaNumero) {
       obtenerJornada(jornadaNumero),
       jornadaNumero === 3 ? obtenerClasificados() :
       jornadaNumero === 4 ? obtenerClasificadosKnockout(4, '8VOS') :
+      jornadaNumero === 5 ? obtenerClasificadosKnockout(5, 'CUARTOS') :
       Promise.resolve({})
     ]);
 
