@@ -46,9 +46,12 @@ export default function ClasificacionMundial() {
   // Clasificados J3 (16vos de final)
   const [clasificadosGuardados, setClasificadosGuardados] = useState({});
   const [cargandoClasificados, setCargandoClasificados] = useState(false);
-  // Clasificados J4 (8vos de final → cuartos)
+  // Clasificados J4 (8vos de final → Octavos)
   const [clasificadosJ4, setClasificadosJ4] = useState({});
   const [cargandoClasificadosJ4, setCargandoClasificadosJ4] = useState(false);
+  // Clasificados J5 (Octavos → Cuartos)
+  const [clasificadosJ5, setClasificadosJ5] = useState({});
+  const [cargandoClasificadosJ5, setCargandoClasificadosJ5] = useState(false);
   
   // Datos para los selectores
   const [partidos, setPartidos] = useState([]);
