@@ -23,6 +23,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         p.equipo_local,
         p.equipo_visitante,
         p.grupo,
+        p.subtipo,
         p.fecha as partido_fecha,
         mp.resultado_local as pronostico_local,
         mp.resultado_visitante as pronostico_visita,
@@ -82,6 +83,7 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         local: { nombre: row.equipo_local },
         visita: { nombre: row.equipo_visitante },
         grupo: row.grupo,
+        subtipo: row.subtipo || null,
         fecha: row.partido_fecha,
         resultado: {
           local: row.resultado_local,

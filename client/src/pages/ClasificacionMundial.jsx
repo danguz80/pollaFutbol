@@ -802,6 +802,21 @@ export default function ClasificacionMundial() {
                               />
                             </div>
                           </div>
+                          {/* Badge de coincidencia para partidos de Final y 3er Lugar de J7 */}
+                          {(pronostico.partido.subtipo === 'final' || pronostico.partido.subtipo === 'tercero_lugar') && filtroJornada === '7' && cuadroFinalJ7 && (() => {
+                            const userData = cuadroFinalJ7.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
+                            if (!userData) return null;
+                            const coincide = pronostico.partido.subtipo === 'final' ? userData.finalCoincide : userData.terceroCoincide;
+                            const label = pronostico.partido.subtipo === 'final' ? '🏆 Final' : '🥉 3er Lugar';
+                            if (coincide === undefined || coincide === null) return null;
+                            return (
+                              <div className="mt-1 text-center">
+                                <span className={`badge ${coincide ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.75rem' }}>
+                                  {coincide ? `✅ Bracket coincide — ${label} aplicado` : `❌ Bracket no coincide — 0 puntos`}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         
                         <td className="text-center">
