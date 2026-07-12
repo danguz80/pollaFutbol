@@ -561,9 +561,15 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
               [tmRow.id, userId]);
             if (userTercPred.rows.length > 0) {
               const utp = userTercPred.rows[0];
-              const { winner: predTercero } = getGanadorPerdedor(utp.resultado_local, utp.resultado_visitante, utp.quien_avanza, tmRow.equipo_local, tmRow.equipo_visitante);
+              const { winner: predTercero, loser: predCuarto } = getGanadorPerdedor(utp.resultado_local, utp.resultado_visitante, utp.quien_avanza, tmRow.equipo_local, tmRow.equipo_visitante);
+              // 5 pts 3er lugar
               if (predTercero === realTercero) {
                 await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_TERCERO',5) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=5`, [userId, realTercero]);
+                insertados++;
+              }
+              // 5 pts 4to lugar
+              if (predCuarto === realCuarto) {
+                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CUARTO',5) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=5`, [userId, realCuarto]);
                 insertados++;
               }
             }

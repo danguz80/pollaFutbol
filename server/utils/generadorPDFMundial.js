@@ -273,6 +273,7 @@ async function obtenerCuadroFinalJ7() {
     if (r.fase==='FINAL_CAMPEON') ptsMap[r.usuario_id].campeon += parseInt(r.p);
     if (r.fase==='FINAL_SUBCAMPEON') ptsMap[r.usuario_id].subcampeon += parseInt(r.p);
     if (r.fase==='FINAL_TERCERO') ptsMap[r.usuario_id].tercero += parseInt(r.p);
+    if (r.fase==='FINAL_CUARTO') ptsMap[r.usuario_id].cuarto = (ptsMap[r.usuario_id].cuarto||0) + parseInt(r.p);
   });
   const porUsuario = {};
   bracketsQ.rows.forEach(row => {
@@ -286,7 +287,7 @@ async function obtenerCuadroFinalJ7() {
   });
   Object.values(porUsuario).forEach(u => {
     const p = ptsMap[u.usuario_id] || {};
-    u.totalPuntos = (p.clasificado||0) + (p.campeon||0) + (p.subcampeon||0) + (p.tercero||0);
+    u.totalPuntos = (p.clasificado||0) + (p.campeon||0) + (p.subcampeon||0) + (p.tercero||0) + (p.cuarto||0);
   });
   return porUsuario;
 }

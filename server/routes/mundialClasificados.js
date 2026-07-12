@@ -463,11 +463,12 @@ router.get('/clasificacion-final', verifyToken, async (req, res) => {
       WHERE fase LIKE 'FINAL_%' GROUP BY usuario_id, fase`);
     const ptsMap = {};
     ptsQ.rows.forEach(r => {
-      if (!ptsMap[r.usuario_id]) ptsMap[r.usuario_id] = { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0 };
+      if (!ptsMap[r.usuario_id]) ptsMap[r.usuario_id] = { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0, cuarto: 0 };
       if (r.fase === 'FINAL_CLASIFICADO') ptsMap[r.usuario_id].clasificado += parseInt(r.puntos);
       if (r.fase === 'FINAL_CAMPEON') ptsMap[r.usuario_id].campeon += parseInt(r.puntos);
       if (r.fase === 'FINAL_SUBCAMPEON') ptsMap[r.usuario_id].subcampeon += parseInt(r.puntos);
       if (r.fase === 'FINAL_TERCERO') ptsMap[r.usuario_id].tercero += parseInt(r.puntos);
+      if (r.fase === 'FINAL_CUARTO') ptsMap[r.usuario_id].cuarto += parseInt(r.puntos);
     });
 
     const porUsuario = {};
@@ -475,7 +476,7 @@ router.get('/clasificacion-final', verifyToken, async (req, res) => {
       if (!porUsuario[row.usuario_id]) {
         porUsuario[row.usuario_id] = {
           usuario_id: row.usuario_id, nombre: row.nombre_usuario, foto_perfil: row.foto_perfil,
-          bracket: {}, pts: ptsMap[row.usuario_id] || { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0 }
+          bracket: {}, pts: ptsMap[row.usuario_id] || { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0, cuarto: 0 }
         };
       }
       porUsuario[row.usuario_id].bracket[row.posicion] = row.equipo;
@@ -487,7 +488,7 @@ router.get('/clasificacion-final', verifyToken, async (req, res) => {
       u.equipo_final_2 = b[2] || null;
       u.equipo_tercero_1 = b[3] || null;
       u.equipo_tercero_2 = b[4] || null;
-      u.totalPuntos = u.pts.clasificado + u.pts.campeon + u.pts.subcampeon + u.pts.tercero;
+      u.totalPuntos = u.pts.clasificado + u.pts.campeon + u.pts.subcampeon + u.pts.tercero + u.pts.cuarto;
       // Marcar si bracket coincide con real
       u.finalCoincide = finalReal && realFinalTeams.has(b[1]) && realFinalTeams.has(b[2]);
       u.terceroCoincide = terceroReal && new Set([terceroReal.equipo_local, terceroReal.equipo_visitante]).has(b[3]) && new Set([terceroReal.equipo_local, terceroReal.equipo_visitante]).has(b[4]);

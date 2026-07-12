@@ -1093,6 +1093,12 @@ export default function ClasificacionMundial() {
                             <td className="text-center">{tr && tr.resultado_local !== null ? (tr.resultado_local > tr.resultado_visitante ? tr.equipo_local : tr.equipo_visitante) : '—'}</td>
                             <td className="text-center"><strong className={userData.pts.tercero > 0 ? 'text-success' : 'text-danger'}>{userData.pts.tercero}</strong></td>
                           </tr>
+                          <tr className={(userData.pts.cuarto||0) > 0 ? 'table-success' : tr?.resultado_local !== null ? 'table-danger' : ''}>
+                            <td>4° Lugar</td>
+                            <td className="text-center">{userData.equipo_tercero_1||'—'} vs {userData.equipo_tercero_2||'—'}</td>
+                            <td className="text-center">{tr && tr.resultado_local !== null ? (tr.resultado_local > tr.resultado_visitante ? tr.equipo_visitante : tr.equipo_local) : '—'}</td>
+                            <td className="text-center"><strong className={(userData.pts.cuarto||0) > 0 ? 'text-success' : 'text-danger'}>{userData.pts.cuarto||0}</strong></td>
+                          </tr>
                         </tbody>
                         <tfoot>
                           <tr className="table-dark fw-bold"><td colSpan="3" className="text-end">TOTAL CUADRO FINAL {grupo.jugador} :</td><td className="text-center">{userData.totalPuntos}</td></tr>

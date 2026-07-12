@@ -100,7 +100,7 @@ export default function PuntuacionMundial() {
   }
 
   const gruposPorFase = agruparPorFase();
-  const ordenFases = ['FASE DE GRUPOS', 'CLASIFICACIÓN', '16VOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINALES', 'FINAL', 'CAMPEÓN'];
+  const ordenFases = ['FASE DE GRUPOS', 'CLASIFICACIÓN', '16VOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINALES', 'FINAL', 'CUADRO FINAL'];
 
   return (
     <div className="container mt-4 mb-5">
