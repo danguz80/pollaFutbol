@@ -455,7 +455,21 @@ export default function AdminMundialResultados() {
     }
   };
 
-  const resetearTodos = () => {
+  const resetearTodos = async () => {
+    // En J7: preguntar si también borrar los partidos generados de Final + 3er Lugar
+    if (String(jornadaSeleccionada) === '7') {
+      const confirmar = confirm('\u00bfResetear resultados de la Jornada 7?\n\nEsto también eliminará los partidos generados de Final y 3er Lugar (y sus pronósticos).');
+      if (!confirmar) return;
+      try {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_BASE_URL}/api/mundial-calcular/borrar-partidos-finales`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        await fetchPartidos(jornadaSeleccionada);
+        return;
+      } catch (e) { console.warn('Error borrando partidos finales:', e); }
+    }
     const partidosReseteados = partidos.map(p => ({
       ...p,
       golesLocal: "",

@@ -313,6 +313,32 @@ router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res)
   }
 });
 
+// DELETE /api/mundial-calcular/borrar-partidos-finales — borra Final y 3er Lugar (para reset J7)
+router.delete('/borrar-partidos-finales', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    // Borrar pronosticos de esos partidos primero
+    await pool.query(`
+      DELETE FROM mundial_pronosticos WHERE partido_id IN (
+        SELECT p.id FROM mundial_partidos p
+        INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+        WHERE mj.numero=7 AND p.subtipo IN ('final','tercero_lugar')
+      )`);
+    // Borrar los partidos
+    const r = await pool.query(`
+      DELETE FROM mundial_partidos WHERE id IN (
+        SELECT p.id FROM mundial_partidos p
+        INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+        WHERE mj.numero=7 AND p.subtipo IN ('final','tercero_lugar')
+      ) RETURNING id`);
+    // Limpiar puntos clasificacion FINAL
+    await pool.query(`DELETE FROM mundial_puntos_clasificacion WHERE fase LIKE 'FINAL_%'`);
+    res.json({ mensaje: `✅ ${r.rowCount} partidos finales eliminados`, borrados: r.rowCount });
+  } catch (error) {
+    console.error('Error borrando partidos finales:', error);
+    res.status(500).json({ error: 'Error borrando partidos finales', details: error.message });
+  }
+});
+
 // POST /api/mundial-calcular/crear-partidos-finales — crea los partidos de Final y 3er Lugar basado en resultados reales de semis
 router.post('/crear-partidos-finales', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
