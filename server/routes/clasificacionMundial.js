@@ -99,6 +99,86 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       fecha_pronostico: row.fecha_pronostico
     }));
 
+    // Si se consulta J7: agregar las predicciones virtuales de Final y 3er Lugar
+    if (jornada_numero === '7' || jornada_numero === 7) {
+      // Obtener jornada 7 info
+      const j7 = await pool.query(`SELECT id, numero, nombre, cerrada FROM mundial_jornadas WHERE numero=7`);
+      const j7Row = j7.rows[0];
+
+      // Brackets virtuales (equipos)
+      const bracketsQ = await pool.query(`
+        SELECT pfv.usuario_id, u.nombre as usuario_nombre, u.foto_perfil,
+               pfv.equipo, pfv.posicion
+        FROM mundial_pronosticos_final_virtual pfv
+        INNER JOIN usuarios u ON pfv.usuario_id=u.id
+        ${usuario_id ? 'WHERE pfv.usuario_id=$1' : ''}
+        ORDER BY pfv.usuario_id, pfv.posicion`, usuario_id ? [usuario_id] : []);
+
+      // Agrupar brackets por usuario
+      const bracketsByUser = {};
+      bracketsQ.rows.forEach(r => {
+        if (!bracketsByUser[r.usuario_id]) bracketsByUser[r.usuario_id] = { nombre: r.usuario_nombre, foto: r.foto_perfil, equipos: {} };
+        bracketsByUser[r.usuario_id].equipos[r.posicion] = r.equipo;
+      });
+
+      // Predicciones virtuales de score
+      const scoresQ = await pool.query(`
+        SELECT pvf.usuario_id, pvf.tipo, pvf.resultado_local, pvf.resultado_visitante, pvf.quien_avanza
+        FROM mundial_pronosticos_virtual_final pvf
+        ${usuario_id ? 'WHERE pvf.usuario_id=$1' : ''}`, usuario_id ? [usuario_id] : []);
+
+      const scoresByUser = {};
+      scoresQ.rows.forEach(r => {
+        if (!scoresByUser[r.usuario_id]) scoresByUser[r.usuario_id] = {};
+        scoresByUser[r.usuario_id][r.tipo] = r;
+      });
+
+      // Construir pronosticos virtuales en el mismo formato
+      for (const [uid, bData] of Object.entries(bracketsByUser)) {
+        const userId = parseInt(uid);
+        const userScores = scoresByUser[userId] || {};
+
+        const virtualPartidos = [
+          { tipo: 'final', subtipo: 'final_virtual', local: bData.equipos[1], visita: bData.equipos[2], bonus: 2, label: '🏆 Final (virtual)' },
+          { tipo: 'tercero_lugar', subtipo: 'tercero_virtual', local: bData.equipos[3], visita: bData.equipos[4], bonus: 1, label: '🥉 3er Lugar (virtual)' }
+        ];
+
+        for (const vp of virtualPartidos) {
+          if (!vp.local || !vp.visita) continue;
+          const score = userScores[vp.tipo];
+          pronosticos.push({
+            id: `virtual_${vp.tipo}_${userId}`,
+            esVirtual: true,
+            usuario: { id: userId, nombre: bData.nombre, foto_perfil: bData.foto },
+            jornada: j7Row ? { id: j7Row.id, numero: 7, nombre: j7Row.nombre, cerrada: j7Row.cerrada } : {},
+            partido: {
+              id: null,
+              local: { nombre: vp.local },
+              visita: { nombre: vp.visita },
+              grupo: null,
+              subtipo: vp.subtipo,
+              fecha: null,
+              resultado: { local: null, visita: null },
+              bonus: vp.bonus
+            },
+            pronostico: {
+              local: score?.resultado_local ?? '—',
+              visita: score?.resultado_visitante ?? '—'
+            },
+            puntos: null,
+            fecha_pronostico: null
+          });
+        }
+      }
+
+      // Re-ordenar: semis primero, luego virtuales
+      pronosticos.sort((a, b) => {
+        if (a.esVirtual && !b.esVirtual) return 1;
+        if (!a.esVirtual && b.esVirtual) return -1;
+        return (a.usuario.nombre || '').localeCompare(b.usuario.nombre || '');
+      });
+    }
+
     res.json(pronosticos);
   } catch (error) {
     console.error('Error obteniendo pronósticos:', error);

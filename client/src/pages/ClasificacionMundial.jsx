@@ -779,7 +779,8 @@ export default function ClasificacionMundial() {
                   </thead>
                   <tbody>
                     {grupo.pronosticos.map((pronostico, index) => (
-                      <tr key={`pronostico-${pronostico.id}-${index}`} className={getResultadoClase(pronostico)}>
+                      <tr key={`pronostico-${pronostico.id}-${index}`} className={pronostico.esVirtual ? '' : getResultadoClase(pronostico)}
+                        style={pronostico.esVirtual && pronostico.partido.subtipo === 'final_virtual' ? { background: '#fffde7', borderLeft: '4px solid #ffd700' } : pronostico.esVirtual ? { background: '#fdf5e6', borderLeft: '4px solid #cd7f32' } : {}}>
                         <td>
                           <div className="d-flex align-items-center justify-content-center gap-3">
                             <div className="d-flex align-items-center gap-2">
@@ -812,7 +813,7 @@ export default function ClasificacionMundial() {
                             return (
                               <div className="mt-1 text-center">
                                 <span className={`badge ${coincide ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.75rem' }}>
-                                  {coincide ? `✅ Bracket coincide — ${label} aplicado` : `❌ Bracket no coincide — 0 puntos`}
+                                  {coincide ? `✅ Partido coincide — ${label} aplicado` : `❌ Partido no coincide — 0 puntos`}
                                 </span>
                               </div>
                             );
@@ -840,8 +841,8 @@ export default function ClasificacionMundial() {
                         </td>
                         
                         <td className="text-center">
-                          <strong className={pronostico.puntos > 0 ? 'text-success' : 'text-danger'}>
-                            {pronostico.puntos || 0}
+                          <strong className={pronostico.puntos > 0 ? 'text-success' : pronostico.puntos === null ? 'text-muted' : 'text-danger'}>
+                            {pronostico.puntos === null ? '—' : (pronostico.puntos || 0)}
                           </strong>
                         </td>
                       </tr>
