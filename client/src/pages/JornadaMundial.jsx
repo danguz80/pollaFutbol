@@ -419,7 +419,17 @@ export default function JornadaMundial() {
                 return '';
               };
 
-              const getBonusBanner = (bonus) => {
+              const getBonusBanner = (bonus, subtipo) => {
+                if (subtipo === 'final') return (
+                  <div className="text-center py-2 fw-bold" style={{ background: 'linear-gradient(135deg,#b8860b,#ffd700,#b8860b)', color: '#000', fontSize: '1.1rem', borderTopLeftRadius: '0.375rem', borderTopRightRadius: '0.375rem' }}>
+                    🏆 GRAN FINAL — BONUS x2 🏆
+                  </div>
+                );
+                if (subtipo === 'tercero_lugar') return (
+                  <div className="text-center py-2 fw-bold" style={{ backgroundColor: '#cd7f32', color: '#fff', fontSize: '1rem', borderTopLeftRadius: '0.375rem', borderTopRightRadius: '0.375rem' }}>
+                    🥉 PARTIDO POR EL 3er LUGAR
+                  </div>
+                );
                 if (Number(bonus) === 2) {
                   return (
                     <div className="text-center py-2 fw-bold" style={{ 
@@ -451,8 +461,8 @@ export default function JornadaMundial() {
 
               return (
                 <div key={partido.id} className="col-12 col-md-6 col-lg-4">
-                  <div className={`card shadow-sm h-100 ${getBorderClass(partido.bonus)}`}>
-                    {getBonusBanner(partido.bonus)}
+                  <div className={`card shadow-sm h-100 ${partido.subtipo === 'final' ? 'border-warning border-3' : partido.subtipo === 'tercero_lugar' ? 'border-secondary border-2' : getBorderClass(partido.bonus)}`}>
+                    {getBonusBanner(partido.bonus, partido.subtipo)}
                     <div className="card-header bg-info text-white text-center">
                       <small className="fw-bold">Partido {index + 1}</small>
                       {partido.grupo && (

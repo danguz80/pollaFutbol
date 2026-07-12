@@ -159,6 +159,7 @@ export default function AdminMundialResultados() {
         golesVisita: p.resultado_visitante ?? "",
         quienAvanzo: p.quien_avanzo || "",
         bonus: p.bonus ?? 1,
+        subtipo: p.subtipo || null,
         jornadaId: p.jornada_id,
         grupo: p.grupo,
         paisLocal: p.pais_local,
@@ -310,6 +311,7 @@ export default function AdminMundialResultados() {
       
       const partidosParaGuardar = partidos.map(p => ({
         id: p.id,
+        subtipo: p.subtipo || null,
         resultado_local: p.golesLocal === "" ? null : Number(p.golesLocal),
         resultado_visitante: p.golesVisita === "" ? null : Number(p.golesVisita),
         quien_avanzo: p.quienAvanzo || null,
@@ -832,7 +834,17 @@ export default function AdminMundialResultados() {
                     if (Number(bonus) === 3) return 'border-danger border-3';
                     return '';
                   };
-                  const getBonusBanner = (bonus) => {
+                  const getBonusBanner = (bonus, subtipo) => {
+                    if (subtipo === 'final') return (
+                      <div className="text-center py-2 fw-bold" style={{ background: 'linear-gradient(135deg,#b8860b,#ffd700,#b8860b)', color: '#000', fontSize: '1rem', borderTopLeftRadius: '0.375rem', borderTopRightRadius: '0.375rem' }}>
+                        🏆 GRAN FINAL — BONUS x2 🏆
+                      </div>
+                    );
+                    if (subtipo === 'tercero_lugar') return (
+                      <div className="text-center py-2 fw-bold" style={{ backgroundColor: '#cd7f32', color: '#fff', fontSize: '1rem', borderTopLeftRadius: '0.375rem', borderTopRightRadius: '0.375rem' }}>
+                        🥉 PARTIDO POR EL 3er LUGAR
+                      </div>
+                    );
                     if (Number(bonus) === 2) return (
                       <div className="text-center py-2 fw-bold" style={{ backgroundColor: '#ffc107', color: '#000', fontSize: '1rem', borderTopLeftRadius: '0.375rem', borderTopRightRadius: '0.375rem' }}>
                         ⚡ PARTIDO BONUS x2 ⚡
@@ -845,10 +857,11 @@ export default function AdminMundialResultados() {
                     );
                     return null;
                   };
+                  const borderClass = partido.subtipo === 'final' ? 'border-warning border-3' : partido.subtipo === 'tercero_lugar' ? 'border-secondary border-2' : getBorderClass(partido.bonus);
                   return (
                   <div key={partido.id} className="col-12 col-md-6 col-lg-4">
-                    <div className={`card shadow-sm h-100 ${getBorderClass(partido.bonus)}`}>
-                      {getBonusBanner(partido.bonus)}
+                    <div className={`card shadow-sm h-100 ${borderClass}`}>
+                      {getBonusBanner(partido.bonus, partido.subtipo)}
                       <div className="card-header bg-info text-white text-center">
                         <div className="d-flex justify-content-between align-items-center">
                           <small className="fw-bold">Partido {index + 1}</small>
@@ -1007,11 +1020,6 @@ export default function AdminMundialResultados() {
                 >
                   {calculandoAcumuladoFinal ? <><span className="spinner-border spinner-border-sm me-2"/></> : '🏆'} Campeón Acumulado Final
                 </button>
-                {jornadaSeleccionada === '7' && (
-                  <button className="btn btn-danger btn-lg px-4" onClick={crearPartidosFinales}>
-                    ⚽ Crear Partidos Final + 3er Lugar
-                  </button>
-                )}
                 <button
                   className="btn btn-outline-secondary btn-lg"
                   onClick={() => {

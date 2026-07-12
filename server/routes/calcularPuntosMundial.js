@@ -333,8 +333,8 @@ router.post('/crear-partidos-finales', verifyToken, authorizeRoles('admin'), asy
       created.push(`3er Lugar: ${s1.loser} vs ${s2.loser}`);
     }
     if (!existSubtipos.has('final')) {
-      await pool.query(`INSERT INTO mundial_partidos (jornada_id,equipo_local,equipo_visitante,bonus,subtipo) VALUES ($1,$2,$3,1,'final')`, [jornadaId, s1.winner, s2.winner]);
-      created.push(`Final: ${s1.winner} vs ${s2.winner}`);
+      await pool.query(`INSERT INTO mundial_partidos (jornada_id,equipo_local,equipo_visitante,bonus,subtipo) VALUES ($1,$2,$3,2,'final')`, [jornadaId, s1.winner, s2.winner]);
+      created.push(`Final (x2): ${s1.winner} vs ${s2.winner}`);
     }
     if (created.length === 0) return res.json({ mensaje: 'Los partidos finales ya existen' });
 
