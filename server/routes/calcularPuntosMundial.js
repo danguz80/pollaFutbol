@@ -486,6 +486,17 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
         console.log('⚠️ Final aún no jugada, omitiendo clasificación FINAL');
         return;
       }
+
+      // Leer puntos dinámicamente desde mundial_puntuacion
+      const puntajeQ = await pool.query(`SELECT concepto, puntos FROM mundial_puntuacion WHERE fase='CUADRO FINAL'`);
+      const puntajeMap = {};
+      puntajeQ.rows.forEach(r => { puntajeMap[r.concepto.toLowerCase()] = parseInt(r.puntos); });
+      const ptsFinalista   = puntajeMap['equipo clasificado para la final'] || 5; // desde CLASIFICACIÓN
+      const ptsCampeon     = puntajeMap['campeón del mundial']  || 20;
+      const ptsSubcampeon  = puntajeMap['subcampeón']           || 10;
+      const ptsTercero     = puntajeMap['tercer lugar']         || 5;
+      const ptsCuarto      = puntajeMap['cuarto lugar']         || 3;
+
       const fm = finalQ.rows[0];
       const { winner: realCampeon, loser: realSubcampeon } = getGanadorPerdedor(
         fm.resultado_local, fm.resultado_visitante, fm.quien_avanzo, fm.equipo_local, fm.equipo_visitante);
@@ -497,6 +508,10 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
         const r3 = getGanadorPerdedor(tmRow.resultado_local, tmRow.resultado_visitante, tmRow.quien_avanzo, tmRow.equipo_local, tmRow.equipo_visitante);
         realTercero = r3.winner; realCuarto = r3.loser;
       }
+
+      // Puntos de finalistas también desde CLASIFICACIÓN
+      const clasifQ = await pool.query(`SELECT puntos FROM mundial_puntuacion WHERE fase='CLASIFICACIÓN' AND concepto LIKE '%FINAL%'`);
+      const ptsFinalClasif = clasifQ.rows.length > 0 ? parseInt(clasifQ.rows[0].puntos) : 5;
 
       // Borrar clasificación FINAL anterior
       await pool.query(`DELETE FROM mundial_puntos_clasificacion WHERE fase LIKE 'FINAL_%'`);
@@ -514,22 +529,18 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
         const userId = parseInt(uid);
         const vFinalL = b[1], vFinalV = b[2], vTercL = b[3], vTercV = b[4];
 
-        // 5 pts por cada equipo correctamente predicho en la final
+        // Pts por cada equipo correctamente predicho en la final
         for (const eq of [vFinalL, vFinalV]) {
           if (eq && realFinalTeams.has(eq)) {
             await pool.query(
-              `INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CLASIFICADO',5) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=5`,
-              [userId, eq]);
+              `INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CLASIFICADO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`,
+              [userId, eq, ptsFinalClasif]);
             insertados++;
           }
         }
 
-        // Verificar si el bracket final del usuario coincide con el partido real
-        const vFinalTeams = new Set([vFinalL, vFinalV].filter(Boolean));
         const finalTeamsOK = vFinalL && vFinalV && realFinalTeams.has(vFinalL) && realFinalTeams.has(vFinalV);
-
         if (finalTeamsOK) {
-          // Obtener predicción del usuario para el partido final real
           const userFinalPred = await pool.query(
             `SELECT resultado_local, resultado_visitante, quien_avanza FROM mundial_pronosticos WHERE partido_id=$1 AND usuario_id=$2`,
             [fm.id, userId]);
@@ -537,22 +548,18 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
             const ufp = userFinalPred.rows[0];
             const { winner: predCampeon, loser: predSubcampeon } = getGanadorPerdedor(
               ufp.resultado_local, ufp.resultado_visitante, ufp.quien_avanza, fm.equipo_local, fm.equipo_visitante);
-            // 20 pts campeón
             if (predCampeon === realCampeon) {
-              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CAMPEON',20) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=20`, [userId, realCampeon]);
+              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CAMPEON',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realCampeon, ptsCampeon]);
               insertados++;
             }
-            // 10 pts subcampeón
             if (predSubcampeon === realSubcampeon) {
-              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_SUBCAMPEON',10) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=10`, [userId, realSubcampeon]);
+              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_SUBCAMPEON',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realSubcampeon, ptsSubcampeon]);
               insertados++;
             }
           }
         }
 
-        // 5 pts tercer lugar
         if (realTercero && tmRow && vTercL && vTercV) {
-          const vTercTeams = new Set([vTercL, vTercV]);
           const realTercTeams = new Set([tmRow.equipo_local, tmRow.equipo_visitante]);
           const tercTeamsOK = realTercTeams.has(vTercL) && realTercTeams.has(vTercV);
           if (tercTeamsOK) {
@@ -562,21 +569,19 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
             if (userTercPred.rows.length > 0) {
               const utp = userTercPred.rows[0];
               const { winner: predTercero, loser: predCuarto } = getGanadorPerdedor(utp.resultado_local, utp.resultado_visitante, utp.quien_avanza, tmRow.equipo_local, tmRow.equipo_visitante);
-              // 5 pts 3er lugar
               if (predTercero === realTercero) {
-                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_TERCERO',5) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=5`, [userId, realTercero]);
+                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_TERCERO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realTercero, ptsTercero]);
                 insertados++;
               }
-              // 5 pts 4to lugar
               if (predCuarto === realCuarto) {
-                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CUARTO',5) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=5`, [userId, realCuarto]);
+                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CUARTO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realCuarto, ptsCuarto]);
                 insertados++;
               }
             }
           }
         }
       }
-      console.log(`✅ Clasificación FINAL calculada: ${insertados} registros para ${Object.keys(allBrackets).length} usuarios`);
+      console.log(`✅ Clasificación FINAL calculada (campeon=${ptsCampeon}pts, sub=${ptsSubcampeon}pts, 3ro=${ptsTercero}pts, 4to=${ptsCuarto}pts): ${insertados} registros`);
       return;
     }
 
