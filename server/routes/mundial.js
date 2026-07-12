@@ -708,6 +708,42 @@ router.post('/pronosticos/:numero', verifyToken, async (req, res) => {
       mensaje: 'Pronósticos guardados exitosamente',
       total: pronosticos.length 
     });
+
+    // Auto-generar bracket virtual para J7 después de guardar predicciones de semis
+    if (numero === '7') {
+      try {
+        const semis = await pool.query(`
+          SELECT p.id, p.equipo_local, p.equipo_visitante
+          FROM mundial_partidos p INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+          WHERE mj.numero=7 AND p.subtipo='semifinal' ORDER BY p.id`);
+        if (semis.rows.length >= 2) {
+          const [semi1, semi2] = semis.rows;
+          const predsRes = await pool.query(`
+            SELECT partido_id, resultado_local, resultado_visitante, quien_avanza
+            FROM mundial_pronosticos WHERE usuario_id=$1 AND partido_id IN ($2,$3)`,
+            [usuario_id, semi1.id, semi2.id]);
+          if (predsRes.rows.length === 2) {
+            const p1 = predsRes.rows.find(p => p.partido_id === semi1.id);
+            const p2 = predsRes.rows.find(p => p.partido_id === semi2.id);
+            const getWL = (pred, match) => {
+              let w, l;
+              if (pred.resultado_local > pred.resultado_visitante) { w=match.equipo_local; l=match.equipo_visitante; }
+              else if (pred.resultado_visitante > pred.resultado_local) { w=match.equipo_visitante; l=match.equipo_local; }
+              else { w=pred.quien_avanza||match.equipo_local; l=(w===match.equipo_local)?match.equipo_visitante:match.equipo_local; }
+              return {w,l};
+            };
+            const r1 = getWL(p1, semi1), r2 = getWL(p2, semi2);
+            const bracket = [{posicion:1,equipo:r1.w},{posicion:2,equipo:r2.w},{posicion:3,equipo:r1.l},{posicion:4,equipo:r2.l}];
+            for (const b of bracket) {
+              await pool.query(`INSERT INTO mundial_pronosticos_final_virtual (usuario_id,equipo,posicion,puntos) VALUES ($1,$2,$3,0) ON CONFLICT (usuario_id,posicion) DO UPDATE SET equipo=EXCLUDED.equipo,actualizado_en=NOW()`, [usuario_id, b.equipo, b.posicion]);
+            }
+            console.log(`✅ Bracket virtual J7 generado para usuario ${usuario_id}: Final ${r1.w} vs ${r2.w} | 3er ${r1.l} vs ${r2.l}`);
+          }
+        }
+      } catch (bracketErr) {
+        console.error('⚠️ Error generando bracket virtual J7:', bracketErr.message);
+      }
+    }
   } catch (error) {
     console.error('Error guardando pronósticos:', error);
     res.status(500).json({ error: 'Error guardando pronósticos', details: error.message });

@@ -13,14 +13,25 @@ function getSigno(golesLocal, golesVisita) {
   return 'X';
 }
 
-// Función auxiliar para determinar la fase según la jornada
-function getFaseDeJornada(jornadaNumero) {
+// Función auxiliar para determinar la fase según la jornada (y subtipo del partido)
+function getFaseDeJornada(jornadaNumero, subtipo) {
+  if (subtipo === 'final') return 'FINAL';
+  if (subtipo === 'tercero_lugar') return 'SEMIFINALES'; // Mismo puntaje que semis
   if (jornadaNumero >= 1 && jornadaNumero <= 3) return 'FASE DE GRUPOS';
   if (jornadaNumero === 4) return '16VOS';
   if (jornadaNumero === 5) return 'OCTAVOS';
   if (jornadaNumero === 6) return 'CUARTOS';
-  if (jornadaNumero === 7) return 'SEMIFINALES'; // Incluye semifinales y final
+  if (jornadaNumero === 7) return 'SEMIFINALES';
   return 'FASE DE GRUPOS';
+}
+
+// Determina ganador/perdedor de un partido dada predicción o resultado real
+function getGanadorPerdedor(local, visita, quienAvanza, equipoLocal, equipoVisitante) {
+  let winner, loser;
+  if (local > visita) { winner = equipoLocal; loser = equipoVisitante; }
+  else if (visita > local) { winner = equipoVisitante; loser = equipoLocal; }
+  else { winner = quienAvanza || equipoLocal; loser = winner === equipoLocal ? equipoVisitante : equipoLocal; }
+  return { winner, loser };
 }
 
 // POST /api/mundial-calcular/puntos - Calcular y asignar puntos a todos los pronósticos (o de una jornada específica)
@@ -48,20 +59,32 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         p.equipo_local,
         p.equipo_visitante,
         p.bonus,
+        p.subtipo,
         mj.numero as jornada_numero
       FROM mundial_pronosticos mp
       INNER JOIN mundial_partidos p ON mp.partido_id = p.id
       INNER JOIN mundial_jornadas mj ON mp.jornada_id = mj.id
       WHERE p.resultado_local IS NOT NULL 
         AND p.resultado_visitante IS NOT NULL`;
-    
+
     const params = [];
     if (jornadaNumero) {
       query += ` AND mj.numero = $1`;
       params.push(jornadaNumero);
     }
-    
+
     const pronosticosResult = await pool.query(query, params);
+
+    // Pre-cargar brackets virtuales de J7 si hay partidos de final/tercero
+    const bracketMap = {}; // usuario_id → {1:equipo, 2:equipo, 3:equipo, 4:equipo}
+    const tieneJ7FinalOTercero = pronosticosResult.rows.some(p => p.subtipo === 'final' || p.subtipo === 'tercero_lugar');
+    if (tieneJ7FinalOTercero) {
+      const brackets = await pool.query(`SELECT usuario_id, equipo, posicion FROM mundial_pronosticos_final_virtual`);
+      brackets.rows.forEach(b => {
+        if (!bracketMap[b.usuario_id]) bracketMap[b.usuario_id] = {};
+        bracketMap[b.usuario_id][b.posicion] = b.equipo;
+      });
+    }
 
     let pronosticosActualizados = 0;
     let puntosAsignados = 0;
@@ -70,6 +93,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
     for (const pronostico of pronosticosResult.rows) {
       const {
         id,
+        usuario_id,
         pronostico_local,
         pronostico_visita,
         pronostico_quien_avanza,
@@ -77,14 +101,17 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         resultado_visitante,
         quien_avanzo,
         bonus,
-        jornada_numero
+        subtipo,
+        jornada_numero,
+        equipo_local,
+        equipo_visitante
       } = pronostico;
 
       // Bonus del partido (x1, x2, x3, etc.)
       const bonusMultiplicador = bonus || 1;
 
       // Determinar la fase según el número de jornada
-      const fase = getFaseDeJornada(jornada_numero);
+      const fase = getFaseDeJornada(jornada_numero, subtipo);
       
       // Obtener reglas de puntuación para esta fase
       const puntosSigno = reglas.find(r => r.fase === fase && r.concepto.includes('Signo 1X2'))?.puntos || 1;
@@ -119,6 +146,18 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
       // Multiplicar puntos por el bonus del partido
       // NOTA: +2 pts por quien avanza NO van aquí, van en mundial_puntos_clasificacion (sin bonus)
+
+      // Para partidos de Final y Tercer Lugar (J7): verificar que el bracket virtual coincide
+      if ((subtipo === 'final' || subtipo === 'tercero_lugar') && puntosGanados > 0) {
+        const userBracket = bracketMap[usuario_id] || {};
+        let predLocal, predVisita;
+        if (subtipo === 'final') { predLocal = userBracket[1]; predVisita = userBracket[2]; }
+        else { predLocal = userBracket[3]; predVisita = userBracket[4]; }
+        const realTeams = new Set([equipo_local, equipo_visitante]);
+        const bracketMatch = predLocal && predVisita && realTeams.has(predLocal) && realTeams.has(predVisita);
+        if (!bracketMatch) puntosGanados = 0; // Equipos no coinciden → 0 pts
+      }
+
       const puntosFinales = puntosGanados * bonusMultiplicador;
 
       // Actualizar puntos en la base de datos
@@ -274,6 +313,37 @@ router.post('/ganadores', verifyToken, authorizeRoles('admin'), async (req, res)
   }
 });
 
+// POST /api/mundial-calcular/crear-partidos-finales — crea los partidos de Final y 3er Lugar basado en resultados reales de semis
+router.post('/crear-partidos-finales', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const semis = await pool.query(`
+      SELECT p.id, p.equipo_local, p.equipo_visitante, p.resultado_local, p.resultado_visitante, p.quien_avanzo, mj.id as jornada_id
+      FROM mundial_partidos p INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+      WHERE mj.numero=7 AND p.subtipo='semifinal' AND p.resultado_local IS NOT NULL
+      ORDER BY p.id`);
+    if (semis.rows.length < 2) return res.status(400).json({ error: 'No hay 2 resultados de semifinales registrados' });
+    const jornadaId = semis.rows[0].jornada_id;
+    const s1 = getGanadorPerdedor(semis.rows[0].resultado_local, semis.rows[0].resultado_visitante, semis.rows[0].quien_avanzo, semis.rows[0].equipo_local, semis.rows[0].equipo_visitante);
+    const s2 = getGanadorPerdedor(semis.rows[1].resultado_local, semis.rows[1].resultado_visitante, semis.rows[1].quien_avanzo, semis.rows[1].equipo_local, semis.rows[1].equipo_visitante);
+    const existing = await pool.query(`SELECT subtipo FROM mundial_partidos WHERE jornada_id=$1 AND subtipo IN ('final','tercero_lugar')`, [jornadaId]);
+    const existSubtipos = new Set(existing.rows.map(r => r.subtipo));
+    const created = [];
+    if (!existSubtipos.has('tercero_lugar')) {
+      await pool.query(`INSERT INTO mundial_partidos (jornada_id,equipo_local,equipo_visitante,bonus,subtipo) VALUES ($1,$2,$3,1,'tercero_lugar')`, [jornadaId, s1.loser, s2.loser]);
+      created.push(`3er Lugar: ${s1.loser} vs ${s2.loser}`);
+    }
+    if (!existSubtipos.has('final')) {
+      await pool.query(`INSERT INTO mundial_partidos (jornada_id,equipo_local,equipo_visitante,bonus,subtipo) VALUES ($1,$2,$3,1,'final')`, [jornadaId, s1.winner, s2.winner]);
+      created.push(`Final: ${s1.winner} vs ${s2.winner}`);
+    }
+    if (created.length === 0) return res.json({ mensaje: 'Los partidos finales ya existen' });
+    res.json({ mensaje: `✅ Partidos creados: ${created.join(' | ')}`, created });
+  } catch (error) {
+    console.error('❌ Error creando partidos finales:', error);
+    res.status(500).json({ error: 'Error creando partidos finales', details: error.message });
+  }
+});
+
 // POST /api/mundial-calcular/ganadores-acumulado-final — declara el pódio definitivo del acumulado
 router.post('/ganadores-acumulado-final', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
@@ -399,6 +469,110 @@ async function calcularPuntosClasificacionMundial() {
 async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) {
   try {
     console.log(`🔄 Calculando puntos de clasificación para J${jornadaNumero} (${faseClasif})...`);
+
+    // ── J7: FINAL ─────────────────────────────────────────────────────────────
+    if (jornadaNumero === 7 && faseClasif === 'FINAL') {
+      // Obtener partido final y tercer lugar con resultados
+      const finalQ = await pool.query(`
+        SELECT p.id, p.equipo_local, p.equipo_visitante, p.resultado_local, p.resultado_visitante, p.quien_avanzo
+        FROM mundial_partidos p INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+        WHERE mj.numero=7 AND p.subtipo='final' AND p.resultado_local IS NOT NULL`);
+      const terceroQ = await pool.query(`
+        SELECT p.id, p.equipo_local, p.equipo_visitante, p.resultado_local, p.resultado_visitante, p.quien_avanzo
+        FROM mundial_partidos p INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+        WHERE mj.numero=7 AND p.subtipo='tercero_lugar' AND p.resultado_local IS NOT NULL`);
+
+      if (finalQ.rows.length === 0) {
+        console.log('⚠️ Final aún no jugada, omitiendo clasificación FINAL');
+        return;
+      }
+      const fm = finalQ.rows[0];
+      const { winner: realCampeon, loser: realSubcampeon } = getGanadorPerdedor(
+        fm.resultado_local, fm.resultado_visitante, fm.quien_avanzo, fm.equipo_local, fm.equipo_visitante);
+      const realFinalTeams = new Set([fm.equipo_local, fm.equipo_visitante]);
+
+      let realTercero = null, realCuarto = null, tmRow = null;
+      if (terceroQ.rows.length > 0) {
+        tmRow = terceroQ.rows[0];
+        const r3 = getGanadorPerdedor(tmRow.resultado_local, tmRow.resultado_visitante, tmRow.quien_avanzo, tmRow.equipo_local, tmRow.equipo_visitante);
+        realTercero = r3.winner; realCuarto = r3.loser;
+      }
+
+      // Borrar clasificación FINAL anterior
+      await pool.query(`DELETE FROM mundial_puntos_clasificacion WHERE fase LIKE 'FINAL_%'`);
+
+      // Obtener todos los brackets virtuales
+      const bracketsAll = await pool.query(`SELECT usuario_id, equipo, posicion FROM mundial_pronosticos_final_virtual`);
+      const allBrackets = {};
+      bracketsAll.rows.forEach(b => {
+        if (!allBrackets[b.usuario_id]) allBrackets[b.usuario_id] = {};
+        allBrackets[b.usuario_id][b.posicion] = b.equipo;
+      });
+
+      let insertados = 0;
+      for (const [uid, b] of Object.entries(allBrackets)) {
+        const userId = parseInt(uid);
+        const vFinalL = b[1], vFinalV = b[2], vTercL = b[3], vTercV = b[4];
+
+        // 5 pts por cada equipo correctamente predicho en la final
+        for (const eq of [vFinalL, vFinalV]) {
+          if (eq && realFinalTeams.has(eq)) {
+            await pool.query(
+              `INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CLASIFICADO',5) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=5`,
+              [userId, eq]);
+            insertados++;
+          }
+        }
+
+        // Verificar si el bracket final del usuario coincide con el partido real
+        const vFinalTeams = new Set([vFinalL, vFinalV].filter(Boolean));
+        const finalTeamsOK = vFinalL && vFinalV && realFinalTeams.has(vFinalL) && realFinalTeams.has(vFinalV);
+
+        if (finalTeamsOK) {
+          // Obtener predicción del usuario para el partido final real
+          const userFinalPred = await pool.query(
+            `SELECT resultado_local, resultado_visitante, quien_avanza FROM mundial_pronosticos WHERE partido_id=$1 AND usuario_id=$2`,
+            [fm.id, userId]);
+          if (userFinalPred.rows.length > 0) {
+            const ufp = userFinalPred.rows[0];
+            const { winner: predCampeon, loser: predSubcampeon } = getGanadorPerdedor(
+              ufp.resultado_local, ufp.resultado_visitante, ufp.quien_avanza, fm.equipo_local, fm.equipo_visitante);
+            // 20 pts campeón
+            if (predCampeon === realCampeon) {
+              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CAMPEON',20) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=20`, [userId, realCampeon]);
+              insertados++;
+            }
+            // 10 pts subcampeón
+            if (predSubcampeon === realSubcampeon) {
+              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_SUBCAMPEON',10) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=10`, [userId, realSubcampeon]);
+              insertados++;
+            }
+          }
+        }
+
+        // 5 pts tercer lugar
+        if (realTercero && tmRow && vTercL && vTercV) {
+          const vTercTeams = new Set([vTercL, vTercV]);
+          const realTercTeams = new Set([tmRow.equipo_local, tmRow.equipo_visitante]);
+          const tercTeamsOK = realTercTeams.has(vTercL) && realTercTeams.has(vTercV);
+          if (tercTeamsOK) {
+            const userTercPred = await pool.query(
+              `SELECT resultado_local, resultado_visitante, quien_avanza FROM mundial_pronosticos WHERE partido_id=$1 AND usuario_id=$2`,
+              [tmRow.id, userId]);
+            if (userTercPred.rows.length > 0) {
+              const utp = userTercPred.rows[0];
+              const { winner: predTercero } = getGanadorPerdedor(utp.resultado_local, utp.resultado_visitante, utp.quien_avanza, tmRow.equipo_local, tmRow.equipo_visitante);
+              if (predTercero === realTercero) {
+                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_TERCERO',5) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=5`, [userId, realTercero]);
+                insertados++;
+              }
+            }
+          }
+        }
+      }
+      console.log(`✅ Clasificación FINAL calculada: ${insertados} registros para ${Object.keys(allBrackets).length} usuarios`);
+      return;
+    }
 
     if (jornadaNumero === 3 && faseClasif === '16VOS') {
       // J3: clasificación a 16vos de Final basada en tabla de grupos

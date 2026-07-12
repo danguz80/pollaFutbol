@@ -29,6 +29,7 @@ export async function generarPDFMundial(jornadaNumero) {
       jornadaNumero === 4 ? obtenerClasificadosKnockout(4, '8VOS') :
       jornadaNumero === 5 ? obtenerClasificadosKnockout(5, 'CUARTOS') :
       jornadaNumero === 6 ? obtenerClasificadosKnockout(6, 'SEMIFINALES') :
+      jornadaNumero === 7 ? obtenerCuadroFinalJ7() :
       Promise.resolve({})
     ]);
 
@@ -255,6 +256,37 @@ async function obtenerClasificadosKnockout(jornadaNumero, fasePrefijo) {
   Object.values(porUsuario).forEach(u => {
     u.clasificados.sort((a, b) => a.posLabel.localeCompare(b.posLabel));
     u.totalPuntos = u.clasificados.reduce((sum, c) => sum + c.puntos, 0);
+  });
+  return porUsuario;
+}
+
+async function obtenerCuadroFinalJ7() {
+  const bracketsQ = await pool.query(`
+    SELECT pfv.usuario_id, u.nombre as nombre, pfv.equipo, pfv.posicion
+    FROM mundial_pronosticos_final_virtual pfv INNER JOIN usuarios u ON pfv.usuario_id=u.id
+    WHERE u.rol!='admin' ORDER BY u.nombre, pfv.posicion`);
+  const ptsQ = await pool.query(`SELECT usuario_id, fase, SUM(puntos) p FROM mundial_puntos_clasificacion WHERE fase LIKE 'FINAL_%' GROUP BY usuario_id, fase`);
+  const ptsMap = {};
+  ptsQ.rows.forEach(r => {
+    if (!ptsMap[r.usuario_id]) ptsMap[r.usuario_id] = { clasificado:0, campeon:0, subcampeon:0, tercero:0 };
+    if (r.fase==='FINAL_CLASIFICADO') ptsMap[r.usuario_id].clasificado += parseInt(r.p);
+    if (r.fase==='FINAL_CAMPEON') ptsMap[r.usuario_id].campeon += parseInt(r.p);
+    if (r.fase==='FINAL_SUBCAMPEON') ptsMap[r.usuario_id].subcampeon += parseInt(r.p);
+    if (r.fase==='FINAL_TERCERO') ptsMap[r.usuario_id].tercero += parseInt(r.p);
+  });
+  const porUsuario = {};
+  bracketsQ.rows.forEach(row => {
+    if (!porUsuario[row.usuario_id]) porUsuario[row.usuario_id] = { nombre: row.nombre, clasificados: [] };
+    const posLabels = {1:'Final (equipo 1)', 2:'Final (equipo 2)', 3:'3er Lugar (equipo 1)', 4:'3er Lugar (equipo 2)'};
+    const pts = row.posicion <= 2 ? (ptsMap[row.usuario_id]?.clasificado||0) : (ptsMap[row.usuario_id]?.tercero||0);
+    porUsuario[row.usuario_id].clasificados.push({
+      equipo_pronosticado: row.equipo, posicion: row.posicion,
+      posLabel: posLabels[row.posicion], puntos: row.posicion <= 2 ? 0 : 0 // pts shown in total
+    });
+  });
+  Object.values(porUsuario).forEach(u => {
+    const p = ptsMap[u.usuario_id] || {};
+    u.totalPuntos = (p.clasificado||0) + (p.campeon||0) + (p.subcampeon||0) + (p.tercero||0);
   });
   return porUsuario;
 }
@@ -772,7 +804,13 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornada
       doc.fontSize(11)
          .font('Helvetica-Bold')
          .fillColor('#FFFFFF')
-         .text(`⭐ ${jornadaNumero === 4 ? 'EQUIPOS QUE AVANZAN A CUARTOS' : 'EQUIPOS CLASIFICADOS A 16VOS'} — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
+         .text(`⭐ ${
+           jornadaNumero === 4 ? 'EQUIPOS A OCTAVOS DE FINAL' :
+           jornadaNumero === 5 ? 'EQUIPOS A CUARTOS DE FINAL' :
+           jornadaNumero === 6 ? 'EQUIPOS A SEMIFINALES' :
+           jornadaNumero === 7 ? 'CUADRO FINAL' :
+           'EQUIPOS CLASIFICADOS A 16VOS'
+         } — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
       yPos += 20;
 
       // Sub-headers: 2 columnas + pts

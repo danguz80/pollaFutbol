@@ -55,6 +55,8 @@ export default function ClasificacionMundial() {
   // Clasificados J6 (Cuartos → Semifinales)
   const [clasificadosJ6, setClasificadosJ6] = useState({});
   const [cargandoClasificadosJ6, setCargandoClasificadosJ6] = useState(false);
+  // Cuadro Final J7
+  const [cuadroFinalJ7, setCuadroFinalJ7] = useState(null);
   
   // Datos para los selectores
   const [partidos, setPartidos] = useState([]);
@@ -85,6 +87,8 @@ export default function ClasificacionMundial() {
           cargarClasificadosJ5();
         } else if (filtroJornada === '6') {
           cargarClasificadosJ6();
+        } else if (filtroJornada === '7') {
+          cargarCuadroFinalJ7();
         }
       } else {
         setGanadores(null);
@@ -92,6 +96,7 @@ export default function ClasificacionMundial() {
         if (filtroJornada !== '4') setClasificadosJ4({});
         if (filtroJornada !== '5') setClasificadosJ5({});
         if (filtroJornada !== '6') setClasificadosJ6({});
+        if (filtroJornada !== '7') setCuadroFinalJ7(null);
       }
     }
   }, [filtroNombre, filtroPartido, filtroJornada, jornadas.length]);
@@ -297,6 +302,14 @@ export default function ClasificacionMundial() {
       setClasificadosJ6(porUsuario);
     } catch (err) { console.error('Error cargando clasificados J6:', err); setClasificadosJ6({}); }
     finally { setCargandoClasificadosJ6(false); }
+  };
+
+  const cargarCuadroFinalJ7 = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_URL}/api/mundial-clasificados/clasificacion-final`, { headers: { Authorization: `Bearer ${token}` } });
+      setCuadroFinalJ7(res.data);
+    } catch (err) { console.error('Error cargando cuadro final J7:', err); setCuadroFinalJ7(null); }
   };
 
   const cargarGanadoresJornada = async (jornadaNumero) => {
@@ -523,6 +536,11 @@ export default function ClasificacionMundial() {
             {filtroJornada === '6' && !jornadaAbierta && Object.keys(clasificadosJ6).length > 0 && (
               <a href="#clasificados-semis" className="btn btn-outline-warning">
                 ⭐ Clasificados Semis
+              </a>
+            )}
+            {filtroJornada === '7' && !jornadaAbierta && cuadroFinalJ7?.usuarios?.length > 0 && (
+              <a href="#cuadro-final" className="btn btn-outline-danger">
+                🏆 Cuadro Final
               </a>
             )}
             <a href="#ranking-jornada" className="btn btn-outline-success">
@@ -1021,6 +1039,69 @@ export default function ClasificacionMundial() {
                   </div>
                 </div>
               )}
+
+              {/* Cuadro Final J7 */}
+              {filtroJornada === '7' && !jornadaAbierta && cuadroFinalJ7 && (() => {
+                const userData = cuadroFinalJ7.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
+                if (!userData) return null;
+                const fr = cuadroFinalJ7.finalReal;
+                const tr = cuadroFinalJ7.terceroReal;
+                return (
+                  <div id="cuadro-final" className="mt-3 mb-2">
+                    <div className="d-flex align-items-center justify-content-center gap-3 mb-2 p-2 rounded" style={{ background: '#f8d7da' }}>
+                      {grupo.foto_perfil && (<img src={grupo.foto_perfil} alt={grupo.jugador} className="rounded-circle" style={{ width: '44px', height: '44px', objectFit: 'cover', border: '2px solid #dc3545' }} onError={(e) => { e.target.src = '/perfil/default.png'; }} />)}
+                      <h5 className="mb-0 fw-bold" style={{ color: '#842029' }}>🏆 Cuadro Final — {grupo.jugador}</h5>
+                    </div>
+                    <div className="table-responsive">
+                      <table className="table table-bordered" style={{ fontSize: '1.05rem' }}>
+                        <thead style={{ background: '#f8d7da' }}>
+                          <tr>
+                            <th>Concepto</th>
+                            <th className="text-center">Predicción</th>
+                            <th className="text-center">Real</th>
+                            <th className="text-center" style={{ width: '60px' }}>Pts</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className={userData.equipo_final_1 && fr && fr.equipo_local === userData.equipo_final_1 || fr?.equipo_visitante === userData.equipo_final_1 ? 'table-success' : fr ? 'table-danger' : ''}>
+                            <td>Finalista 1</td>
+                            <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_final_1)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_final_1||'—'}</div></td>
+                            <td className="text-center">{fr ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(fr.equipo_local)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{fr.equipo_local} vs {fr.equipo_visitante}<img src={getMundialLogoPorNombre(fr.equipo_visitante)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/></div> : '—'}</td>
+                            <td className="text-center"><strong className="text-success">{userData.pts.clasificado > 0 ? `${Math.min(userData.pts.clasificado,5)}` : '0'}</strong></td>
+                          </tr>
+                          <tr className={userData.equipo_final_2 && fr && (fr.equipo_local === userData.equipo_final_2 || fr.equipo_visitante === userData.equipo_final_2) ? 'table-success' : fr ? 'table-danger' : ''}>
+                            <td>Finalista 2</td>
+                            <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_final_2)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_final_2||'—'}</div></td>
+                            <td className="text-center">{fr ? '(ver arriba)' : '—'}</td>
+                            <td className="text-center"><strong className="text-success">{userData.pts.clasificado >= 10 ? '5' : userData.pts.clasificado === 5 ? '0' : '0'}</strong></td>
+                          </tr>
+                          <tr className={userData.pts.campeon > 0 ? 'table-success' : fr?.resultado_local !== null ? 'table-danger' : ''}>
+                            <td>🥇 Campeón</td>
+                            <td className="text-center">{userData.equipo_final_1||'—'} / {userData.equipo_final_2||'—'}</td>
+                            <td className="text-center">{fr?.resultado_local !== null && fr?.resultado_local !== undefined ? (fr.resultado_local > fr.resultado_visitante ? fr.equipo_local : fr.equipo_visitante) : '—'}</td>
+                            <td className="text-center"><strong className={userData.pts.campeon > 0 ? 'text-success' : 'text-danger'}>{userData.pts.campeon}</strong></td>
+                          </tr>
+                          <tr className={userData.pts.subcampeon > 0 ? 'table-success' : fr?.resultado_local !== null ? 'table-danger' : ''}>
+                            <td>🥈 Subcampeón</td>
+                            <td className="text-center">{userData.equipo_final_1||'—'} / {userData.equipo_final_2||'—'}</td>
+                            <td className="text-center">{fr?.resultado_local !== null && fr?.resultado_local !== undefined ? (fr.resultado_local > fr.resultado_visitante ? fr.equipo_visitante : fr.equipo_local) : '—'}</td>
+                            <td className="text-center"><strong className={userData.pts.subcampeon > 0 ? 'text-success' : 'text-danger'}>{userData.pts.subcampeon}</strong></td>
+                          </tr>
+                          <tr className={userData.pts.tercero > 0 ? 'table-success' : tr?.resultado_local !== null ? 'table-danger' : ''}>
+                            <td>🥉 3er Lugar</td>
+                            <td className="text-center">{userData.equipo_tercero_1||'—'} vs {userData.equipo_tercero_2||'—'}</td>
+                            <td className="text-center">{tr && tr.resultado_local !== null ? (tr.resultado_local > tr.resultado_visitante ? tr.equipo_local : tr.equipo_visitante) : '—'}</td>
+                            <td className="text-center"><strong className={userData.pts.tercero > 0 ? 'text-success' : 'text-danger'}>{userData.pts.tercero}</strong></td>
+                          </tr>
+                        </tbody>
+                        <tfoot>
+                          <tr className="table-dark fw-bold"><td colSpan="3" className="text-end">TOTAL CUADRO FINAL {grupo.jugador} :</td><td className="text-center">{userData.totalPuntos}</td></tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </>

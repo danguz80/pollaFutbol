@@ -435,5 +435,74 @@ router.get('/clasificacion-knockout/:jornadaNumero', verifyToken, async (req, re
   }
 });
 
+// GET /clasificacion-final — cuadro final J7 (bracket + campeón/subcampeón/3er)
+router.get('/clasificacion-final', verifyToken, async (req, res) => {
+  try {
+    // Brackets virtuales por usuario
+    const bracketsQ = await pool.query(`
+      SELECT pfv.usuario_id, u.nombre as nombre_usuario, u.foto_perfil,
+             pfv.equipo, pfv.posicion
+      FROM mundial_pronosticos_final_virtual pfv
+      INNER JOIN usuarios u ON pfv.usuario_id = u.id
+      WHERE u.rol != 'admin'
+      ORDER BY u.nombre, pfv.posicion`);
+
+    // Partidos reales de Final y 3er Lugar
+    const partidos = await pool.query(`
+      SELECT p.id, p.equipo_local, p.equipo_visitante, p.resultado_local, p.resultado_visitante, p.quien_avanzo, p.subtipo
+      FROM mundial_partidos p INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+      WHERE mj.numero=7 AND p.subtipo IN ('final','tercero_lugar')`);
+    const finalReal = partidos.rows.find(p => p.subtipo === 'final') || null;
+    const terceroReal = partidos.rows.find(p => p.subtipo === 'tercero_lugar') || null;
+
+    const realFinalTeams = finalReal ? new Set([finalReal.equipo_local, finalReal.equipo_visitante]) : new Set();
+
+    // Puntos de clasificación FINAL por usuario
+    const ptsQ = await pool.query(`
+      SELECT usuario_id, fase, SUM(puntos) puntos FROM mundial_puntos_clasificacion
+      WHERE fase LIKE 'FINAL_%' GROUP BY usuario_id, fase`);
+    const ptsMap = {};
+    ptsQ.rows.forEach(r => {
+      if (!ptsMap[r.usuario_id]) ptsMap[r.usuario_id] = { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0 };
+      if (r.fase === 'FINAL_CLASIFICADO') ptsMap[r.usuario_id].clasificado += parseInt(r.puntos);
+      if (r.fase === 'FINAL_CAMPEON') ptsMap[r.usuario_id].campeon += parseInt(r.puntos);
+      if (r.fase === 'FINAL_SUBCAMPEON') ptsMap[r.usuario_id].subcampeon += parseInt(r.puntos);
+      if (r.fase === 'FINAL_TERCERO') ptsMap[r.usuario_id].tercero += parseInt(r.puntos);
+    });
+
+    const porUsuario = {};
+    bracketsQ.rows.forEach(row => {
+      if (!porUsuario[row.usuario_id]) {
+        porUsuario[row.usuario_id] = {
+          usuario_id: row.usuario_id, nombre: row.nombre_usuario, foto_perfil: row.foto_perfil,
+          bracket: {}, pts: ptsMap[row.usuario_id] || { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0 }
+        };
+      }
+      porUsuario[row.usuario_id].bracket[row.posicion] = row.equipo;
+    });
+
+    Object.values(porUsuario).forEach(u => {
+      const b = u.bracket;
+      u.equipo_final_1 = b[1] || null;
+      u.equipo_final_2 = b[2] || null;
+      u.equipo_tercero_1 = b[3] || null;
+      u.equipo_tercero_2 = b[4] || null;
+      u.totalPuntos = u.pts.clasificado + u.pts.campeon + u.pts.subcampeon + u.pts.tercero;
+      // Marcar si bracket coincide con real
+      u.finalCoincide = finalReal && realFinalTeams.has(b[1]) && realFinalTeams.has(b[2]);
+      u.terceroCoincide = terceroReal && new Set([terceroReal.equipo_local, terceroReal.equipo_visitante]).has(b[3]) && new Set([terceroReal.equipo_local, terceroReal.equipo_visitante]).has(b[4]);
+    });
+
+    res.json({
+      usuarios: Object.values(porUsuario),
+      finalReal: finalReal ? { equipo_local: finalReal.equipo_local, equipo_visitante: finalReal.equipo_visitante, resultado_local: finalReal.resultado_local, resultado_visitante: finalReal.resultado_visitante } : null,
+      terceroReal: terceroReal ? { equipo_local: terceroReal.equipo_local, equipo_visitante: terceroReal.equipo_visitante, resultado_local: terceroReal.resultado_local, resultado_visitante: terceroReal.resultado_visitante } : null,
+    });
+  } catch (error) {
+    console.error('Error obteniendo clasificación final:', error);
+    res.status(500).json({ error: 'Error obteniendo clasificación final' });
+  }
+});
+
 export default router;
 
