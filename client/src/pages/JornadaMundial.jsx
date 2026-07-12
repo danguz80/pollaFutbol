@@ -24,6 +24,9 @@ export default function JornadaMundial() {
   const [pronosticos, setPronosticos] = useState({});
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
+  // J7: bracket virtual
+  const [bracketVirtual, setBracketVirtual] = useState(null);
+  const [pronosticosVirtuales, setPronosticosVirtuales] = useState({ final: {}, tercero: {} });
 
   useEffect(() => {
     if (!usuario) {
@@ -82,6 +85,31 @@ export default function JornadaMundial() {
         setPronosticos(pronosticosMap);
       } catch (error) {
         console.log("No hay pronósticos previos");
+      }
+
+      // Cargar bracket virtual J7
+      if (Number(numero) === 7) {
+        try {
+          const bvRes = await axios.get(
+            `${API_URL}/api/mundial/pronosticos-virtual-final`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (bvRes.data) {
+            setBracketVirtual(bvRes.data);
+            setPronosticosVirtuales({
+              final: {
+                goles_local: bvRes.data.final?.resultado_local ?? '',
+                goles_visita: bvRes.data.final?.resultado_visitante ?? '',
+                quien_avanza: bvRes.data.final?.quien_avanza || '',
+              },
+              tercero: {
+                goles_local: bvRes.data.tercero?.resultado_local ?? '',
+                goles_visita: bvRes.data.tercero?.resultado_visitante ?? '',
+                quien_avanza: bvRes.data.tercero?.quien_avanza || '',
+              },
+            });
+          }
+        } catch (e) { console.log('Sin bracket virtual J7'); }
       }
 
     } catch (error) {
@@ -237,6 +265,31 @@ export default function JornadaMundial() {
 
       setMensaje("✅ Pronósticos guardados exitosamente");
       setTimeout(() => setMensaje(""), 4000);
+
+      // Si es J7, recargar bracket virtual (puede haberse generado ahora)
+      if (Number(numero) === 7) {
+        try {
+          const bvRes = await axios.get(
+            `${API_URL}/api/mundial/pronosticos-virtual-final`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (bvRes.data) {
+            setBracketVirtual(bvRes.data);
+            setPronosticosVirtuales(prev => ({
+              final: prev.final.goles_local !== '' ? prev.final : {
+                goles_local: bvRes.data.final?.resultado_local ?? '',
+                goles_visita: bvRes.data.final?.resultado_visitante ?? '',
+                quien_avanza: bvRes.data.final?.quien_avanza || '',
+              },
+              tercero: prev.tercero.goles_local !== '' ? prev.tercero : {
+                goles_local: bvRes.data.tercero?.resultado_local ?? '',
+                goles_visita: bvRes.data.tercero?.resultado_visitante ?? '',
+                quien_avanza: bvRes.data.tercero?.quien_avanza || '',
+              },
+            }));
+          }
+        } catch (e) { /* silencioso */ }
+      }
     } catch (error) {
       console.error("Error guardando pronósticos:", error);
       setMensaje(`❌ Error: ${error.response?.data?.error || error.message}`);
@@ -329,21 +382,19 @@ export default function JornadaMundial() {
       {Number(numero) === 7 && !jornada.cerrada && (
         <div className="alert mb-4" style={{ background: '#e8f4fd', border: '1px solid #1a5bc4', borderLeft: '5px solid #1a5bc4' }}>
           <h6 className="fw-bold mb-2" style={{ color: '#0d3b8e' }}>⚽ ¿Cómo funciona la Jornada 7?</h6>
-          <p className="mb-2 small">
-            Al guardar tus pronósticos de las <strong>Semifinales</strong>, el sistema generará automáticamente
-            tu <strong>cuadro final virtual</strong>: los ganadores de tus semis irán a la <strong>Final</strong>
-            y los perdedores al <strong>Partido por el 3er Lugar</strong>.
-          </p>
-          <p className="mb-2 small">
-            Cuando se conozcan los resultados reales y se creen los partidos de Final y 3er Lugar,
-            deberás ingresar tus pronósticos para esos partidos.
-          </p>
+          <ol className="small mb-2" style={{ paddingLeft: '1.2rem' }}>
+            <li className="mb-1">Ingresa tus pronósticos de las <strong>Semifinales</strong> y guarda.</li>
+            <li className="mb-1">El sistema generará automáticamente <strong>tus partidos virtuales</strong> de Final y 3er Lugar, basados en tus predicciones de semis. <strong>Debes ingresar también el resultado para esos partidos.</strong></li>
+            <li className="mb-1">La jornada se cierra en la fecha/hora indicada.</li>
+            <li className="mb-1">El admin ingresa los resultados reales y crea los partidos oficiales de Final y 3er Lugar.</li>
+            <li className="mb-1">El admin calcula los puntajes y ganadores.</li>
+          </ol>
           <div className="rounded p-2 small" style={{ background: '#fff3cd', border: '1px solid #ffc107' }}>
-            <strong>⚠️ Importante:</strong>
+            <strong>⚠️ Regla de puntuación:</strong>
             <ul className="mb-0 mt-1">
-              <li>Si los equipos de tu <em>Final virtual</em> <strong>no coinciden</strong> con los equipos de la Final real → <strong>0 puntos</strong> en ese partido.</li>
-              <li>Si tu <em>3er Lugar virtual</em> <strong>no coincide</strong> con el partido real → <strong>0 puntos</strong> en ese partido.</li>
-              <li>Sin embargo, si acertaste un equipo que <strong>sí llegó a la Final</strong>, igualmente obtendrás los <strong>puntos por equipo clasificado</strong> (aunque hayas fallado el partido completo).</li>
+              <li>Si los equipos de tu <em>Final / 3er Lugar virtual</em> <strong>no coinciden</strong> con los reales → <strong>0 puntos</strong> en ese partido.</li>
+              <li>Si coinciden, se aplica el puntaje normal según tu predicción de resultado.</li>
+              <li>Si acertaste un equipo que <strong>sí llegó a la Final real</strong> (aunque hayas fallado el partido), igualmente ganas los <strong>puntos por equipo clasificado a la Final</strong>.</li>
             </ul>
           </div>
         </div>
@@ -539,6 +590,86 @@ export default function JornadaMundial() {
             <div className={`alert ${mensaje.includes('✅') ? 'alert-success' : 'alert-danger'} alert-dismissible fade show text-center fw-bold mt-3`} role="alert">
               {mensaje}
               <button type="button" className="btn-close" onClick={() => setMensaje("")}></button>
+            </div>
+          )}
+
+          {/* Partidos Virtuales J7: Final y 3er Lugar */}
+          {Number(numero) === 7 && bracketVirtual && !jornada.cerrada && (
+            <div className="mt-4">
+              <div className="alert" style={{ background: '#0d3b8e', color: 'white' }}>
+                <h5 className="mb-1 fw-bold">🏆 Tus Partidos Virtuales — basados en tus predicciones de Semis</h5>
+                <small>Ingresa el resultado que predices para estos partidos y guarda.</small>
+              </div>
+              {[
+                { tipo: 'final', label: 'Final', icon: '🥇', partido: bracketVirtual.final },
+                { tipo: 'tercero', label: 'Partido por el 3er Lugar', icon: '🥉', partido: bracketVirtual.tercero }
+              ].map(({ tipo, label, icon, partido }) => partido && (
+                <div key={tipo} className="card mb-3 border-primary border-2">
+                  <div className="card-header text-white fw-bold" style={{ background: '#0d3b8e' }}>
+                    {icon} {label}: <strong>{partido.equipo_local}</strong> vs <strong>{partido.equipo_visitante}</strong>
+                  </div>
+                  <div className="card-body">
+                    <div className="d-flex align-items-center justify-content-center gap-3 flex-wrap">
+                      <div className="text-center">
+                        <img src={getMundialLogoPorNombre(partido.equipo_local)} alt={partido.equipo_local} style={{ width: 40, height: 40, objectFit: 'contain' }} onError={e=>{e.target.style.display='none'}} />
+                        <div className="small fw-bold mt-1">{partido.equipo_local}</div>
+                      </div>
+                      <input type="number" min="0" max="20" className="form-control text-center fw-bold fs-4"
+                        style={{ width: 70 }}
+                        value={pronosticosVirtuales[tipo].goles_local}
+                        onChange={e => setPronosticosVirtuales(prev => ({ ...prev, [tipo]: { ...prev[tipo], goles_local: e.target.value === '' ? '' : Number(e.target.value) } }))} />
+                      <span className="fw-bold fs-4">:</span>
+                      <input type="number" min="0" max="20" className="form-control text-center fw-bold fs-4"
+                        style={{ width: 70 }}
+                        value={pronosticosVirtuales[tipo].goles_visita}
+                        onChange={e => setPronosticosVirtuales(prev => ({ ...prev, [tipo]: { ...prev[tipo], goles_visita: e.target.value === '' ? '' : Number(e.target.value) } }))} />
+                      <div className="text-center">
+                        <img src={getMundialLogoPorNombre(partido.equipo_visitante)} alt={partido.equipo_visitante} style={{ width: 40, height: 40, objectFit: 'contain' }} onError={e=>{e.target.style.display='none'}} />
+                        <div className="small fw-bold mt-1">{partido.equipo_visitante}</div>
+                      </div>
+                    </div>
+                    {/* Quien avanza si hay empate */}
+                    {pronosticosVirtuales[tipo].goles_local !== '' && pronosticosVirtuales[tipo].goles_visita !== '' &&
+                     Number(pronosticosVirtuales[tipo].goles_local) === Number(pronosticosVirtuales[tipo].goles_visita) && (
+                      <div className="mt-3 text-center">
+                        <label className="form-label fw-bold" style={{ color: '#ffc107' }}>⚡ Empate — ¿Quién avanza?</label>
+                        <select className="form-select text-center" style={{ maxWidth: 250, margin: '0 auto' }}
+                          value={pronosticosVirtuales[tipo].quien_avanza || ''}
+                          onChange={e => setPronosticosVirtuales(prev => ({ ...prev, [tipo]: { ...prev[tipo], quien_avanza: e.target.value } }))}>
+                          <option value="">— Seleccionar —</option>
+                          <option value={partido.equipo_local}>{partido.equipo_local}</option>
+                          <option value={partido.equipo_visitante}>{partido.equipo_visitante}</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="text-center mt-2">
+                <button className="btn btn-danger btn-lg px-5" onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('token');
+                    const payload = {
+                      final: bracketVirtual.final ? {
+                        resultado_local: pronosticosVirtuales.final.goles_local,
+                        resultado_visitante: pronosticosVirtuales.final.goles_visita,
+                        quien_avanza: pronosticosVirtuales.final.quien_avanza || null
+                      } : null,
+                      tercero: bracketVirtual.tercero ? {
+                        resultado_local: pronosticosVirtuales.tercero.goles_local,
+                        resultado_visitante: pronosticosVirtuales.tercero.goles_visita,
+                        quien_avanza: pronosticosVirtuales.tercero.quien_avanza || null
+                      } : null,
+                    };
+                    await axios.post(`${API_URL}/api/mundial/pronosticos-virtual-final`, payload,
+                      { headers: { Authorization: `Bearer ${token}` } });
+                    setMensaje('✅ Predicciones virtuales guardadas');
+                    setTimeout(() => setMensaje(''), 3000);
+                  } catch (e) { setMensaje('❌ Error: ' + (e.response?.data?.error || e.message)); }
+                }}>
+                  💾 Guardar Mis Predicciones de Final y 3er Lugar
+                </button>
+              </div>
             </div>
           )}
 

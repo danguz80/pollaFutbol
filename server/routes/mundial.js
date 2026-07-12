@@ -996,6 +996,67 @@ router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin')
   }
 });
 
+// ─── J7 VIRTUAL FINAL / 3ER LUGAR ──────────────────────────────────────────
+
+// GET /api/mundial/pronosticos-virtual-final — bracket virtual + predicciones de score del usuario
+router.get('/pronosticos-virtual-final', verifyToken, async (req, res) => {
+  try {
+    const usuario_id = req.usuario.id;
+    // Bracket virtual (equipos)
+    const bracket = await pool.query(
+      `SELECT equipo, posicion FROM mundial_pronosticos_final_virtual WHERE usuario_id=$1 ORDER BY posicion`,
+      [usuario_id]);
+    // Predicciones de score
+    const scores = await pool.query(
+      `SELECT tipo, resultado_local, resultado_visitante, quien_avanza FROM mundial_pronosticos_virtual_final WHERE usuario_id=$1`,
+      [usuario_id]);
+    const b = {};
+    bracket.rows.forEach(r => { b[r.posicion] = r.equipo; });
+    const scoresMap = {};
+    scores.rows.forEach(r => { scoresMap[r.tipo] = r; });
+    if (!b[1]) return res.json(null); // No hay bracket aún
+    res.json({
+      final: { equipo_local: b[1], equipo_visitante: b[2], ...scoresMap['final'] },
+      tercero: { equipo_local: b[3], equipo_visitante: b[4], ...scoresMap['tercero_lugar'] }
+    });
+  } catch (error) {
+    console.error('Error obteniendo bracket virtual:', error);
+    res.status(500).json({ error: 'Error obteniendo bracket virtual' });
+  }
+});
+
+// POST /api/mundial/pronosticos-virtual-final — guardar predicciones de score virtuales
+router.post('/pronosticos-virtual-final', verifyToken, async (req, res) => {
+  try {
+    const usuario_id = req.usuario.id;
+    const { final: f, tercero: t } = req.body;
+    // Verificar que la jornada 7 está abierta
+    const jornadaQ = await pool.query(
+      `SELECT cerrada, activa FROM mundial_jornadas WHERE numero=7`);
+    if (!jornadaQ.rows[0] || jornadaQ.rows[0].cerrada) {
+      return res.status(403).json({ error: 'La jornada 7 está cerrada' });
+    }
+    if (f) {
+      await pool.query(
+        `INSERT INTO mundial_pronosticos_virtual_final (usuario_id, tipo, resultado_local, resultado_visitante, quien_avanza)
+         VALUES ($1,'final',$2,$3,$4)
+         ON CONFLICT (usuario_id,tipo) DO UPDATE SET resultado_local=$2, resultado_visitante=$3, quien_avanza=$4, actualizado_en=NOW()`,
+        [usuario_id, f.resultado_local, f.resultado_visitante, f.quien_avanza||null]);
+    }
+    if (t) {
+      await pool.query(
+        `INSERT INTO mundial_pronosticos_virtual_final (usuario_id, tipo, resultado_local, resultado_visitante, quien_avanza)
+         VALUES ($1,'tercero_lugar',$2,$3,$4)
+         ON CONFLICT (usuario_id,tipo) DO UPDATE SET resultado_local=$2, resultado_visitante=$3, quien_avanza=$4, actualizado_en=NOW()`,
+        [usuario_id, t.resultado_local, t.resultado_visitante, t.quien_avanza||null]);
+    }
+    res.json({ mensaje: 'Predicciones virtuales guardadas exitosamente' });
+  } catch (error) {
+    console.error('Error guardando predicciones virtuales:', error);
+    res.status(500).json({ error: 'Error guardando predicciones virtuales' });
+  }
+});
+
 // GET /api/mundial/pronosticos-todos/jornada/:numero — todos los pronósticos de una jornada (para simulador)
 router.get('/pronosticos-todos/jornada/:numero', verifyToken, async (req, res) => {
   try {

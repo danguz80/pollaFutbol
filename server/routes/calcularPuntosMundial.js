@@ -337,6 +337,38 @@ router.post('/crear-partidos-finales', verifyToken, authorizeRoles('admin'), asy
       created.push(`Final: ${s1.winner} vs ${s2.winner}`);
     }
     if (created.length === 0) return res.json({ mensaje: 'Los partidos finales ya existen' });
+
+    // Auto-copiar predicciones virtuales a mundial_pronosticos para usuarios con bracket coincidente
+    const partidos = await pool.query(
+      `SELECT id, equipo_local, equipo_visitante, subtipo FROM mundial_partidos WHERE jornada_id=$1 AND subtipo IN ('final','tercero_lugar')`,
+      [jornadaId]);
+    const jornadaRow = await pool.query(`SELECT id FROM mundial_jornadas WHERE numero=7`);
+    const j7Id = jornadaRow.rows[0].id;
+
+    for (const partido of partidos.rows) {
+      const virtualPreds = await pool.query(`
+        SELECT pvf.usuario_id, pvf.resultado_local, pvf.resultado_visitante, pvf.quien_avanza,
+               pfv1.equipo as eq1, pfv2.equipo as eq2
+        FROM mundial_pronosticos_virtual_final pvf
+        INNER JOIN mundial_pronosticos_final_virtual pfv1 ON pfv1.usuario_id=pvf.usuario_id AND pfv1.posicion=(CASE WHEN pvf.tipo='final' THEN 1 ELSE 3 END)
+        INNER JOIN mundial_pronosticos_final_virtual pfv2 ON pfv2.usuario_id=pvf.usuario_id AND pfv2.posicion=(CASE WHEN pvf.tipo='final' THEN 2 ELSE 4 END)
+        WHERE pvf.tipo=$1 AND pvf.resultado_local IS NOT NULL`, [partido.subtipo]);
+
+      let copiados = 0;
+      for (const vp of virtualPreds.rows) {
+        const realTeams = new Set([partido.equipo_local, partido.equipo_visitante]);
+        if (realTeams.has(vp.eq1) && realTeams.has(vp.eq2)) {
+          await pool.query(
+            `INSERT INTO mundial_pronosticos (usuario_id, jornada_id, partido_id, resultado_local, resultado_visitante, quien_avanza)
+             VALUES ($1,$2,$3,$4,$5,$6)
+             ON CONFLICT (usuario_id, partido_id) DO UPDATE SET resultado_local=$4, resultado_visitante=$5, quien_avanza=$6, actualizado_en=NOW()`,
+            [vp.usuario_id, j7Id, partido.id, vp.resultado_local, vp.resultado_visitante, vp.quien_avanza||null]);
+          copiados++;
+        }
+      }
+      console.log(`✅ ${partido.subtipo}: ${copiados} predicciones copiadas a mundial_pronosticos`);
+    }
+
     res.json({ mensaje: `✅ Partidos creados: ${created.join(' | ')}`, created });
   } catch (error) {
     console.error('❌ Error creando partidos finales:', error);
