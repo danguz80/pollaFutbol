@@ -325,6 +325,30 @@ export default function JornadaMundial() {
         </div>
       </div>
 
+      {/* Aviso especial J7: cómo funciona el cuadro final virtual */}
+      {Number(numero) === 7 && !jornada.cerrada && (
+        <div className="alert mb-4" style={{ background: '#e8f4fd', border: '1px solid #1a5bc4', borderLeft: '5px solid #1a5bc4' }}>
+          <h6 className="fw-bold mb-2" style={{ color: '#0d3b8e' }}>⚽ ¿Cómo funciona la Jornada 7?</h6>
+          <p className="mb-2 small">
+            Al guardar tus pronósticos de las <strong>Semifinales</strong>, el sistema generará automáticamente
+            tu <strong>cuadro final virtual</strong>: los ganadores de tus semis irán a la <strong>Final</strong>
+            y los perdedores al <strong>Partido por el 3er Lugar</strong>.
+          </p>
+          <p className="mb-2 small">
+            Cuando se conozcan los resultados reales y se creen los partidos de Final y 3er Lugar,
+            deberás ingresar tus pronósticos para esos partidos.
+          </p>
+          <div className="rounded p-2 small" style={{ background: '#fff3cd', border: '1px solid #ffc107' }}>
+            <strong>⚠️ Importante:</strong>
+            <ul className="mb-0 mt-1">
+              <li>Si los equipos de tu <em>Final virtual</em> <strong>no coinciden</strong> con los equipos de la Final real → <strong>0 puntos</strong> en ese partido.</li>
+              <li>Si tu <em>3er Lugar virtual</em> <strong>no coincide</strong> con el partido real → <strong>0 puntos</strong> en ese partido.</li>
+              <li>Sin embargo, si acertaste un equipo que <strong>sí llegó a la Final</strong>, igualmente obtendrás los <strong>puntos por equipo clasificado</strong> (aunque hayas fallado el partido completo).</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* Partidos */}
       {partidos.length === 0 ? (
         <div className="alert alert-info">
