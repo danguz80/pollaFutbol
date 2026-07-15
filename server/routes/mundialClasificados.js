@@ -438,14 +438,95 @@ router.get('/clasificacion-knockout/:jornadaNumero', verifyToken, async (req, re
 // GET /clasificacion-final — cuadro final J7 (bracket + campeón/subcampeón/3er)
 router.get('/clasificacion-final', verifyToken, async (req, res) => {
   try {
-    // Brackets virtuales por usuario
-    const bracketsQ = await pool.query(`
-      SELECT pfv.usuario_id, u.nombre as nombre_usuario, u.foto_perfil,
-             pfv.equipo, pfv.posicion
-      FROM mundial_pronosticos_final_virtual pfv
-      INNER JOIN usuarios u ON pfv.usuario_id = u.id
-      WHERE u.rol != 'admin'
-      ORDER BY u.nombre, pfv.posicion`);
+    // Recalcular el bracket virtual desde las semis actuales para evitar datos viejos o mezclados
+    const semisQ = await pool.query(`
+      SELECT mp.usuario_id, u.nombre as nombre_usuario, u.foto_perfil,
+             mp.partido_id, mp.resultado_local, mp.resultado_visitante, mp.quien_avanza,
+             p.equipo_local, p.equipo_visitante
+      FROM mundial_pronosticos mp
+      INNER JOIN usuarios u ON mp.usuario_id = u.id
+      INNER JOIN mundial_partidos p ON p.id = mp.partido_id
+      INNER JOIN mundial_jornadas mj ON p.jornada_id = mj.id
+      WHERE mj.numero = 7 AND p.subtipo = 'semifinal' AND u.rol != 'admin'
+      ORDER BY mp.usuario_id, p.id
+    `);
+
+    const semisPorUsuario = {};
+    semisQ.rows.forEach((row) => {
+      if (!semisPorUsuario[row.usuario_id]) {
+        semisPorUsuario[row.usuario_id] = {
+          usuario_id: row.usuario_id,
+          nombre: row.nombre_usuario,
+          foto_perfil: row.foto_perfil,
+          semis: []
+        };
+      }
+      semisPorUsuario[row.usuario_id].semis.push(row);
+    });
+
+    const getGanadorPerdedor = (local, visita, quienAvanza, equipoLocal, equipoVisitante) => {
+      const l = Number(local);
+      const v = Number(visita);
+      let winner;
+      let loser;
+      if (l > v) {
+        winner = equipoLocal;
+        loser = equipoVisitante;
+      } else if (v > l) {
+        winner = equipoVisitante;
+        loser = equipoLocal;
+      } else {
+        winner = quienAvanza || equipoLocal;
+        loser = winner === equipoLocal ? equipoVisitante : equipoLocal;
+      }
+      return { winner, loser };
+    };
+
+    const porUsuario = {};
+    for (const data of Object.values(semisPorUsuario)) {
+      const [semi1, semi2] = data.semis.sort((a, b) => a.partido_id - b.partido_id);
+      if (!semi1 || !semi2) continue;
+
+      const r1 = getGanadorPerdedor(
+        semi1.resultado_local,
+        semi1.resultado_visitante,
+        semi1.quien_avanza,
+        semi1.equipo_local,
+        semi1.equipo_visitante
+      );
+      const r2 = getGanadorPerdedor(
+        semi2.resultado_local,
+        semi2.resultado_visitante,
+        semi2.quien_avanza,
+        semi2.equipo_local,
+        semi2.equipo_visitante
+      );
+
+      const bracket = {
+        1: r1.winner,
+        2: r2.winner,
+        3: r1.loser,
+        4: r2.loser
+      };
+
+      for (const [posicion, equipo] of Object.entries(bracket)) {
+        await pool.query(
+          `INSERT INTO mundial_pronosticos_final_virtual (usuario_id, equipo, posicion, puntos)
+           VALUES ($1, $2, $3, 0)
+           ON CONFLICT (usuario_id, posicion)
+           DO UPDATE SET equipo = EXCLUDED.equipo, actualizado_en = NOW()`,
+          [data.usuario_id, equipo, Number(posicion)]
+        );
+      }
+
+      porUsuario[data.usuario_id] = {
+        usuario_id: data.usuario_id,
+        nombre: data.nombre,
+        foto_perfil: data.foto_perfil,
+        bracket,
+        pts: { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0, cuarto: 0 }
+      };
+    }
 
     // Partidos reales de Final y 3er Lugar
     const partidos = await pool.query(`
@@ -471,23 +552,13 @@ router.get('/clasificacion-final', verifyToken, async (req, res) => {
       if (r.fase === 'FINAL_CUARTO') ptsMap[r.usuario_id].cuarto += parseInt(r.puntos);
     });
 
-    const porUsuario = {};
-    bracketsQ.rows.forEach(row => {
-      if (!porUsuario[row.usuario_id]) {
-        porUsuario[row.usuario_id] = {
-          usuario_id: row.usuario_id, nombre: row.nombre_usuario, foto_perfil: row.foto_perfil,
-          bracket: {}, pts: ptsMap[row.usuario_id] || { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0, cuarto: 0 }
-        };
-      }
-      porUsuario[row.usuario_id].bracket[row.posicion] = row.equipo;
-    });
-
     Object.values(porUsuario).forEach(u => {
       const b = u.bracket;
       u.equipo_final_1 = b[1] || null;
       u.equipo_final_2 = b[2] || null;
       u.equipo_tercero_1 = b[3] || null;
       u.equipo_tercero_2 = b[4] || null;
+      u.pts = ptsMap[u.usuario_id] || { clasificado: 0, campeon: 0, subcampeon: 0, tercero: 0, cuarto: 0 };
       u.totalPuntos = u.pts.clasificado + u.pts.campeon + u.pts.subcampeon + u.pts.tercero + u.pts.cuarto;
       // Marcar si bracket coincide con real
       u.finalCoincide = finalReal && realFinalTeams.has(b[1]) && realFinalTeams.has(b[2]);
