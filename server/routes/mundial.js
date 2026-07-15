@@ -766,8 +766,10 @@ router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin')
         mpa.equipo_local,
         mpa.equipo_visitante,
         mpa.fecha,
+        mpa.subtipo,
         mp.resultado_local AS goles_local,
-        mp.resultado_visitante AS goles_visita
+        mp.resultado_visitante AS goles_visita,
+        mp.quien_avanza
       FROM mundial_pronosticos mp
       JOIN usuarios u ON mp.usuario_id = u.id
       JOIN mundial_partidos mpa ON mp.partido_id = mpa.id
@@ -776,11 +778,40 @@ router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin')
       ORDER BY u.nombre, mpa.fecha
     `, [numero]);
 
-    if (pronosticosResult.rows.length === 0) {
+    // Para J7: agregar también las predicciones virtuales de Final y 3er Lugar
+    let pronosticosVirtuales = [];
+    if (Number(numero) === 7) {
+      const virtScores = await pool.query(`
+        SELECT u.nombre AS usuario, pvf.tipo,
+               pvf.resultado_local AS goles_local, pvf.resultado_visitante AS goles_visita, pvf.quien_avanza,
+               pfv1.equipo AS eq_local, pfv2.equipo AS eq_visita
+        FROM mundial_pronosticos_virtual_final pvf
+        JOIN usuarios u ON pvf.usuario_id = u.id
+        JOIN mundial_pronosticos_final_virtual pfv1 ON pfv1.usuario_id=pvf.usuario_id AND pfv1.posicion=(CASE WHEN pvf.tipo='final' THEN 1 ELSE 3 END)
+        JOIN mundial_pronosticos_final_virtual pfv2 ON pfv2.usuario_id=pvf.usuario_id AND pfv2.posicion=(CASE WHEN pvf.tipo='final' THEN 2 ELSE 4 END)
+        WHERE pvf.resultado_local IS NOT NULL
+        ORDER BY u.nombre, pvf.tipo`);
+      pronosticosVirtuales = virtScores.rows.map(r => ({
+        usuario: r.usuario,
+        equipo_local: r.eq_local,
+        equipo_visitante: r.eq_visita,
+        fecha: null,
+        subtipo: r.tipo === 'final' ? 'final_virtual' : 'tercero_virtual',
+        goles_local: r.goles_local,
+        goles_visita: r.goles_visita,
+        quien_avanza: r.quien_avanza,
+        esVirtual: true,
+        labelVirtual: r.tipo === 'final' ? '🏆 FINAL (virtual)' : '🥉 3er LUGAR (virtual)'
+      }));
+    }
+
+    const todosPronosticos = [...pronosticosResult.rows, ...pronosticosVirtuales];
+
+    if (todosPronosticos.length === 0) {
       return res.status(404).json({ error: 'No hay pronósticos para esta jornada' });
     }
 
-    const pronosticos = pronosticosResult.rows;
+    const pronosticos = todosPronosticos;
 
     // Obtener nombre de la jornada
     const jornadaResult = await pool.query(
@@ -789,21 +820,27 @@ router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin')
     );
     const nombreJornada = jornadaResult.rows[0]?.nombre || `Jornada ${numero}`;
 
-    // Obtener lista única de partidos ordenados por fecha
+    // Obtener lista única de partidos: reales ordenados por fecha, virtuales al final
     const partidosUnicos = [];
     const partidosVistos = new Set();
     pronosticos.forEach(p => {
-      const key = `${p.equipo_local}|${p.equipo_visitante}|${p.fecha}`;
+      const key = `${p.equipo_local}|${p.equipo_visitante}`;
       if (!partidosVistos.has(key)) {
         partidosVistos.add(key);
         partidosUnicos.push({
           equipo_local: p.equipo_local,
           equipo_visitante: p.equipo_visitante,
-          fecha: p.fecha
+          fecha: p.fecha,
+          esVirtual: !!p.esVirtual,
+          labelVirtual: p.labelVirtual || null
         });
       }
     });
-    partidosUnicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    partidosUnicos.sort((a, b) => {
+      if (a.esVirtual && !b.esVirtual) return 1;
+      if (!a.esVirtual && b.esVirtual) return -1;
+      return new Date(a.fecha || 0) - new Date(b.fecha || 0);
+    });
 
     // Agrupar pronósticos por usuario
     const pronosticosPorUsuario = {};
@@ -928,8 +965,9 @@ router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin')
 
                   if (!p) {
                     return `
-                      <tr>
+                      <tr style="${partido.esVirtual ? `background:${partido.labelVirtual?.includes('FINAL') ? '#fffde7' : '#fdf5e6'};border-left:4px solid ${partido.labelVirtual?.includes('FINAL') ? '#ffd700' : '#cd7f32'};` : ''}">
                         <td>
+                          ${partido.labelVirtual ? `<div style="font-size:12px;font-weight:bold;color:${partido.labelVirtual.includes('FINAL') ? '#b8860b' : '#8b6914'};margin-bottom:3px;">${partido.labelVirtual}</div>` : ''}
                           <div style="display: flex; align-items: center;">
                             ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
                             <span>${partido.equipo_local}</span>
@@ -943,9 +981,14 @@ router.post('/generar-pdf-testigo/:numero', verifyToken, authorizeRoles('admin')
                     `;
                   }
 
+                  const bgStyle = partido.esVirtual
+                    ? `background:${partido.labelVirtual?.includes('FINAL') ? '#fffde7' : '#fdf5e6'};border-left:4px solid ${partido.labelVirtual?.includes('FINAL') ? '#ffd700' : '#cd7f32'};`
+                    : '';
+
                   return `
-                    <tr>
+                    <tr style="${bgStyle}">
                       <td>
+                        ${partido.labelVirtual ? `<div style="font-size:12px;font-weight:bold;color:${partido.labelVirtual.includes('FINAL') ? '#b8860b' : '#8b6914'};margin-bottom:3px;">${partido.labelVirtual}</div>` : ''}
                         <div style="display: flex; align-items: center;">
                           ${logoLocal ? `<img src="${logoLocal}" style="width: 24px; height: 24px; object-fit: contain; margin-right: 6px;">` : ''}
                           <span>${p.equipo_local}</span>
