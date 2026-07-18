@@ -89,6 +89,8 @@ export default function JornadaMundial() {
 
       // Cargar bracket virtual J7
       if (Number(numero) === 7) {
+        setBracketVirtual(null);
+        setPronosticosVirtuales({ final: {}, tercero: {} });
         try {
           const bvRes = await axios.get(
             `${API_URL}/api/mundial/pronosticos-virtual-final`,
@@ -108,6 +110,9 @@ export default function JornadaMundial() {
                 quien_avanza: bvRes.data.tercero?.quien_avanza || '',
               },
             });
+          } else {
+            setBracketVirtual(null);
+            setPronosticosVirtuales({ final: {}, tercero: {} });
           }
         } catch (e) { console.log('Sin bracket virtual J7'); }
       }
@@ -287,6 +292,9 @@ export default function JornadaMundial() {
                 quien_avanza: bvRes.data.tercero?.quien_avanza || '',
               },
             }));
+          } else {
+            setBracketVirtual(null);
+            setPronosticosVirtuales({ final: {}, tercero: {} });
           }
         } catch (e) { /* silencioso */ }
       }
