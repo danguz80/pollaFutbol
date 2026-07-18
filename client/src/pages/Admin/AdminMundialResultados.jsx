@@ -649,22 +649,6 @@ export default function AdminMundialResultados() {
     }
   };
 
-  const crearPartidosFinales = async () => {
-    if (!confirm('¿Crear los partidos de Final y 3er Lugar basados en los resultados de las Semifinales?\n\nSolo funciona si ya ingresaste los resultados reales de ambas semis.')) return;
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/api/mundial-calcular/crear-partidos-finales`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error');
-      alert('✅ ' + data.mensaje);
-    } catch (error) {
-      alert('❌ ' + error.message);
-    }
-  };
-
   const getSubtitulo = (numero) => {
     if (numero <= 3) return 'Fase de Grupos';
     if (numero === 4) return '16vos de Final';

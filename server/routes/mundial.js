@@ -517,8 +517,9 @@ router.patch('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, 
         [partido.jornada_id]
       );
       
+      let jornadaNumero = null;
       if (jornadaResult.rows.length > 0) {
-        const jornadaNumero = jornadaResult.rows[0].numero;
+        jornadaNumero = jornadaResult.rows[0].numero;
         
         await pool.query(
           `INSERT INTO notificaciones (competencia, tipo, tipo_notificacion, mensaje, icono, url, jornada_numero)
@@ -534,6 +535,80 @@ router.patch('/partidos/:id', verifyToken, authorizeRoles('admin'), async (req, 
           ]
         );
         console.log(`✅ Notificación Mundial: resultado agregado para jornada ${jornadaNumero}`);
+      }
+
+      // Auto-crear partidos de Final y 3er Lugar cuando se completan ambas semis de J7
+      if (Number(jornadaNumero) === 7 && partido.subtipo === 'semifinal') {
+        const semis = await pool.query(`
+          SELECT p.id, p.equipo_local, p.equipo_visitante, p.resultado_local, p.resultado_visitante, p.quien_avanzo
+          FROM mundial_partidos p
+          INNER JOIN mundial_jornadas mj ON p.jornada_id = mj.id
+          WHERE mj.numero = 7 AND p.subtipo = 'semifinal' AND p.resultado_local IS NOT NULL AND p.resultado_visitante IS NOT NULL
+          ORDER BY p.id
+        `);
+
+        if (semis.rows.length >= 2) {
+          const getGanadorPerdedor = (rl, rv, quienAvanzo, local, visita) => {
+            const l = Number(rl), v = Number(rv);
+            let winner, loser;
+            if (l > v) { winner = local; loser = visita; }
+            else if (v > l) { winner = visita; loser = local; }
+            else { winner = quienAvanzo || local; loser = winner === local ? visita : local; }
+            return { winner, loser };
+          };
+
+          const s1 = getGanadorPerdedor(semis.rows[0].resultado_local, semis.rows[0].resultado_visitante, semis.rows[0].quien_avanzo, semis.rows[0].equipo_local, semis.rows[0].equipo_visitante);
+          const s2 = getGanadorPerdedor(semis.rows[1].resultado_local, semis.rows[1].resultado_visitante, semis.rows[1].quien_avanzo, semis.rows[1].equipo_local, semis.rows[1].equipo_visitante);
+
+          const existing = await pool.query(
+            `SELECT subtipo FROM mundial_partidos WHERE jornada_id = $1 AND subtipo IN ('final','tercero_lugar')`,
+            [partido.jornada_id]
+          );
+          const existSubtipos = new Set(existing.rows.map(r => r.subtipo));
+
+          if (!existSubtipos.has('tercero_lugar')) {
+            await pool.query(
+              `INSERT INTO mundial_partidos (jornada_id, equipo_local, equipo_visitante, bonus, subtipo) VALUES ($1,$2,$3,1,'tercero_lugar')`,
+              [partido.jornada_id, s1.loser, s2.loser]
+            );
+            console.log(`✅ Partido 3er Lugar creado: ${s1.loser} vs ${s2.loser}`);
+          }
+          if (!existSubtipos.has('final')) {
+            await pool.query(
+              `INSERT INTO mundial_partidos (jornada_id, equipo_local, equipo_visitante, bonus, subtipo) VALUES ($1,$2,$3,2,'final')`,
+              [partido.jornada_id, s1.winner, s2.winner]
+            );
+            console.log(`✅ Partido Final creado: ${s1.winner} vs ${s2.winner}`);
+          }
+
+          // Copiar pronósticos virtuales a mundial_pronosticos para los partidos recién creados
+          const partidosFinales = await pool.query(
+            `SELECT id, equipo_local, equipo_visitante, subtipo FROM mundial_partidos WHERE jornada_id=$1 AND subtipo IN ('final','tercero_lugar')`,
+            [partido.jornada_id]
+          );
+          for (const pf of partidosFinales.rows) {
+            const virtualPreds = await pool.query(`
+              SELECT pvf.usuario_id, pvf.resultado_local, pvf.resultado_visitante, pvf.quien_avanza,
+                     pfv1.equipo as eq1, pfv2.equipo as eq2
+              FROM mundial_pronosticos_virtual_final pvf
+              INNER JOIN mundial_pronosticos_final_virtual pfv1 ON pfv1.usuario_id=pvf.usuario_id AND pfv1.posicion=(CASE WHEN pvf.tipo='final' THEN 1 ELSE 3 END)
+              INNER JOIN mundial_pronosticos_final_virtual pfv2 ON pfv2.usuario_id=pvf.usuario_id AND pfv2.posicion=(CASE WHEN pvf.tipo='final' THEN 2 ELSE 4 END)
+              WHERE pvf.tipo=$1 AND pvf.resultado_local IS NOT NULL`, [pf.subtipo]);
+
+            for (const vp of virtualPreds.rows) {
+              const realTeams = new Set([pf.equipo_local, pf.equipo_visitante]);
+              if (realTeams.has(vp.eq1) && realTeams.has(vp.eq2)) {
+                await pool.query(
+                  `INSERT INTO mundial_pronosticos (usuario_id, jornada_id, partido_id, resultado_local, resultado_visitante, quien_avanza)
+                   VALUES ($1,$2,$3,$4,$5,$6)
+                   ON CONFLICT (usuario_id, partido_id) DO UPDATE SET resultado_local=$4, resultado_visitante=$5, quien_avanza=$6, actualizado_en=NOW()`,
+                  [vp.usuario_id, partido.jornada_id, pf.id, vp.resultado_local, vp.resultado_visitante, vp.quien_avanza || null]
+                );
+              }
+            }
+            console.log(`✅ Pronósticos virtuales copiados para ${pf.subtipo} (partido ${pf.id})`);
+          }
+        }
       }
     }
 
@@ -1163,6 +1238,29 @@ router.get('/pronosticos-virtual-final', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/mundial/brackets-virtuales-todos — brackets virtuales de todos los usuarios (para simulador)
+router.get('/brackets-virtuales-todos', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT pfv.usuario_id, u.nombre, pfv.posicion, pfv.equipo
+      FROM mundial_pronosticos_final_virtual pfv
+      INNER JOIN usuarios u ON u.id = pfv.usuario_id
+      WHERE u.rol != 'admin'
+      ORDER BY pfv.usuario_id, pfv.posicion
+    `);
+    // Agrupar en { usuario_id, nombre, bracket: {1,2,3,4} }
+    const map = {};
+    result.rows.forEach(r => {
+      if (!map[r.usuario_id]) map[r.usuario_id] = { usuario_id: r.usuario_id, nombre: r.nombre, bracket: {} };
+      map[r.usuario_id].bracket[r.posicion] = r.equipo;
+    });
+    res.json(Object.values(map));
+  } catch (error) {
+    console.error('Error obteniendo brackets virtuales:', error);
+    res.status(500).json({ error: 'Error obteniendo brackets virtuales' });
+  }
+});
+
 // POST /api/mundial/pronosticos-virtual-final — guardar predicciones de score virtuales
 router.post('/pronosticos-virtual-final', verifyToken, async (req, res) => {
   try {
@@ -1205,6 +1303,7 @@ router.get('/pronosticos-todos/jornada/:numero', verifyToken, async (req, res) =
         mp.partido_id,
         mp.resultado_local AS goles_local,
         mp.resultado_visitante AS goles_visita,
+        mp.quien_avanza,
         mp.puntos,
         u.nombre AS usuario,
         u.foto_perfil AS usuario_foto_perfil

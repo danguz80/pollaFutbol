@@ -151,8 +151,17 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       };
 
       // Construir pronosticos virtuales en el mismo formato
+      // Solo para usuarios que NO tienen ya un pronostico real para Final/3er
+      const usuariosConPronosticoReal = new Set(
+        pronosticos
+          .filter(p => p.partido.subtipo === 'final' || p.partido.subtipo === 'tercero_lugar')
+          .map(p => p.usuario.id)
+      );
+
       for (const [uid, data] of Object.entries(semisByUser)) {
         const userId = parseInt(uid);
+        // Si ya tiene pronosticos reales para Final y 3er, no agregar virtuales (evita duplicados)
+        if (usuariosConPronosticoReal.has(userId)) continue;
         const userScores = scoresByUser[userId] || {};
         const [semi1, semi2] = data.semis.sort((a, b) => a.partido.id - b.partido.id);
         if (!semi1 || !semi2) continue;

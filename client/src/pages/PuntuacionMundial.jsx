@@ -101,6 +101,9 @@ export default function PuntuacionMundial() {
 
   const gruposPorFase = agruparPorFase();
   const ordenFases = ['FASE DE GRUPOS', 'CLASIFICACIÓN', '16VOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINALES', 'FINAL', 'CUADRO FINAL'];
+  const labelFase = {
+    'SEMIFINALES': 'Semifinales y Partido por 3er Puesto'
+  };
 
   return (
     <div className="container mt-4 mb-5">
@@ -153,7 +156,7 @@ export default function PuntuacionMundial() {
             <div key={fase} className="col-12 col-lg-6">
               <div className="card shadow-sm h-100">
                 <div className="card-header bg-primary text-white">
-                  <h5 className="mb-0 fw-bold">{fase}</h5>
+                  <h5 className="mb-0 fw-bold">{labelFase[fase] || fase}</h5>
                 </div>
                 <div className="card-body p-0">
                   <table className="table table-striped mb-0" style={{ fontSize: '1.1rem' }}>
