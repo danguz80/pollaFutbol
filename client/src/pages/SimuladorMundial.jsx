@@ -299,17 +299,9 @@ export default function SimuladorMundial() {
 
         const b1 = bracket[1], b2 = bracket[2], b3 = bracket[3], b4 = bracket[4];
 
-        // Pts cuadro final — evaluación POR POSICIÓN INDIVIDUAL
-        // ptsFinalista: por cada equipo del bracket que realmente llegó a la Final
-        if (b1 && realFinalTeams.has(b1)) puntosClasif[nombre].pts_cuadro += ptsFinalista;
-        if (b2 && realFinalTeams.has(b2)) puntosClasif[nombre].pts_cuadro += ptsFinalista;
-
-        // ptsCampeon: si pos1 coincide con el campeón real
+        // Pts Cuadro Final: SOLO aciertos de posición exacta (1°/2°/3°/4°)
         if (realCampeon && b1 === realCampeon) puntosClasif[nombre].pts_cuadro += ptsCampeon;
-        // ptsSubcampeon: si pos2 coincide con el subcampeón real
         if (realSubcampeon && b2 === realSubcampeon) puntosClasif[nombre].pts_cuadro += ptsSubcampeon;
-
-        // ptsTercero/ptsCuarto: por posición individual en el partido por 3er puesto
         if (realTercero && b3 === realTercero) puntosClasif[nombre].pts_cuadro += ptsTercero;
         if (realCuarto && b4 === realCuarto) puntosClasif[nombre].pts_cuadro += ptsCuarto;
       });
