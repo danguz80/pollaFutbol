@@ -299,47 +299,19 @@ export default function SimuladorMundial() {
 
         const b1 = bracket[1], b2 = bracket[2], b3 = bracket[3], b4 = bracket[4];
 
-        // Puntos cuadro final desde brackets virtuales
-        const finalOK = b1 && b2 && realFinalTeams.has(b1) && realFinalTeams.has(b2);
-        if (finalOK) {
-          // Pts por predecir ambos finalistas correctamente
-          puntosClasif[nombre].pts_cuadro += ptsFinalista * 2;
+        // Pts cuadro final — evaluación POR POSICIÓN INDIVIDUAL
+        // ptsFinalista: por cada equipo del bracket que realmente llegó a la Final
+        if (b1 && realFinalTeams.has(b1)) puntosClasif[nombre].pts_cuadro += ptsFinalista;
+        if (b2 && realFinalTeams.has(b2)) puntosClasif[nombre].pts_cuadro += ptsFinalista;
 
-          // Pts campeón/subcampeón: validar resultado predicho del partido Final
-          const pronFinal = pronosticos.find(p => p.partido_id === finalPartido.id && p.usuario === nombre);
-          if (pronFinal && realCampeon) {
-            const lp = Number(pronFinal.goles_local), vp = Number(pronFinal.goles_visita);
-            let predCampeon;
-            if (lp > vp) predCampeon = finalPartido.equipo_local;
-            else if (vp > lp) predCampeon = finalPartido.equipo_visitante;
-            else predCampeon = pronFinal.quien_avanza || null; // empate: requiere quien_avanza explícito
+        // ptsCampeon: si pos1 coincide con el campeón real
+        if (realCampeon && b1 === realCampeon) puntosClasif[nombre].pts_cuadro += ptsCampeon;
+        // ptsSubcampeon: si pos2 coincide con el subcampeón real
+        if (realSubcampeon && b2 === realSubcampeon) puntosClasif[nombre].pts_cuadro += ptsSubcampeon;
 
-            if (predCampeon && predCampeon === realCampeon) puntosClasif[nombre].pts_cuadro += ptsCampeon;
-            if (predCampeon) {
-              const predSub = predCampeon === finalPartido.equipo_local ? finalPartido.equipo_visitante : finalPartido.equipo_local;
-              if (realSubcampeon && predSub === realSubcampeon) puntosClasif[nombre].pts_cuadro += ptsSubcampeon;
-            }
-          }
-        }
-
-        const terceroOK = b3 && b4 && realTerceroTeams.has(b3) && realTerceroTeams.has(b4);
-        if (terceroOK) {
-          // Pts 3er/4to lugar: validar resultado predicho del partido 3er Lugar
-          const pronTercero = pronosticos.find(p => p.partido_id === terceroPartido.id && p.usuario === nombre);
-          if (pronTercero && realTercero) {
-            const lp = Number(pronTercero.goles_local), vp = Number(pronTercero.goles_visita);
-            let predTercero;
-            if (lp > vp) predTercero = terceroPartido.equipo_local;
-            else if (vp > lp) predTercero = terceroPartido.equipo_visitante;
-            else predTercero = pronTercero.quien_avanza || null;
-
-            if (predTercero && predTercero === realTercero) puntosClasif[nombre].pts_cuadro += ptsTercero;
-            if (predTercero) {
-              const predCuarto = predTercero === terceroPartido.equipo_local ? terceroPartido.equipo_visitante : terceroPartido.equipo_local;
-              if (realCuarto && predCuarto === realCuarto) puntosClasif[nombre].pts_cuadro += ptsCuarto;
-            }
-          }
-        }
+        // ptsTercero/ptsCuarto: por posición individual en el partido por 3er puesto
+        if (realTercero && b3 === realTercero) puntosClasif[nombre].pts_cuadro += ptsTercero;
+        if (realCuarto && b4 === realCuarto) puntosClasif[nombre].pts_cuadro += ptsCuarto;
       });
     }
 
