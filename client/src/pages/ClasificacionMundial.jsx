@@ -553,7 +553,52 @@ export default function ClasificacionMundial() {
         </div>
       </div>
 
-      {/* Mostrar ganadores guardados si existen (sin modal) */}
+      {/* Pódio Ranking Acumulado (top 3) */}
+      {rankingAcumulado && rankingAcumulado.length > 0 && (
+        <div className="mb-3 rounded shadow-sm overflow-hidden" style={{ background: 'linear-gradient(135deg,#e8f0fe,#fff,#dff0ff)', border: '2px solid #0d3b8e' }}>
+          <div className="text-center py-2 fw-bold" style={{ background: 'linear-gradient(90deg,#0d3b8e,#1a5bc4,#0d3b8e)', color: '#fff', fontSize: '1rem', letterSpacing: '0.05em' }}>
+            📊 Pódio Ranking Acumulado
+          </div>
+          <div className="d-flex justify-content-center align-items-end gap-5 py-4 flex-wrap px-3">
+            {(() => {
+              const top = rankingAcumulado.slice(0, 3);
+              const cfgs = [
+                { pos: 1, emoji: '🥇', borderColor: '#ffd700', size: 78, baseH: 28 },
+                { pos: 2, emoji: '🥈', borderColor: '#c0c0c0', size: 64, baseH: 20 },
+                { pos: 3, emoji: '🥉', borderColor: '#cd7f32', size: 56, baseH: 14 },
+              ];
+              // Orden visual: 2° | 1° | 3°
+              const visualOrder = top.length === 1 ? [0] : top.length === 2 ? [1,0] : [1,0,2];
+              return visualOrder.map(idx => {
+                const g = top[idx];
+                if (!g) return null;
+                const cfg = cfgs[idx];
+                const foto = g.foto_perfil ? (g.foto_perfil.startsWith('/') ? g.foto_perfil : `/perfil/${g.foto_perfil}`) : null;
+                return (
+                  <div key={idx} className="text-center d-flex flex-column align-items-center">
+                    <span style={{ fontSize: '1.4rem' }}>{cfg.emoji}</span>
+                    {foto ? (
+                      <img src={foto} alt={g.nombre} className="rounded-circle my-1"
+                        style={{ width: `${cfg.size}px`, height: `${cfg.size}px`, objectFit: 'cover', border: `3px solid ${cfg.borderColor}`, boxShadow: `0 0 10px ${cfg.borderColor}88` }}
+                        onError={e => { e.target.src = '/perfil/default.png'; }} />
+                    ) : (
+                      <div className="rounded-circle d-flex align-items-center justify-content-center my-1 fw-bold"
+                        style={{ width: `${cfg.size}px`, height: `${cfg.size}px`, background: '#0d3b8e', color: '#fff', fontSize: '1.5rem', border: `3px solid ${cfg.borderColor}` }}>
+                        {g.nombre.charAt(0)}
+                      </div>
+                    )}
+                    <div className="fw-bold" style={{ color: '#0d3b8e', fontSize: '0.85rem', maxWidth: '100px', wordBreak: 'break-word', lineHeight: 1.2 }}>{g.nombre}</div>
+                    <span className="badge mt-1" style={{ background: cfg.borderColor, color: cfg.pos === 1 ? '#000' : '#fff', fontSize: '0.8rem' }}>{g.puntos_acumulados} pts</span>
+                    <div className="rounded-top mt-1" style={{ width: '70px', height: `${cfg.baseH}px`, background: `linear-gradient(180deg,${cfg.borderColor}88,${cfg.borderColor}33)`, border: `1px solid ${cfg.borderColor}44` }} />
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Ganador(es) de la Jornada */}
       {ganadores && Array.isArray(ganadores.ganadores) && ganadores.ganadores.length > 0 && !mostrarGanadores && (
         <div className="alert alert-info text-center mb-4 shadow-sm">
           <h5 className="mb-3">
@@ -780,7 +825,13 @@ export default function ClasificacionMundial() {
                   <tbody>
                     {grupo.pronosticos.map((pronostico, index) => (
                       <tr key={`pronostico-${pronostico.id}-${index}`} className={pronostico.esVirtual ? '' : getResultadoClase(pronostico)}
-                        style={pronostico.esVirtual && pronostico.partido.subtipo === 'final_virtual' ? { background: '#fffde7', borderLeft: '4px solid #ffd700' } : pronostico.esVirtual ? { background: '#fdf5e6', borderLeft: '4px solid #cd7f32' } : {}}>
+                        style={(() => {
+                          if (!pronostico.esVirtual) return {};
+                          const userData = cuadroFinalJ7?.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
+                          const coincide = pronostico.partido.subtipo === 'final_virtual' ? userData?.finalCoincide : userData?.terceroCoincide;
+                          if (coincide === false) return { background: '#f8d7da', borderLeft: '4px solid #dc3545' };
+                          return pronostico.partido.subtipo === 'final_virtual' ? { background: '#fffde7', borderLeft: '4px solid #ffd700' } : { background: '#fdf5e6', borderLeft: '4px solid #cd7f32' };
+                        })()}>
                         <td>
                           <div className="d-flex align-items-center justify-content-center gap-3">
                             <div className="d-flex align-items-center gap-2">
@@ -803,7 +854,21 @@ export default function ClasificacionMundial() {
                               />
                             </div>
                           </div>
-                          {/* Badge de coincidencia para partidos de Final y 3er Lugar de J7 */}
+                          {/* Badge para filas virtuales (no coincide) */}
+                          {pronostico.esVirtual && filtroJornada === '7' && cuadroFinalJ7 && (() => {
+                            const userData = cuadroFinalJ7.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
+                            if (!userData) return null;
+                            const coincide = pronostico.partido.subtipo === 'final_virtual' ? userData.finalCoincide : userData.terceroCoincide;
+                            const label = pronostico.partido.subtipo === 'final_virtual' ? '🏆 Final' : '🥉 3er Lugar';
+                            return (
+                              <div className="mt-1 text-center">
+                                <span className={`badge ${coincide ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.75rem' }}>
+                                  {coincide ? `✅ Partido coincide — ${label} aplicado` : `❌ Partido no coincide — 0 puntos`}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                          {/* Badge de coincidencia para partidos reales de Final y 3er Lugar de J7 */}
                           {(pronostico.partido.subtipo === 'final' || pronostico.partido.subtipo === 'tercero_lugar') && filtroJornada === '7' && cuadroFinalJ7 && (() => {
                             const userData = cuadroFinalJ7.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
                             if (!userData) return null;
@@ -821,13 +886,18 @@ export default function ClasificacionMundial() {
                         </td>
                         
                         <td className="text-center">
-                          {pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null ? (
-                            <span className="fw-bold">
-                              {pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}
-                            </span>
-                          ) : (
-                            <span className="text-muted">Pendiente</span>
-                          )}
+                          {(() => {
+                            // Filas virtuales sin coincidencia: mostrar ----
+                            if (pronostico.esVirtual && filtroJornada === '7' && cuadroFinalJ7) {
+                              const userData = cuadroFinalJ7.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
+                              const coincide = pronostico.partido.subtipo === 'final_virtual' ? userData?.finalCoincide : userData?.terceroCoincide;
+                              if (coincide === false) return <span className="text-muted">————</span>;
+                            }
+                            if (pronostico.partido.resultado.local !== null && pronostico.partido.resultado.visita !== null) {
+                              return <span className="fw-bold">{pronostico.partido.resultado.local} - {pronostico.partido.resultado.visita}</span>;
+                            }
+                            return <span className="text-muted">Pendiente</span>;
+                          })()}
                         </td>
                         
                         <td className="text-center fw-bold">
@@ -841,8 +911,23 @@ export default function ClasificacionMundial() {
                         </td>
                         
                         <td className="text-center">
-                          <strong className={pronostico.puntos > 0 ? 'text-success' : pronostico.puntos === null ? 'text-muted' : 'text-danger'}>
-                            {pronostico.puntos === null ? '—' : (pronostico.puntos || 0)}
+                          <strong className={pronostico.puntos > 0 ? 'text-success' : pronostico.puntos === null ? (() => {
+                            // Virtuales sin coincidencia: mostrar 0 en rojo
+                            if (pronostico.esVirtual && filtroJornada === '7' && cuadroFinalJ7) {
+                              const userData = cuadroFinalJ7.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
+                              const coincide = pronostico.partido.subtipo === 'final_virtual' ? userData?.finalCoincide : userData?.terceroCoincide;
+                              if (coincide === false) return 'text-danger';
+                            }
+                            return 'text-muted';
+                          })() : 'text-danger'}>
+                            {pronostico.puntos === null ? (() => {
+                              if (pronostico.esVirtual && filtroJornada === '7' && cuadroFinalJ7) {
+                                const userData = cuadroFinalJ7.usuarios?.find(u => u.usuario_id === grupo.usuario_id);
+                                const coincide = pronostico.partido.subtipo === 'final_virtual' ? userData?.finalCoincide : userData?.terceroCoincide;
+                                if (coincide === false) return 0;
+                              }
+                              return '—';
+                            })() : (pronostico.puntos || 0)}
                           </strong>
                         </td>
                       </tr>
@@ -1079,45 +1164,56 @@ export default function ClasificacionMundial() {
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className={userData.equipo_final_1 && fr && fr.equipo_local === userData.equipo_final_1 || fr?.equipo_visitante === userData.equipo_final_1 ? 'table-success' : fr ? 'table-danger' : ''}>
+                          {/* Finalista 1 */}
+                          <tr className={userData.equipo_final_1 && fr && (fr.equipo_local === userData.equipo_final_1 || fr.equipo_visitante === userData.equipo_final_1) ? 'table-success' : fr ? 'table-danger' : ''}>
                             <td>Finalista 1</td>
                             <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_final_1)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_final_1||'—'}</div></td>
-                            <td className="text-center">{fr ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(fr.equipo_local)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{fr.equipo_local} vs {fr.equipo_visitante}<img src={getMundialLogoPorNombre(fr.equipo_visitante)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/></div> : '—'}</td>
-                            <td className="text-center"><strong className="text-success">{userData.pts.clasificado > 0 ? `${Math.min(userData.pts.clasificado,5)}` : '0'}</strong></td>
+                            <td className="text-center">{fr ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(fr.equipo_local)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{fr.equipo_local}</div> : '—'}</td>
+                            <td className="text-center"><strong className={(userData.equipo_final_1 && fr && (fr.equipo_local === userData.equipo_final_1 || fr.equipo_visitante === userData.equipo_final_1)) ? 'text-success' : 'text-danger'}>{(userData.equipo_final_1 && fr && (fr.equipo_local === userData.equipo_final_1 || fr.equipo_visitante === userData.equipo_final_1)) ? '5' : '0'}</strong></td>
                           </tr>
+                          {/* Finalista 2 */}
                           <tr className={userData.equipo_final_2 && fr && (fr.equipo_local === userData.equipo_final_2 || fr.equipo_visitante === userData.equipo_final_2) ? 'table-success' : fr ? 'table-danger' : ''}>
                             <td>Finalista 2</td>
                             <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_final_2)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_final_2||'—'}</div></td>
-                            <td className="text-center">{fr ? '(ver arriba)' : '—'}</td>
-                            <td className="text-center"><strong className="text-success">{userData.pts.clasificado >= 10 ? '5' : userData.pts.clasificado === 5 ? '0' : '0'}</strong></td>
+                            <td className="text-center">{fr ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(fr.equipo_visitante)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{fr.equipo_visitante}</div> : '—'}</td>
+                            <td className="text-center"><strong className={(userData.equipo_final_2 && fr && (fr.equipo_local === userData.equipo_final_2 || fr.equipo_visitante === userData.equipo_final_2)) ? 'text-success' : 'text-danger'}>{(userData.equipo_final_2 && fr && (fr.equipo_local === userData.equipo_final_2 || fr.equipo_visitante === userData.equipo_final_2)) ? '5' : '0'}</strong></td>
                           </tr>
+                          {/* Campeón */}
                           <tr className={userData.pts.campeon > 0 ? 'table-success' : fr?.resultado_local !== null ? 'table-danger' : ''}>
                             <td>🥇 Campeón</td>
-                            <td className="text-center">{userData.equipo_final_1||'—'} / {userData.equipo_final_2||'—'}</td>
-                            <td className="text-center">{fr?.resultado_local !== null && fr?.resultado_local !== undefined ? (fr.resultado_local > fr.resultado_visitante ? fr.equipo_local : fr.equipo_visitante) : '—'}</td>
+                            <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_final_1)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_final_1||'—'}</div></td>
+                            <td className="text-center">{fr?.resultado_local !== null && fr?.resultado_local !== undefined ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(fr.resultado_local > fr.resultado_visitante ? fr.equipo_local : fr.equipo_visitante)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{fr.resultado_local > fr.resultado_visitante ? fr.equipo_local : fr.equipo_visitante}</div> : '—'}</td>
                             <td className="text-center"><strong className={userData.pts.campeon > 0 ? 'text-success' : 'text-danger'}>{userData.pts.campeon}</strong></td>
                           </tr>
+                          {/* Subcampeón */}
                           <tr className={userData.pts.subcampeon > 0 ? 'table-success' : fr?.resultado_local !== null ? 'table-danger' : ''}>
                             <td>🥈 Subcampeón</td>
-                            <td className="text-center">{userData.equipo_final_1||'—'} / {userData.equipo_final_2||'—'}</td>
-                            <td className="text-center">{fr?.resultado_local !== null && fr?.resultado_local !== undefined ? (fr.resultado_local > fr.resultado_visitante ? fr.equipo_visitante : fr.equipo_local) : '—'}</td>
+                            <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_final_2)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_final_2||'—'}</div></td>
+                            <td className="text-center">{fr?.resultado_local !== null && fr?.resultado_local !== undefined ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(fr.resultado_local > fr.resultado_visitante ? fr.equipo_visitante : fr.equipo_local)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{fr.resultado_local > fr.resultado_visitante ? fr.equipo_visitante : fr.equipo_local}</div> : '—'}</td>
                             <td className="text-center"><strong className={userData.pts.subcampeon > 0 ? 'text-success' : 'text-danger'}>{userData.pts.subcampeon}</strong></td>
                           </tr>
+                          {/* 3er Lugar */}
                           <tr className={userData.pts.tercero > 0 ? 'table-success' : tr?.resultado_local !== null ? 'table-danger' : ''}>
                             <td>🥉 3er Lugar</td>
-                            <td className="text-center">{userData.equipo_tercero_1||'—'} vs {userData.equipo_tercero_2||'—'}</td>
-                            <td className="text-center">{tr && tr.resultado_local !== null ? (tr.resultado_local > tr.resultado_visitante ? tr.equipo_local : tr.equipo_visitante) : '—'}</td>
+                            <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_tercero_1)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_tercero_1||'—'}</div></td>
+                            <td className="text-center">{tr && tr.resultado_local !== null ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(tr.resultado_local > tr.resultado_visitante ? tr.equipo_local : tr.equipo_visitante)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{tr.resultado_local > tr.resultado_visitante ? tr.equipo_local : tr.equipo_visitante}</div> : '—'}</td>
                             <td className="text-center"><strong className={userData.pts.tercero > 0 ? 'text-success' : 'text-danger'}>{userData.pts.tercero}</strong></td>
                           </tr>
+                          {/* 4to Lugar */}
                           <tr className={(userData.pts.cuarto||0) > 0 ? 'table-success' : tr?.resultado_local !== null ? 'table-danger' : ''}>
                             <td>4° Lugar</td>
-                            <td className="text-center">{userData.equipo_tercero_1||'—'} vs {userData.equipo_tercero_2||'—'}</td>
-                            <td className="text-center">{tr && tr.resultado_local !== null ? (tr.resultado_local > tr.resultado_visitante ? tr.equipo_visitante : tr.equipo_local) : '—'}</td>
+                            <td className="text-center"><div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(userData.equipo_tercero_2)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{userData.equipo_tercero_2||'—'}</div></td>
+                            <td className="text-center">{tr && tr.resultado_local !== null ? <div className="d-flex align-items-center justify-content-center gap-1"><img src={getMundialLogoPorNombre(tr.resultado_local > tr.resultado_visitante ? tr.equipo_visitante : tr.equipo_local)} style={{width:'20px',height:'20px',objectFit:'contain'}} onError={e=>{e.target.style.display='none'}}/>{tr.resultado_local > tr.resultado_visitante ? tr.equipo_visitante : tr.equipo_local}</div> : '—'}</td>
                             <td className="text-center"><strong className={(userData.pts.cuarto||0) > 0 ? 'text-success' : 'text-danger'}>{userData.pts.cuarto||0}</strong></td>
                           </tr>
                         </tbody>
                         <tfoot>
-                          <tr className="table-dark fw-bold"><td colSpan="3" className="text-end">TOTAL CUADRO FINAL {grupo.jugador} :</td><td className="text-center">{userData.totalPuntos}</td></tr>
+                          {(() => {
+                            const ptsFin1 = (userData.equipo_final_1 && fr && (fr.equipo_local === userData.equipo_final_1 || fr.equipo_visitante === userData.equipo_final_1)) ? 5 : 0;
+                            const ptsFin2 = (userData.equipo_final_2 && fr && (fr.equipo_local === userData.equipo_final_2 || fr.equipo_visitante === userData.equipo_final_2)) ? 5 : 0;
+                            const total = ptsFin1 + ptsFin2 + (userData.pts.campeon||0) + (userData.pts.subcampeon||0) + (userData.pts.tercero||0) + (userData.pts.cuarto||0);
+                            return <tr className="table-dark fw-bold"><td colSpan="3" className="text-end">TOTAL CUADRO FINAL {grupo.jugador} :</td><td className="text-center">{total}</td></tr>;
+                          })()}
                         </tfoot>
                       </table>
                     </div>

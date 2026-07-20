@@ -261,33 +261,53 @@ async function obtenerClasificadosKnockout(jornadaNumero, fasePrefijo) {
 }
 
 async function obtenerCuadroFinalJ7() {
+  // Brackets virtuales
   const bracketsQ = await pool.query(`
     SELECT pfv.usuario_id, u.nombre as nombre, pfv.equipo, pfv.posicion
     FROM mundial_pronosticos_final_virtual pfv INNER JOIN usuarios u ON pfv.usuario_id=u.id
     WHERE u.rol!='admin' ORDER BY u.nombre, pfv.posicion`);
+
+  // Pts por fase
   const ptsQ = await pool.query(`SELECT usuario_id, fase, SUM(puntos) p FROM mundial_puntos_clasificacion WHERE fase LIKE 'FINAL_%' GROUP BY usuario_id, fase`);
   const ptsMap = {};
   ptsQ.rows.forEach(r => {
-    if (!ptsMap[r.usuario_id]) ptsMap[r.usuario_id] = { clasificado:0, campeon:0, subcampeon:0, tercero:0 };
+    if (!ptsMap[r.usuario_id]) ptsMap[r.usuario_id] = { clasificado:0, campeon:0, subcampeon:0, tercero:0, cuarto:0 };
     if (r.fase==='FINAL_CLASIFICADO') ptsMap[r.usuario_id].clasificado += parseInt(r.p);
     if (r.fase==='FINAL_CAMPEON') ptsMap[r.usuario_id].campeon += parseInt(r.p);
     if (r.fase==='FINAL_SUBCAMPEON') ptsMap[r.usuario_id].subcampeon += parseInt(r.p);
     if (r.fase==='FINAL_TERCERO') ptsMap[r.usuario_id].tercero += parseInt(r.p);
-    if (r.fase==='FINAL_CUARTO') ptsMap[r.usuario_id].cuarto = (ptsMap[r.usuario_id].cuarto||0) + parseInt(r.p);
+    if (r.fase==='FINAL_CUARTO') ptsMap[r.usuario_id].cuarto += parseInt(r.p);
   });
+
+  // Partidos reales Final y 3er Lugar
+  const partidosQ = await pool.query(`
+    SELECT p.equipo_local, p.equipo_visitante, p.resultado_local, p.resultado_visitante, p.quien_avanzo, p.subtipo
+    FROM mundial_partidos p INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+    WHERE mj.numero=7 AND p.subtipo IN ('final','tercero_lugar')`);
+  const finalReal = partidosQ.rows.find(p => p.subtipo === 'final') || null;
+  const terceroReal = partidosQ.rows.find(p => p.subtipo === 'tercero_lugar') || null;
+  const realFinalTeams = finalReal ? new Set([finalReal.equipo_local, finalReal.equipo_visitante]) : new Set();
+  const realTerceroTeams = terceroReal ? new Set([terceroReal.equipo_local, terceroReal.equipo_visitante]) : new Set();
+
   const porUsuario = {};
   bracketsQ.rows.forEach(row => {
-    if (!porUsuario[row.usuario_id]) porUsuario[row.usuario_id] = { nombre: row.nombre, clasificados: [] };
-    const posLabels = {1:'Final (equipo 1)', 2:'Final (equipo 2)', 3:'3er Lugar (equipo 1)', 4:'3er Lugar (equipo 2)'};
-    const pts = row.posicion <= 2 ? (ptsMap[row.usuario_id]?.clasificado||0) : (ptsMap[row.usuario_id]?.tercero||0);
-    porUsuario[row.usuario_id].clasificados.push({
-      equipo_pronosticado: row.equipo, posicion: row.posicion,
-      posLabel: posLabels[row.posicion], puntos: row.posicion <= 2 ? 0 : 0 // pts shown in total
-    });
+    if (!porUsuario[row.usuario_id]) porUsuario[row.usuario_id] = { nombre: row.nombre, bracket: {}, usuario_id: row.usuario_id };
+    porUsuario[row.usuario_id].bracket[row.posicion] = row.equipo;
   });
+
   Object.values(porUsuario).forEach(u => {
-    const p = ptsMap[u.usuario_id] || {};
-    u.totalPuntos = (p.clasificado||0) + (p.campeon||0) + (p.subcampeon||0) + (p.tercero||0) + (p.cuarto||0);
+    const b = u.bracket;
+    const p = ptsMap[u.usuario_id] || { clasificado:0, campeon:0, subcampeon:0, tercero:0, cuarto:0 };
+    u.equipo_final_1 = b[1] || null;
+    u.equipo_final_2 = b[2] || null;
+    u.equipo_tercero_1 = b[3] || null;
+    u.equipo_tercero_2 = b[4] || null;
+    u.finalCoincide = finalReal && realFinalTeams.has(b[1]) && realFinalTeams.has(b[2]);
+    u.terceroCoincide = terceroReal && realTerceroTeams.has(b[3]) && realTerceroTeams.has(b[4]);
+    u.pts = p;
+    u.totalPuntos = p.clasificado + p.campeon + p.subcampeon + p.tercero + p.cuarto;
+    u.finalReal = finalReal;
+    u.terceroReal = terceroReal;
   });
   return porUsuario;
 }
@@ -380,6 +400,7 @@ async function obtenerPronosticos(jornadaNumero) {
       mpa.resultado_visitante as real_visita,
       mpa.fecha,
       mpa.bonus,
+      mpa.subtipo,
       mp.puntos
     FROM mundial_pronosticos mp
     INNER JOIN usuarios u ON mp.usuario_id = u.id
@@ -409,9 +430,99 @@ async function obtenerPronosticos(jornadaNumero) {
       real_local: row.real_local,
       real_visita: row.real_visita,
       bonus: row.bonus,
-      puntos: row.puntos
+      subtipo: row.subtipo,
+      puntos: row.puntos,
+      esVirtual: false
     });
   });
+
+  // Para J7: agregar pronosticos virtuales para usuarios sin bracket coincidente
+  if (jornadaNumero === 7) {
+    const scoresQ = await pool.query(`
+      SELECT pvf.usuario_id, pvf.tipo, pvf.resultado_local, pvf.resultado_visitante
+      FROM mundial_pronosticos_virtual_final pvf
+      INNER JOIN usuarios u ON u.id = pvf.usuario_id WHERE u.rol != 'admin'`);
+    const scoresByUser = {};
+    scoresQ.rows.forEach(r => {
+      if (!scoresByUser[r.usuario_id]) scoresByUser[r.usuario_id] = {};
+      scoresByUser[r.usuario_id][r.tipo] = r;
+    });
+
+    // Obtener brackets y semis para calcular equipos virtuales
+    const semisQ = await pool.query(`
+      SELECT mp.usuario_id, u.nombre as usuario_nombre, mp.resultado_local, mp.resultado_visitante, mp.quien_avanza,
+             p.equipo_local, p.equipo_visitante
+      FROM mundial_pronosticos mp
+      INNER JOIN usuarios u ON mp.usuario_id = u.id
+      INNER JOIN mundial_partidos p ON p.id = mp.partido_id
+      INNER JOIN mundial_jornadas mj ON p.jornada_id = mj.id
+      WHERE mj.numero = 7 AND p.subtipo = 'semifinal' AND u.rol != 'admin'
+      ORDER BY mp.usuario_id, p.id`);
+
+    const semisByUser = {};
+    semisQ.rows.forEach(row => {
+      if (!semisByUser[row.usuario_id]) semisByUser[row.usuario_id] = { nombre: row.usuario_nombre, semis: [] };
+      semisByUser[row.usuario_id].semis.push(row);
+    });
+
+    // Partidos reales Final/3er
+    const realesQ = await pool.query(`
+      SELECT equipo_local, equipo_visitante, subtipo FROM mundial_partidos p
+      INNER JOIN mundial_jornadas mj ON p.jornada_id=mj.id
+      WHERE mj.numero=7 AND p.subtipo IN ('final','tercero_lugar')`);
+    const finalReal = realesQ.rows.find(p => p.subtipo === 'final');
+    const terceroReal = realesQ.rows.find(p => p.subtipo === 'tercero_lugar');
+    const realFinalTeams = finalReal ? new Set([finalReal.equipo_local, finalReal.equipo_visitante]) : new Set();
+    const realTerceroTeams = terceroReal ? new Set([terceroReal.equipo_local, terceroReal.equipo_visitante]) : new Set();
+
+    const getWL = (rl, rv, qa, local, visita) => {
+      const l = Number(rl), v = Number(rv);
+      if (l > v) return { winner: local, loser: visita };
+      if (v > l) return { winner: visita, loser: local };
+      const w = qa || local; return { winner: w, loser: w === local ? visita : local };
+    };
+
+    // Para cada usuario con semis, si no tiene pronostico real de Final/3er, agregar virtual
+    for (const [uid, data] of Object.entries(semisByUser)) {
+      const userId = parseInt(uid);
+      const userName = data.nombre;
+      const userGroup = grouped[userName];
+      if (!userGroup) continue;
+
+      const hasRealFinal = userGroup.pronosticos.some(p => p.subtipo === 'final');
+      const hasRealTercero = userGroup.pronosticos.some(p => p.subtipo === 'tercero_lugar');
+
+      const [semi1, semi2] = data.semis.sort((a,b) => a.usuario_id - b.usuario_id);
+      if (!semi1 || !semi2) continue;
+      const r1 = getWL(semi1.resultado_local, semi1.resultado_visitante, semi1.quien_avanza, semi1.equipo_local, semi1.equipo_visitante);
+      const r2 = getWL(semi2.resultado_local, semi2.resultado_visitante, semi2.quien_avanza, semi2.equipo_local, semi2.equipo_visitante);
+
+      const userScores = scoresByUser[userId] || {};
+
+      if (!hasRealFinal) {
+        const score = userScores['final'];
+        const coincide = finalReal && realFinalTeams.has(r1.winner) && realFinalTeams.has(r2.winner);
+        userGroup.pronosticos.push({
+          equipo_local: r1.winner, equipo_visitante: r2.winner,
+          pred_local: score?.resultado_local ?? null, pred_visita: score?.resultado_visitante ?? null,
+          real_local: null, real_visita: null,
+          bonus: 2, subtipo: 'final_virtual', puntos: null,
+          esVirtual: true, coincide
+        });
+      }
+      if (!hasRealTercero) {
+        const score = userScores['tercero_lugar'];
+        const coincide = terceroReal && realTerceroTeams.has(r1.loser) && realTerceroTeams.has(r2.loser);
+        userGroup.pronosticos.push({
+          equipo_local: r1.loser, equipo_visitante: r2.loser,
+          pred_local: score?.resultado_local ?? null, pred_visita: score?.resultado_visitante ?? null,
+          real_local: null, real_visita: null,
+          bonus: 1, subtipo: 'tercero_virtual', puntos: null,
+          esVirtual: true, coincide
+        });
+      }
+    }
+  }
   
   return Object.values(grouped);
 }
@@ -754,20 +865,53 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornada
 
     // Filas de pronósticos (reducido a 22px)
     usuario.pronosticos.forEach((pron) => {
+      const esVirtual = pron.esVirtual === true;
       const tieneResultado = pron.real_local !== null && pron.real_visita !== null;
       const puntos = pron.puntos || 0;
-      const bgColor = tieneResultado ? (puntos > 0 ? '#d4edda' : '#f8d7da') : '#f8f9fa';
 
-      doc.rect(50, yPos, 512, 22).fill(bgColor);
-      doc.rect(50, yPos, 512, 22).strokeColor('#d0d0d0').lineWidth(0.5).stroke();
+      let bgColor;
+      if (esVirtual) {
+        bgColor = pron.coincide ? '#fff8dc' : '#f8d7da';
+      } else {
+        bgColor = tieneResultado ? (puntos > 0 ? '#d4edda' : '#f8d7da') : '#f8f9fa';
+      }
 
-      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
-         .text(`${pron.equipo_local} vs ${pron.equipo_visitante}`, 55, yPos + 7, { width: 190, lineBreak: false });
+      // Borde izquierdo de color para virtuales
+      if (esVirtual) {
+        const borderColor = pron.subtipo === 'final_virtual' ? '#ffd700' : '#cd7f32';
+        doc.rect(50, yPos, 4, 22).fill(borderColor);
+        doc.rect(54, yPos, 508, 22).fill(bgColor);
+        doc.rect(50, yPos, 512, 22).strokeColor('#d0d0d0').lineWidth(0.5).stroke();
+      } else {
+        doc.rect(50, yPos, 512, 22).fill(bgColor);
+        doc.rect(50, yPos, 512, 22).strokeColor('#d0d0d0').lineWidth(0.5).stroke();
+      }
 
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
-         .text(`${pron.pred_local} - ${pron.pred_visita}`, 255, yPos + 7, { width: 60, align: 'center', lineBreak: false });
+      // Nombre del partido
+      let partidoLabel = `${pron.equipo_local} vs ${pron.equipo_visitante}`;
+      if (pron.subtipo === 'final_virtual') partidoLabel = `FINAL (virtual): ${pron.equipo_local} vs ${pron.equipo_visitante}`;
+      else if (pron.subtipo === 'tercero_virtual') partidoLabel = `3er Lugar (virtual): ${pron.equipo_local} vs ${pron.equipo_visitante}`;
+      else if (pron.subtipo === 'final') partidoLabel = `FINAL: ${pron.equipo_local} vs ${pron.equipo_visitante}`;
+      else if (pron.subtipo === 'tercero_lugar') partidoLabel = `3er Lugar: ${pron.equipo_local} vs ${pron.equipo_visitante}`;
 
-      if (tieneResultado) {
+      doc.fontSize(esVirtual ? 8 : 9).font('Helvetica-Bold').fillColor('#000000')
+         .text(partidoLabel, 58, yPos + 7, { width: 188, lineBreak: false });
+
+      // Pronóstico
+      if (pron.pred_local !== null && pron.pred_visita !== null) {
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
+           .text(`${pron.pred_local} - ${pron.pred_visita}`, 255, yPos + 7, { width: 60, align: 'center', lineBreak: false });
+      } else {
+        doc.fontSize(8).fillColor('#999999')
+           .text('—', 255, yPos + 7, { width: 60, align: 'center', lineBreak: false });
+      }
+
+      // Resultado real
+      if (esVirtual) {
+        const badge = pron.coincide ? '✓ Coincide' : '✗ No coincide';
+        doc.fontSize(7).font('Helvetica-Bold').fillColor(pron.coincide ? '#28a745' : '#dc3545')
+           .text(badge, 325, yPos + 7, { width: 60, align: 'center', lineBreak: false });
+      } else if (tieneResultado) {
         doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
            .text(`${pron.real_local} - ${pron.real_visita}`, 325, yPos + 7, { width: 60, align: 'center', lineBreak: false });
       } else {
@@ -779,7 +923,10 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornada
       doc.fontSize(10).font('Helvetica-Bold').fillColor('#ff6b00')
          .text(bonusText, 395, yPos + 7, { width: 40, align: 'center', lineBreak: false });
 
-      if (tieneResultado) {
+      if (esVirtual) {
+        doc.fontSize(9).fillColor(pron.coincide ? '#999999' : '#dc3545')
+           .text(pron.coincide ? '—' : '0', 445, yPos + 7, { width: 110, align: 'center', lineBreak: false });
+      } else if (tieneResultado) {
         doc.fontSize(11).font('Helvetica-Bold').fillColor(puntos > 0 ? '#28a745' : '#dc3545')
            .text(`${puntos} pts`, 445, yPos + 7, { width: 110, align: 'center', lineBreak: false });
       } else {
@@ -790,8 +937,86 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornada
       yPos += 22;
     });
 
-      // ==================== TABLA EQUIPOS CLASIFICADOS (J3 y J4) ====================
-    if (clasifData && clasifData.clasificados.length > 0) {
+      // ==================== TABLA CUADRO FINAL DETALLADA (J7) ====================
+      if (jornadaNumero === 7 && clasifData) {
+        if (yPos > 580) { doc.addPage(); yPos = 50; } else { yPos += 12; }
+
+        const fr = clasifData.finalReal;
+        const tr = clasifData.terceroReal;
+
+        // Título
+        doc.rect(50, yPos, 512, 20).fill('#b8860b');
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#FFFFFF')
+           .text(`+P CUADRO FINAL — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
+        yPos += 20;
+
+        // Headers
+        const colX = [50, 200, 330, 455];
+        const colW = [150, 130, 125, 107];
+        const hdrs = ['Concepto', 'Predicción', 'Real', 'Pts'];
+        hdrs.forEach((h, i) => {
+          doc.rect(colX[i], yPos, colW[i], 14).fill('#daa520').stroke('#999');
+          doc.fontSize(8).font('Helvetica-Bold').fillColor('#000')
+             .text(h, colX[i]+3, yPos+3, { width: colW[i]-6, align: 'center', lineBreak: false });
+        });
+        yPos += 14;
+
+        const getWinner = (p) => {
+          if (!p || p.resultado_local === null) return null;
+          return p.resultado_local > p.resultado_visitante ? p.equipo_local : p.equipo_visitante;
+        };
+        const getLoser = (p) => {
+          if (!p || p.resultado_local === null) return null;
+          return p.resultado_local > p.resultado_visitante ? p.equipo_visitante : p.equipo_local;
+        };
+
+        const rows = [
+          {
+            concepto: 'Finalista 1',
+            pred: clasifData.equipo_final_1,
+            real: fr ? fr.equipo_local : null,
+            pts: (clasifData.equipo_final_1 && fr && (fr.equipo_local===clasifData.equipo_final_1 || fr.equipo_visitante===clasifData.equipo_final_1)) ? 5 : 0
+          },
+          {
+            concepto: 'Finalista 2',
+            pred: clasifData.equipo_final_2,
+            real: fr ? fr.equipo_visitante : null,
+            pts: (clasifData.equipo_final_2 && fr && (fr.equipo_local===clasifData.equipo_final_2 || fr.equipo_visitante===clasifData.equipo_final_2)) ? 5 : 0
+          },
+          { concepto: 'Campeon (1er lugar)',  pred: clasifData.equipo_final_1,   real: getWinner(fr), pts: clasifData.pts.campeon },
+          { concepto: 'Subcampeon (2do)',     pred: clasifData.equipo_final_2,   real: getLoser(fr),  pts: clasifData.pts.subcampeon },
+          { concepto: '3er Lugar',            pred: clasifData.equipo_tercero_1, real: getWinner(tr), pts: clasifData.pts.tercero },
+          { concepto: '4o Lugar',             pred: clasifData.equipo_tercero_2, real: getLoser(tr),  pts: clasifData.pts.cuarto },
+        ];
+
+        rows.forEach(row => {
+          if (yPos + 18 > 742) { doc.addPage(); yPos = 50; }
+          const correcto = row.pts > 0;
+          const bg = correcto ? '#d4edda' : '#f8d7da';
+          doc.rect(colX[0], yPos, colW[0], 18).fill(bg).stroke('#ccc');
+          doc.rect(colX[1], yPos, colW[1], 18).fill(bg).stroke('#ccc');
+          doc.rect(colX[2], yPos, colW[2], 18).fill(bg).stroke('#ccc');
+          doc.rect(colX[3], yPos, colW[3], 18).fill(bg).stroke('#ccc');
+          doc.fontSize(8).font('Helvetica-Bold').fillColor('#000')
+             .text(row.concepto, colX[0]+4, yPos+5, { width: colW[0]-8, lineBreak: false });
+          doc.fontSize(8).font('Helvetica').fillColor('#000')
+             .text(row.pred || '—', colX[1]+4, yPos+5, { width: colW[1]-8, align: 'center', lineBreak: false });
+          doc.fontSize(8).font('Helvetica').fillColor(row.real ? '#000' : '#999')
+             .text(row.real || (fr ? 'Pendiente' : '—'), colX[2]+4, yPos+5, { width: colW[2]-8, align: 'center', lineBreak: false });
+          doc.fontSize(9).font('Helvetica-Bold').fillColor(correcto ? '#28a745' : '#dc3545')
+             .text(`${row.pts}`, colX[3]+4, yPos+5, { width: colW[3]-8, align: 'center', lineBreak: false });
+          yPos += 18;
+        });
+
+        // Total cuadro final (suma de filas calculadas)
+        const totalFilas = rows.reduce((s, r) => s + (r.pts || 0), 0);
+        doc.rect(50, yPos, 512, 18).fill('#1a5490');
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#FFD700')
+           .text(`TOTAL CUADRO FINAL: ${totalFilas} pts`, 55, yPos+4, { width: 502, align: 'right', lineBreak: false });
+        yPos += 18;
+      }
+      // Tabla clasificados J3-J6 (no J7, que ya tiene su tabla propia arriba)
+      if (jornadaNumero !== 7 && clasifData && clasifData.clasificados && clasifData.clasificados.length > 0) {
       // Verificar espacio — si queda poco, nueva página
       if (yPos > 600) {
         doc.addPage();
@@ -805,23 +1030,22 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornada
       doc.fontSize(11)
          .font('Helvetica-Bold')
          .fillColor('#FFFFFF')
-         .text(`⭐ ${
+         .text(`** ${
            jornadaNumero === 4 ? 'EQUIPOS A OCTAVOS DE FINAL' :
            jornadaNumero === 5 ? 'EQUIPOS A CUARTOS DE FINAL' :
            jornadaNumero === 6 ? 'EQUIPOS A SEMIFINALES' :
-           jornadaNumero === 7 ? 'CUADRO FINAL' :
            'EQUIPOS CLASIFICADOS A 16VOS'
          } — ${clasifData.totalPuntos} pts`, 55, yPos + 5, { width: 502, lineBreak: false });
       yPos += 20;
 
       // Sub-headers: 2 columnas + pts
-      const colW = [225, 225, 62];
-      const colX2 = [50, 275, 500];
-      const hdrs = ['Clasificados Pronosticados', 'Clasificados Reales', 'Pts'];
-      hdrs.forEach((h, i) => {
-        doc.rect(colX2[i], yPos, colW[i], 15).fill('#daa520').stroke('#999');
+      const colWc = [225, 225, 62];
+      const colX2c = [50, 275, 500];
+      const hdrsc = ['Clasificados Pronosticados', 'Clasificados Reales', 'Pts'];
+      hdrsc.forEach((h, i) => {
+        doc.rect(colX2c[i], yPos, colWc[i], 15).fill('#daa520').stroke('#999');
         doc.fontSize(8).font('Helvetica-Bold').fillColor('#000')
-           .text(h, colX2[i] + 3, yPos + 4, { width: colW[i] - 6, align: 'center', lineBreak: false });
+           .text(h, colX2c[i] + 3, yPos + 4, { width: colWc[i] - 6, align: 'center', lineBreak: false });
       });
       yPos += 15;
 
@@ -840,13 +1064,13 @@ function agregarPronosticos(doc, pronosticosData, clasificadosMap, yPos, jornada
         const real = correcto ? `${pronosticado} ✓` : 'No clasificó';
 
         [pronosticado, real, c.puntos.toString()].forEach((txt, i) => {
-          doc.rect(colX2[i], yPos, colW[i], 18).fill(bg).stroke('#ccc');
+          doc.rect(colX2c[i], yPos, colWc[i], 18).fill(bg).stroke('#ccc');
           doc.fontSize(8).font('Helvetica').fillColor(i === 1 && !correcto ? '#cc0000' : '#000')
-             .text(txt, colX2[i] + 4, yPos + 5, { width: colW[i] - 8, align: i === 2 ? 'center' : 'left', lineBreak: false });
+             .text(txt, colX2c[i] + 4, yPos + 5, { width: colWc[i] - 8, align: i === 2 ? 'center' : 'left', lineBreak: false });
         });
         yPos += 18;
       });
-    }
+      } // end if jornadaNumero !== 7
   });
 }
 

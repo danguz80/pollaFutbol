@@ -23,6 +23,8 @@ export default function AdminMundialResultados() {
   const [calculandoFaseGrupos, setCalculandoFaseGrupos] = useState(false);
   // Acumulado final
   const [calculandoAcumuladoFinal, setCalculandoAcumuladoFinal] = useState(false);
+  const [showPodioAcumulado, setShowPodioAcumulado] = useState(false);
+  const [podioAcumulado, setPodioAcumulado] = useState([]);
 
   const confettiPieces = useMemo(() => {
     const colors = ['#ff4444','#ffdd00','#44cc44','#4488ff','#ff44cc','#44dddd','#ff8800','#aa44ff'];
@@ -641,7 +643,8 @@ export default function AdminMundialResultados() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error');
-      alert('✅ ' + data.mensaje);
+      setPodioAcumulado(data.ganadores || []);
+      setShowPodioAcumulado(true);
     } catch (error) {
       alert('❌ ' + error.message);
     } finally {
@@ -1242,6 +1245,90 @@ export default function AdminMundialResultados() {
               </div>
               <div className="modal-footer justify-content-center" style={{ background: '#0d3b8e' }}>
                 <button className="btn btn-light btn-lg px-5" onClick={() => setShowFaseGruposModal(false)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pódio Acumulado Final */}
+      {showPodioAcumulado && podioAcumulado.length > 0 && (
+        <div className="modal show d-block" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,10,0.85)', zIndex: 1060 }}>
+          <style>{`
+            @keyframes podioConfetti {
+              0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+              100% { transform: translateY(700px) rotate(600deg); opacity: 0; }
+            }
+            @keyframes podioFirework {
+              0%   { transform: scale(0) translate(var(--fx,0px),var(--fy,0px)); opacity: 1; }
+              80%  { opacity: 1; }
+              100% { transform: scale(1) translate(var(--fx,0px),var(--fy,0px)); opacity: 0; }
+            }
+          `}</style>
+          {/* Confeti */}
+          <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 1061 }}>
+            {confettiPieces.map(p => (
+              <div key={p.id} style={{
+                position: 'absolute', left: p.left, top: '-20px',
+                width: p.size, height: p.size, backgroundColor: p.color,
+                borderRadius: p.isCircle ? '50%' : '2px',
+                animation: `podioConfetti ${p.duration} ${p.delay} ease-in both infinite`,
+              }} />
+            ))}
+            {/* Fuegos artificiales */}
+            {[{x:'15%',y:'20%',c:'#ffd700'},{x:'85%',y:'15%',c:'#ff4444'},{x:'50%',y:'10%',c:'#44ccff'},{x:'25%',y:'50%',c:'#ff44cc'},{x:'75%',y:'45%',c:'#44ff88'}].map((fw,i) => (
+              Array.from({length:12},(_,j) => {
+                const angle = (j/12)*360;
+                const dist = 40 + Math.random()*30;
+                const fx = Math.cos(angle*Math.PI/180)*dist;
+                const fy = Math.sin(angle*Math.PI/180)*dist;
+                return (
+                  <div key={`fw-${i}-${j}`} style={{
+                    position:'absolute', left:fw.x, top:fw.y,
+                    width:'6px', height:'6px', borderRadius:'50%', backgroundColor:fw.c,
+                    '--fx':`${fx}px`, '--fy':`${fy}px`,
+                    animation:`podioFirework 1.4s ${(i*0.35+j*0.04).toFixed(2)}s ease-out both infinite`,
+                  }}/>
+                );
+              })
+            ))}
+          </div>
+          <div className="modal-dialog modal-dialog-centered" style={{ position:'relative', zIndex:1062, maxWidth:'520px' }}>
+            <div className="modal-content border-0" style={{ overflow:'hidden', borderRadius:'1rem', border:'3px solid #ffd700' }}>
+              <div className="modal-header border-0 justify-content-center py-3" style={{ background:'linear-gradient(135deg,#1a237e,#0d3b8e)' }}>
+                <h3 className="modal-title fw-bold text-white text-center">🌍 Campeones del Mundial 2026 🌍</h3>
+              </div>
+              <div className="modal-body py-4" style={{ background:'linear-gradient(160deg,#e8f0fe,#fff,#dff0ff)' }}>
+                {[
+                  { pos:1, emoji:'🥇', borderColor:'#ffd700', label:'CAMPEÓN' },
+                  { pos:2, emoji:'🥈', borderColor:'#c0c0c0', label:'2° LUGAR' },
+                  { pos:3, emoji:'🥉', borderColor:'#cd7f32', label:'3er LUGAR' },
+                ].map(({ pos, emoji, borderColor, label }) => {
+                  const g = podioAcumulado.find(x => x.posicion === pos);
+                  if (!g) return null;
+                  const fotoSrc = g.foto_perfil ? (g.foto_perfil.startsWith('/') ? g.foto_perfil : `/perfil/${g.foto_perfil}`) : null;
+                  return (
+                    <div key={pos} className="d-flex align-items-center gap-3 rounded p-3 mb-3 shadow-sm" style={{ border:`2px solid ${borderColor}`, background:'#fff' }}>
+                      <div style={{ fontSize: pos===1?'2.8rem':'2.2rem', lineHeight:1, minWidth:'2.5rem', textAlign:'center' }}>{emoji}</div>
+                      {fotoSrc ? (
+                        <img src={fotoSrc} alt={g.nombre} className="rounded-circle" style={{ width:pos===1?'60px':'50px', height:pos===1?'60px':'50px', objectFit:'cover', border:`3px solid ${borderColor}`, flexShrink:0 }} onError={e=>{e.target.src='/perfil/default.png';}}/>
+                      ) : (
+                        <div className="rounded-circle d-flex align-items-center justify-content-center fw-bold" style={{ width:pos===1?'60px':'50px', height:pos===1?'60px':'50px', background:'#0d3b8e', color:'#fff', fontSize:'1.4rem', border:`3px solid ${borderColor}`, flexShrink:0 }}>{g.nombre.charAt(0)}</div>
+                      )}
+                      <div className="flex-grow-1">
+                        <div className="text-uppercase fw-bold" style={{ color:borderColor, fontSize:'0.7rem', letterSpacing:'0.1em' }}>{label}</div>
+                        <div className="fw-bold" style={{ fontSize: pos===1?'1.2rem':'1rem', color:'#0d3b8e' }}>{g.nombre}</div>
+                      </div>
+                      <div className="text-end">
+                        <div className="fw-bold" style={{ color:borderColor, fontSize: pos===1?'1.5rem':'1.2rem' }}>{g.puntos_totales}</div>
+                        <div style={{ fontSize:'0.65rem', color:'#666' }}>pts</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="modal-footer border-0 justify-content-center pb-4" style={{ background:'linear-gradient(135deg,#1a237e,#0d3b8e)' }}>
+                <button className="btn btn-warning btn-lg px-5 fw-bold" onClick={()=>setShowPodioAcumulado(false)}>🎉 Cerrar</button>
               </div>
             </div>
           </div>

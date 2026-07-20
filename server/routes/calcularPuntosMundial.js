@@ -418,7 +418,7 @@ router.post('/ganadores-acumulado-final', verifyToken, authorizeRoles('admin'), 
     `);
 
     const ganadores = await pool.query(`
-      SELECT u.nombre, mga.posicion, mga.puntos_totales
+      SELECT u.nombre, u.foto_perfil, mga.posicion, mga.puntos_totales
       FROM mundial_ganadores_acumulado mga
       INNER JOIN usuarios u ON u.id = mga.usuario_id
       WHERE mga.definitivo = TRUE
@@ -568,7 +568,7 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
       }
 
       // Puntos de finalistas también desde CLASIFICACIÓN
-      const clasifQ = await pool.query(`SELECT puntos FROM mundial_puntuacion WHERE fase='CLASIFICACIÓN' AND concepto LIKE '%FINAL%'`);
+      const clasifQ = await pool.query(`SELECT puntos FROM mundial_puntuacion WHERE fase='CLASIFICACIÓN' AND concepto ILIKE '%LA FINAL%'`);
       const ptsFinalClasif = clasifQ.rows.length > 0 ? parseInt(clasifQ.rows[0].puntos) : 5;
 
       // Borrar clasificación FINAL anterior
@@ -587,56 +587,40 @@ async function calcularPuntosClasificacionPorJornada(jornadaNumero, faseClasif) 
         const userId = parseInt(uid);
         const vFinalL = b[1], vFinalV = b[2], vTercL = b[3], vTercV = b[4];
 
-        // Pts por cada equipo correctamente predicho en la final
-        for (const eq of [vFinalL, vFinalV]) {
-          if (eq && realFinalTeams.has(eq)) {
-            await pool.query(
-              `INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CLASIFICADO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`,
-              [userId, eq, ptsFinalClasif]);
-            insertados++;
-          }
+        // Pts por cada equipo correctamente predicho en la final (por posición independiente)
+        if (vFinalL && realFinalTeams.has(vFinalL)) {
+          await pool.query(
+            `INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CLASIFICADO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`,
+            [userId, vFinalL, ptsFinalClasif]);
+          insertados++;
+        }
+        if (vFinalV && realFinalTeams.has(vFinalV)) {
+          await pool.query(
+            `INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CLASIFICADO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`,
+            [userId, vFinalV, ptsFinalClasif]);
+          insertados++;
         }
 
-        const finalTeamsOK = vFinalL && vFinalV && realFinalTeams.has(vFinalL) && realFinalTeams.has(vFinalV);
-        if (finalTeamsOK) {
-          const userFinalPred = await pool.query(
-            `SELECT resultado_local, resultado_visitante, quien_avanza FROM mundial_pronosticos WHERE partido_id=$1 AND usuario_id=$2`,
-            [fm.id, userId]);
-          if (userFinalPred.rows.length > 0) {
-            const ufp = userFinalPred.rows[0];
-            const { winner: predCampeon, loser: predSubcampeon } = getGanadorPerdedor(
-              ufp.resultado_local, ufp.resultado_visitante, ufp.quien_avanza, fm.equipo_local, fm.equipo_visitante);
-            if (predCampeon === realCampeon) {
-              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CAMPEON',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realCampeon, ptsCampeon]);
-              insertados++;
-            }
-            if (predSubcampeon === realSubcampeon) {
-              await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_SUBCAMPEON',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realSubcampeon, ptsSubcampeon]);
-              insertados++;
-            }
-          }
+        // Campeon: pos1 === realCampeon (independiente de pos2)
+        if (vFinalL && vFinalL === realCampeon) {
+          await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CAMPEON',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realCampeon, ptsCampeon]);
+          insertados++;
+        }
+        // Subcampeon: pos2 === realSubcampeon (independiente de pos1)
+        if (vFinalV && vFinalV === realSubcampeon) {
+          await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_SUBCAMPEON',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realSubcampeon, ptsSubcampeon]);
+          insertados++;
         }
 
-        if (realTercero && tmRow && vTercL && vTercV) {
-          const realTercTeams = new Set([tmRow.equipo_local, tmRow.equipo_visitante]);
-          const tercTeamsOK = realTercTeams.has(vTercL) && realTercTeams.has(vTercV);
-          if (tercTeamsOK) {
-            const userTercPred = await pool.query(
-              `SELECT resultado_local, resultado_visitante, quien_avanza FROM mundial_pronosticos WHERE partido_id=$1 AND usuario_id=$2`,
-              [tmRow.id, userId]);
-            if (userTercPred.rows.length > 0) {
-              const utp = userTercPred.rows[0];
-              const { winner: predTercero, loser: predCuarto } = getGanadorPerdedor(utp.resultado_local, utp.resultado_visitante, utp.quien_avanza, tmRow.equipo_local, tmRow.equipo_visitante);
-              if (predTercero === realTercero) {
-                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_TERCERO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realTercero, ptsTercero]);
-                insertados++;
-              }
-              if (predCuarto === realCuarto) {
-                await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CUARTO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realCuarto, ptsCuarto]);
-                insertados++;
-              }
-            }
-          }
+        // 3er Lugar: pos3 === realTercero (independiente de pos4)
+        if (realTercero && vTercL && vTercL === realTercero) {
+          await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_TERCERO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realTercero, ptsTercero]);
+          insertados++;
+        }
+        // 4o Lugar: pos4 === realCuarto (independiente de pos3)
+        if (realCuarto && vTercV && vTercV === realCuarto) {
+          await pool.query(`INSERT INTO mundial_puntos_clasificacion (usuario_id,equipo,fase,puntos) VALUES ($1,$2,'FINAL_CUARTO',$3) ON CONFLICT (usuario_id,equipo,fase) DO UPDATE SET puntos=$3`, [userId, realCuarto, ptsCuarto]);
+          insertados++;
         }
       }
       console.log(`✅ Clasificación FINAL calculada (campeon=${ptsCampeon}pts, sub=${ptsSubcampeon}pts, 3ro=${ptsTercero}pts, 4to=${ptsCuarto}pts): ${insertados} registros`);
