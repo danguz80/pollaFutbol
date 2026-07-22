@@ -250,6 +250,34 @@ const LOGOS_MUNDIAL = {
 // Cache para almacenar logos en base64
 const logoCache = {};
 
+function normalizarClaveEquipo(nombreEquipo) {
+  if (!nombreEquipo) return '';
+
+  return nombreEquipo
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/\s*\([A-Z]{3}\)\s*$/i, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+const LOGOS_EQUIPOS_NORMALIZADOS = Object.fromEntries(
+  Object.entries(LOGOS_EQUIPOS).map(([nombre, archivo]) => [normalizarClaveEquipo(nombre), archivo])
+);
+
+const LOGOS_LIBERTADORES_NORMALIZADOS = Object.fromEntries(
+  Object.entries(LOGOS_LIBERTADORES).map(([nombre, archivo]) => [normalizarClaveEquipo(nombre), archivo])
+);
+
+const LOGOS_SUDAMERICANA_NORMALIZADOS = Object.fromEntries(
+  Object.entries(LOGOS_SUDAMERICANA).map(([nombre, archivo]) => [normalizarClaveEquipo(nombre), archivo])
+);
+
+const LOGOS_MUNDIAL_NORMALIZADOS = Object.fromEntries(
+  Object.entries(LOGOS_MUNDIAL).map(([nombre, archivo]) => [normalizarClaveEquipo(nombre), archivo])
+);
+
 /**
  * Obtiene el logo de un equipo en formato base64 o URL
  * @param {string} nombreEquipo - Nombre del equipo
@@ -273,19 +301,34 @@ export function getLogoBase64(nombreEquipo) {
     }
     // Si es ARG, mantener "Independiente" para que busque el logo argentino
   }
+
+  const claveNormalizada = normalizarClaveEquipo(nombreNormalizado);
   
   // Si ya está en cache, retornar
   if (logoCache[nombreNormalizado]) {
     return logoCache[nombreNormalizado];
   }
 
+  if (logoCache[claveNormalizada]) {
+    return logoCache[claveNormalizada];
+  }
+
   // Buscar primero en logos nacionales
   let archivoLogo = LOGOS_EQUIPOS[nombreNormalizado];
   let carpeta = 'logos_torneo_nacional';
+
+  if (!archivoLogo) {
+    archivoLogo = LOGOS_EQUIPOS_NORMALIZADOS[claveNormalizada];
+  }
   
   // Si no está en nacionales, buscar en libertadores
   if (!archivoLogo) {
     archivoLogo = LOGOS_LIBERTADORES[nombreNormalizado];
+    carpeta = 'copa_libertadores_logos_equipos';
+  }
+
+  if (!archivoLogo) {
+    archivoLogo = LOGOS_LIBERTADORES_NORMALIZADOS[claveNormalizada];
     carpeta = 'copa_libertadores_logos_equipos';
   }
   
@@ -295,9 +338,19 @@ export function getLogoBase64(nombreEquipo) {
     carpeta = 'copa_sudamericana_logos_equipos';
   }
 
+  if (!archivoLogo) {
+    archivoLogo = LOGOS_SUDAMERICANA_NORMALIZADOS[claveNormalizada];
+    carpeta = 'copa_sudamericana_logos_equipos';
+  }
+
   // Si no está en sudamericana, buscar en mundial
   if (!archivoLogo) {
     archivoLogo = LOGOS_MUNDIAL[nombreNormalizado];
+    carpeta = 'logos_mundial';
+  }
+
+  if (!archivoLogo) {
+    archivoLogo = LOGOS_MUNDIAL_NORMALIZADOS[claveNormalizada];
     carpeta = 'logos_mundial';
   }
   
@@ -313,6 +366,7 @@ export function getLogoBase64(nombreEquipo) {
     if (isProduction) {
       const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
       logoCache[nombreNormalizado] = urlLogo;
+      logoCache[claveNormalizada] = urlLogo;
       console.log(`✅ Logo URL: ${nombreEquipo} -> ${urlLogo}`);
       return urlLogo;
     }
@@ -332,12 +386,14 @@ export function getLogoBase64(nombreEquipo) {
       
       const base64Image = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
       logoCache[nombreNormalizado] = base64Image;
+      logoCache[claveNormalizada] = base64Image;
       console.log(`✅ Logo cargado desde servidor: ${nombreEquipo}`);
       return base64Image;
     } else {
       // Fallback a URL de Netlify
       const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
       logoCache[nombreNormalizado] = urlLogo;
+      logoCache[claveNormalizada] = urlLogo;
       console.log(`✅ Logo URL (fallback): ${nombreEquipo} -> ${urlLogo}`);
       return urlLogo;
     }
@@ -345,6 +401,7 @@ export function getLogoBase64(nombreEquipo) {
     // Fallback a URL de Netlify si hay error
     const urlLogo = `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;
     logoCache[nombreNormalizado] = urlLogo;
+    logoCache[claveNormalizada] = urlLogo;
     console.log(`⚠️ Error leyendo logo, usando URL: ${nombreEquipo}`);
     return urlLogo;
   }
@@ -360,11 +417,17 @@ export function getLogoUrl(nombreEquipo) {
   nombreNormalizado = nombreNormalizado?.replace(/\s*\([A-Z]{3}\)\s*$/i, '').trim();
   if (!nombreNormalizado) return null;
 
+  const claveNormalizada = normalizarClaveEquipo(nombreNormalizado);
+
   let archivoLogo = LOGOS_EQUIPOS[nombreNormalizado];
   let carpeta = 'logos_torneo_nacional';
+  if (!archivoLogo) { archivoLogo = LOGOS_EQUIPOS_NORMALIZADOS[claveNormalizada]; }
   if (!archivoLogo) { archivoLogo = LOGOS_LIBERTADORES[nombreNormalizado]; carpeta = 'copa_libertadores_logos_equipos'; }
+  if (!archivoLogo) { archivoLogo = LOGOS_LIBERTADORES_NORMALIZADOS[claveNormalizada]; carpeta = 'copa_libertadores_logos_equipos'; }
   if (!archivoLogo) { archivoLogo = LOGOS_SUDAMERICANA[nombreNormalizado]; carpeta = 'copa_sudamericana_logos_equipos'; }
+  if (!archivoLogo) { archivoLogo = LOGOS_SUDAMERICANA_NORMALIZADOS[claveNormalizada]; carpeta = 'copa_sudamericana_logos_equipos'; }
   if (!archivoLogo) { archivoLogo = LOGOS_MUNDIAL[nombreNormalizado]; carpeta = 'logos_mundial'; }
+  if (!archivoLogo) { archivoLogo = LOGOS_MUNDIAL_NORMALIZADOS[claveNormalizada]; carpeta = 'logos_mundial'; }
   if (!archivoLogo) return null;
 
   return `https://pollafutbol.netlify.app/${carpeta}/${archivoLogo}`;

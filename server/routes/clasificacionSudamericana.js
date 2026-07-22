@@ -49,8 +49,19 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
       INNER JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
       LEFT JOIN sudamericana_equipos el ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_local, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(el.nombre))
       LEFT JOIN sudamericana_equipos ev ON LOWER(TRIM(REGEXP_REPLACE(p.nombre_visita, '\\s*\\([A-Z]+\\)\\s*$', ''))) = LOWER(TRIM(ev.nombre))
-      LEFT JOIN sudamericana_pronosticos_final_virtual spfv ON sp.usuario_id = spfv.usuario_id 
-        AND sj.id = spfv.jornada_id
+      LEFT JOIN LATERAL (
+        SELECT
+          spfv.equipo_local,
+          spfv.equipo_visita,
+          spfv.goles_local,
+          spfv.goles_visita,
+          spfv.penales_local,
+          spfv.penales_visita
+        FROM sudamericana_pronosticos_final_virtual spfv
+        WHERE spfv.usuario_id = sp.usuario_id
+          AND spfv.jornada_id = sj.id
+        LIMIT 1
+      ) spfv ON TRUE
       WHERE 1=1
     `;
 

@@ -13,6 +13,21 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function formatearNombreEquipoSudamericana(nombreEquipo) {
+  if (!nombreEquipo) return nombreEquipo;
+
+  const nombreNormalizado = nombreEquipo
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (nombreNormalizado === 'gremio') {
+    return 'Gremio';
+  }
+
+  return nombreEquipo;
+}
+
 const router = express.Router();
 
 // GET - Obtener pronósticos de un usuario para una jornada específica
@@ -85,17 +100,17 @@ router.post('/', verifyToken, async (req, res) => {
       // Actualizar
       await pool.query(
         `UPDATE sudamericana_pronosticos 
-         SET goles_local = $1, goles_visita = $2, penales_local = $3, penales_visita = $4
-         WHERE usuario_id = $5 AND partido_id = $6`,
-        [goles_local, goles_visita, penales_local, penales_visita, usuario_id, partido_id]
+         SET goles_local = $1, goles_visita = $2, penales_local = $3, penales_visita = $4, jornada_id = $5
+         WHERE usuario_id = $6 AND partido_id = $7`,
+        [goles_local, goles_visita, penales_local, penales_visita, jornada_id, usuario_id, partido_id]
       );
     } else {
       // Insertar
       await pool.query(
         `INSERT INTO sudamericana_pronosticos 
-         (usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita, puntos)
-         VALUES ($1, $2, $3, $4, $5, $6, 0)`,
-        [usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita]
+         (usuario_id, partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita, puntos)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0)`,
+        [usuario_id, partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita]
       );
     }
 
@@ -278,17 +293,17 @@ router.post('/guardar', verifyToken, async (req, res) => {
         // Actualizar
         await client.query(
           `UPDATE sudamericana_pronosticos 
-           SET goles_local = $1, goles_visita = $2, penales_local = $3, penales_visita = $4
-           WHERE usuario_id = $5 AND partido_id = $6`,
-          [goles_local, goles_visita, penales_local, penales_visita, usuario_id, partido_id]
+           SET goles_local = $1, goles_visita = $2, penales_local = $3, penales_visita = $4, jornada_id = $5
+           WHERE usuario_id = $6 AND partido_id = $7`,
+          [goles_local, goles_visita, penales_local, penales_visita, jornada_id, usuario_id, partido_id]
         );
       } else {
         // Insertar
         await client.query(
           `INSERT INTO sudamericana_pronosticos 
-           (usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita, puntos)
-           VALUES ($1, $2, $3, $4, $5, $6, 0)`,
-          [usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita]
+           (usuario_id, partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita, puntos)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 0)`,
+          [usuario_id, partido_id, jornada_id, goles_local, goles_visita, penales_local, penales_visita]
         );
       }
     }
@@ -452,8 +467,8 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
       if (!partidosVistos.has(key)) {
         partidosVistos.add(key);
         partidosUnicos.push({
-          nombre_local: p.nombre_local,
-          nombre_visita: p.nombre_visita,
+          nombre_local: formatearNombreEquipoSudamericana(p.nombre_local),
+          nombre_visita: formatearNombreEquipoSudamericana(p.nombre_visita),
           fecha: p.fecha,
           tipo_partido: p.tipo_partido
         });
@@ -524,8 +539,8 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
         if (finalistas.length === 2) {
           const indexFinal = partidosUnicos.findIndex(p => p.tipo_partido === 'FINAL');
           if (indexFinal !== -1) {
-            partidosUnicos[indexFinal].nombre_local = finalistas[0];
-            partidosUnicos[indexFinal].nombre_visita = finalistas[1];
+            partidosUnicos[indexFinal].nombre_local = formatearNombreEquipoSudamericana(finalistas[0]);
+            partidosUnicos[indexFinal].nombre_visita = formatearNombreEquipoSudamericana(finalistas[1]);
           }
         }
       }
