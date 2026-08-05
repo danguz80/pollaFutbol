@@ -1,5 +1,6 @@
 import express from 'express';
 import { pool } from '../db/pool.js';
+import { verifyToken } from '../middleware/verifyToken.js';
 
 const router = express.Router();
 
@@ -165,6 +166,112 @@ router.get('/tabla-posiciones', async (req, res) => {
     res.status(500).json({ 
       error: 'Error obteniendo tabla de posiciones',
       details: error.message 
+    });
+  }
+});
+
+// GET: Obtener tabla de posiciones VIRTUAL del usuario logueado,
+// calculada con sus propios pronósticos (solo partidos ya jugados)
+router.get('/tabla-posiciones-virtual', verifyToken, async (req, res) => {
+  const usuarioId = req.usuario.id;
+
+  try {
+    // Solo se consideran partidos que ya tienen resultado real Y para los
+    // cuales el usuario efectivamente entregó un pronóstico
+    const query = `
+      WITH mis_pronosticos AS (
+        SELECT
+          pa.nombre_local,
+          pa.nombre_visita,
+          p.goles_local,
+          p.goles_visita
+        FROM pronosticos p
+        JOIN partidos pa ON p.partido_id = pa.id
+        WHERE p.usuario_id = $1
+          AND p.goles_local IS NOT NULL
+          AND p.goles_visita IS NOT NULL
+          AND pa.goles_local IS NOT NULL
+          AND pa.goles_visita IS NOT NULL
+      ),
+      equipos_locales AS (
+        SELECT
+          nombre_local as equipo,
+          COUNT(*) as partidos_local,
+          SUM(CASE WHEN goles_local > goles_visita THEN 1 ELSE 0 END) as ganados_local,
+          SUM(CASE WHEN goles_local = goles_visita THEN 1 ELSE 0 END) as empatados_local,
+          SUM(CASE WHEN goles_local < goles_visita THEN 1 ELSE 0 END) as perdidos_local,
+          COALESCE(SUM(goles_local), 0) as gf_local,
+          COALESCE(SUM(goles_visita), 0) as gc_local
+        FROM mis_pronosticos
+        GROUP BY nombre_local
+      ),
+      equipos_visitas AS (
+        SELECT
+          nombre_visita as equipo,
+          COUNT(*) as partidos_visita,
+          SUM(CASE WHEN goles_visita > goles_local THEN 1 ELSE 0 END) as ganados_visita,
+          SUM(CASE WHEN goles_visita = goles_local THEN 1 ELSE 0 END) as empatados_visita,
+          SUM(CASE WHEN goles_visita < goles_local THEN 1 ELSE 0 END) as perdidos_visita,
+          COALESCE(SUM(goles_visita), 0) as gf_visita,
+          COALESCE(SUM(goles_local), 0) as gc_visita
+        FROM mis_pronosticos
+        GROUP BY nombre_visita
+      ),
+      todos_equipos AS (
+        SELECT DISTINCT nombre_local as equipo FROM mis_pronosticos
+        UNION
+        SELECT DISTINCT nombre_visita as equipo FROM mis_pronosticos
+      )
+      SELECT
+        te.equipo,
+        COALESCE(el.partidos_local, 0) + COALESCE(ev.partidos_visita, 0) as partidos_jugados,
+        COALESCE(el.ganados_local, 0) + COALESCE(ev.ganados_visita, 0) as ganados,
+        COALESCE(el.empatados_local, 0) + COALESCE(ev.empatados_visita, 0) as empatados,
+        COALESCE(el.perdidos_local, 0) + COALESCE(ev.perdidos_visita, 0) as perdidos,
+        COALESCE(el.gf_local, 0) + COALESCE(ev.gf_visita, 0) as goles_favor,
+        COALESCE(el.gc_local, 0) + COALESCE(ev.gc_visita, 0) as goles_contra,
+        (COALESCE(el.ganados_local, 0) + COALESCE(ev.ganados_visita, 0)) * 3 +
+        (COALESCE(el.empatados_local, 0) + COALESCE(ev.empatados_visita, 0)) as puntos
+      FROM todos_equipos te
+      LEFT JOIN equipos_locales el ON te.equipo = el.equipo
+      LEFT JOIN equipos_visitas ev ON te.equipo = ev.equipo
+    `;
+
+    const result = await pool.query(query, [usuarioId]);
+
+    // Aplicar los mismos 4 criterios automáticos de desempate que la tabla real
+    // (los criterios 5-8, manuales, no aplican aquí: son específicos del torneo real)
+    result.rows.sort((a, b) => {
+      if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+
+      const difA = a.goles_favor - a.goles_contra;
+      const difB = b.goles_favor - b.goles_contra;
+      if (difB !== difA) return difB - difA;
+
+      if (b.ganados !== a.ganados) return b.ganados - a.ganados;
+      if (b.goles_favor !== a.goles_favor) return b.goles_favor - a.goles_favor;
+
+      return a.equipo.localeCompare(b.equipo);
+    });
+
+    // Cantidad de partidos ya jugados en el torneo (para dar contexto de cobertura)
+    const totalPartidosJugadosResult = await pool.query(
+      `SELECT COUNT(*) as total FROM partidos WHERE goles_local IS NOT NULL AND goles_visita IS NOT NULL`
+    );
+    const totalPartidosJugados = parseInt(totalPartidosJugadosResult.rows[0].total, 10);
+    const partidosPronosticados = result.rows.reduce((acc, r) => acc + parseInt(r.partidos_jugados, 10), 0) / 2;
+
+    res.json({
+      tabla: result.rows,
+      partidos_pronosticados: partidosPronosticados,
+      total_partidos_jugados: totalPartidosJugados
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo tabla de posiciones virtual:', error);
+    res.status(500).json({
+      error: 'Error obteniendo tabla de posiciones virtual',
+      details: error.message
     });
   }
 });

@@ -38,15 +38,21 @@ export default function Estadisticas() {
   const [empatesPendientes, setEmpatesPendientes] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [tablaVirtual, setTablaVirtual] = useState([]);
+  const [virtualInfo, setVirtualInfo] = useState({ partidos_pronosticados: 0, total_partidos_jugados: 0 });
+  const [loadingVirtual, setLoadingVirtual] = useState(true);
+  const [errorVirtual, setErrorVirtual] = useState(null);
+
   useEffect(() => {
     cargarEstadisticas();
+    cargarTablaVirtual();
   }, []);
 
   const cargarEstadisticas = async () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/api/estadisticas-nacional/tabla-posiciones`);
-      
+
       // Manejar nueva estructura de respuesta
       if (response.data.tabla) {
         setEstadisticas(response.data.tabla);
@@ -59,6 +65,35 @@ export default function Estadisticas() {
       console.error('Error cargando estadísticas:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarTablaVirtual = async () => {
+    try {
+      setLoadingVirtual(true);
+      setErrorVirtual(null);
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        setErrorVirtual('Debes iniciar sesión para ver tu tabla de posiciones virtual.');
+        return;
+      }
+
+      const response = await axios.get(
+        `${API_BASE_URL}/api/estadisticas-nacional/tabla-posiciones-virtual`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setTablaVirtual(response.data.tabla || []);
+      setVirtualInfo({
+        partidos_pronosticados: response.data.partidos_pronosticados || 0,
+        total_partidos_jugados: response.data.total_partidos_jugados || 0
+      });
+    } catch (error) {
+      console.error('Error cargando tabla virtual:', error);
+      setErrorVirtual('No se pudo cargar tu tabla de posiciones virtual.');
+    } finally {
+      setLoadingVirtual(false);
     }
   };
 
@@ -187,6 +222,98 @@ export default function Estadisticas() {
         {/* Historial de Últimos Partidos - Lado Derecho */}
         <div className="col-lg-6">
           <LastMatchsNacional ordenEquipos={estadisticas.map(e => e.equipo)} />
+        </div>
+      </div>
+
+      {/* Tabla de Posiciones Virtual - según mis propios pronósticos */}
+      <div className="row g-4 mt-1">
+        <div className="col-lg-6">
+          <div className="card shadow-sm">
+            <div className="card-header bg-success text-white">
+              <h5 className="mb-0">🔮 Mi Tabla de Posiciones Virtual</h5>
+            </div>
+            <div className="card-body p-0">
+              {loadingVirtual ? (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-success" role="status">
+                    <span className="visually-hidden">Cargando...</span>
+                  </div>
+                </div>
+              ) : errorVirtual ? (
+                <div className="alert alert-warning m-3 mb-0" role="alert">
+                  {errorVirtual}
+                </div>
+              ) : tablaVirtual.length === 0 ? (
+                <div className="alert alert-info m-3 mb-0" role="alert">
+                  Aún no tienes pronósticos de partidos ya jugados. Cuando ingreses tus pronósticos y se disputen los partidos, aquí verás cómo quedaría la tabla según tus propios resultados.
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-hover table-striped mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th className="text-center" style={{ width: '50px' }}>Pos</th>
+                        <th style={{ minWidth: '180px' }}>Equipo</th>
+                        <th className="text-center" title="Partidos Pronosticados">PJ</th>
+                        <th className="text-center" title="Partidos Ganados">PG</th>
+                        <th className="text-center" title="Partidos Empatados">PE</th>
+                        <th className="text-center" title="Partidos Perdidos">PP</th>
+                        <th className="text-center" title="Goles a Favor">GF</th>
+                        <th className="text-center" title="Goles en Contra">GC</th>
+                        <th className="text-center" title="Diferencia de Goles">DIF</th>
+                        <th className="text-center fw-bold" title="Puntos">PTS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tablaVirtual.map((equipo, index) => {
+                        const logo = getLogoEquipo(equipo.equipo);
+                        const diferencia = equipo.goles_favor - equipo.goles_contra;
+
+                        return (
+                          <tr key={equipo.equipo}>
+                            <td className="text-center align-middle fw-bold">{index + 1}</td>
+                            <td className="align-middle">
+                              <div className="d-flex align-items-center gap-2">
+                                {logo && (
+                                  <img
+                                    src={logo}
+                                    alt={equipo.equipo}
+                                    style={{ width: '28px', height: '28px', objectFit: 'contain' }}
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                  />
+                                )}
+                                <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>{equipo.equipo}</span>
+                              </div>
+                            </td>
+                            <td className="text-center align-middle">{equipo.partidos_jugados}</td>
+                            <td className="text-center align-middle text-success fw-semibold">{equipo.ganados}</td>
+                            <td className="text-center align-middle text-warning fw-semibold">{equipo.empatados}</td>
+                            <td className="text-center align-middle text-danger fw-semibold">{equipo.perdidos}</td>
+                            <td className="text-center align-middle">{equipo.goles_favor}</td>
+                            <td className="text-center align-middle">{equipo.goles_contra}</td>
+                            <td className={`text-center align-middle fw-semibold ${diferencia > 0 ? 'text-success' : diferencia < 0 ? 'text-danger' : ''}`}>
+                              {diferencia > 0 ? '+' : ''}{diferencia}
+                            </td>
+                            <td className="text-center align-middle">
+                              <span className="badge bg-success fs-6 px-3 py-2">{equipo.puntos}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!loadingVirtual && !errorVirtual && virtualInfo.total_partidos_jugados > 0 && (
+            <div className="alert alert-info mt-3">
+              <small>
+                Esta tabla se calcula con <strong>tus propios pronósticos</strong> (goles que ingresaste), considerando solo los partidos que ya se jugaron: <strong>{virtualInfo.partidos_pronosticados} de {virtualInfo.total_partidos_jugados}</strong> partidos disputados tienen pronóstico tuyo registrado.
+              </small>
+            </div>
+          )}
         </div>
       </div>
     </div>
