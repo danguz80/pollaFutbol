@@ -12,6 +12,7 @@ export default function AdminSudamericana() {
   // Estados para cada fase
   const [textFaseGrupos, setTextFaseGrupos] = useState('');
   const [textOctavos, setTextOctavos] = useState(''); // Play-Offs J7
+  const [textOctavosJ8, setTextOctavosJ8] = useState(''); // Octavos J8
   const [textCuartos, setTextCuartos] = useState(''); // Cuartos J9
   const [textSemiFinal, setTextSemiFinal] = useState(''); // Semifinales J10
   const [textFinal, setTextFinal] = useState(''); // Semifinales + Final J10
@@ -266,6 +267,66 @@ export default function AdminSudamericana() {
   };
 
   // ==================== OCTAVOS IDA/VUELTA (JORNADA 8) ====================
+  const generarOctavosJ8 = async () => {
+    if (!textOctavosJ8.trim()) {
+      showMessage('danger', 'Por favor ingresa los cruces de octavos de final');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const lineas = textOctavosJ8.split('\n').filter(l => l.trim());
+      const cruces = lineas.map(linea => {
+        const [local, visita] = linea.split(/vs|VS|Vs/).map(s => s.trim());
+        return { local, visita };
+      });
+
+      if (cruces.length !== 8) {
+        showMessage('danger', 'Debes ingresar exactamente 8 cruces de octavos (uno por línea)');
+        return;
+      }
+
+      // Generar partidos IDA y VUELTA en la jornada 8
+      const partidos = [];
+      cruces.forEach(cruce => {
+        // IDA
+        partidos.push({
+          equipo_local: cruce.local,
+          equipo_visitante: cruce.visita,
+          fecha_hora: new Date().toISOString(),
+          bonus: 1,
+          tipo_partido: 'IDA'
+        });
+        // VUELTA
+        partidos.push({
+          equipo_local: cruce.visita,
+          equipo_visitante: cruce.local,
+          fecha_hora: new Date().toISOString(),
+          bonus: 1,
+          tipo_partido: 'VUELTA'
+        });
+      });
+
+      const token = localStorage.getItem('token');
+
+      await axios.post(
+        `${API_URL}/api/sudamericana/jornadas/8/partidos`,
+        { partidos },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      showMessage('success', '✅ Octavos generados: 16 partidos en Jornada 8 (8 IDA + 8 VUELTA)');
+      alert('✅ Octavos de Final generados exitosamente\n\n📊 Resumen:\n- Jornada 8: 16 partidos (8 IDA + 8 VUELTA)\n- Bonus predefinido: x1\n\n⚠️ Recuerda ajustar los bonus si es necesario desde Resultados y Jornadas');
+      setTextOctavosJ8('');
+    } catch (error) {
+      console.error('Error generando octavos J8:', error);
+      showMessage('danger', `Error: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==================== CUARTOS IDA/VUELTA (JORNADA 9) ====================
   const generarCuartos = async () => {
     if (!textCuartos.trim()) {
       showMessage('danger', 'Por favor ingresa los cruces de cuartos de final');
@@ -511,14 +572,14 @@ export default function AdminSudamericana() {
               className="form-control font-monospace"
               rows="8"
               placeholder="Ejemplo:&#10;Flamengo vs Boca Juniors&#10;River Plate vs Palmeiras&#10;..."
-              value={textCuartos}
-              onChange={(e) => setTextCuartos(e.target.value)}
+              value={textOctavosJ8}
+              onChange={(e) => setTextOctavosJ8(e.target.value)}
             />
           </div>
           <button
             className="btn btn-warning"
-            onClick={generarCuartos}
-            disabled={loading || !textCuartos.trim()}
+            onClick={generarOctavosJ8}
+            disabled={loading || !textOctavosJ8.trim()}
           >
             {loading ? '⏳ Generando...' : '🚀 Generar Octavos (J8 IDA + VUELTA)'}
           </button>

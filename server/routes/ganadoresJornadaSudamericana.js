@@ -529,6 +529,41 @@ router.get('/:jornadaNumero', async (req, res) => {
 // ==================== FUNCIÓN PARA GENERAR PDF CON RESULTADOS Y GANADORES ====================
 async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
   try {
+    const normalizarTexto = (valor) => (valor || '')
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+
+    const reglaCoincide = (regla, fase, conceptoIncluye) => {
+      const faseNorm = normalizarTexto(regla.fase);
+      const conceptoNorm = normalizarTexto(regla.concepto);
+      return faseNorm === normalizarTexto(fase) && conceptoNorm.includes(normalizarTexto(conceptoIncluye));
+    };
+
+    // Reglas dinámicas desde la página de Puntuación.
+    const reglasPuntuacionResult = await pool.query(`
+      SELECT fase, concepto, puntos
+      FROM sudamericana_puntuacion
+      ORDER BY id
+    `);
+    const reglasPuntuacion = reglasPuntuacionResult.rows;
+
+    const obtenerPuntos = (fase, conceptoIncluye, fallback = 0) => {
+      const regla = reglasPuntuacion.find((r) => reglaCoincide(r, fase, conceptoIncluye));
+      return regla ? Number(regla.puntos || 0) : fallback;
+    };
+
+    const puntosClasificacionReglas = {
+      playoffs: obtenerPuntos('CLASIFICACIÓN', 'PLAY-OFFS', 2),
+      octavos: obtenerPuntos('CLASIFICACIÓN', 'OCTAVOS', 2),
+      cuartos: obtenerPuntos('CLASIFICACIÓN', 'CUARTOS', 3),
+      semifinales: obtenerPuntos('CLASIFICACIÓN', 'SEMIFINALES', 3),
+      final: obtenerPuntos('CLASIFICACIÓN', 'LA FINAL', 5),
+      campeon: obtenerPuntos('CAMPEÓN', 'CAMPEON', 15),
+      subcampeon: obtenerPuntos('CAMPEÓN', 'SUBCAMPEON', 8)
+    };
+
     // 1. Obtener pronósticos con resultados reales y puntos de la jornada específica
     const pronosticosQuery = await pool.query(
       `SELECT 
@@ -995,6 +1030,30 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
           border: 2px solid #ddd;
         }
 
+        .reglas-section {
+          background: white;
+          padding: 10px;
+          margin-bottom: 12px;
+          border-radius: 10px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          page-break-inside: avoid;
+        }
+        .reglas-section h2 {
+          color: #28a745;
+          font-size: 24px;
+          margin-bottom: 10px;
+          text-align: center;
+        }
+        .reglas-section table th {
+          background: #1f6f3a;
+        }
+        .reglas-puntos {
+          text-align: center;
+          font-weight: bold;
+          color: #1f6f3a;
+          font-size: 18px;
+        }
+
         .footer {
           text-align: center;
           color: white;
@@ -1015,6 +1074,52 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         </p>
       </div>
     `;
+
+    if (jornadaNumero >= 6 && jornadaNumero <= 10) {
+      html += `
+      <div class="reglas-section">
+        <h2>📌 Tabla de puntos de clasificación (configurada en Puntuación)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th style="width: 20%; text-align: center;">Puntos</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Equipo clasificado para PLAY-OFFS</td>
+              <td class="reglas-puntos">${puntosClasificacionReglas.playoffs}</td>
+            </tr>
+            <tr>
+              <td>Equipo clasificado para OCTAVOS</td>
+              <td class="reglas-puntos">${puntosClasificacionReglas.octavos}</td>
+            </tr>
+            <tr>
+              <td>Equipo clasificado para CUARTOS</td>
+              <td class="reglas-puntos">${puntosClasificacionReglas.cuartos}</td>
+            </tr>
+            <tr>
+              <td>Equipo clasificado para SEMIFINALES</td>
+              <td class="reglas-puntos">${puntosClasificacionReglas.semifinales}</td>
+            </tr>
+            <tr>
+              <td>Equipo clasificado para LA FINAL</td>
+              <td class="reglas-puntos">${puntosClasificacionReglas.final}</td>
+            </tr>
+            <tr>
+              <td>Campeón</td>
+              <td class="reglas-puntos">${puntosClasificacionReglas.campeon}</td>
+            </tr>
+            <tr>
+              <td>Subcampeón</td>
+              <td class="reglas-puntos">${puntosClasificacionReglas.subcampeon}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      `;
+    }
 
     // GANADORES DE LA JORNADA
     if (ganadores && ganadores.length > 0) {
@@ -1255,30 +1360,32 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
             const grupoMatch = c.fase_clasificado.match(/GRUPO_([A-H])/);
             const grupoLetra = grupoMatch ? grupoMatch[1] : '';
             iconoFase = c.fase_clasificado.includes('OCTAVOS') ? '🏆' : '🎯';
-            textoFase = c.fase_clasificado.includes('OCTAVOS') ? `1° Clasificado a Octavos - Grupo ${grupoLetra}` : `2° Clasificado a Playoffs - Grupo ${grupoLetra}`;
+            textoFase = c.fase_clasificado.includes('OCTAVOS')
+              ? `1° Clasificado a Octavos - Grupo ${grupoLetra} (${puntosClasificacionReglas.octavos} pts)`
+              : `2° Clasificado a Playoffs - Grupo ${grupoLetra} (${puntosClasificacionReglas.playoffs} pts)`;
           } else if (jornadaNumero === 7) {
             // Para Jornada 7 (Play-Offs), mostrar "Clasificado a Octavos"
             iconoFase = '🏆';
-            textoFase = 'Clasificado a Octavos';
+            textoFase = `Clasificado a Octavos (${puntosClasificacionReglas.octavos} pts)`;
           } else if (jornadaNumero === 8) {
             // Para Jornada 8 (Octavos), mostrar "Clasificado a Cuartos"
             iconoFase = '🏆';
-            textoFase = 'Clasificado a Cuartos';
+            textoFase = `Clasificado a Cuartos (${puntosClasificacionReglas.cuartos} pts)`;
           } else if (jornadaNumero === 9) {
             // Para Jornada 9 (Cuartos), mostrar "Clasificado a Semifinales"
             iconoFase = '🏆';
-            textoFase = 'Clasificado a Semifinales';
+            textoFase = `Clasificado a Semifinales (${puntosClasificacionReglas.semifinales} pts)`;
           } else if (jornadaNumero === 10) {
             // Para Jornada 10 (Semifinales y Final)
             if (c.fase_clasificado === 'FINALISTA') {
               iconoFase = '🥈';
-              textoFase = 'Finalista (5 pts)';
+              textoFase = `Finalista (${puntosClasificacionReglas.final} pts)`;
             } else if (c.fase_clasificado === 'CAMPEON') {
               iconoFase = '🏆';
-              textoFase = 'Campeón (15 pts)';
+              textoFase = `Campeón (${puntosClasificacionReglas.campeon} pts)`;
             } else if (c.fase_clasificado === 'SUBCAMPEON') {
               iconoFase = '🥉';
-              textoFase = 'Subcampeón (8 pts)';
+              textoFase = `Subcampeón (${puntosClasificacionReglas.subcampeon} pts)`;
             }
           }
           
