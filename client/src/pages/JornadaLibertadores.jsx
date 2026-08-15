@@ -29,7 +29,6 @@ export default function JornadaLibertadores() {
 
   // Estados para eliminatorias jornadas 8-10
   const [partidosIda, setPartidosIda] = useState([]); // Para jornada 8: partidos de jornada 7
-  const [pronosticosIda, setPronosticosIda] = useState({}); // Para jornada 8: pronósticos de jornada 7
 
   // Estados para jornada 10 (semifinales y final)
   const [equiposFinalistasPronosticados, setEquiposFinalistasPronosticados] = useState([]);
@@ -41,6 +40,14 @@ export default function JornadaLibertadores() {
     penales_visita: '' 
   });
   const [mostrarCalcularFinalistas, setMostrarCalcularFinalistas] = useState(false);
+
+  const normalizarNombreEquipo = (nombre) =>
+    (nombre || '')
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
 
   useEffect(() => {
     if (!usuario) {
@@ -207,25 +214,12 @@ export default function JornadaLibertadores() {
       }
       setPronosticos(map);
 
-      // Si es jornada 8, cargar también jornada 7 (IDA) para cálculo de penales
+      // Si es jornada 8, cargar también jornada 7 (IDA) para cálculo de penales con resultado REAL
       if (Number(numero) === 8) {
         const jornadaIdaRes = await axios.get(`${API_URL}/api/libertadores/jornadas/7`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setPartidosIda(jornadaIdaRes.data.partidos || []);
-
-        const pronosticosIdaRes = await axios.get(`${API_URL}/api/libertadores-pronosticos/jornada/7`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        const mapIda = {};
-        pronosticosIdaRes.data.forEach((pr) => {
-          mapIda[pr.partido_id] = {
-            goles_local: pr.goles_local,
-            goles_visita: pr.goles_visita
-          };
-        });
-        setPronosticosIda(mapIda);
       }
 
       // Cargar estadísticas (solo para fase de grupos)
@@ -665,13 +659,22 @@ export default function JornadaLibertadores() {
                       
                       if (Number(numero) === 8) {
                         // En J8, buscar en partidosIda (jornada 7) con equipos invertidos
+                        // usando comparación normalizada para evitar desajustes por tildes/espacios.
+                        const localVueltaNorm = normalizarNombreEquipo(partido.nombre_local);
+                        const visitaVueltaNorm = normalizarNombreEquipo(partido.nombre_visita);
+
                         partidoIda = partidosIda.find(p => 
-                          p.nombre_local === partido.nombre_visita && 
-                          p.nombre_visita === partido.nombre_local
+                          normalizarNombreEquipo(p.nombre_local) === visitaVueltaNorm && 
+                          normalizarNombreEquipo(p.nombre_visita) === localVueltaNorm
                         );
-                        if (partidoIda && pronosticosIda[partidoIda.id]) {
-                          golesIdaLocal = Number(pronosticosIda[partidoIda.id]?.goles_local ?? 0);
-                          golesIdaVisita = Number(pronosticosIda[partidoIda.id]?.goles_visita ?? 0);
+
+                        // En J8 SIEMPRE usar resultado REAL de J7 (no pronóstico del usuario)
+                        if (partidoIda && partidoIda.goles_local !== null && partidoIda.goles_visita !== null) {
+                          golesIdaLocal = Number(partidoIda.goles_local ?? 0);
+                          golesIdaVisita = Number(partidoIda.goles_visita ?? 0);
+                        } else {
+                          // Sin resultado real de IDA aún: no corresponde pedir penales
+                          return null;
                         }
                       } else {
                         // En J9 y J10, buscar en los mismos partidos de la jornada
@@ -690,24 +693,41 @@ export default function JornadaLibertadores() {
                         return null;
                       }
                       
+                      const vueltaLocalRaw = pronosticos[partido.id]?.goles_local;
+                      const vueltaVisitaRaw = pronosticos[partido.id]?.goles_visita;
+
+                      // No evaluar penales hasta que ambos goles de vuelta esten ingresados.
+                      if (vueltaLocalRaw === undefined || vueltaLocalRaw === '' || vueltaVisitaRaw === undefined || vueltaVisitaRaw === '') {
+                        return null;
+                      }
+
                       // Calcular marcador global
-                      const golesVueltaLocal = Number(pronosticos[partido.id]?.goles_local ?? 0);
-                      const golesVueltaVisita = Number(pronosticos[partido.id]?.goles_visita ?? 0);
+                      const golesVueltaLocal = Number(vueltaLocalRaw);
+                      const golesVueltaVisita = Number(vueltaVisitaRaw);
                       
                       const golesEquipoA = golesIdaLocal + golesVueltaVisita;
                       const golesEquipoB = golesIdaVisita + golesVueltaLocal;
+
+                      const textoGlobal = `Global: ${partidoIda.nombre_local} ${golesEquipoA} - ${golesEquipoB} ${partidoIda.nombre_visita}`;
+                      const usaIdaRealJ7 = Number(numero) === 8;
                       
-                      // Hay empate si el marcador global es igual Y se han ingresado pronósticos
-                      const hayEmpate = golesEquipoA === golesEquipoB && 
-                                       (pronosticos[partido.id]?.goles_local !== undefined || 
-                                        pronosticos[partido.id]?.goles_visita !== undefined);
-                      
-                      if (!hayEmpate) return null;
+                      // Hay empate solo si el marcador global es igual.
+                      const hayEmpate = golesEquipoA === golesEquipoB;
+
+                      if (!hayEmpate) {
+                        return (
+                          <div className="mt-2 text-center">
+                            <small className="text-muted fw-semibold">
+                              {textoGlobal}{usaIdaRealJ7 ? ' (ida real J7)' : ''}
+                            </small>
+                          </div>
+                        );
+                      }
                       
                       return (
                         <div className="mt-3">
                           <div className="alert alert-warning py-2 mb-2">
-                            <small className="fw-bold">⚠️ Empate en marcador global: {partidoIda.nombre_local} {golesEquipoA} - {golesEquipoB} {partidoIda.nombre_visita}</small>
+                            <small className="fw-bold">⚠️ Empate en marcador global: {partidoIda.nombre_local} {golesEquipoA} - {golesEquipoB} {partidoIda.nombre_visita}{usaIdaRealJ7 ? ' (ida real J7)' : ''}</small>
                           </div>
                           <div className="row g-2">
                             <div className="col-6">
