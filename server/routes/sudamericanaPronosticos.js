@@ -3,9 +3,7 @@ import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { getWhatsAppService } from '../services/whatsappService.js';
-import htmlPdf from 'html-pdf-node';
-import { getLogoBase64 } from '../utils/logoHelper.js';
-import { getFotoPerfilBase64 } from '../utils/fotoPerfilHelper.js';
+import { generarPdfTestigoBuffer } from '../utils/pdfTestigo.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -562,242 +560,18 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
       pronosticosPorUsuario[p.usuario].pronosticos[key] = p;
     });
 
-    // Generar HTML para el PDF
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background-color: #f5f5f5;
-          }
-          .header {
-            text-align: center;
-            color: #0066cc;
-            margin-bottom: 15px;
-            border-bottom: 3px solid #0066cc;
-            padding-bottom: 10px;
-          }
-          .header h1 {
-            margin: 0;
-            font-size: 34px;
-          }
-          .header p {
-            margin: 5px 0;
-            color: #666;
-            font-size: 19px;
-          }
-          .usuario-section {
-            background: white;
-            padding: 10px;
-            margin-bottom: 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            page-break-inside: avoid;
-          }
-          .usuario-header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 10px;
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 6px;
-          }
-          .usuario-foto {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid #0066cc;
-          }
-          .usuario-nombre {
-            font-size: 22px;
-            font-weight: bold;
-            color: #0066cc;
-            flex: 1;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 15px;
-          }
-          th {
-            background-color: #0066cc;
-            color: white;
-            padding: 8px;
-            text-align: left;
-            font-size: 18px;
-            font-weight: bold;
-          }
-          td {
-            padding: 6px;
-            border-bottom: 1px solid #e0e0e0;
-            font-size: 17px;
-            font-weight: bold;
-          }
-          tr:hover {
-            background-color: #f9f9f9;
-          }
-          .pronostico {
-            font-weight: bold;
-            color: #0066cc;
-            font-size: 22px;
-          }
-          .equipo-logo {
-            width: 30px;
-            height: 30px;
-            object-fit: contain;
-            vertical-align: middle;
-            margin-right: 8px;
-          }
-          .partido-info {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-          }
-          .partido-final {
-            background-color: #fff3cd !important;
-            border-left: 4px solid #ff6b6b;
-          }
-          .badge-final {
-            background-color: #ff6b6b;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 40px;
-            color: #999;
-            font-size: 12px;
-            border-top: 1px solid #e0e0e0;
-            padding-top: 20px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>🏆 Pronósticos Copa Sudamericana</h1>
-          <p>${nombre} (Jornada ${numero})</p>
-          <p><strong>Documento Testigo - Pronósticos Registrados</strong></p>
-          <p>Fecha de generación: ${new Date().toLocaleDateString('es-ES', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}</p>
-        </div>
-
-        ${Object.keys(pronosticosPorUsuario).sort().map(usuario => {
-          const userData = pronosticosPorUsuario[usuario];
-          const fotoBase64 = userData.foto_perfil ? getFotoPerfilBase64(userData.foto_perfil) : null;
-          const fotoHTML = fotoBase64 
-            ? `<img src="${fotoBase64}" class="usuario-foto" alt="${usuario}">` 
-            : '';
-          
-          return `
-          <div class="usuario-section">
-            <div class="usuario-header">
-              ${fotoHTML}
-              <div class="usuario-nombre">👤 ${usuario}</div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Partido</th>
-                  <th>Pronóstico</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${partidosUnicos.map(partido => {
-                  const key = `${partido.nombre_local}|${partido.nombre_visita}`;
-                  const p = userData.pronosticos[key];
-                  const esFinal = partido.tipo_partido === 'FINAL';
-                  
-                  // Obtener logos
-                  const logoLocal = getLogoBase64(partido.nombre_local) || '';
-                  const logoVisita = getLogoBase64(partido.nombre_visita) || '';
-                  
-                  if (!p) {
-                    return `
-                      <tr ${esFinal ? 'class="partido-final"' : ''}>
-                        <td>
-                          <div class="partido-info">
-                            ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${partido.nombre_local}">` : ''}
-                            <span>${partido.nombre_local}</span>
-                            <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
-                            ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${partido.nombre_visita}">` : ''}
-                            <span>${partido.nombre_visita}</span>
-                            ${esFinal ? '<span class="badge-final">🏆 FINAL</span>' : ''}
-                          </div>
-                        </td>
-                        <td class="pronostico" style="color: #999;">Sin pronóstico</td>
-                      </tr>
-                    `;
-                  }
-                  
-                  const pronostico = `${p.goles_local}-${p.goles_visita}`;
-                  
-                  // Agregar penales si es VUELTA o FINAL y tiene penales pronosticados
-                  let pronosticoHTML = pronostico;
-                  if ((p.tipo_partido === 'VUELTA' || p.tipo_partido === 'FINAL') && p.penales_local !== null && p.penales_visita !== null) {
-                    pronosticoHTML += ` <span style="font-size: 11px; font-style: italic; color: #6c757d;">(${p.penales_local}-${p.penales_visita} pen.)</span>`;
-                  }
-                  
-                  return `
-                    <tr ${esFinal ? 'class="partido-final"' : ''}>
-                      <td>
-                        <div class="partido-info">
-                          ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">` : ''}
-                          <span>${p.nombre_local}</span>
-                          <span style="margin: 0 8px; color: #999; font-weight: bold;">vs</span>
-                          ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">` : ''}
-                          <span>${p.nombre_visita}</span>
-                          ${esFinal ? '<span class="badge-final">🏆 FINAL</span>' : ''}
-                        </div>
-                      </td>
-                      <td class="pronostico">${pronosticoHTML}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-          `;
-        }).join('')}
-
-        <div class="footer">
-          <p>Campeonato Polla Fútbol - Copa Sudamericana</p>
-          <p>Este documento certifica los pronósticos registrados antes del inicio de la jornada</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Generar PDF con html-pdf-node
+    // Generar PDF con pdfkit (sin Chromium, bajo consumo de memoria)
     console.log('📄 Generando PDF...');
-    
-    const options = { 
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20px',
-        right: '20px',
-        bottom: '20px',
-        left: '20px'
-      }
-    };
-    
-    const file = { content: htmlContent };
-    const pdfBuffer = await htmlPdf.generatePdf(file, options);
-    
+
+    const pdfBuffer = await generarPdfTestigoBuffer({
+      emoji: '🏆',
+      competencia: 'Copa Sudamericana',
+      jornadaNumero: numero,
+      jornadaNombre: nombre,
+      partidosUnicos,
+      pronosticosPorUsuario
+    });
+
     console.log('✅ PDF generado exitosamente');
 
     const nombreArchivo = `Sudamericana_Jornada_${numero}_${new Date().toISOString().split('T')[0]}.pdf`;
