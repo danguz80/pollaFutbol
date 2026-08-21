@@ -273,7 +273,7 @@ export default function Clasificacion() {
       return;
     }
 
-    if (!confirm(`¿Calcular los ganadores de la jornada ${jornadaActual} y generar PDF con resultados?\n\nEl PDF incluirá: pronósticos, resultados reales, puntos, rankings y ganadores. Se enviará automáticamente por email.`)) {
+    if (!confirm(`¿Calcular los ganadores de la jornada ${jornadaActual}?`)) {
       return;
     }
 
@@ -298,25 +298,8 @@ export default function Clasificacion() {
       const rankingAcumuladoRes = await fetch(`${API_BASE_URL}/api/pronosticos/ranking/general`);
       setRankingAcumulado(await rankingAcumuladoRes.json());
       
-      // Mostrar mensaje con información del PDF en modal
-      if (response.data.pdfGenerado) {
-        setModalType("success");
-        setModalMessage(
-          `✅ ${response.data.mensaje}\n\n` +
-          `📧 PDF enviado por email con:\n` +
-          `• Ganadores de la jornada\n` +
-          `• Ranking de la jornada\n` +
-          `• Ranking acumulado\n` +
-          `• Pronósticos y resultados\n` +
-          `• Puntos por usuario`
-        );
-      } else {
-        setModalType("warning");
-        setModalMessage(
-          `✅ ${response.data.mensaje}` +
-          (response.data.pdfError ? `\n\n⚠️ Error en PDF: ${response.data.pdfError}` : '')
-        );
-      }
+      setModalType("success");
+      setModalMessage(`✅ ${response.data.mensaje}`);
       setShowModal(true);
       
     } catch (error) {

@@ -171,24 +171,18 @@ export default function AdminTorneoResultados() {
 
   const calcularPuntajes = async () => {
     if (!jornadaSeleccionada) return;
-    if (!confirm("¿Calcular puntajes de esta jornada y generar PDF con resultados completos?\n\nEl PDF incluirá: pronósticos, resultados reales, puntos, rankings y ganadores. Se enviará automáticamente por email.")) return;
-    
+    if (!confirm("¿Calcular puntajes de esta jornada?")) return;
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/pronosticos/calcular/${jornadaSeleccionada}`, {
         method: "POST"
       });
       const data = await res.json();
-      
+
       console.log('📊 Respuesta del servidor:', data);
-      
-      // Mostrar modal en lugar de alert
-      if (data.pdfGenerado) {
-        setModalType("success");
-        setModalMessage(`✅ Puntajes calculados correctamente\n\n📧 PDF enviado por email con:\n• Pronósticos\n• Resultados reales\n• Puntos por jugador\n• Ranking de la jornada\n• Ranking acumulado\n• Ganadores\n\n📊 ${data.actualizados} pronósticos actualizados`);
-      } else {
-        setModalType("warning");
-        setModalMessage(`⚠️ ${data.mensaje}\n\n📊 ${data.actualizados} pronósticos actualizados`);
-      }
+
+      setModalType("success");
+      setModalMessage(`✅ ${data.mensaje}\n\n📊 ${data.actualizados} pronósticos actualizados`);
       setShowModal(true);
     } catch (error) {
       console.error("Error al calcular puntajes:", error);
@@ -210,7 +204,7 @@ export default function AdminTorneoResultados() {
   const generarPDFTestigo = async () => {
     if (!jornadaSeleccionada) return;
     
-    if (!confirm(`¿Generar PDF testigo con los pronósticos de la Jornada ${jornadaSeleccionada}?\n\nEl PDF se enviará automáticamente por email.`)) {
+    if (!confirm(`¿Generar PDF testigo con los pronósticos de la Jornada ${jornadaSeleccionada}?`)) {
       return;
     }
 
