@@ -47,6 +47,8 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       LEFT JOIN (
         SELECT lp.usuario_id, SUM(lp.puntos) as total
         FROM libertadores_pronosticos lp
+        -- INNER JOIN a partidos: descarta pronósticos huérfanos de partidos borrados
+        INNER JOIN libertadores_partidos p ON p.id = lp.partido_id
         GROUP BY lp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
       LEFT JOIN (
@@ -59,7 +61,9 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
         SELECT usuario_id, puntos_campeon as campeon, puntos_subcampeon as subcampeon
         FROM libertadores_predicciones_campeon
       ) puntos_campeon ON u.id = puntos_campeon.usuario_id
-      WHERE u.activo = true
+      -- rol != 'admin': el campeón del acumulado final nunca puede ser la
+      -- cuenta de administrador, aunque tenga puntos cargados por error.
+      WHERE u.activo = true AND u.rol != 'admin'
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `);
     
@@ -289,9 +293,12 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       )
     `);
     
-    // 1. Obtener todos los usuarios activos con sus fotos de perfil
+    // 1. Obtener todos los usuarios activos con sus fotos de perfil.
+    // rol != 'admin': la cuenta de administrador solo carga resultados reales,
+    // nunca debe poder ganar ni aparecer como candidato a ganador de jornada,
+    // aunque por error tenga pronósticos cargados (como pasó en J8).
     const usuariosResult = await pool.query(
-      'SELECT id, nombre, foto_perfil FROM usuarios WHERE activo = true ORDER BY nombre'
+      "SELECT id, nombre, foto_perfil FROM usuarios WHERE activo = true AND rol != 'admin' ORDER BY nombre"
     );
     
     if (usuariosResult.rows.length === 0) {
@@ -650,19 +657,20 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
               AND lp.goles_local IS NOT NULL 
               AND lp.goles_visita IS NOT NULL
           ) puntos_final ON u.id = puntos_final.usuario_id
-          WHERE puntos_partidos.total IS NOT NULL 
-             OR puntos_clasificacion.total IS NOT NULL 
-             OR puntos_final.puntos IS NOT NULL
+          WHERE (puntos_partidos.total IS NOT NULL
+             OR puntos_clasificacion.total IS NOT NULL
+             OR puntos_final.puntos IS NOT NULL)
+            AND u.rol != 'admin'
           ORDER BY puntos_acumulados DESC, u.nombre ASC
           LIMIT 10`,
           [jornadaNumero]
         )
       : await pool.query(
-          `SELECT 
+          `SELECT
             u.id,
             u.nombre,
             u.foto_perfil,
-            COALESCE(puntos_partidos.total, 0) + 
+            COALESCE(puntos_partidos.total, 0) +
             COALESCE(puntos_clasificacion.total, 0) as puntos_acumulados
           FROM usuarios u
           LEFT JOIN (
@@ -679,8 +687,9 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             WHERE lpc.jornada_numero <= $1
             GROUP BY lpc.usuario_id
           ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-          WHERE puntos_partidos.total IS NOT NULL
-             OR puntos_clasificacion.total IS NOT NULL
+          WHERE (puntos_partidos.total IS NOT NULL
+             OR puntos_clasificacion.total IS NOT NULL)
+            AND u.rol != 'admin'
           ORDER BY puntos_acumulados DESC, u.nombre ASC
           LIMIT 10`,
           [jornadaNumero]
