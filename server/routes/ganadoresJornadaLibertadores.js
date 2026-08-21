@@ -2,10 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { checkRole } from '../middleware/checkRole.js';
-import htmlPdf from 'html-pdf-node';
-import { getWhatsAppService } from '../services/whatsappService.js';
-import { getLogoBase64 } from '../utils/logoHelper.js';
-import { getFotoPerfilBase64 } from '../utils/fotoPerfilHelper.js';
+import { generarPdfFinalBuffer } from '../utils/pdfFinal.js';
 import { calcularTablaOficial } from '../utils/calcularClasificadosLibertadores.js';
 import fs from 'fs';
 import path from 'path';
@@ -484,33 +481,16 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       // No fallar la petición completa si la notificación falla
     }
     
-    // 7. Generar y enviar PDF con resultados completos (SOLO si NO es jornada 10)
-    let pdfGenerado = false;
-    let pdfError = null;
-    if (jornadaNumero !== 10) {
-      try {
-        await generarPDFLibertadoresConGanadores(jornadaNumero, ganadores);
-        pdfGenerado = true;
-      } catch (error) {
-        console.error('❌ Error generando PDF de Libertadores:', error);
-        pdfError = error.message;
-        // No fallar la petición completa si el PDF falla
-      }
-    }
+    // 7. Retornar los ganadores. Este endpoint SOLO calcula y guarda el
+    // ganador de la jornada — ya no genera ni "envía" un PDF acá (esa
+    // generación era puro gasto de memoria: el buffer resultante nunca se
+    // enviaba a ningún lado, ni por email ni de ninguna otra forma). El PDF
+    // Final real se genera aparte, bajo demanda, desde el botón dedicado
+    // (POST /:jornadaNumero/pdf-final).
+    const mensaje = ganadores.length === 1
+      ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}.`
+      : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}.`;
 
-    const mensaje = jornadaNumero === 10
-      ? (ganadores.length === 1 
-          ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}.`
-          : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}.`)
-      : (pdfGenerado
-          ? (ganadores.length === 1 
-              ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}. PDF enviado por email.`
-              : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}. PDF enviado por email.`)
-          : (ganadores.length === 1 
-              ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre}. PDF falló: ${pdfError}`
-              : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')}. PDF falló: ${pdfError}`));
-
-    // 8. Retornar los ganadores
     res.json({
       jornadaNumero,
       ganadores: ganadores.map(g => ({
@@ -518,8 +498,7 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
         puntaje: g.puntaje,
         foto_perfil: g.foto_perfil
       })),
-      mensaje,
-      pdfGenerado
+      mensaje
     });
     
   } catch (error) {
@@ -585,7 +564,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
   try {
     // 1. Obtener pronósticos con resultados reales y puntos de la jornada específica
     const pronosticosQuery = await pool.query(
-      `SELECT 
+      `SELECT
         u.nombre AS usuario,
         u.foto_perfil,
         p.nombre_local,
@@ -613,12 +592,12 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
     // 2. Obtener ranking acumulado - USAR EXACTAMENTE LA MISMA QUERY QUE /api/libertadores-rankings/acumulado/:numero
     const rankingQuery = jornadaNumero >= 10
       ? await pool.query(
-          `SELECT 
+          `SELECT
             u.id,
             u.nombre,
             u.foto_perfil,
-            COALESCE(puntos_partidos.total, 0) + 
-            COALESCE(puntos_clasificacion.total, 0) + 
+            COALESCE(puntos_partidos.total, 0) +
+            COALESCE(puntos_clasificacion.total, 0) +
             COALESCE(puntos_final.puntos, 0) as puntos_acumulados
           FROM usuarios u
           LEFT JOIN (
@@ -639,7 +618,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             SELECT
               lpfv.usuario_id,
               CASE
-                WHEN lpfv.goles_local = lp.goles_local AND lpfv.goles_visita = lp.goles_visita 
+                WHEN lpfv.goles_local = lp.goles_local AND lpfv.goles_visita = lp.goles_visita
                   THEN 10 * COALESCE(lp.bonus, 1)
                 WHEN ABS(lpfv.goles_local - lpfv.goles_visita) = ABS(lp.goles_local - lp.goles_visita)
                      AND SIGN(lpfv.goles_local - lpfv.goles_visita) = SIGN(lp.goles_local - lp.goles_visita)
@@ -651,10 +630,10 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             FROM libertadores_pronosticos_final_virtual lpfv
             INNER JOIN libertadores_jornadas lj ON lpfv.jornada_id = lj.id
             INNER JOIN libertadores_partidos lp ON lp.id = 456
-            WHERE lj.numero = 10 
-              AND lpfv.equipo_local = lp.nombre_local 
+            WHERE lj.numero = 10
+              AND lpfv.equipo_local = lp.nombre_local
               AND lpfv.equipo_visita = lp.nombre_visita
-              AND lp.goles_local IS NOT NULL 
+              AND lp.goles_local IS NOT NULL
               AND lp.goles_visita IS NOT NULL
           ) puntos_final ON u.id = puntos_final.usuario_id
           WHERE (puntos_partidos.total IS NOT NULL
@@ -694,7 +673,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           LIMIT 10`,
           [jornadaNumero]
         );
-    
+
     let ranking = rankingQuery.rows.map((r, index) => ({
       ...r,
       usuario: r.nombre,
@@ -705,7 +684,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
     // 3. Obtener ranking de la jornada específica (excluyendo admins) - SOLO PUNTOS DE PARTIDOS
     // USAR MISMA QUERY QUE /api/libertadores-rankings/jornada/:numero
     const rankingJornadaQuery = await pool.query(
-      `SELECT 
+      `SELECT
         u.id,
         u.nombre AS usuario,
         u.foto_perfil,
@@ -735,74 +714,6 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
     const pronosticos = pronosticosQuery.rows;
     let rankingJornada = rankingJornadaQuery.rows;
 
-    // Para jornada 10: Agregar puntos del partido FINAL a los rankings
-    if (jornadaNumero === 10) {
-      // Obtener todos los usuarios con pronósticos del FINAL
-      const puntosFinalesResult = await pool.query(`
-        SELECT 
-          u.id,
-          u.nombre,
-          p.goles_local AS resultado_local,
-          p.goles_visita AS resultado_visita,
-          p.bonus,
-          lpfv.goles_local AS pronostico_local,
-          lpfv.goles_visita AS pronostico_visita,
-          lpfv.equipo_local AS equipo_local_pronosticado,
-          lpfv.equipo_visita AS equipo_visita_pronosticado,
-          p.nombre_local AS equipo_local_real,
-          p.nombre_visita AS equipo_visita_real
-        FROM usuarios u
-        INNER JOIN libertadores_pronosticos_final_virtual lpfv ON lpfv.usuario_id = u.id
-        INNER JOIN libertadores_jornadas lj ON lpfv.jornada_id = lj.id
-        INNER JOIN libertadores_partidos p ON p.id = 456
-        WHERE lj.numero = 10
-          AND p.goles_local IS NOT NULL
-          AND p.goles_visita IS NOT NULL
-      `);
-
-      const puntosFinalesPorUsuario = {};
-      puntosFinalesResult.rows.forEach(row => {
-        // Verificar que los equipos coincidan
-        if (row.equipo_local_pronosticado === row.equipo_local_real && 
-            row.equipo_visita_pronosticado === row.equipo_visita_real) {
-          
-          const pronostico_local = row.pronostico_local;
-          const pronostico_visita = row.pronostico_visita;
-          const resultado_local = row.resultado_local;
-          const resultado_visita = row.resultado_visita;
-          const bonus = row.bonus || 1;
-
-          let puntos = 0;
-          // Resultado exacto
-          if (pronostico_local === resultado_local && pronostico_visita === resultado_visita) {
-            puntos = 10 * bonus;
-          } 
-          // Diferencia de goles
-          else if (Math.abs(pronostico_local - pronostico_visita) === Math.abs(resultado_local - resultado_visita)) {
-            const signoPronostico = Math.sign(pronostico_local - pronostico_visita);
-            const signoResultado = Math.sign(resultado_local - resultado_visita);
-            if (signoPronostico === signoResultado) {
-              puntos = 7 * bonus;
-            }
-          } 
-          // Solo signo
-          else {
-            const signoPronostico = Math.sign(pronostico_local - pronostico_visita);
-            const signoResultado = Math.sign(resultado_local - resultado_visita);
-            if (signoPronostico === signoResultado) {
-              puntos = 4 * bonus;
-            }
-          }
-
-          puntosFinalesPorUsuario[row.nombre] = puntos;
-        }
-      });
-
-      // NO agregar puntos del FINAL a los rankings porque YA están incluidos en las queries
-      // El ranking de jornada incluye TODOS los partidos (incluyendo el 456)
-      // El ranking acumulado incluye puntos_final calculado desde libertadores_pronosticos_final_virtual
-    }
-
     // Agrupar pronósticos por usuario
     const pronosticosPorUsuario = {};
     pronosticos.forEach((p) => {
@@ -815,381 +726,6 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       pronosticosPorUsuario[p.usuario].pronosticos.push(p);
     });
 
-    // Obtener servicio de WhatsApp para envío de email
-    const whatsappService = getWhatsAppService();
-
-    // Generar HTML
-    let html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          font-family: 'Arial', sans-serif; 
-          padding: 20px; 
-          background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-          color: #333;
-        }
-        .header {
-          text-align: center;
-          background: white;
-          padding: 10px;
-          border-radius: 10px;
-          margin-bottom: 15px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header img {
-          height: 60px;
-          margin: 0 15px;
-          vertical-align: middle;
-        }
-        .header h1 {
-          color: #1e3c72;
-          font-size: 34px;
-          margin: 15px 0 5px 0;
-        }
-        .header p {
-          color: #666;
-          font-size: 19px;
-        }
-        
-        .ganadores-section {
-          background: linear-gradient(135deg, #ffd700, #ffed4e);
-          padding: 15px;
-          margin-bottom: 15px;
-          border-radius: 10px;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-          text-align: center;
-          page-break-inside: avoid;
-        }
-        .ganadores-section h2 {
-          color: #1e3c72;
-          font-size: 32px;
-          margin-bottom: 15px;
-        }
-        .ganador-card {
-          display: inline-block;
-          background: white;
-          padding: 15px;
-          margin: 10px;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          vertical-align: top;
-        }
-        .ganador-foto {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          object-fit: cover;
-          border: 3px solid #ffd700;
-          margin-bottom: 10px;
-        }
-        .ganador-nombre {
-          font-size: 24px;
-          font-weight: bold;
-          color: #1e3c72;
-          margin: 10px 0;
-        }
-        .ganador-puntos {
-          font-size: 19px;
-          color: #666;
-        }
-
-        .rankings-section {
-          background: white;
-          padding: 10px;
-          margin-bottom: 12px;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          page-break-inside: avoid;
-        }
-        .rankings-section h2 {
-          color: #1e3c72;
-          font-size: 27px;
-          margin-bottom: 15px;
-          text-align: center;
-        }
-        
-        .usuario-section {
-          background: white;
-          padding: 10px;
-          margin-bottom: 12px;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          page-break-inside: avoid;
-        }
-        .usuario-header {
-          display: flex;
-          align-items: center;
-          margin-bottom: 10px;
-          border-bottom: 3px solid #ff6b35;
-          padding-bottom: 6px;
-        }
-        .usuario-foto {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          object-fit: cover;
-          margin-right: 15px;
-          border: 2px solid #1e3c72;
-        }
-        .usuario-info {
-          flex-grow: 1;
-        }
-        .usuario-nombre {
-          color: #1e3c72;
-          font-size: 24px;
-          font-weight: bold;
-          margin: 0;
-        }
-        .usuario-total {
-          color: #27ae60;
-          font-size: 22px;
-          font-weight: bold;
-          text-align: right;
-        }
-        
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 10px;
-        }
-        th {
-          background: #1e3c72;
-          color: white;
-          padding: 8px;
-          text-align: left;
-          font-size: 18px;
-          font-weight: bold;
-        }
-        td {
-          padding: 6px;
-          border-bottom: 1px solid #e0e0e0;
-          font-size: 17px;
-          font-weight: bold;
-        }
-        tr:hover {
-          background-color: #f5f5f5;
-        }
-        .partido-cell {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .equipo-logo {
-          width: 32px;
-          height: 32px;
-          object-fit: contain;
-        }
-        .vs {
-          color: #999;
-          font-weight: bold;
-          margin: 0 4px;
-        }
-        .resultado {
-          font-weight: bold;
-          color: #1e3c72;
-          font-size: 22px;
-        }
-        .puntos-cell {
-          font-weight: bold;
-          font-size: 22px;
-        }
-        .puntos-positivo { color: #27ae60; }
-        .puntos-cero { color: #c0392b; }
-        
-        .ranking-table th {
-          background: #27ae60;
-        }
-        .ranking-table .posicion {
-          text-align: center;
-          font-weight: bold;
-          font-size: 19px;
-          color: #1e3c72;
-        }
-        .ranking-table .top-1 {
-          background: #ffd700 !important;
-        }
-        .ranking-table .top-1 td {
-          background: #ffd700 !important;
-          color: #000 !important;
-          font-weight: bold !important;
-        }
-        .ranking-table .top-2 {
-          background: #c0c0c0 !important;
-        }
-        .ranking-table .top-2 td {
-          background: #c0c0c0 !important;
-          color: #000 !important;
-          font-weight: bold !important;
-        }
-        .ranking-table .top-3 {
-          background: #cd7f32 !important;
-        }
-        .ranking-table .top-3 td {
-          background: #cd7f32 !important;
-          color: #fff !important;
-          font-weight: bold !important;
-        }
-        .ranking-foto {
-          width: 35px;
-          height: 35px;
-          border-radius: 50%;
-          object-fit: cover;
-          vertical-align: middle;
-          margin-right: 10px;
-          border: 2px solid #ddd;
-        }
-
-        .footer {
-          text-align: center;
-          color: white;
-          font-size: 12px;
-          margin-top: 30px;
-          padding: 15px;
-          background: rgba(255,255,255,0.1);
-          border-radius: 10px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>🏆 RESULTADOS LIBERTADORES - JORNADA ${jornadaNumero}</h1>
-        <p>Copa Libertadores</p>
-        <p style="font-size: 14px; color: #999; margin-top: 10px;">
-          Fecha de generación: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}
-        </p>
-      </div>
-    `;
-
-    // GANADORES DE LA JORNADA
-    if (ganadores && ganadores.length > 0) {
-      html += `
-      <div class="ganadores-section">
-        <h2>🏆 GANADOR${ganadores.length > 1 ? 'ES' : ''} DE LA JORNADA ${jornadaNumero}</h2>
-      `;
-      
-      for (const ganador of ganadores) {
-        const fotoBase64 = ganador.foto_perfil ? getFotoPerfilBase64(ganador.foto_perfil) : null;
-        
-        const fotoHTML = fotoBase64 
-          ? `<img src="${fotoBase64}" class="ganador-foto" alt="${ganador.nombre}">` 
-          : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
-        
-        html += `
-        <div class="ganador-card">
-          ${fotoHTML}
-          <div class="ganador-nombre">${ganador.nombre}</div>
-          <div class="ganador-puntos">${ganador.puntaje !== undefined ? ganador.puntaje : 0} puntos</div>
-        </div>
-        `;
-      }
-      html += `</div>`;
-    }
-
-    // GANADOR DEL RANKING ACUMULADO (solo para J10)
-    if (jornadaNumero === 10 && ranking.length > 0) {
-      const ganadorAcumulado = ranking[0];
-      const fotoBase64Acum = ganadorAcumulado.foto_perfil ? getFotoPerfilBase64(ganadorAcumulado.foto_perfil) : null;
-      const fotoHTMLAcum = fotoBase64Acum 
-        ? `<img src="${fotoBase64Acum}" class="ganador-foto" alt="${ganadorAcumulado.usuario}">` 
-        : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
-      
-      html += `
-      <div class="ganadores-section" style="margin-top: 20px; background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); border: 3px solid #ffd700;">
-        <h2 style="color: #333;">👑 CAMPEÓN DEL RANKING ACUMULADO</h2>
-        <div class="ganador-cards">
-          <div class="ganador-card">
-            ${fotoHTMLAcum}
-            <div class="ganador-nombre">${ganadorAcumulado.usuario}</div>
-            <div class="ganador-puntos" style="font-size: 24px; font-weight: bold;">${ganadorAcumulado.puntaje_total} puntos</div>
-          </div>
-        </div>
-      </div>
-      `;
-    }
-
-    // RANKING DE LA JORNADA
-    if (rankingJornada.length > 0) {
-      html += `
-      <div class="rankings-section">
-        <h2>🥇 RANKING JORNADA ${jornadaNumero}</h2>
-        <table class="ranking-table">
-          <thead>
-            <tr>
-              <th style="width: 15%; text-align: center;">Posición</th>
-              <th style="width: 60%;">Jugador</th>
-              <th style="width: 25%; text-align: center;">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-      rankingJornada.forEach((r) => {
-        let rowClass = '';
-        const pos = parseInt(r.posicion);
-        if (pos === 1) rowClass = 'top-1';
-        else if (pos === 2) rowClass = 'top-2';
-        else if (pos === 3) rowClass = 'top-3';
-        
-        const fotoBase64 = r.foto_perfil ? getFotoPerfilBase64(r.foto_perfil) : null;
-        const fotoHTML = fotoBase64 ? `<img src="${fotoBase64}" class="ranking-foto" alt="${r.usuario}">` : '';
-        
-        html += `
-            <tr class="${rowClass}">
-              <td class="posicion">${r.posicion}</td>
-              <td>${fotoHTML}${r.usuario}</td>
-              <td style="text-align: center; font-weight: bold;">${r.puntos_jornada}</td>
-            </tr>
-        `;
-      });
-      html += `
-          </tbody>
-        </table>
-      </div>
-      `;
-    }
-
-    // RANKING ACUMULADO
-    if (ranking.length > 0) {
-      html += `
-      <div class="rankings-section">
-        <h2>📈 RANKING ACUMULADO (hasta Jornada ${jornadaNumero})</h2>
-        <table class="ranking-table">
-          <thead>
-            <tr>
-              <th style="width: 15%; text-align: center;">Posición</th>
-              <th style="width: 60%;">Jugador</th>
-              <th style="width: 25%; text-align: center;">Puntos Totales</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-      ranking.forEach((r) => {
-        let rowClass = '';
-        if (r.posicion === 1) rowClass = 'top-1';
-        else if (r.posicion === 2) rowClass = 'top-2';
-        else if (r.posicion === 3) rowClass = 'top-3';
-        
-        const fotoBase64 = r.foto_perfil ? getFotoPerfilBase64(r.foto_perfil) : null;
-        const fotoHTML = fotoBase64 ? `<img src="${fotoBase64}" class="ranking-foto" alt="${r.usuario}">` : '';
-        
-        html += `
-            <tr class="${rowClass}">
-              <td class="posicion">${r.posicion}</td>
-              <td>${fotoHTML}${r.usuario}</td>
-              <td style="text-align: center; font-weight: bold;">${r.puntaje_total}</td>
-            </tr>
-        `;
-      });
-      html += `
-          </tbody>
-        </table>
-      </div>
-      `;
-    }
-
     // PREPARAR DATOS ADICIONALES
     let clasificacionPorUsuario = {};
     let partidoFinalPorUsuario = {};
@@ -1201,7 +737,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       // Calcular clasificados oficiales de cada grupo
       const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
       const jornadasNumeros = [1, 2, 3, 4, 5, 6];
-      
+
       for (const grupo of grupos) {
         const tabla = await calcularTablaOficial(grupo, jornadasNumeros);
         clasificadosOficialesJ6[grupo] = {
@@ -1209,10 +745,10 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           playoffs: tabla.length >= 3 ? tabla[2].nombre : null
         };
       }
-      
+
       // Para jornada 6, obtener los pronósticos de clasificación de fase de grupos
       const clasificacionQuery = await pool.query(`
-        SELECT 
+        SELECT
           u.nombre AS usuario,
           lpc.equipo_clasificado,
           lpc.fase_clasificado,
@@ -1230,12 +766,12 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         clasificacionPorUsuario[row.usuario].push(row);
       });
     }
-    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADAS 8, 9 Y 10 (Octavos, Cuartos, Semifinales)
+    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADAS 8 Y 9 (Octavos, Cuartos)
     else if (jornadaNumero === 8 || jornadaNumero === 9) {
       // Para J8 y J9: Obtener los pronósticos de clasificación con los datos completos de los partidos
       // para poder calcular correctamente qué equipo avanzó en cada cruce
       const clasificacionQuery = await pool.query(`
-        SELECT 
+        SELECT
           u.nombre AS usuario,
           lpc.equipo_clasificado,
           lpc.fase_clasificado,
@@ -1254,8 +790,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         JOIN libertadores_partidos p ON lpc.partido_id = p.id
         JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
         -- Buscar el partido IDA (equipos invertidos)
-        LEFT JOIN libertadores_partidos p_ida ON 
-          ${jornadaNumero === 8 
+        LEFT JOIN libertadores_partidos p_ida ON
+          ${jornadaNumero === 8
             ? `p_ida.jornada_id IN (SELECT id FROM libertadores_jornadas WHERE numero = 7)
                AND p_ida.nombre_local = p.nombre_visita
                AND p_ida.nombre_visita = p.nombre_local`
@@ -1267,20 +803,18 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         ORDER BY u.nombre, lpc.fase_clasificado
       `, [jornadaNumero]);
 
-
-
       clasificacionQuery.rows.forEach(row => {
         if (!clasificacionPorUsuario[row.usuario]) {
           clasificacionPorUsuario[row.usuario] = [];
         }
-        
+
         // Calcular qué equipo realmente avanzó en este cruce
         let equipoRealQueAvanza = null;
         if (row.resultado_vuelta_local !== null && row.resultado_vuelta_visita !== null) {
           // Calcular resultado global (IDA + VUELTA)
           const resultadoGlobalLocal = row.resultado_vuelta_local + (row.resultado_ida_visita || 0);
           const resultadoGlobalVisita = row.resultado_vuelta_visita + (row.resultado_ida_local || 0);
-          
+
           if (resultadoGlobalLocal > resultadoGlobalVisita) {
             equipoRealQueAvanza = row.partido_local;
           } else if (resultadoGlobalLocal < resultadoGlobalVisita) {
@@ -1296,7 +830,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             }
           }
         }
-        
+
         row.equipo_real_avanza = equipoRealQueAvanza || '?';
         clasificacionPorUsuario[row.usuario].push(row);
       });
@@ -1305,7 +839,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
     else if (jornadaNumero === 10) {
       // Para J10: consulta simple sin JOIN con partidos porque los finalistas no vienen de partidos IDA/VUELTA
       const clasificacionQuery = await pool.query(`
-        SELECT 
+        SELECT
           u.nombre AS usuario,
           lpc.equipo_clasificado,
           lpc.fase_clasificado,
@@ -1315,8 +849,6 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         WHERE lpc.jornada_numero = $1
         ORDER BY u.nombre, lpc.fase_clasificado
       `, [jornadaNumero]);
-
-
 
       clasificacionQuery.rows.forEach(row => {
         if (!clasificacionPorUsuario[row.usuario]) {
@@ -1328,7 +860,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
 
     if (jornadaNumero === 10) {
       const partidoFinalQuery = await pool.query(`
-        SELECT 
+        SELECT
           u.nombre AS usuario,
           p.nombre_local,
           p.nombre_visita,
@@ -1348,10 +880,10 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       `);
 
       partidoFinalQuery.rows.forEach(row => {
-        const equiposCoinciden = 
-          row.equipo_local_pronosticado === row.nombre_local && 
+        const equiposCoinciden =
+          row.equipo_local_pronosticado === row.nombre_local &&
           row.equipo_visita_pronosticado === row.nombre_visita;
-        
+
         let puntos = 0;
         if (equiposCoinciden && row.resultado_local !== null && row.resultado_visita !== null) {
           const bonus = row.bonus || 1;
@@ -1378,7 +910,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
 
       // Obtener cuadro final por usuario
       const cuadroFinalQuery = await pool.query(`
-        SELECT 
+        SELECT
           u.nombre AS usuario,
           lpc.campeon,
           lpc.subcampeon,
@@ -1394,25 +926,26 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
       });
     }
 
-    // PRONÓSTICOS POR USUARIO
+    // Construir la lista de secciones "por usuario" para el generador pdfkit.
+    // A diferencia de la versión anterior, acá NO se arma HTML: se arma un
+    // array de datos ya formateados que pdfFinal.js sabe dibujar.
+    const usuariosPdf = [];
+
     for (const [usuario, userData] of Object.entries(pronosticosPorUsuario)) {
       const pronosticosUsuario = userData.pronosticos;
-      const fotoPerfil = userData.foto_perfil;
-      
+
       // Calcular puntaje de PARTIDOS solamente
       const puntosPartidos = pronosticosUsuario
         .filter(p => p.jornada_numero === jornadaNumero)
         .reduce((sum, p) => sum + (p.puntos || 0), 0);
-      
+
       // Para J10: Cuadro Final incluye clasificados + campeon + subcampeon
       // Para otras jornadas: solo Clasificación
       let puntosCuadroFinal = 0;
       let puntosClasificacion = 0;
-      
+
       if (jornadaNumero === 10) {
-        // J10: Cuadro Final = finalistas + campeon + subcampeon
         if (clasificacionPorUsuario[usuario]) {
-          // Solo sumar puntos de FINALISTAS (no CAMPEON ni SUBCAMPEON porque vienen de cuadroFinalPorUsuario)
           puntosCuadroFinal += clasificacionPorUsuario[usuario]
             .filter(c => c.fase_clasificado === 'FINALISTA')
             .reduce((sum, c) => sum + (c.puntos || 0), 0);
@@ -1422,96 +955,38 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           puntosCuadroFinal += (cf.puntos_campeon || 0) + (cf.puntos_subcampeon || 0);
         }
       } else if ((jornadaNumero === 6 || jornadaNumero === 8 || jornadaNumero === 9) && clasificacionPorUsuario[usuario]) {
-        // J6, J8, J9: solo Clasificación
         puntosClasificacion = clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0);
       }
-      
-      const fotoBase64 = fotoPerfil ? getFotoPerfilBase64(fotoPerfil) : null;
-      const fotoHTML = fotoBase64 
-        ? `<img src="${fotoBase64}" class="usuario-foto" alt="${usuario}">` 
-        : '';
-      
-      html += `
-      <div class="usuario-section">
-        <div class="usuario-header">
-          ${fotoHTML}
-          <div class="usuario-info">
-            <h2 class="usuario-nombre">👤 ${usuario}</h2>
-          </div>
-          <div class="usuario-total">
-            Partidos: ${puntosPartidos} pts
-            ${puntosClasificacion > 0 ? `<br/>Clasificación: ${puntosClasificacion} pts` : ''}
-            ${puntosCuadroFinal > 0 ? `<br/>Cuadro Final: ${puntosCuadroFinal} pts` : ''}
-          </div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 10%;">Jornada</th>
-              <th style="width: 30%;">Partido</th>
-              <th style="width: 12%;">Pronóstico</th>
-              <th style="width: 12%;">Resultado</th>
-              <th style="width: 8%;">Bonus</th>
-              <th style="width: 10%;">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
+
+      const partesResumen = [`Partidos: ${puntosPartidos} pts`];
+      if (puntosClasificacion > 0) partesResumen.push(`Clasificación: ${puntosClasificacion} pts`);
+      if (puntosCuadroFinal > 0) partesResumen.push(`Cuadro Final: ${puntosCuadroFinal} pts`);
 
       // Filtrar partidos: para J10, excluir el partido final (bonus x3) de la tabla normal
-      const partidosMostrar = jornadaNumero === 10 
+      const partidosMostrar = jornadaNumero === 10
         ? pronosticosUsuario.filter(p => (p.bonus || 1) !== 3)
         : pronosticosUsuario;
 
-      partidosMostrar.forEach((p) => {
-        const logoLocal = getLogoBase64(p.nombre_local);
-        const logoVisita = getLogoBase64(p.nombre_visita);
-        
+      const filasPartidos = partidosMostrar.map((p) => {
         const pronostico = `${p.pred_local} - ${p.pred_visita}`;
-        const resultado = (p.real_local !== null && p.real_visita !== null) 
-          ? `${p.real_local} - ${p.real_visita}` 
+        const resultado = (p.real_local !== null && p.real_visita !== null)
+          ? `${p.real_local} - ${p.real_visita}`
           : 'Pendiente';
-        
-        const puntos = p.puntos || 0;
-        const puntosClass = puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
-        const bonus = p.bonus || 1;
-
-        html += `
-            <tr>
-              <td style="text-align: center;">${p.jornada_numero}</td>
-              <td>
-                <div class="partido-cell">
-                  ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${p.nombre_local}">` : ''}
-                  <span>${p.nombre_local}</span>
-                  <span class="vs">vs</span>
-                  ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${p.nombre_visita}">` : ''}
-                  <span>${p.nombre_visita}</span>
-                </div>
-              </td>
-              <td style="text-align: center;">${pronostico}</td>
-              <td style="text-align: center;" class="resultado">${resultado}</td>
-              <td style="text-align: center;">×${bonus}</td>
-              <td style="text-align: center;" class="puntos-cell ${puntosClass}">
-                ${puntos}
-              </td>
-            </tr>
-        `;
+        return [
+          p.jornada_numero,
+          `${p.nombre_local} vs ${p.nombre_visita}`,
+          pronostico,
+          resultado,
+          `x${p.bonus || 1}`,
+          p.puntos || 0
+        ];
       });
 
-      html += `
-          </tbody>
-        </table>
-
-      `;
-
-      // AGREGAR SECCIONES ADICIONALES PARA JORNADAS 6, 8, 9 Y 10
-      // Jornada 6: Clasificación de fase de grupos
-      // Jornadas 8, 9, 10: Clasificación de octavos, cuartos, semifinales
+      // Sección de clasificación (J6, J8, J9)
+      let tablaClasificacion = null;
       if (jornadaNumero === 6) {
-        // Para J6: Mostrar clasificación agrupada por grupo (2 filas por grupo)
         const clasificacion = clasificacionPorUsuario[usuario];
         if (clasificacion && clasificacion.length > 0) {
-          // Agrupar por grupo
           const grupos = {};
           clasificacion.forEach(c => {
             const grupo = c.fase_clasificado.split('_').pop(); // Extraer A, B, C, etc.
@@ -1522,268 +997,129 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
               grupos[grupo].playoffs = c;
             }
           });
-          
-          // Calcular total de puntos de clasificación
+
           const totalPuntosClasificacion = clasificacion.reduce((sum, c) => sum + (c.puntos || 0), 0);
-          
-          html += `
-            <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">⚡ Equipos Clasificados</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 10%; text-align: center;">Grupo</th>
-                  <th style="width: 30%;">Clasificación</th>
-                  <th style="width: 25%;">Equipo Pronosticado</th>
-                  <th style="width: 25%;">Equipo Real</th>
-                  <th style="width: 10%; text-align: center;">Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-          `;
-          
-          // Ordenar grupos alfabéticamente
-          const gruposOrdenados = Object.keys(grupos).sort();
-          
-          gruposOrdenados.forEach((grupo, index) => {
+          const filas = [];
+
+          Object.keys(grupos).sort().forEach((grupo) => {
             const data = grupos[grupo];
-            const tieneOctavos = data.octavos.length > 0;
-            const tienePlayoffs = data.playoffs !== null;
-            
-            // Obtener equipos reales clasificados
             const oficialesGrupo = clasificadosOficialesJ6[grupo] || { octavos: [], playoffs: null };
-            const equiposRealesOctavos = oficialesGrupo.octavos.length > 0 
-              ? oficialesGrupo.octavos.join('<br>') 
-              : '?<br>?';
+            const equiposRealesOctavos = oficialesGrupo.octavos.length > 0
+              ? oficialesGrupo.octavos.join(' / ')
+              : '? / ?';
             const equipoRealPlayoffs = oficialesGrupo.playoffs || '?';
-            
-            // Siempre mostrar 2 filas por grupo
-            // Primera fila: Octavos (1° y 2° lugar)
-            if (tieneOctavos) {
-              const equiposPronosticados = data.octavos.map(o => o.equipo_clasificado).join('<br>');
+
+            if (data.octavos.length > 0) {
+              const equiposPronosticados = data.octavos.map(o => o.equipo_clasificado).join(' / ');
               const puntosTotal = data.octavos.reduce((sum, o) => sum + (o.puntos || 0), 0);
-              const puntosClass = puntosTotal > 0 ? 'puntos-positivo' : 'puntos-cero';
-              
-              html += `
-                <tr>
-                  <td style="text-align: center; font-weight: bold; vertical-align: middle;" rowspan="2">${grupo}</td>
-                  <td><strong>Clasificados a Octavos</strong></td>
-                  <td>${equiposPronosticados}</td>
-                  <td>${equiposRealesOctavos}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosClass}">${puntosTotal}</td>
-                </tr>
-              `;
+              filas.push([grupo, 'Clasificados a Octavos', equiposPronosticados, equiposRealesOctavos, String(puntosTotal)]);
             }
-            
-            // Segunda fila: Playoffs Sudamericana (3° lugar)
-            if (tienePlayoffs) {
-              const puntosClass = data.playoffs.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
-              html += `
-                <tr>
-                  <td><strong>Clasificado a Playoffs Sudamericana</strong></td>
-                  <td>${data.playoffs.equipo_clasificado}</td>
-                  <td>${equipoRealPlayoffs}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosClass}">${data.playoffs.puntos}</td>
-                </tr>
-              `;
+
+            if (data.playoffs) {
+              filas.push([grupo, 'Clasificado a Playoffs Sudamericana', data.playoffs.equipo_clasificado, equipoRealPlayoffs, String(data.playoffs.puntos)]);
             } else {
-              // Si no hay playoffs, agregar fila vacía para mantener estructura
-              html += `
-                <tr>
-                  <td><strong>Clasificado a Playoffs Sudamericana</strong></td>
-                  <td>-</td>
-                  <td>-</td>
-                  <td style="text-align: center;" class="puntos-cell">0</td>
-                </tr>
-              `;
+              filas.push([grupo, 'Clasificado a Playoffs Sudamericana', '-', '-', '0']);
             }
           });
-          
-          // Fila de total
-          html += `
-                <tr style="background-color: #f8f9fa; font-weight: bold;">
-                  <td colspan="4" style="text-align: right; padding-right: 10px;">TOTAL CLASIFICACIÓN:</td>
-                  <td style="text-align: center;" class="puntos-cell">${totalPuntosClasificacion}</td>
-                </tr>
-              </tbody>
-            </table>
-          `;
+
+          filas.push(['', 'TOTAL CLASIFICACIÓN', '', '', String(totalPuntosClasificacion)]);
+
+          tablaClasificacion = {
+            titulo: 'EQUIPOS CLASIFICADOS',
+            columnas: ['Grupo', 'Clasificación', 'Pronosticado', 'Real', 'Puntos'],
+            filas
+          };
         }
       } else if (jornadaNumero === 8 || jornadaNumero === 9) {
-        // Para J8-9 solamente: Mostrar equipos que avanzan
         const clasificacion = clasificacionPorUsuario[usuario];
         if (clasificacion && clasificacion.length > 0) {
-          html += `
-            <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">⚡ Equipo que avanza</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 40%;">Equipo Pronosticado</th>
-                  <th style="width: 40%;">Equipo Real</th>
-                  <th style="width: 20%; text-align: center;">Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-          `;
-          
-          clasificacion.forEach(c => {
-            const puntosClass = c.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
-            
-            html += `
-                <tr>
-                  <td>${c.equipo_clasificado}</td>
-                  <td>${c.equipo_real_avanza}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosClass}">${c.puntos}</td>
-                </tr>
-            `;
-          });
-
-          html += `
-              </tbody>
-            </table>
-          `;
+          tablaClasificacion = {
+            titulo: 'EQUIPO QUE AVANZA',
+            columnas: ['Equipo Pronosticado', 'Equipo Real', 'Puntos'],
+            filas: clasificacion.map(c => [c.equipo_clasificado, c.equipo_real_avanza, String(c.puntos)])
+          };
         }
       }
 
-      // SECCIONES ADICIONALES SOLO PARA JORNADA 10
+      // Secciones adicionales solo para Jornada 10
+      let tablaPartidoFinal = null;
+      let tablaCuadroFinal = null;
+
       if (jornadaNumero === 10) {
-        // Partido FINAL (solo si tiene equipos reales, para evitar duplicados)
         const partidoFinal = partidoFinalPorUsuario[usuario];
+
         if (partidoFinal && partidoFinal.nombre_local && partidoFinal.nombre_visita) {
-          const logoLocal = getLogoBase64(partidoFinal.nombre_local);
-          const logoVisita = getLogoBase64(partidoFinal.nombre_visita);
-          const puntosClass = partidoFinal.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
+          const equiposCoinciden = partidoFinal.equipo_local_pronosticado === partidoFinal.nombre_local &&
+            partidoFinal.equipo_visita_pronosticado === partidoFinal.nombre_visita;
           const pronostico = `${partidoFinal.pronostico_local} - ${partidoFinal.pronostico_visita}`;
-          const resultado = partidoFinal.resultado_local !== null ? `${partidoFinal.resultado_local} - ${partidoFinal.resultado_visita}` : 'Pendiente';
-          const equiposCoinciden = partidoFinal.equipo_local_pronosticado === partidoFinal.nombre_local && 
-                                  partidoFinal.equipo_visita_pronosticado === partidoFinal.nombre_visita;
+          const resultado = partidoFinal.resultado_local !== null
+            ? `${partidoFinal.resultado_local} - ${partidoFinal.resultado_visita}`
+            : 'Pendiente';
+          const partidoTexto = equiposCoinciden
+            ? `${partidoFinal.nombre_local} vs ${partidoFinal.nombre_visita}`
+            : `${partidoFinal.nombre_local} vs ${partidoFinal.nombre_visita} (real)\n${partidoFinal.equipo_local_pronosticado} vs ${partidoFinal.equipo_visita_pronosticado} (pron.)`;
 
-          html += `
-            <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">🏆 PARTIDO FINAL</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 40%;">Partido</th>
-                  <th style="width: 15%;">Pronóstico</th>
-                  <th style="width: 15%;">Resultado</th>
-                  <th style="width: 10%;">Bonus</th>
-                  <th style="width: 10%; text-align: center;">Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div style="margin-bottom: 5px;">
-                      <div class="partido-cell">
-                        ${logoLocal ? `<img src="${logoLocal}" class="equipo-logo" alt="${partidoFinal.nombre_local}">` : ''}
-                        <span>${partidoFinal.nombre_local}</span>
-                        <span class="vs">vs</span>
-                        ${logoVisita ? `<img src="${logoVisita}" class="equipo-logo" alt="${partidoFinal.nombre_visita}">` : ''}
-                        <span>${partidoFinal.nombre_visita}</span>
-                        <span style="font-size: 12px; font-style: italic; color: #666; margin-left: 10px;">Real</span>
-                      </div>
-                    </div>
-                    ${!equiposCoinciden ? `<div style="font-size: 14px; color: #666;">
-                      <span>${partidoFinal.equipo_local_pronosticado} vs ${partidoFinal.equipo_visita_pronosticado}</span>
-                      <span style="font-size: 12px; font-style: italic; margin-left: 10px;">Pron.</span>
-                    </div>` : ''}
-                  </td>
-                  <td style="text-align: center;">${pronostico}</td>
-                  <td style="text-align: center;" class="resultado">${resultado}</td>
-                  <td style="text-align: center;">×${partidoFinal.bonus || 1}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosClass}">${partidoFinal.puntos}</td>
-                </tr>
-              </tbody>
-            </table>
-          `;
+          tablaPartidoFinal = {
+            filas: [[partidoTexto, pronostico, resultado, `x${partidoFinal.bonus || 1}`, String(partidoFinal.puntos)]]
+          };
         }
 
+        // Cuadro Final (Clasificados + Campeón + Subcampeón)
+        const cuadroFinal = cuadroFinalPorUsuario[usuario];
+        const todosClasificados = clasificacionPorUsuario[usuario] || [];
+        const finalistas = todosClasificados.filter(c => c.fase_clasificado === 'FINALISTA');
+        const finalistasPronosticados = partidoFinal?.finalistasPronosticados?.join(', ') || '-';
+        const puntosClasificados = finalistas.reduce((sum, c) => sum + (c.puntos || 0), 0);
+        const puntosCampeon = cuadroFinal?.puntos_campeon || 0;
+        const puntosSubcampeon = cuadroFinal?.puntos_subcampeon || 0;
+        const totalCuadroFinal = puntosClasificados + puntosCampeon + puntosSubcampeon;
 
-
-        // Cuadro Final (Clasificados + Campeón + Subcampeón) - Solo para J10
-        if (jornadaNumero === 10) {
-          const cuadroFinal = cuadroFinalPorUsuario[usuario];
-          const partidoFinal = partidoFinalPorUsuario[usuario];
-          const todosClasificados = clasificacionPorUsuario[usuario] || [];
-          
-          // Filtrar solo FINALISTAS (no incluir CAMPEON ni SUBCAMPEON porque vienen en cuadroFinal)
-          const finalistas = todosClasificados.filter(c => c.fase_clasificado === 'FINALISTA');
-          
-          // Obtener equipos finalistas pronosticados desde partidoFinal
-          const finalistasPronosticados = partidoFinal?.finalistasPronosticados?.join(', ') || '-';
-          
-          // Calcular puntos de finalistas
-          const puntosClasificados = finalistas.reduce((sum, c) => sum + (c.puntos || 0), 0);
-          
-          const puntosCampeon = cuadroFinal?.puntos_campeon || 0;
-          const puntosSubcampeon = cuadroFinal?.puntos_subcampeon || 0;
-          const totalCuadroFinal = puntosClasificados + puntosCampeon + puntosSubcampeon;
-          
-          const puntosClasificadosClass = puntosClasificados > 0 ? 'puntos-positivo' : 'puntos-cero';
-          const puntosCampeonClass = puntosCampeon > 0 ? 'puntos-positivo' : 'puntos-cero';
-          const puntosSubcampeonClass = puntosSubcampeon > 0 ? 'puntos-positivo' : 'puntos-cero';
-
-          html += `
-            <h3 style="color: #1e3c72; margin-top: 15px; margin-bottom: 10px;">🏆 Cuadro Final</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 20%;">Posición</th>
-                  <th style="width: 35%;">Equipo Real</th>
-                  <th style="width: 35%;">Equipo Pronosticado</th>
-                  <th style="width: 10%; text-align: center;">Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>Finalistas</strong></td>
-                  <td>Palmeiras (BRA), Flamengo (BRA)</td>
-                  <td>${finalistasPronosticados}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosClasificadosClass}">${puntosClasificados}</td>
-                </tr>
-                <tr>
-                  <td><strong>Campeón</strong></td>
-                  <td>Flamengo (BRA)</td>
-                  <td>${cuadroFinal?.campeon || '-'}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosCampeonClass}">${puntosCampeon}</td>
-                </tr>
-                <tr>
-                  <td><strong>Subcampeón</strong></td>
-                  <td>Palmeiras (BRA)</td>
-                  <td>${cuadroFinal?.subcampeon || '-'}</td>
-                  <td style="text-align: center;" class="puntos-cell ${puntosSubcampeonClass}">${puntosSubcampeon}</td>
-                </tr>
-                <tr style="border-top: 2px solid #1e3c72;">
-                  <td colspan="3" style="text-align: right;"><strong>Total Cuadro Final:</strong></td>
-                  <td style="text-align: center;" class="puntos-cell"><strong>${totalCuadroFinal} pts</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          `;
-        }
+        // NOTA: "Equipo Real" de Finalistas/Campeón/Subcampeón queda igual
+        // que en la versión anterior (valores fijos, no calculados desde la
+        // BD). Es un bug preexistente ajeno a esta migración de motor de
+        // PDF; se preserva tal cual para no mezclar cambios.
+        tablaCuadroFinal = {
+          filas: [
+            ['Finalistas', 'Palmeiras (BRA), Flamengo (BRA)', finalistasPronosticados, String(puntosClasificados)],
+            ['Campeón', 'Flamengo (BRA)', cuadroFinal?.campeon || '-', String(puntosCampeon)],
+            ['Subcampeón', 'Palmeiras (BRA)', cuadroFinal?.subcampeon || '-', String(puntosSubcampeon)]
+          ],
+          total: String(totalCuadroFinal)
+        };
       }
 
-      html += `
-      </div>
-      `;
+      usuariosPdf.push({
+        nombre: usuario,
+        resumenPuntos: partesResumen.join('   '),
+        filasPartidos,
+        tablaClasificacion,
+        tablaPartidoFinal,
+        tablaCuadroFinal
+      });
     }
 
-    html += `
-      <div class="footer">
-        <p>Campeonato Itaú ${new Date().getFullYear()} • Copa Libertadores</p>
-        <p>Sistema de Pronósticos Deportivos</p>
-      </div>
-    </body>
-    </html>
-    `;
+    const ganadorAcumulado = (jornadaNumero === 10 && ranking.length > 0)
+      ? { usuario: ranking[0].usuario, puntaje_total: ranking[0].puntaje_total }
+      : null;
 
-    // Generar PDF
-    const options = {
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
-    };
-    const file = { content: html };
-    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    // 4. Generar el PDF con pdfkit (sin Chromium, bajo consumo de memoria)
+    const pdfBuffer = await generarPdfFinalBuffer({
+      competencia: 'Copa Libertadores',
+      jornadaNumero,
+      ganadores: ganadores.map(g => ({ nombre: g.nombre, puntaje: g.puntaje })),
+      ganadorAcumulado,
+      rankingJornada: rankingJornada.map(r => ({
+        posicion: parseInt(r.posicion, 10),
+        usuario: r.usuario,
+        puntos_jornada: r.puntos_jornada
+      })),
+      ranking: ranking.map(r => ({
+        posicion: r.posicion,
+        usuario: r.usuario,
+        puntaje_total: r.puntaje_total
+      })),
+      usuarios: usuariosPdf
+    });
 
     return pdfBuffer;
 
