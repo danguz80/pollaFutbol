@@ -513,12 +513,8 @@ export default function ClasificacionSudamericana() {
       window.dispatchEvent(new Event('nuevaNotificacion'));
       
       // Mostrar modal con resultado
-      const pdfInfo = response.data.pdfGenerado 
-        ? '\n\n📧 PDF enviado por email con:\n• Ganadores destacados con fotos\n• Ranking de la jornada\n• Ranking acumulado\n• Todos los pronósticos y resultados' 
-        : '';
-      
       setModalType("success");
-      setModalMessage(`✅ ${response.data.mensaje}\n\n🔔 Notificación añadida para todos los usuarios\n• Ganadores de la jornada ${filtroJornada}\n• Visible en la página de inicio${pdfInfo}`);
+      setModalMessage(`✅ ${response.data.mensaje}\n\n🔔 Notificación añadida para todos los usuarios\n• Ganadores de la jornada ${filtroJornada}\n• Visible en la página de inicio`);
       setShowModal(true);
       
       // Recargar rankings
