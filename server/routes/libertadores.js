@@ -491,17 +491,21 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
       );
       
       if (jornadasResult.rows.length > 0) {
-        const jornadaId = jornadasResult.rows[jornadasResult.rows.length - 1].id;
+        // IMPORTANTE: para J7/J8 (octavos), IDA y VUELTA están en jornadas distintas,
+        // así que hay que traer los partidos de AMBAS jornadas, no solo la última.
+        const jornadaIds = jornadasResult.rows.map(r => r.id);
 
-        // Obtener todos los partidos de la jornada con tipo_partido
+        // Obtener todos los partidos de ambas jornadas con tipo_partido
+        // calculado según la jornada REAL de cada partido (j.numero), no según
+        // el número de jornada solicitado en la URL.
         const todosPartidos = await pool.query(`
-          SELECT 
+          SELECT
             p.id, p.nombre_local, p.nombre_visita, p.goles_local, p.goles_visita,
-            CASE 
-              WHEN $2 = 7 THEN 'IDA'
-              WHEN $2 = 8 THEN 'VUELTA'
-              WHEN $2 = 9 THEN 
-                CASE 
+            CASE
+              WHEN j.numero = 7 THEN 'IDA'
+              WHEN j.numero = 8 THEN 'VUELTA'
+              WHEN j.numero = 9 THEN
+                CASE
                   WHEN EXISTS (
                     SELECT 1 FROM libertadores_partidos p2
                     WHERE p2.jornada_id = p.jornada_id
@@ -511,8 +515,8 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
                   ) THEN 'IDA'
                   ELSE 'VUELTA'
                 END
-              WHEN $2 = 10 THEN 
-                CASE 
+              WHEN j.numero = 10 THEN
+                CASE
                   WHEN NOT EXISTS (
                     SELECT 1 FROM libertadores_partidos p2
                     WHERE p2.jornada_id = p.jornada_id
@@ -530,9 +534,10 @@ router.patch('/jornadas/:numero/resultados', verifyToken, authorizeRoles('admin'
                 END
             END as tipo_partido
           FROM libertadores_partidos p
-          WHERE p.jornada_id = $1
+          JOIN libertadores_jornadas j ON j.id = p.jornada_id
+          WHERE p.jornada_id = ANY($1::int[])
           ORDER BY p.id
-        `, [jornadaId, jornadaNumero]);
+        `, [jornadaIds]);
 
         // Validar cada partido de VUELTA contra su IDA
         for (const partidoVuelta of partidos) {

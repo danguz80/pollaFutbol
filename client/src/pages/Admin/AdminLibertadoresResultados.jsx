@@ -10,6 +10,9 @@ export default function AdminLibertadoresResultados() {
   const [jornadas, setJornadas] = useState([]);
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState("");
   const [partidos, setPartidos] = useState([]);
+  // Partidos de IDA (Jornada 7) cuando se está viendo la Jornada 8 (VUELTA de octavos).
+  // Se necesitan aparte porque IDA y VUELTA de octavos viven en jornadas distintas.
+  const [partidosIdaCruzados, setPartidosIdaCruzados] = useState([]);
   const [jornadaCerrada, setJornadaCerrada] = useState(false);
   const [jornadaActiva, setJornadaActiva] = useState(false);
   const [jornadaId, setJornadaId] = useState(null);
@@ -46,6 +49,14 @@ export default function AdminLibertadoresResultados() {
     if (!jornadaSeleccionada) return;
     fetchPartidos(jornadaSeleccionada);
     fetchJornadaInfo(jornadaSeleccionada);
+
+    // La Jornada 8 (VUELTA de octavos) necesita los partidos de IDA de la
+    // Jornada 7 para poder calcular el marcador global y mostrar penales.
+    if (Number(jornadaSeleccionada) === 8) {
+      fetchPartidosIdaCruzados();
+    } else {
+      setPartidosIdaCruzados([]);
+    }
   }, [jornadaSeleccionada]);
 
   const fetchPartidos = async (numero) => {
@@ -74,15 +85,42 @@ export default function AdminLibertadoresResultados() {
     }
   };
 
+  // Trae los partidos de Jornada 7 (IDA de octavos) para poder calcular el
+  // marcador global cuando se está viendo la Jornada 8 (VUELTA).
+  const fetchPartidosIdaCruzados = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/libertadores/jornadas/7`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+
+      const partidosIda = (data.partidos || []).map(p => ({
+        id: p.id,
+        local: p.nombre_local,
+        visita: p.nombre_visita,
+        golesLocal: p.goles_local ?? "",
+        golesVisita: p.goles_visita ?? "",
+        tipoPartido: p.tipo_partido || null,
+      }));
+      setPartidosIdaCruzados(partidosIda);
+    } catch (err) {
+      console.error("Error al cargar partidos de IDA (Jornada 7):", err);
+      setPartidosIdaCruzados([]);
+    }
+  };
+
   // Función para calcular si hay empate global en un partido de VUELTA
   const calcularEmpateGlobal = (partidoVuelta) => {
     if (!partidoVuelta.tipoPartido || partidoVuelta.tipoPartido !== 'VUELTA') return false;
     if (partidoVuelta.golesLocal === "" || partidoVuelta.golesVisita === "") return false;
 
-    // Buscar partido IDA (equipos invertidos)
-    const partidoIda = partidos.find(p => 
-      p.tipoPartido === 'IDA' && 
-      p.local === partidoVuelta.visita && 
+    // Buscar partido IDA (equipos invertidos). El IDA puede estar en la misma
+    // jornada (J9/J10) o en una jornada distinta (J7 para la VUELTA de J8).
+    const candidatosIda = [...partidos, ...partidosIdaCruzados];
+    const partidoIda = candidatosIda.find(p =>
+      p.tipoPartido === 'IDA' &&
+      p.local === partidoVuelta.visita &&
       p.visita === partidoVuelta.local
     );
 
