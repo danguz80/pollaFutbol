@@ -455,7 +455,7 @@ export default function ClasificacionLibertadores() {
       return;
     }
 
-    if (!confirm(`¿Calcular los ganadores de la jornada ${filtroJornada} y generar PDF con resultados?\n\nEl PDF incluirá: pronósticos, resultados reales, puntos, rankings, fotos de perfil y ganadores. Se enviará automáticamente por email.`)) {
+    if (!confirm(`¿Calcular los ganadores de la jornada ${filtroJornada}?`)) {
       return;
     }
 
@@ -472,15 +472,10 @@ export default function ClasificacionLibertadores() {
 
       setGanadores(response.data);
       setMostrarGanadores(true);
-      
+
       // Mostrar modal con resultado
-      if (response.data.pdfGenerado) {
-        setModalType("success");
-        setModalMessage(`✅ ${response.data.mensaje}\n\n📧 PDF enviado por email con:\n• Ganadores de la jornada (con fotos)\n• Ranking de la jornada\n• Ranking acumulado\n• Pronósticos con resultados\n• Fotos de perfil de todos los jugadores`);
-      } else {
-        setModalType("warning");
-        setModalMessage(`⚠️ ${response.data.mensaje}`);
-      }
+      setModalType("success");
+      setModalMessage(`✅ ${response.data.mensaje}`);
       setShowModal(true);
       
       // Recargar rankings
