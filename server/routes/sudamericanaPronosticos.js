@@ -564,7 +564,6 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
     console.log('📄 Generando PDF...');
 
     const pdfBuffer = await generarPdfTestigoBuffer({
-      emoji: '🏆',
       competencia: 'Copa Sudamericana',
       jornadaNumero: numero,
       jornadaNombre: nombre,

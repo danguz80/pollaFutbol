@@ -26,7 +26,6 @@ const HEADER_ROW_HEIGHT = 22;
  * Genera el PDF testigo de una jornada y devuelve un Buffer.
  *
  * @param {Object} params
- * @param {string} params.emoji - Emoji del título (ej: '🏆')
  * @param {string} params.competencia - Nombre de la competencia (ej: 'Copa Libertadores')
  * @param {number|string} params.jornadaNumero
  * @param {string} [params.jornadaNombre] - Nombre descriptivo opcional (ej: 'Octavos de Final')
@@ -35,7 +34,6 @@ const HEADER_ROW_HEIGHT = 22;
  * @returns {Promise<Buffer>}
  */
 export function generarPdfTestigoBuffer({
-  emoji = '🏆',
   competencia,
   jornadaNumero,
   jornadaNombre,
@@ -54,7 +52,7 @@ export function generarPdfTestigoBuffer({
 
       // ---- Encabezado ----
       doc.font('Helvetica-Bold').fontSize(20).fillColor(COLOR_PRIMARY)
-        .text(`${emoji} Pronósticos ${competencia}`, MARGIN, MARGIN, { width: pageWidth, align: 'center' });
+        .text(`Pronósticos ${competencia}`, MARGIN, MARGIN, { width: pageWidth, align: 'center' });
       doc.moveDown(0.2);
       const lineaJornada = jornadaNombre ? `${jornadaNombre} (Jornada ${jornadaNumero})` : `Jornada ${jornadaNumero}`;
       doc.font('Helvetica').fontSize(12).fillColor(COLOR_TEXT)
@@ -81,7 +79,7 @@ export function generarPdfTestigoBuffer({
         asegurarEspacio(doc, HEADER_ROW_HEIGHT + ROW_HEIGHT + 30);
 
         doc.font('Helvetica-Bold').fontSize(13).fillColor(COLOR_PRIMARY)
-          .text(`\u{1F464} ${usuario}`, MARGIN, doc.y, { width: pageWidth });
+          .text(usuario, MARGIN, doc.y, { width: pageWidth });
         doc.moveDown(0.3);
 
         dibujarFilaEncabezado(doc, pageWidth, ['Partido', 'Pronóstico']);
@@ -92,7 +90,7 @@ export function generarPdfTestigoBuffer({
           const key = `${partido.nombre_local}|${partido.nombre_visita}`;
           const p = userData.pronosticos[key];
           const esFinal = partido.tipo_partido === 'FINAL';
-          const nombrePartido = `${partido.nombre_local} vs ${partido.nombre_visita}${esFinal ? '  \u{1F3C6} FINAL' : ''}`;
+          const nombrePartido = `${partido.nombre_local} vs ${partido.nombre_visita}${esFinal ? '  [FINAL]' : ''}`;
 
           let textoPronostico;
           let colorPronostico = COLOR_TEXT;

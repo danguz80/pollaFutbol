@@ -627,7 +627,6 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
     console.log('📄 Generando PDF...');
 
     const pdfBuffer = await generarPdfTestigoBuffer({
-      emoji: '🏆',
       competencia: 'Copa Libertadores',
       jornadaNumero: numero,
       partidosUnicos,
