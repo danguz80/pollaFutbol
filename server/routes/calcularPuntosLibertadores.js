@@ -19,6 +19,28 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
     const reglasResult = await pool.query('SELECT * FROM libertadores_puntuacion ORDER BY puntos DESC');
     const reglas = reglasResult.rows;
 
+    // SANEAR libertadores_puntos_clasificacion: esta tabla se crea con CREATE
+    // TABLE IF NOT EXISTS, así que en una base ya existente el UNIQUE que ahí
+    // se declara nunca llegó a crearse de verdad. Sin esa restricción, dos
+    // clics seguidos (o dos botones "Calcular Puntos" distintos) pueden pisarse
+    // en el tiempo y dejar filas duplicadas del bonus de clasificación,
+    // inflando el ranking. Se arregla de una vez y para siempre:
+    // 1) se borran duplicados existentes dejando solo una fila por
+    //    (usuario, partido, jornada), y 2) se crea el índice único que falta,
+    // para que de ahora en más sea la propia base la que impida duplicar.
+    await pool.query(`
+      DELETE FROM libertadores_puntos_clasificacion a
+      USING libertadores_puntos_clasificacion b
+      WHERE a.ctid < b.ctid
+        AND a.usuario_id = b.usuario_id
+        AND a.partido_id = b.partido_id
+        AND a.jornada_numero = b.jornada_numero
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_lpc_usuario_partido_jornada
+      ON libertadores_puntos_clasificacion (usuario_id, partido_id, jornada_numero)
+    `);
+
     // Construir consulta con filtro opcional de jornada
     let query = `
       SELECT 
@@ -379,19 +401,23 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             puntosClasificacion += puntosPorAvance;
           }
 
-          // Guardar siempre (con puntos o sin puntos). La idempotencia la da el
-          // DELETE de este jornada_numero hecho al inicio del endpoint, NO un
-          // ON CONFLICT: la tabla libertadores_puntos_clasificacion fue creada
-          // con CREATE TABLE IF NOT EXISTS, así que en una base ya existente esa
-          // sentencia es un no-op y el UNIQUE(usuario_id, partido_id,
-          // jornada_numero) declarado ahí puede no existir realmente en
-          // producción. Usar ON CONFLICT sobre una restricción que quizás no
-          // existe hace fallar el INSERT (Postgres error), abortando el resto
-          // del cálculo y dejando la clasificación en 0 — por eso NO se usa aquí.
+          // Guardar siempre (con puntos o sin puntos). Doble protección contra
+          // duplicados: el DELETE de este jornada_numero al inicio del endpoint
+          // limpia todo antes de recalcular, y el ON CONFLICT es la red de
+          // seguridad si dos cálculos se pisan en el tiempo (dos clics, los dos
+          // botones "Calcular Puntos" corriendo casi juntos, etc.) — el índice
+          // único ux_lpc_usuario_partido_jornada se garantiza que existe justo
+          // arriba, así que este ON CONFLICT ya no puede fallar por restricción
+          // inexistente como pasó antes.
           await pool.query(`
             INSERT INTO libertadores_puntos_clasificacion
             (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
             VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (usuario_id, partido_id, jornada_numero)
+            DO UPDATE SET
+              equipo_clasificado = EXCLUDED.equipo_clasificado,
+              fase_clasificado = EXCLUDED.fase_clasificado,
+              puntos = EXCLUDED.puntos
           `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
         } // Fin debeGuardarClasificacion
