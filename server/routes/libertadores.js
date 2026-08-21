@@ -325,6 +325,79 @@ async function obtenerDebugPuntos(usuarioId, jornadaNumero) {
     };
 }
 
+// Debug TEMPORAL (DESTRUCTIVO): borra los pronósticos y el bonus de
+// clasificación que la cuenta ADMIN cargó por error en una jornada, para que
+// dejen de aparecer en las tablas de puntos. Solo pensado para el caso de
+// Daniel Guzmán Sagredo en J8.
+//
+// Salvaguardas:
+// - Busca el usuario por nombre y exige que haya UNA sola coincidencia.
+// - Solo borra si ese usuario tiene rol = 'admin'. Si no, se niega: así una
+//   confusión de nombres nunca puede borrarle los pronósticos a un jugador
+//   real.
+// - Requiere ?confirmar=si en la URL para evitar que un pre-fetch del
+//   navegador dispare el borrado sin querer.
+// TODO: quitar este endpoint una vez hecha la limpieza.
+router.get('/debug/borrar-pronosticos-admin-por-nombre/:nombre/:jornadaNumero', async (req, res) => {
+  try {
+    const { nombre, jornadaNumero } = req.params;
+
+    if (req.query.confirmar !== 'si') {
+      return res.json({
+        error: 'Falta confirmar. Agregá ?confirmar=si al final de la URL para ejecutar el borrado.',
+        ejemplo: `${req.originalUrl}?confirmar=si`
+      });
+    }
+
+    const usuarios = await pool.query(
+      `SELECT id, nombre, rol FROM usuarios WHERE nombre ILIKE $1 ORDER BY nombre`,
+      [`%${nombre}%`]
+    );
+
+    if (usuarios.rows.length === 0) {
+      return res.json({ error: `No se encontró ningún usuario cuyo nombre contenga "${nombre}"` });
+    }
+    if (usuarios.rows.length > 1) {
+      return res.json({
+        error: 'Hay más de un usuario que coincide, sé más específico',
+        coincidencias: usuarios.rows
+      });
+    }
+
+    const usuario = usuarios.rows[0];
+    if (usuario.rol !== 'admin') {
+      return res.status(403).json({
+        error: `"${usuario.nombre}" (id ${usuario.id}) NO es una cuenta admin (rol="${usuario.rol}"). ` +
+          'Por seguridad este endpoint solo borra pronósticos de cuentas admin. No se borró nada.'
+      });
+    }
+
+    const pronosticosBorrados = await pool.query(
+      `DELETE FROM libertadores_pronosticos
+       WHERE usuario_id = $1
+         AND jornada_id IN (SELECT id FROM libertadores_jornadas WHERE numero = $2)
+       RETURNING id`,
+      [usuario.id, jornadaNumero]
+    );
+
+    const clasificacionBorrada = await pool.query(
+      `DELETE FROM libertadores_puntos_clasificacion
+       WHERE usuario_id = $1 AND jornada_numero = $2
+       RETURNING id`,
+      [usuario.id, jornadaNumero]
+    );
+
+    res.json({
+      mensaje: `Borrado completo para "${usuario.nombre}" (id ${usuario.id}) en Jornada ${jornadaNumero}.`,
+      pronosticos_borrados: pronosticosBorrados.rowCount,
+      clasificacion_borrada: clasificacionBorrada.rowCount
+    });
+  } catch (error) {
+    console.error('Error en borrar-pronosticos-admin-por-nombre:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Abrir todas las jornadas (Helper endpoint) - DEBE IR ANTES de rutas con :numero
 router.patch('/jornadas/abrir-todas', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
