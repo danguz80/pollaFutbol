@@ -9,8 +9,7 @@ import ganadoresRouter from "./ganadores.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { getWhatsAppService } from "../services/whatsappService.js";
-import htmlPdf from 'html-pdf-node';
-import { getLogoBase64 } from '../utils/logoHelper.js';
+import { generarPdfTestigoBuffer } from '../utils/pdfTestigo.js';
 import {
   insertarPronosticosAusentesNacional,
   insertarPronosticosAusentesLibertadores,
@@ -376,188 +375,19 @@ async function generarPDFPronosticos(numeroJornada) {
     const pronosticosPorUsuario = {};
     pronosticos.forEach(p => {
       if (!pronosticosPorUsuario[p.usuario]) {
-        pronosticosPorUsuario[p.usuario] = {};
+        pronosticosPorUsuario[p.usuario] = { pronosticos: {} };
       }
       const key = `${p.nombre_local}|${p.nombre_visita}`;
-      pronosticosPorUsuario[p.usuario][key] = p;
+      pronosticosPorUsuario[p.usuario].pronosticos[key] = p;
     });
 
-    // Generar HTML para el PDF
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background-color: #f5f5f5;
-          }
-          .header {
-            text-align: center;
-            color: #0066cc;
-            margin-bottom: 30px;
-            border-bottom: 3px solid #0066cc;
-            padding-bottom: 20px;
-          }
-          .header h1 {
-            margin: 0;
-            font-size: 34px;
-          }
-          .header p {
-            margin: 5px 0;
-            color: #666;
-            font-size: 19px;
-          }
-          .usuario-section {
-            background: white;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            page-break-inside: avoid;
-          }
-          .usuario-nombre {
-            font-size: 22px;
-            font-weight: bold;
-            color: #0066cc;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 8px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 15px;
-          }
-          th {
-            background-color: #0066cc;
-            color: white;
-            padding: 12px;
-            text-align: left;
-            font-size: 18px;
-            font-weight: bold;
-          }
-          td {
-            padding: 10px;
-            border-bottom: 1px solid #e0e0e0;
-            font-size: 17px;
-            font-weight: bold;
-          }
-          tr:hover {
-            background-color: #f9f9f9;
-          }
-          .pronostico {
-            font-weight: bold;
-            color: #0066cc;
-            font-size: 18px;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 40px;
-            color: #999;
-            font-size: 12px;
-            border-top: 1px solid #e0e0e0;
-            padding-top: 20px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>⚽ Pronósticos Torneo Nacional</h1>
-          <p>Jornada ${numeroJornada}</p>
-          <p><strong>Documento Testigo - Pronósticos Registrados</strong></p>
-          <p>Fecha de generación: ${new Date().toLocaleDateString('es-ES', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}</p>
-        </div>
+    const pdfBuffer = await generarPdfTestigoBuffer({
+      competencia: 'Torneo Nacional',
+      jornadaNumero: numeroJornada,
+      partidosUnicos,
+      pronosticosPorUsuario
+    });
 
-        ${Object.keys(pronosticosPorUsuario).sort().map(usuario => `
-          <div class="usuario-section">
-            <div class="usuario-nombre">👤 ${usuario}</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Partido</th>
-                  <th>Pronóstico</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${partidosUnicos.map(partido => {
-                  const key = `${partido.nombre_local}|${partido.nombre_visita}`;
-                  const p = pronosticosPorUsuario[usuario][key];
-                  
-                  // Obtener logos de los equipos
-                  const logoLocal = getLogoBase64(partido.nombre_local) || '';
-                  const logoVisita = getLogoBase64(partido.nombre_visita) || '';
-                  
-                  if (!p) {
-                    return `
-                      <tr>
-                        <td>
-                          <div style="display: flex; align-items: center;">
-                            ${logoLocal ? `<img src="${logoLocal}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
-                            <span>${partido.nombre_local}</span>
-                            <span style="margin: 0 10px; color: #999; font-weight: bold;">vs</span>
-                            ${logoVisita ? `<img src="${logoVisita}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
-                            <span>${partido.nombre_visita}</span>
-                          </div>
-                        </td>
-                        <td class="pronostico" style="color: #999;">Sin pronóstico</td>
-                      </tr>
-                    `;
-                  }
-                  
-                  const pronostico = `${p.goles_local}-${p.goles_visita}`;
-                  
-                  return `
-                    <tr>
-                      <td>
-                        <div style="display: flex; align-items: center;">
-                          ${logoLocal ? `<img src="${logoLocal}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
-                          <span>${p.nombre_local}</span>
-                          <span style="margin: 0 10px; color: #999; font-weight: bold;">vs</span>
-                          ${logoVisita ? `<img src="${logoVisita}" style="width: 30px; height: 30px; object-fit: contain; margin-right: 8px;">` : ''}
-                          <span>${p.nombre_visita}</span>
-                        </div>
-                      </td>
-                      <td class="pronostico">${pronostico}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        `).join('')}
-
-        <div class="footer">
-          <p>Campeonato Polla Fútbol - Torneo Nacional</p>
-          <p>Este documento certifica los pronósticos registrados antes del inicio de la jornada</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Generar PDF con html-pdf-node
-    const options = { 
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20px',
-        right: '20px',
-        bottom: '20px',
-        left: '20px'
-      }
-    };
-    
-    const file = { content: htmlContent };
-    const pdfBuffer = await htmlPdf.generatePdf(file, options);
-    
     console.log('✅ PDF generado exitosamente');
     return pdfBuffer;
 

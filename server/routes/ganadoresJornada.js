@@ -2,7 +2,6 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
-import { generarPDFCompleto } from './ganadores.js';
 
 const router = express.Router();
 
@@ -356,29 +355,14 @@ router.post('/:jornadaNumero', verifyToken, authorizeRoles('admin'), async (req,
       // No fallar la petición completa si la notificación falla
     }
 
-    // 8. Generar PDF con resultados y enviarlo por email
-    let pdfGenerado = false;
-    let pdfError = null;
-    try {
-      await generarPDFCompleto(jornadaNumero);
-      pdfGenerado = true;
-      console.log(`✅ PDF generado y enviado para jornada ${jornadaNumero}`);
-    } catch (error) {
-      pdfError = error.message;
-      console.error(`❌ Error generando PDF para jornada ${jornadaNumero}:`, error);
-      // No fallar la petición completa si el PDF falla
-    }
-
     const mensaje = ganadores.length === 1
-      ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre} con ${maxPuntaje} puntos${pdfGenerado ? '. PDF enviado por email.' : ''}`
-      : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')} con ${maxPuntaje} puntos${pdfGenerado ? '. PDF enviado por email.' : ''}`;
+      ? `El ganador de la jornada ${jornadaNumero} es: ${ganadores[0].nombre} con ${maxPuntaje} puntos`
+      : `Los ganadores de la jornada ${jornadaNumero} son: ${ganadores.map(g => g.nombre).join(', ')} con ${maxPuntaje} puntos`;
 
     res.json({
       jornada: parseInt(jornadaNumero),
       ganadores,
-      mensaje,
-      pdfGenerado,
-      ...(pdfError && { pdfError })
+      mensaje
     });
 
   } catch (error) {
