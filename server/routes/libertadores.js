@@ -226,6 +226,39 @@ router.get('/jornadas/debug/estado', async (req, res) => {
   }
 });
 
+// Debug TEMPORAL: buscar el usuario_id por nombre (para no tener que
+// adivinarlo) y devolver de una el mismo detalle que /debug/puntos.
+// Solo lectura, sin datos sensibles. Abrir directo en el navegador.
+// TODO: quitar este endpoint una vez cerrado el diagnóstico.
+router.get('/debug/puntos-por-nombre/:nombre/:jornadaNumero', async (req, res) => {
+  try {
+    const { nombre, jornadaNumero } = req.params;
+
+    const usuarios = await pool.query(
+      `SELECT id, nombre FROM usuarios WHERE nombre ILIKE $1 ORDER BY nombre`,
+      [`%${nombre}%`]
+    );
+
+    if (usuarios.rows.length === 0) {
+      return res.json({ error: `No se encontró ningún usuario cuyo nombre contenga "${nombre}"` });
+    }
+
+    if (usuarios.rows.length > 1) {
+      return res.json({
+        error: 'Hay más de un usuario que coincide, sé más específico o usá /debug/puntos/:usuarioId/:jornadaNumero directamente',
+        coincidencias: usuarios.rows
+      });
+    }
+
+    const usuarioId = usuarios.rows[0].id;
+    const detalle = await obtenerDebugPuntos(usuarioId, jornadaNumero);
+    res.json({ usuario: usuarios.rows[0], ...detalle });
+  } catch (error) {
+    console.error('Error en debug/puntos-por-nombre:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Debug TEMPORAL: Ver el detalle crudo de puntos de un usuario en una jornada,
 // para diagnosticar diferencias entre lo que muestra la tabla de "Partidos" y
 // el ranking de jornada/acumulado. Solo lectura, sin datos sensibles.
@@ -233,7 +266,14 @@ router.get('/jornadas/debug/estado', async (req, res) => {
 router.get('/debug/puntos/:usuarioId/:jornadaNumero', async (req, res) => {
   try {
     const { usuarioId, jornadaNumero } = req.params;
+    res.json(await obtenerDebugPuntos(usuarioId, jornadaNumero));
+  } catch (error) {
+    console.error('Error en debug/puntos:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
+async function obtenerDebugPuntos(usuarioId, jornadaNumero) {
     const pronosticos = await pool.query(`
       SELECT
         lp.id as pronostico_id,
@@ -262,19 +302,28 @@ router.get('/debug/puntos/:usuarioId/:jornadaNumero', async (req, res) => {
       ORDER BY id
     `, [usuarioId, jornadaNumero]);
 
-    res.json({
+    // Detectar filas duplicadas: más de una fila de clasificación para el
+    // mismo partido_id (esto es exactamente lo que causaba el acumulado
+    // inflado antes de agregar el índice único).
+    const conteoPorPartido = {};
+    clasificacion.rows.forEach(r => {
+      const key = String(r.partido_id);
+      conteoPorPartido[key] = (conteoPorPartido[key] || 0) + 1;
+    });
+    const duplicados_clasificacion = Object.entries(conteoPorPartido)
+      .filter(([, count]) => count > 1)
+      .map(([partido_id, count]) => ({ partido_id, filas: count }));
+
+    return {
       usuarioId: parseInt(usuarioId, 10),
       jornadaNumero: parseInt(jornadaNumero, 10),
       suma_puntos_pronosticos: pronosticos.rows.reduce((s, r) => s + (r.puntos || 0), 0),
       suma_puntos_clasificacion: clasificacion.rows.reduce((s, r) => s + (r.puntos || 0), 0),
+      duplicados_clasificacion,
       pronosticos: pronosticos.rows,
       clasificacion: clasificacion.rows
-    });
-  } catch (error) {
-    console.error('Error en debug/puntos:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+    };
+}
 
 // Abrir todas las jornadas (Helper endpoint) - DEBE IR ANTES de rutas con :numero
 router.patch('/jornadas/abrir-todas', verifyToken, authorizeRoles('admin'), async (req, res) => {
