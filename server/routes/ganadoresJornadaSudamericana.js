@@ -2,10 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { checkRole } from '../middleware/checkRole.js';
-import htmlPdf from 'html-pdf-node';
-import { getWhatsAppService } from '../services/whatsappService.js';
-import { getLogoBase64 } from '../utils/logoHelper.js';
-import { getFotoPerfilBase64 } from '../utils/fotoPerfilHelper.js';
+import { generarPdfFinalBuffer } from '../utils/pdfFinal.js';
 import { calcularTablaOficial } from '../utils/calcularClasificadosSudamericana.js';
 import fs from 'fs';
 import path from 'path';
@@ -83,45 +80,13 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
       );
     }
     
-    // Obtener la última jornada cerrada
-    const ultimaJornadaResult = await pool.query(`
-      SELECT numero FROM sudamericana_jornadas 
-      WHERE cerrada = true 
-      ORDER BY numero DESC 
-      LIMIT 1
-    `);
-    
-    const ultimaJornadaCerrada = ultimaJornadaResult.rows[0]?.numero;
-    
-    // Generar PDF solo si es J10 (última jornada)
-    let pdfGenerado = false;
-    if (ultimaJornadaCerrada === 10) {
-      try {
-        // Obtener los ganadores de la JORNADA 10 (no acumulado) para el PDF
-        const ganadoresJ10Result = await pool.query(`
-          SELECT u.nombre, sgj.puntaje, u.foto_perfil
-          FROM sudamericana_ganadores_jornada sgj
-          INNER JOIN usuarios u ON sgj.usuario_id = u.id
-          WHERE sgj.jornada_numero = 10
-          ORDER BY sgj.puntaje DESC, u.nombre ASC
-        `);
-        
-        const ganadoresJ10 = ganadoresJ10Result.rows.map(row => ({
-          nombre: row.nombre,
-          puntaje: parseInt(row.puntaje, 10),
-          foto_perfil: row.foto_perfil
-        }));
-        
-        // Pasar ganadores de JORNADA 10 (no acumulado) al PDF
-        await generarPDFSudamericanaConGanadores(10, ganadoresJ10);
-        pdfGenerado = true;
-        console.log(`✅ PDF del ranking acumulado generado y enviado para J10 Sudamericana`);
-      } catch (pdfError) {
-        console.error('❌ Error generando/enviando PDF del ranking acumulado:', pdfError);
-        // No falla el endpoint si falla el PDF
-      }
-    }
-    
+    // NOTA: acá antes se generaba también el PDF Final de J10 (para
+    // "enviarlo por email"), pero ese envío nunca existió de verdad — el
+    // buffer se descartaba sin mandarse a ningún lado. Se saca esa
+    // generación: este endpoint solo calcula y guarda el campeón del
+    // acumulado. El PDF Final real se genera aparte, bajo demanda, desde
+    // el botón dedicado (POST /:jornadaNumero/pdf-final).
+
     // Registrar notificación para usuarios
     try {
       const mensajeNotificacion = ganadores.length === 1 
@@ -170,10 +135,9 @@ router.post('/acumulado', verifyToken, checkRole('admin'), async (req, res) => {
         foto_perfil: g.foto_perfil,
         puntaje: parseInt(puntajeMaximo, 10) || 0
       })),
-      mensaje: ganadores.length === 1 
-        ? `🏆 EL CAMPEÓN DE COPA SUDAMERICANA ES: ${ganadores[0].nombre.toUpperCase()}${pdfGenerado ? '\n\n📧 PDF enviado por email' : ''}`
-        : `🏆 LOS CAMPEONES DE COPA SUDAMERICANA SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}${pdfGenerado ? '\n\n📧 PDF enviado por email' : ''}`,
-      pdfGenerado
+      mensaje: ganadores.length === 1
+        ? `🏆 EL CAMPEÓN DE COPA SUDAMERICANA ES: ${ganadores[0].nombre.toUpperCase()}`
+        : `🏆 LOS CAMPEONES DE COPA SUDAMERICANA SON: ${ganadores.map(g => g.nombre.toUpperCase()).join(', ')}`
     });
     
   } catch (error) {
@@ -431,26 +395,16 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
       // No fallar la petición completa si la notificación falla
     }
     
-    // 8. Generar PDF con resultados y enviarlo por email (EXCEPTO para J10)
-    let pdfGenerado = false;
-    if (jornadaNumero !== 10) {
-      try {
-        await generarPDFSudamericanaConGanadores(jornadaNumero, ganadores);
-        pdfGenerado = true;
-        console.log(`✅ PDF generado y enviado para jornada ${jornadaNumero} de Sudamericana`);
-      } catch (pdfError) {
-        console.error('❌ Error generando/enviando PDF Sudamericana:', pdfError);
-        // No falla el endpoint si falla el PDF
-      }
-    } else {
-      console.log(`ℹ️ J10: PDF no se envía aquí, se envía desde el botón Calcular Ganador Ranking Acumulado`);
-    }
-    
-    const mensaje = ganadores.length === 1 
-      ? `El ganador de la jornada ${jornadaNumero} de Copa Sudamericana es: ${ganadores[0].nombre}${pdfGenerado ? '\n\n📧 PDF enviado por email' : jornadaNumero === 10 ? '\n\nℹ️ Para enviar el PDF, usa el botón Calcular Ganador Ranking Acumulado' : ''}`
-      : `Los ganadores de la jornada ${jornadaNumero} de Copa Sudamericana son: ${ganadores.map(g => g.nombre).join(', ')}${pdfGenerado ? '\n\n📧 PDF enviado por email' : jornadaNumero === 10 ? '\n\nℹ️ Para enviar el PDF, usa el botón Calcular Ganador Ranking Acumulado' : ''}`;
+    // 8. Retornar los ganadores. Este endpoint SOLO calcula y guarda el
+    // ganador de la jornada — ya no genera ni "envía" un PDF acá (esa
+    // generación era puro gasto de memoria: el buffer resultante nunca se
+    // enviaba a ningún lado, ni por email ni de ninguna otra forma). El PDF
+    // Final real se genera aparte, bajo demanda, desde el botón dedicado
+    // (POST /:jornadaNumero/pdf-final).
+    const mensaje = ganadores.length === 1
+      ? `El ganador de la jornada ${jornadaNumero} de Copa Sudamericana es: ${ganadores[0].nombre}.`
+      : `Los ganadores de la jornada ${jornadaNumero} de Copa Sudamericana son: ${ganadores.map(g => g.nombre).join(', ')}.`;
 
-    // 9. Retornar los ganadores
     res.json({
       jornadaNumero,
       ganadores: ganadores.map(g => ({
@@ -458,8 +412,7 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
         puntaje: g.puntaje,
         foto_perfil: g.foto_perfil
       })),
-      mensaje,
-      pdfGenerado
+      mensaje
     });
     
   } catch (error) {
@@ -566,7 +519,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
 
     // 1. Obtener pronósticos con resultados reales y puntos de la jornada específica
     const pronosticosQuery = await pool.query(
-      `SELECT 
+      `SELECT
         u.nombre AS usuario,
         u.foto_perfil,
         p.nombre_local,
@@ -599,7 +552,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
     // 2. Obtener ranking acumulado hasta la jornada (excluyendo admins) - INCLUIR CLASIFICACIÓN
     // USAR MISMA QUERY QUE /api/sudamericana-rankings/acumulado/:numero
     const rankingQuery = await pool.query(
-      `SELECT 
+      `SELECT
         u.id,
         u.nombre AS usuario,
         u.foto_perfil,
@@ -635,7 +588,7 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
     // 3. Obtener ranking de la jornada específica (excluyendo admins) - SOLO PUNTOS DE PARTIDOS
     // USAR MISMA QUERY QUE /api/sudamericana-rankings/jornada/:numero
     const rankingJornadaQuery = await pool.query(
-      `SELECT 
+      `SELECT
         u.id,
         u.nombre AS usuario,
         u.foto_perfil,
@@ -666,29 +619,20 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
     const ranking = rankingQuery.rows;
     const rankingJornada = rankingJornadaQuery.rows;
 
-    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADA 6, 7 y 8
+    // AGREGAR DATOS DE CLASIFICACIÓN PARA JORNADA 6, 7, 8, 9 y 10
     let clasificacionPorUsuario = {};
     if (jornadaNumero === 6) {
       // 1. Calcular las tablas OFICIALES primero (ya importado arriba)
       const grupos = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
       const jornadasNumeros = [1, 2, 3, 4, 5, 6];
-      
-      const primerosOficiales = {};
-      const segundosOficiales = {};
-      
+
       for (const grupo of grupos) {
-        const tablaOficial = await calcularTablaOficial(grupo, jornadasNumeros);
-        if (tablaOficial.length >= 1) {
-          primerosOficiales[grupo] = tablaOficial[0].nombre;
-        }
-        if (tablaOficial.length >= 2) {
-          segundosOficiales[grupo] = tablaOficial[1].nombre;
-        }
+        await calcularTablaOficial(grupo, jornadasNumeros);
       }
 
       // 2. Obtener TODOS los pronósticos de clasificación (ahora incluye aciertos y fallos)
       const clasificacionQuery = await pool.query(`
-        SELECT 
+        SELECT
           u.nombre AS usuario,
           spc.equipo_clasificado,
           spc.equipo_oficial,
@@ -707,91 +651,39 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
         row.equipo_real_avanza = row.equipo_oficial || '?';
         clasificacionPorUsuario[row.usuario].push(row);
       });
-    } else if (jornadaNumero === 7) {
-      // JORNADA 7: Play-Offs - Clasificación a Octavos
-      const clasificacionQuery = await pool.query(`
-        SELECT 
-          u.nombre AS usuario,
-          spc.equipo_clasificado,
-          spc.equipo_oficial,
-          spc.fase_clasificado,
-          spc.puntos
-        FROM sudamericana_puntos_clasificacion spc
-        JOIN usuarios u ON spc.usuario_id = u.id
-        WHERE spc.jornada_numero = $1
-        ORDER BY u.nombre, spc.fase_clasificado
-      `, [jornadaNumero]);
-
-      clasificacionQuery.rows.forEach(row => {
-        if (!clasificacionPorUsuario[row.usuario]) {
-          clasificacionPorUsuario[row.usuario] = [];
-        }
-        row.equipo_real_avanza = row.equipo_oficial || '?';
-        clasificacionPorUsuario[row.usuario].push(row);
-      });
-    } else if (jornadaNumero === 8) {
-      // JORNADA 8: Octavos - Clasificación a Cuartos
-      const clasificacionQuery = await pool.query(`
-        SELECT 
-          u.nombre AS usuario,
-          spc.equipo_clasificado,
-          spc.equipo_oficial,
-          spc.fase_clasificado,
-          spc.puntos
-        FROM sudamericana_puntos_clasificacion spc
-        JOIN usuarios u ON spc.usuario_id = u.id
-        WHERE spc.jornada_numero = $1
-        ORDER BY u.nombre, spc.fase_clasificado
-      `, [jornadaNumero]);
-
-      clasificacionQuery.rows.forEach(row => {
-        if (!clasificacionPorUsuario[row.usuario]) {
-          clasificacionPorUsuario[row.usuario] = [];
-        }
-        row.equipo_real_avanza = row.equipo_oficial || '?';
-        clasificacionPorUsuario[row.usuario].push(row);
-      });
-    } else if (jornadaNumero === 9) {
-      // JORNADA 9: Cuartos - Clasificación a Semifinales
-      const clasificacionQuery = await pool.query(`
-        SELECT 
-          u.nombre AS usuario,
-          spc.equipo_clasificado,
-          spc.equipo_oficial,
-          spc.fase_clasificado,
-          spc.puntos
-        FROM sudamericana_puntos_clasificacion spc
-        JOIN usuarios u ON spc.usuario_id = u.id
-        WHERE spc.jornada_numero = $1
-        ORDER BY u.nombre, spc.fase_clasificado
-      `, [jornadaNumero]);
-
-      clasificacionQuery.rows.forEach(row => {
-        if (!clasificacionPorUsuario[row.usuario]) {
-          clasificacionPorUsuario[row.usuario] = [];
-        }
-        row.equipo_real_avanza = row.equipo_oficial || '?';
-        clasificacionPorUsuario[row.usuario].push(row);
-      });
-    } else if (jornadaNumero === 10) {
-      // JORNADA 10: Semifinales y Final - Clasificación (finalistas, campeón, subcampeón)
-      const clasificacionQuery = await pool.query(`
-        SELECT 
-          u.nombre AS usuario,
-          spc.equipo_clasificado,
-          spc.equipo_oficial,
-          spc.fase_clasificado,
-          spc.puntos
-        FROM sudamericana_puntos_clasificacion spc
-        JOIN usuarios u ON spc.usuario_id = u.id
-        WHERE spc.jornada_numero = $1
-        ORDER BY u.nombre, 
-          CASE spc.fase_clasificado
-            WHEN 'FINALISTA' THEN 1
-            WHEN 'CAMPEON' THEN 2
-            WHEN 'SUBCAMPEON' THEN 3
-          END
-      `, [jornadaNumero]);
+    } else if (jornadaNumero >= 7 && jornadaNumero <= 10) {
+      // JORNADA 7: Play-Offs -> Octavos | J8: Octavos -> Cuartos
+      // J9: Cuartos -> Semifinales | J10: Semifinales y Final (finalistas, campeón, subcampeón)
+      const clasificacionQuery = jornadaNumero === 10
+        ? await pool.query(`
+            SELECT
+              u.nombre AS usuario,
+              spc.equipo_clasificado,
+              spc.equipo_oficial,
+              spc.fase_clasificado,
+              spc.puntos
+            FROM sudamericana_puntos_clasificacion spc
+            JOIN usuarios u ON spc.usuario_id = u.id
+            WHERE spc.jornada_numero = $1
+            ORDER BY u.nombre,
+              CASE spc.fase_clasificado
+                WHEN 'FINALISTA' THEN 1
+                WHEN 'CAMPEON' THEN 2
+                WHEN 'SUBCAMPEON' THEN 3
+              END
+          `, [jornadaNumero])
+        : await pool.query(`
+            SELECT
+              u.nombre AS usuario,
+              spc.equipo_clasificado,
+              spc.equipo_oficial,
+              spc.fase_clasificado,
+              spc.puntos
+            FROM sudamericana_puntos_clasificacion spc
+            JOIN usuarios u ON spc.usuario_id = u.id
+            WHERE spc.jornada_numero = $1
+            ORDER BY u.nombre, spc.fase_clasificado
+          `, [jornadaNumero]);
 
       clasificacionQuery.rows.forEach(row => {
         if (!clasificacionPorUsuario[row.usuario]) {
@@ -814,657 +706,124 @@ async function generarPDFSudamericanaConGanadores(jornadaNumero, ganadores) {
       pronosticosPorUsuario[p.usuario].pronosticos.push(p);
     });
 
-    // Obtener servicio de WhatsApp para envío de email
-    const whatsappService = getWhatsAppService();
-
-    // Generar HTML
-    let html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          font-family: 'Arial', sans-serif; 
-          padding: 20px; 
-          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-          color: #333;
-        }
-        .header {
-          text-align: center;
-          background: white;
-          padding: 10px;
-          border-radius: 10px;
-          margin-bottom: 15px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header img {
-          height: 60px;
-          margin: 0 15px;
-          vertical-align: middle;
-        }
-        .header h1 {
-          color: #28a745;
-          font-size: 34px;
-          margin: 15px 0 5px 0;
-        }
-        .header p {
-          color: #666;
-          font-size: 19px;
-        }
-        
-        .ganadores-section {
-          background: linear-gradient(135deg, #ffd700, #ffed4e);
-          padding: 15px;
-          margin-bottom: 15px;
-          border-radius: 10px;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-          text-align: center;
-          page-break-inside: avoid;
-        }
-        .ganadores-section h2 {
-          color: #28a745;
-          font-size: 32px;
-          margin-bottom: 15px;
-        }
-        .ganador-card {
-          display: inline-block;
-          background: white;
-          padding: 15px;
-          margin: 10px;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          vertical-align: top;
-        }
-        .ganador-foto {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          object-fit: cover;
-          border: 3px solid #ffd700;
-          margin-bottom: 10px;
-        }
-        .ganador-nombre {
-          font-size: 24px;
-          font-weight: bold;
-          color: #28a745;
-          margin: 10px 0;
-        }
-        .ganador-puntos {
-          font-size: 19px;
-          color: #666;
-        }
-
-        .rankings-section {
-          background: white;
-          padding: 10px;
-          margin-bottom: 12px;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          page-break-inside: avoid;
-        }
-        .rankings-section h2 {
-          color: #28a745;
-          font-size: 27px;
-          margin-bottom: 15px;
-          text-align: center;
-        }
-        
-        .usuario-section {
-          background: white;
-          padding: 10px;
-          margin-bottom: 12px;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          page-break-inside: avoid;
-        }
-        .usuario-header {
-          display: flex;
-          align-items: center;
-          margin-bottom: 10px;
-          border-bottom: 3px solid #28a745;
-          padding-bottom: 6px;
-        }
-        .usuario-foto {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          object-fit: cover;
-          margin-right: 15px;
-          border: 2px solid #28a745;
-        }
-        .usuario-info {
-          flex-grow: 1;
-        }
-        .usuario-nombre {
-          color: #28a745;
-          font-size: 24px;
-          font-weight: bold;
-          margin: 0;
-        }
-        .usuario-total {
-          color: #28a745;
-          font-size: 22px;
-          font-weight: bold;
-          text-align: right;
-        }
-        
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 10px;
-        }
-        th {
-          background: #28a745;
-          color: white;
-          padding: 8px;
-          text-align: left;
-          font-size: 18px;
-          font-weight: bold;
-        }
-        td {
-          padding: 6px;
-          border-bottom: 1px solid #e0e0e0;
-          font-size: 17px;
-          font-weight: bold;
-        }
-        tr:hover {
-          background-color: #f5f5f5;
-        }
-        .partido-cell {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .equipo-logo {
-          width: 32px;
-          height: 32px;
-          object-fit: contain;
-        }
-        .vs {
-          color: #999;
-          font-weight: bold;
-          margin: 0 4px;
-        }
-        .resultado {
-          font-weight: bold;
-          color: #28a745;
-          font-size: 22px;
-        }
-        .puntos-cell {
-          font-weight: bold;
-          font-size: 22px;
-        }
-        .puntos-positivo { color: #28a745; }
-        .puntos-cero { color: #c0392b; }
-        
-        .ranking-table th {
-          background: #28a745;
-        }
-        .ranking-table .posicion {
-          text-align: center;
-          font-weight: bold;
-          font-size: 19px;
-          color: #28a745;
-        }
-        .ranking-table .top-1 {
-          background: #ffd700 !important;
-          color: #000 !important;
-        }
-        .ranking-table .top-2 {
-          background: #c0c0c0 !important;
-          color: #000 !important;
-        }
-        .ranking-table .top-3 {
-          background: #cd7f32 !important;
-          color: #000 !important;
-        }
-        .ranking-foto {
-          width: 35px;
-          height: 35px;
-          border-radius: 50%;
-          object-fit: cover;
-          vertical-align: middle;
-          margin-right: 10px;
-          border: 2px solid #ddd;
-        }
-
-        .reglas-section {
-          background: white;
-          padding: 10px;
-          margin-bottom: 12px;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          page-break-inside: avoid;
-        }
-        .reglas-section h2 {
-          color: #28a745;
-          font-size: 24px;
-          margin-bottom: 10px;
-          text-align: center;
-        }
-        .reglas-section table th {
-          background: #1f6f3a;
-        }
-        .reglas-puntos {
-          text-align: center;
-          font-weight: bold;
-          color: #1f6f3a;
-          font-size: 18px;
-        }
-
-        .footer {
-          text-align: center;
-          color: white;
-          font-size: 12px;
-          margin-top: 30px;
-          padding: 15px;
-          background: rgba(255,255,255,0.1);
-          border-radius: 10px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>🏆 RESULTADOS SUDAMERICANA - JORNADA ${jornadaNumero}</h1>
-        <p>Copa Sudamericana</p>
-        <p style="font-size: 14px; color: #999; margin-top: 10px;">
-          Fecha de generación: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })}
-        </p>
-      </div>
-    `;
-
-    if (jornadaNumero >= 6 && jornadaNumero <= 10) {
-      html += `
-      <div class="reglas-section">
-        <h2>📌 Tabla de puntos de clasificación (configurada en Puntuación)</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Concepto</th>
-              <th style="width: 20%; text-align: center;">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Equipo clasificado para PLAY-OFFS</td>
-              <td class="reglas-puntos">${puntosClasificacionReglas.playoffs}</td>
-            </tr>
-            <tr>
-              <td>Equipo clasificado para OCTAVOS</td>
-              <td class="reglas-puntos">${puntosClasificacionReglas.octavos}</td>
-            </tr>
-            <tr>
-              <td>Equipo clasificado para CUARTOS</td>
-              <td class="reglas-puntos">${puntosClasificacionReglas.cuartos}</td>
-            </tr>
-            <tr>
-              <td>Equipo clasificado para SEMIFINALES</td>
-              <td class="reglas-puntos">${puntosClasificacionReglas.semifinales}</td>
-            </tr>
-            <tr>
-              <td>Equipo clasificado para LA FINAL</td>
-              <td class="reglas-puntos">${puntosClasificacionReglas.final}</td>
-            </tr>
-            <tr>
-              <td>Campeón</td>
-              <td class="reglas-puntos">${puntosClasificacionReglas.campeon}</td>
-            </tr>
-            <tr>
-              <td>Subcampeón</td>
-              <td class="reglas-puntos">${puntosClasificacionReglas.subcampeon}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      `;
-    }
-
-    // GANADORES DE LA JORNADA
-    if (ganadores && ganadores.length > 0) {
-      html += `
-      <div class="ganadores-section">
-        <h2>🏆 GANADOR${ganadores.length > 1 ? 'ES' : ''} DE LA JORNADA ${jornadaNumero}</h2>
-      `;
-      
-      for (const ganador of ganadores) {
-        const fotoBase64 = ganador.foto_perfil ? getFotoPerfilBase64(ganador.foto_perfil) : null;
-        
-        const fotoHTML = fotoBase64 
-          ? `<img src="${fotoBase64}" class="ganador-foto" alt="${ganador.nombre}">` 
-          : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
-        
-        html += `
-        <div class="ganador-card">
-          ${fotoHTML}
-          <div class="ganador-nombre">${ganador.nombre}</div>
-          <div class="ganador-puntos">${ganador.puntaje !== undefined ? ganador.puntaje : 0} puntos</div>
-        </div>
-        `;
-      }
-      html += `</div>`;
-    }
-
-    // GANADOR DEL RANKING ACUMULADO (solo para J10)
-    if (jornadaNumero === 10 && ranking.length > 0) {
-      const ganadorAcumulado = ranking[0];
-      const fotoBase64Acum = ganadorAcumulado.foto_perfil ? getFotoPerfilBase64(ganadorAcumulado.foto_perfil) : null;
-      const fotoHTMLAcum = fotoBase64Acum 
-        ? `<img src="${fotoBase64Acum}" class="ganador-foto" alt="${ganadorAcumulado.usuario}">` 
-        : `<div class="ganador-foto" style="background: #ddd; display: flex; align-items: center; justify-content: center;">👤</div>`;
-      
-      html += `
-      <div class="ganadores-section" style="margin-top: 20px; background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); border: 3px solid #ffd700;">
-        <h2 style="color: #333;">👑 CAMPEÓN DEL RANKING ACUMULADO</h2>
-        <div class="ganador-cards">
-          <div class="ganador-card">
-            ${fotoHTMLAcum}
-            <div class="ganador-nombre">${ganadorAcumulado.usuario}</div>
-            <div class="ganador-puntos" style="font-size: 24px; font-weight: bold;">${ganadorAcumulado.puntaje_total} puntos</div>
-          </div>
-        </div>
-      </div>
-      `;
-    }
-
-    // RANKING DE LA JORNADA
-    if (rankingJornada.length > 0) {
-      html += `
-      <div class="rankings-section">
-        <h2>🥇 RANKING JORNADA ${jornadaNumero}</h2>
-        <table class="ranking-table">
-          <thead>
-            <tr>
-              <th style="width: 15%; text-align: center;">Posición</th>
-              <th style="width: 60%;">Jugador</th>
-              <th style="width: 25%; text-align: center;">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-      rankingJornada.forEach((jugador, index) => {
-        const fotoBase64 = jugador.foto_perfil ? getFotoPerfilBase64(jugador.foto_perfil) : null;
-        const fotoHTML = fotoBase64 
-          ? `<img src="${fotoBase64}" class="ranking-foto" alt="${jugador.usuario}">` 
-          : '';
-
-        const posicionClass = index === 0 ? 'top-1' : index === 1 ? 'top-2' : index === 2 ? 'top-3' : '';
-        
-        html += `
-            <tr class="${posicionClass}">
-              <td class="posicion">${jugador.posicion}°</td>
-              <td>${fotoHTML}${jugador.usuario}</td>
-              <td style="text-align: center; font-weight: bold;">${jugador.puntos_jornada}</td>
-            </tr>
-        `;
-      });
-
-      html += `
-          </tbody>
-        </table>
-      </div>
-      `;
-    }
-
-    // RANKING ACUMULADO
-    if (ranking.length > 0) {
-      html += `
-      <div class="rankings-section">
-        <h2>📊 RANKING ACUMULADO (hasta jornada ${jornadaNumero})</h2>
-        <table class="ranking-table">
-          <thead>
-            <tr>
-              <th style="width: 15%; text-align: center;">Posición</th>
-              <th style="width: 60%;">Jugador</th>
-              <th style="width: 25%; text-align: center;">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-      ranking.forEach((jugador, index) => {
-        const fotoBase64 = jugador.foto_perfil ? getFotoPerfilBase64(jugador.foto_perfil) : null;
-        const fotoHTML = fotoBase64 
-          ? `<img src="${fotoBase64}" class="ranking-foto" alt="${jugador.usuario}">` 
-          : '';
-
-        const posicionClass = index === 0 ? 'top-1' : index === 1 ? 'top-2' : index === 2 ? 'top-3' : '';
-        
-        html += `
-            <tr class="${posicionClass}">
-              <td class="posicion">${jugador.posicion}°</td>
-              <td>${fotoHTML}${jugador.usuario}</td>
-              <td style="text-align: center; font-weight: bold;">${jugador.puntaje_total}</td>
-            </tr>
-        `;
-      });
-
-      html += `
-          </tbody>
-        </table>
-      </div>
-      `;
-    }
-
-    // PRONÓSTICOS POR USUARIO
+    // Construir la lista de secciones "por usuario" para el generador pdfkit.
+    const usuariosPdf = [];
     const usuariosOrdenados = Object.keys(pronosticosPorUsuario).sort();
-    
+
     for (const usuario of usuariosOrdenados) {
       const data = pronosticosPorUsuario[usuario];
-      const fotoBase64 = data.foto_perfil ? getFotoPerfilBase64(data.foto_perfil) : null;
-      const fotoHTML = fotoBase64 
-        ? `<img src="${fotoBase64}" class="usuario-foto" alt="${usuario}">` 
-        : '';
 
       // Calcular puntaje de PARTIDOS
       const puntosPartidos = data.pronosticos.reduce((sum, p) => sum + (p.puntos || 0), 0);
-      
+
       // Calcular puntos de CLASIFICACIÓN (separados, no suman al total de jornada)
-      const puntosClasificacion = ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) && clasificacionPorUsuario[usuario]) 
+      const puntosClasificacion = (jornadaNumero >= 6 && jornadaNumero <= 10 && clasificacionPorUsuario[usuario])
         ? clasificacionPorUsuario[usuario].reduce((sum, c) => sum + (c.puntos || 0), 0)
         : 0;
-      
-      // Total mostrado = SOLO partidos (clasificación se muestra aparte)
-      const puntosTotal = puntosPartidos;
 
-      html += `
-      <div class="usuario-section">
-        <div class="usuario-header">
-          ${fotoHTML}
-          <div class="usuario-info">
-            <h3 class="usuario-nombre">${usuario}</h3>
-          </div>
-          <div class="usuario-total">
-            Puntaje: ${puntosTotal} pts
-            ${puntosClasificacion > 0 ? `<br/>Clasificación: ${puntosClasificacion} pts` : ''}
-          </div>
-        </div>
-        <h4 style="margin-top: 10px; margin-bottom: 10px; color: #28a745;">⚽ Pronósticos de Partidos</h4>
-        <table>
-          <thead>
-            <tr>
-              <th>Partido</th>
-              <th style="width: 18%; text-align: center;">Pronóstico</th>
-              <th style="width: 18%; text-align: center;">Resultado</th>
-              <th style="width: 10%; text-align: center;">Bonus</th>
-              <th style="width: 15%; text-align: center;">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
+      const partesResumen = [`Puntaje: ${puntosPartidos} pts`];
+      if (puntosClasificacion > 0) partesResumen.push(`Clasificación: ${puntosClasificacion} pts`);
 
-      data.pronosticos.forEach((p) => {
-        const puntosClass = p.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
+      const filasPartidos = data.pronosticos.map((p) => {
         const predLocal = p.pred_local !== null && p.pred_local !== undefined ? p.pred_local : '-';
         const predVisita = p.pred_visita !== null && p.pred_visita !== undefined ? p.pred_visita : '-';
-        const bonusValue = p.bonus && p.bonus > 1 ? `x${p.bonus}` : 'x1';
 
-        // Debug para verificar datos
-        if (p.tipo_partido === 'VUELTA') {
-          console.log(`🔍 Partido VUELTA: ${p.nombre_local} vs ${p.nombre_visita}`);
-          console.log(`   Penales pred: ${p.pred_pen_local}-${p.pred_pen_visita}, Penales real: ${p.real_pen_local}-${p.real_pen_visita}`);
-        }
-
-        // Construir string de pronóstico con penales si existen (solo para VUELTA)
-        let pronosticoHTML = `${predLocal} - ${predVisita}`;
+        let pronostico = `${predLocal} - ${predVisita}`;
         if (p.tipo_partido === 'VUELTA' && p.pred_pen_local !== null && p.pred_pen_visita !== null) {
-          pronosticoHTML += ` <span style="font-size: 12px; font-style: italic; color: #6c757d;">(${p.pred_pen_local}-${p.pred_pen_visita} pen.)</span>`;
+          pronostico += ` (${p.pred_pen_local}-${p.pred_pen_visita} pen.)`;
         }
 
-        // Construir string de resultado con penales si existen (solo para VUELTA)
-        let resultadoHTML = `${p.real_local} - ${p.real_visita}`;
+        let resultado = `${p.real_local} - ${p.real_visita}`;
         if (p.tipo_partido === 'VUELTA' && p.real_pen_local !== null && p.real_pen_visita !== null) {
-          resultadoHTML += ` <span style="font-size: 12px; font-style: italic; color: #6c757d;">(${p.real_pen_local}-${p.real_pen_visita} pen.)</span>`;
+          resultado += ` (${p.real_pen_local}-${p.real_pen_visita} pen.)`;
         }
 
-        html += `
-            <tr>
-              <td>${p.nombre_local} vs ${p.nombre_visita}</td>
-              <td style="text-align: center;" class="resultado">${pronosticoHTML}</td>
-              <td style="text-align: center;" class="resultado">${resultadoHTML}</td>
-              <td style="text-align: center; font-weight: bold; color: ${p.bonus > 1 ? '#17a2b8' : '#666'};">${bonusValue}</td>
-              <td style="text-align: center;" class="puntos-cell ${puntosClass}">${p.puntos || 0}</td>
-            </tr>
-        `;
+        return [
+          p.jornada_numero,
+          `${p.nombre_local} vs ${p.nombre_visita}`,
+          pronostico,
+          resultado,
+          `x${p.bonus || 1}`,
+          p.puntos || 0
+        ];
       });
 
-      // AGREGAR FILAS DE CLASIFICACIÓN para jornada 6, 7, 8, 9 y 10
-      if ((jornadaNumero === 6 || jornadaNumero === 7 || jornadaNumero === 8 || jornadaNumero === 9 || jornadaNumero === 10) && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {
-        // Agregar encabezado de sección de clasificación
-        html += `
-          </tbody>
-        </table>
-        
-        <h4 style="margin-top: 20px; margin-bottom: 10px; color: #28a745;">⚡ Equipo que avanza</h4>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 50%;">Equipo Pronosticado</th>
-              <th style="width: 35%;">Equipo Real</th>
-              <th style="width: 15%; text-align: center;">Puntos</th>
-            </tr>
-          </thead>
-          <tbody>
-        `;
-
-        clasificacionPorUsuario[usuario].forEach((c) => {
-          const puntosClass = c.puntos > 0 ? 'puntos-positivo' : 'puntos-cero';
-          
-          let iconoFase = '';
+      // Sección "Equipo que avanza" (J6 a J10, incluye finalista/campeón/subcampeón en J10)
+      let tablaClasificacion = null;
+      if (jornadaNumero >= 6 && jornadaNumero <= 10 && clasificacionPorUsuario[usuario] && clasificacionPorUsuario[usuario].length > 0) {
+        const filas = clasificacionPorUsuario[usuario].map((c) => {
           let textoFase = '';
-          
+
           if (jornadaNumero === 6) {
-            // Extraer el grupo de la fase_clasificado (ej: "OCTAVOS_GRUPO_C")
             const grupoMatch = c.fase_clasificado.match(/GRUPO_([A-H])/);
             const grupoLetra = grupoMatch ? grupoMatch[1] : '';
-            iconoFase = c.fase_clasificado.includes('OCTAVOS') ? '🏆' : '🎯';
             textoFase = c.fase_clasificado.includes('OCTAVOS')
               ? `1° Clasificado a Octavos - Grupo ${grupoLetra} (${puntosClasificacionReglas.octavos} pts)`
               : `2° Clasificado a Playoffs - Grupo ${grupoLetra} (${puntosClasificacionReglas.playoffs} pts)`;
           } else if (jornadaNumero === 7) {
-            // Para Jornada 7 (Play-Offs), mostrar "Clasificado a Octavos"
-            iconoFase = '🏆';
             textoFase = `Clasificado a Octavos (${puntosClasificacionReglas.octavos} pts)`;
           } else if (jornadaNumero === 8) {
-            // Para Jornada 8 (Octavos), mostrar "Clasificado a Cuartos"
-            iconoFase = '🏆';
             textoFase = `Clasificado a Cuartos (${puntosClasificacionReglas.cuartos} pts)`;
           } else if (jornadaNumero === 9) {
-            // Para Jornada 9 (Cuartos), mostrar "Clasificado a Semifinales"
-            iconoFase = '🏆';
             textoFase = `Clasificado a Semifinales (${puntosClasificacionReglas.semifinales} pts)`;
           } else if (jornadaNumero === 10) {
-            // Para Jornada 10 (Semifinales y Final)
-            if (c.fase_clasificado === 'FINALISTA') {
-              iconoFase = '🥈';
-              textoFase = `Finalista (${puntosClasificacionReglas.final} pts)`;
-            } else if (c.fase_clasificado === 'CAMPEON') {
-              iconoFase = '🏆';
-              textoFase = `Campeón (${puntosClasificacionReglas.campeon} pts)`;
-            } else if (c.fase_clasificado === 'SUBCAMPEON') {
-              iconoFase = '🥉';
-              textoFase = `Subcampeón (${puntosClasificacionReglas.subcampeon} pts)`;
-            }
+            if (c.fase_clasificado === 'FINALISTA') textoFase = `Finalista (${puntosClasificacionReglas.final} pts)`;
+            else if (c.fase_clasificado === 'CAMPEON') textoFase = `Campeón (${puntosClasificacionReglas.campeon} pts)`;
+            else if (c.fase_clasificado === 'SUBCAMPEON') textoFase = `Subcampeón (${puntosClasificacionReglas.subcampeon} pts)`;
           }
-          
-          // El equipo_clasificado ES el equipo pronosticado
+
           const equipoPronosticado = c.equipo_clasificado || 'Sin pronóstico';
-          
-          // El equipo_real_avanza viene de equipo_oficial en la DB
           const equipoReal = c.equipo_real_avanza || '?';
-          
-          // Fondo verde si acertó, blanco si falló
-          const backgroundColor = c.puntos > 0 ? '#d4edda' : '#ffffff';
-          
-          html += `
-            <tr style="background-color: ${backgroundColor};">
-              <td>
-                <div style="display: flex; flex-direction: column;">
-                  <strong>${iconoFase} ${textoFase}</strong>
-                  <span style="margin-top: 5px; font-style: italic;">${equipoPronosticado}</span>
-                </div>
-              </td>
-              <td style="font-style: italic; color: #666;">${equipoReal}</td>
-              <td style="text-align: center;" class="puntos-cell ${puntosClass}"><strong>${c.puntos}</strong></td>
-            </tr>
-          `;
+
+          return [`${textoFase}\n${equipoPronosticado}`, equipoReal, String(c.puntos)];
         });
 
-        // Agregar fila de TOTAL de clasificación
-        html += `
-            <tr style="background-color: #f8f9fa; font-weight: bold; border-top: 3px solid #28a745;">
-              <td colspan="2" style="text-align: right; padding: 12px;">TOTAL CLASIFICACIÓN:</td>
-              <td style="text-align: center; font-size: 18px; color: #28a745;">${puntosClasificacion}</td>
-            </tr>
-        `;
+        filas.push(['TOTAL CLASIFICACIÓN', '', String(puntosClasificacion)]);
 
-        html += `
-          </tbody>
-        </table>
-        <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 12px; margin-top: 10px; margin-bottom: 15px;">
-          <p style="margin: 0; color: #856404; font-size: 14px; text-align: center;">
-            <strong>ℹ️ Nota:</strong> Los puntos de clasificación NO suman al ranking de esta jornada, 
-            solo se agregan al ranking acumulado total.
-          </p>
-        </div>
-      </div>
-      `;
-      } else {
-        html += `
-          </tbody>
-        </table>
-      </div>
-      `;
+        tablaClasificacion = {
+          titulo: 'EQUIPO QUE AVANZA',
+          columnas: ['Fase / Pronóstico', 'Equipo Real', 'Puntos'],
+          filas
+        };
       }
+
+      usuariosPdf.push({
+        nombre: usuario,
+        resumenPuntos: partesResumen.join('   '),
+        filasPartidos,
+        tablaClasificacion,
+        tablaPartidoFinal: null,
+        tablaCuadroFinal: null
+      });
     }
 
-    html += `
-      <div class="footer">
-        <p>Este PDF fue generado automáticamente por el sistema de pronósticos</p>
-        <p>Copa Sudamericana 2026</p>
-      </div>
-    </body>
-    </html>
-    `;
+    const ganadorAcumulado = (jornadaNumero === 10 && ranking.length > 0)
+      ? { usuario: ranking[0].usuario, puntaje_total: ranking[0].puntaje_total }
+      : null;
 
-    // Opciones para el PDF
-    const options = {
-      format: 'A4',
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-      printBackground: true,
-      preferCSSPageSize: true
-    };
-
-    const file = { content: html };
-
-    // Generar PDF
+    // Generar el PDF con pdfkit (sin Chromium, bajo consumo de memoria)
     console.log(`📄 Generando PDF Sudamericana jornada ${jornadaNumero}...`);
-    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+
+    const pdfBuffer = await generarPdfFinalBuffer({
+      competencia: 'Copa Sudamericana',
+      jornadaNumero,
+      ganadores: ganadores.map(g => ({ nombre: g.nombre, puntaje: g.puntaje })),
+      ganadorAcumulado,
+      rankingJornada: rankingJornada.map(r => ({
+        posicion: parseInt(r.posicion, 10),
+        usuario: r.usuario,
+        puntos_jornada: r.puntos_jornada
+      })),
+      ranking: ranking.map(r => ({
+        posicion: parseInt(r.posicion, 10),
+        usuario: r.usuario,
+        puntaje_total: r.puntaje_total
+      })),
+      usuarios: usuariosPdf
+    });
 
     console.log(`✅ PDF Sudamericana jornada ${jornadaNumero} generado correctamente`);
-    
+
     return pdfBuffer;
   } catch (error) {
     console.error('Error generando PDF Sudamericana:', error);
