@@ -226,6 +226,56 @@ router.get('/jornadas/debug/estado', async (req, res) => {
   }
 });
 
+// Debug TEMPORAL: Ver el detalle crudo de puntos de un usuario en una jornada,
+// para diagnosticar diferencias entre lo que muestra la tabla de "Partidos" y
+// el ranking de jornada/acumulado. Solo lectura, sin datos sensibles.
+// TODO: quitar este endpoint una vez cerrado el diagnóstico.
+router.get('/debug/puntos/:usuarioId/:jornadaNumero', async (req, res) => {
+  try {
+    const { usuarioId, jornadaNumero } = req.params;
+
+    const pronosticos = await pool.query(`
+      SELECT
+        lp.id as pronostico_id,
+        lp.partido_id,
+        lp.goles_local as pron_local,
+        lp.goles_visita as pron_visita,
+        lp.puntos,
+        lj.numero as jornada_numero,
+        p.id IS NOT NULL as partido_existe,
+        p.nombre_local,
+        p.nombre_visita,
+        p.goles_local as real_local,
+        p.goles_visita as real_visita,
+        p.bonus
+      FROM libertadores_pronosticos lp
+      INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+      LEFT JOIN libertadores_partidos p ON p.id = lp.partido_id
+      WHERE lp.usuario_id = $1 AND lj.numero = $2
+      ORDER BY lp.id
+    `, [usuarioId, jornadaNumero]);
+
+    const clasificacion = await pool.query(`
+      SELECT id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos, created_at
+      FROM libertadores_puntos_clasificacion
+      WHERE usuario_id = $1 AND jornada_numero = $2
+      ORDER BY id
+    `, [usuarioId, jornadaNumero]);
+
+    res.json({
+      usuarioId: parseInt(usuarioId, 10),
+      jornadaNumero: parseInt(jornadaNumero, 10),
+      suma_puntos_pronosticos: pronosticos.rows.reduce((s, r) => s + (r.puntos || 0), 0),
+      suma_puntos_clasificacion: clasificacion.rows.reduce((s, r) => s + (r.puntos || 0), 0),
+      pronosticos: pronosticos.rows,
+      clasificacion: clasificacion.rows
+    });
+  } catch (error) {
+    console.error('Error en debug/puntos:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Abrir todas las jornadas (Helper endpoint) - DEBE IR ANTES de rutas con :numero
 router.patch('/jornadas/abrir-todas', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {

@@ -379,17 +379,19 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             puntosClasificacion += puntosPorAvance;
           }
 
-          // Guardar siempre (con puntos o sin puntos). ON CONFLICT como defensa
-          // adicional para que recalcular nunca duplique filas (ver DELETE previo).
+          // Guardar siempre (con puntos o sin puntos). La idempotencia la da el
+          // DELETE de este jornada_numero hecho al inicio del endpoint, NO un
+          // ON CONFLICT: la tabla libertadores_puntos_clasificacion fue creada
+          // con CREATE TABLE IF NOT EXISTS, así que en una base ya existente esa
+          // sentencia es un no-op y el UNIQUE(usuario_id, partido_id,
+          // jornada_numero) declarado ahí puede no existir realmente en
+          // producción. Usar ON CONFLICT sobre una restricción que quizás no
+          // existe hace fallar el INSERT (Postgres error), abortando el resto
+          // del cálculo y dejando la clasificación en 0 — por eso NO se usa aquí.
           await pool.query(`
             INSERT INTO libertadores_puntos_clasificacion
             (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
             VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (usuario_id, partido_id, jornada_numero)
-            DO UPDATE SET
-              equipo_clasificado = EXCLUDED.equipo_clasificado,
-              fase_clasificado = EXCLUDED.fase_clasificado,
-              puntos = EXCLUDED.puntos
           `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
         } // Fin debeGuardarClasificacion
