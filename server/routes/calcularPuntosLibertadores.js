@@ -55,14 +55,26 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
     let puntosAsignados = 0;
     let puntosClasificacion = 0;
 
-    // Para jornadas 8-10: Eliminar registros existentes de clasificación antes de recalcular
-    if (jornadaNumero && jornadaNumero >= 8 && jornadaNumero <= 10) {
-      await pool.query(
-        `DELETE FROM libertadores_puntos_clasificacion 
-         WHERE jornada_numero = $1`,
-        [jornadaNumero]
-      );
-      console.log(`  🗑️  Registros de clasificación J${jornadaNumero} eliminados`);
+    // Para jornadas 8-10: Eliminar registros existentes de clasificación antes de recalcular.
+    // IMPORTANTE: esto debe hacerse también cuando se recalculan TODAS las jornadas
+    // (jornadaNumero no viene en el body), porque el INSERT de más abajo no usa
+    // ON CONFLICT: si no se borra primero, cada vez que un admin presiona "Calcular
+    // Puntos" sin filtrar jornada se van acumulando filas duplicadas de bonus de
+    // clasificación (equipo que avanza) para el mismo usuario/partido, inflando el
+    // ranking acumulado.
+    const jornadasClasifACalcular = jornadaNumero
+      ? [parseInt(jornadaNumero, 10)]
+      : [8, 9, 10];
+
+    for (const jn of jornadasClasifACalcular) {
+      if (jn >= 8 && jn <= 10) {
+        await pool.query(
+          `DELETE FROM libertadores_puntos_clasificacion
+           WHERE jornada_numero = $1`,
+          [jn]
+        );
+        console.log(`  🗑️  Registros de clasificación J${jn} eliminados`);
+      }
     }
 
     // Calcular puntos para cada pronóstico
@@ -367,11 +379,17 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             puntosClasificacion += puntosPorAvance;
           }
 
-          // Guardar siempre (con puntos o sin puntos)
+          // Guardar siempre (con puntos o sin puntos). ON CONFLICT como defensa
+          // adicional para que recalcular nunca duplique filas (ver DELETE previo).
           await pool.query(`
-            INSERT INTO libertadores_puntos_clasificacion 
+            INSERT INTO libertadores_puntos_clasificacion
             (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
             VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (usuario_id, partido_id, jornada_numero)
+            DO UPDATE SET
+              equipo_clasificado = EXCLUDED.equipo_clasificado,
+              fase_clasificado = EXCLUDED.fase_clasificado,
+              puntos = EXCLUDED.puntos
           `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
         }
         } // Fin debeGuardarClasificacion

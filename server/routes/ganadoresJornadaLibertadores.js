@@ -303,10 +303,13 @@ router.post('/:jornadaNumero', verifyToken, checkRole('admin'), async (req, res)
     
     for (const usuario of usuariosResult.rows) {
       // Puntos de partidos
+      // INNER JOIN a partidos: descarta pronósticos huérfanos de partidos borrados
+      // (p.ej. al regenerar el fixture) que de otro modo inflarían el puntaje.
       const puntosPartidosResult = await pool.query(`
         SELECT COALESCE(SUM(lp.puntos), 0) as puntos_partidos
         FROM libertadores_pronosticos lp
         INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+        INNER JOIN libertadores_partidos p ON p.id = lp.partido_id
         WHERE lp.usuario_id = $1 AND lj.numero = $2
       `, [usuario.id, jornadaNumero]);
       
@@ -615,6 +618,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             SELECT lp.usuario_id, SUM(lp.puntos) as total
             FROM libertadores_pronosticos lp
             INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+            INNER JOIN libertadores_partidos p ON p.id = lp.partido_id
             WHERE lj.numero <= $1 AND lp.partido_id != 456
             GROUP BY lp.usuario_id
           ) puntos_partidos ON u.id = puntos_partidos.usuario_id
@@ -625,7 +629,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             GROUP BY lpc.usuario_id
           ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
           LEFT JOIN (
-            SELECT 
+            SELECT
               lpfv.usuario_id,
               CASE
                 WHEN lpfv.goles_local = lp.goles_local AND lpfv.goles_visita = lp.goles_visita 
@@ -665,6 +669,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             SELECT lp.usuario_id, SUM(lp.puntos) as total
             FROM libertadores_pronosticos lp
             INNER JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+            INNER JOIN libertadores_partidos p ON p.id = lp.partido_id
             WHERE lj.numero <= $1
             GROUP BY lp.usuario_id
           ) puntos_partidos ON u.id = puntos_partidos.usuario_id
@@ -674,7 +679,7 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
             WHERE lpc.jornada_numero <= $1
             GROUP BY lpc.usuario_id
           ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
-          WHERE puntos_partidos.total IS NOT NULL 
+          WHERE puntos_partidos.total IS NOT NULL
              OR puntos_clasificacion.total IS NOT NULL
           ORDER BY puntos_acumulados DESC, u.nombre ASC
           LIMIT 10`,
