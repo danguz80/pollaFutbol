@@ -28,8 +28,7 @@ export default function JornadaLibertadores() {
   const [loading, setLoading] = useState(true);
 
   // Estados para eliminatorias jornadas 8-10
-  const [partidosIda, setPartidosIda] = useState([]); // Para jornada 8: partidos de jornada 7 (solo nombres/fecha)
-  const [pronosticosIda, setPronosticosIda] = useState({}); // Para jornada 8: MIS pronósticos de jornada 7, por partido_id
+  const [partidosIda, setPartidosIda] = useState([]); // Para jornada 8: partidos (y resultado real) de jornada 7
 
   // Estados para jornada 10 (semifinales y final)
   const [equiposFinalistasPronosticados, setEquiposFinalistasPronosticados] = useState([]);
@@ -215,32 +214,17 @@ export default function JornadaLibertadores() {
       }
       setPronosticos(map);
 
-      // Si es jornada 8, cargar también jornada 7 (IDA): los partidos (para
-      // nombres/emparejar por equipos) y MIS PRONÓSTICOS de esa jornada — el
-      // marcador global "pronosticado" se arma 100% con lo que yo predije en
-      // las dos jornadas del cruce (J7 + J8), nunca con el resultado real.
+      // Si es jornada 8, cargar también jornada 7 (IDA) para calcular el
+      // marcador global CONTRA EL RESULTADO REAL y decidir si corresponde
+      // mostrar el recuadro de penales. J8 es la única jornada donde se
+      // compara pronóstico contra resultado real (arranca "desde cero"
+      // respecto de una ida que ya se jugó) — el pronóstico de ida del
+      // propio usuario se usa aparte, solo para la tabla de clasificados.
       if (Number(numero) === 8) {
         const jornadaIdaRes = await axios.get(`${API_URL}/api/libertadores/jornadas/7`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setPartidosIda(jornadaIdaRes.data.partidos || []);
-
-        try {
-          const pronosticosIdaRes = await axios.get(`${API_URL}/api/libertadores-pronosticos/jornada/7`, {
-            headers: { Authorization: `Bearer ${token}` },
-            validateStatus: (status) => status < 500
-          });
-          const mapIda = {};
-          if (pronosticosIdaRes.status === 200) {
-            (pronosticosIdaRes.data || []).forEach((pr) => {
-              mapIda[pr.partido_id] = { goles_local: pr.goles_local, goles_visita: pr.goles_visita };
-            });
-          }
-          setPronosticosIda(mapIda);
-        } catch (err) {
-          // Sin pronósticos de J7 (no debería pasar si J8 ya está abierta)
-          setPronosticosIda({});
-        }
       }
 
       // Cargar estadísticas (solo para fase de grupos)
@@ -311,6 +295,58 @@ export default function JornadaLibertadores() {
         goles_visita: Math.floor(Math.random() * 4), // 0 a 3
       };
     });
+
+    // En las jornadas de eliminación directa (8, 9, 10): si el marcador
+    // global que corresponde evaluar en cada VUELTA queda empatado con estos
+    // resultados al azar, hay que generar también los penales al azar — si
+    // no, el cruce queda "sin definir" (mismo chequeo que se le muestra al
+    // usuario en pantalla para pedirle los penales a mano).
+    if (Number(numero) === 8 || Number(numero) === 9 || Number(numero) === 10) {
+      partidos.forEach(partido => {
+        if (partido.tipo_partido !== 'VUELTA') return;
+
+        let golesIdaLocal = null;
+        let golesIdaVisita = null;
+
+        if (Number(numero) === 8) {
+          // J8: contra el resultado REAL de la ida (J7), igual que el chequeo en pantalla.
+          const localVueltaNorm = normalizarNombreEquipo(partido.nombre_local);
+          const visitaVueltaNorm = normalizarNombreEquipo(partido.nombre_visita);
+          const partidoIda = partidosIda.find(p =>
+            normalizarNombreEquipo(p.nombre_local) === visitaVueltaNorm &&
+            normalizarNombreEquipo(p.nombre_visita) === localVueltaNorm
+          );
+          if (!partidoIda || partidoIda.goles_local === null || partidoIda.goles_visita === null) return;
+          golesIdaLocal = Number(partidoIda.goles_local ?? 0);
+          golesIdaVisita = Number(partidoIda.goles_visita ?? 0);
+        } else {
+          // J9/J10: contra la ida de la misma jornada, recién generada al azar.
+          const partidoIda = partidos.find(p =>
+            p.nombre_local === partido.nombre_visita &&
+            p.nombre_visita === partido.nombre_local
+          );
+          if (!partidoIda || !nuevosPronosticos[partidoIda.id]) return;
+          golesIdaLocal = Number(nuevosPronosticos[partidoIda.id].goles_local ?? 0);
+          golesIdaVisita = Number(nuevosPronosticos[partidoIda.id].goles_visita ?? 0);
+        }
+
+        const golesVueltaLocal = nuevosPronosticos[partido.id].goles_local;
+        const golesVueltaVisita = nuevosPronosticos[partido.id].goles_visita;
+        const golesEquipoA = golesIdaLocal + golesVueltaVisita;
+        const golesEquipoB = golesIdaVisita + golesVueltaLocal;
+
+        if (golesEquipoA === golesEquipoB) {
+          let penalesLocal = Math.floor(Math.random() * 5);
+          let penalesVisita = Math.floor(Math.random() * 5);
+          while (penalesVisita === penalesLocal) {
+            penalesVisita = Math.floor(Math.random() * 5);
+          }
+          nuevosPronosticos[partido.id].penales_local = penalesLocal;
+          nuevosPronosticos[partido.id].penales_visita = penalesVisita;
+        }
+      });
+    }
+
     setPronosticos(nuevosPronosticos);
   };
 
@@ -689,16 +725,19 @@ export default function JornadaLibertadores() {
                           normalizarNombreEquipo(p.nombre_visita) === localVueltaNorm
                         );
 
-                        // En J8 usar MI PRONÓSTICO de J7 (no el resultado real): el
-                        // marcador global "pronosticado" se arma 100% con mis propias
-                        // predicciones de las dos jornadas del cruce, nunca mezclado
-                        // con resultados reales.
-                        const miPronosticoIda = partidoIda ? pronosticosIda[partidoIda.id] : null;
-                        if (miPronosticoIda && miPronosticoIda.goles_local !== null && miPronosticoIda.goles_visita !== null) {
-                          golesIdaLocal = Number(miPronosticoIda.goles_local ?? 0);
-                          golesIdaVisita = Number(miPronosticoIda.goles_visita ?? 0);
+                        // En J8 SIEMPRE usar el resultado REAL de J7 para decidir si
+                        // corresponde pedir penales: J8 es la única jornada donde se
+                        // compara pronóstico contra resultado real, precisamente porque
+                        // arranca "desde cero" respecto de una ida que ya se jugó. Este
+                        // chequeo es solo para decidir CUÁNDO mostrar el recuadro de
+                        // penales — el cálculo de qué equipo avanza según lo pronosticado
+                        // (para la tabla de clasificados) usa el pronóstico de ida del
+                        // propio usuario, no el resultado real; son cosas distintas.
+                        if (partidoIda && partidoIda.goles_local !== null && partidoIda.goles_visita !== null) {
+                          golesIdaLocal = Number(partidoIda.goles_local ?? 0);
+                          golesIdaVisita = Number(partidoIda.goles_visita ?? 0);
                         } else {
-                          // Sin pronóstico mío de IDA: no corresponde pedir penales
+                          // Sin resultado real de IDA aún: no corresponde pedir penales
                           return null;
                         }
                       } else {
@@ -733,7 +772,8 @@ export default function JornadaLibertadores() {
                       const golesEquipoA = golesIdaLocal + golesVueltaVisita;
                       const golesEquipoB = golesIdaVisita + golesVueltaLocal;
 
-                      const textoGlobal = `Global pronosticado: ${partidoIda.nombre_local} ${golesEquipoA} - ${golesEquipoB} ${partidoIda.nombre_visita}`;
+                      const usaIdaRealJ7 = Number(numero) === 8;
+                      const textoGlobal = `Global: ${partidoIda.nombre_local} ${golesEquipoA} - ${golesEquipoB} ${partidoIda.nombre_visita}`;
 
                       // Hay empate solo si el marcador global es igual.
                       const hayEmpate = golesEquipoA === golesEquipoB;
@@ -742,7 +782,7 @@ export default function JornadaLibertadores() {
                         return (
                           <div className="mt-2 text-center">
                             <small className="text-muted fw-semibold">
-                              {textoGlobal}
+                              {textoGlobal}{usaIdaRealJ7 ? ' (ida real J7)' : ''}
                             </small>
                           </div>
                         );
@@ -751,7 +791,7 @@ export default function JornadaLibertadores() {
                       return (
                         <div className="mt-3">
                           <div className="alert alert-warning py-2 mb-2">
-                            <small className="fw-bold">⚠️ Empate en marcador global pronosticado: {partidoIda.nombre_local} {golesEquipoA} - {golesEquipoB} {partidoIda.nombre_visita}</small>
+                            <small className="fw-bold">⚠️ Empate en marcador global: {partidoIda.nombre_local} {golesEquipoA} - {golesEquipoB} {partidoIda.nombre_visita}{usaIdaRealJ7 ? ' (ida real J7)' : ''}</small>
                           </div>
                           <div className="row g-2">
                             <div className="col-6">
