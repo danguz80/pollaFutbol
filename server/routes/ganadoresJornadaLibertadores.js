@@ -783,8 +783,12 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
           p.goles_visita AS resultado_vuelta_visita,
           p.penales_local AS penales_vuelta_local,
           p.penales_visita AS penales_vuelta_visita,
+          p_ida.nombre_local AS ida_nombre_local,
+          p_ida.nombre_visita AS ida_nombre_visita,
           p_ida.goles_local AS resultado_ida_local,
-          p_ida.goles_visita AS resultado_ida_visita
+          p_ida.goles_visita AS resultado_ida_visita,
+          lp_ida.goles_local AS pronostico_ida_local,
+          lp_ida.goles_visita AS pronostico_ida_visita
         FROM libertadores_puntos_clasificacion lpc
         JOIN usuarios u ON lpc.usuario_id = u.id
         JOIN libertadores_partidos p ON lpc.partido_id = p.id
@@ -799,6 +803,10 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
                AND p_ida.nombre_local = p.nombre_visita
                AND p_ida.nombre_visita = p.nombre_local
                AND p_ida.id < p.id`}
+        -- Pronóstico del propio usuario para ese partido de ida (para mostrar
+        -- lo que pronosticó vs. lo que realmente pasó en J7)
+        LEFT JOIN libertadores_pronosticos lp_ida ON
+          lp_ida.usuario_id = lpc.usuario_id AND lp_ida.partido_id = p_ida.id
         WHERE lpc.jornada_numero = $1
         ORDER BY u.nombre, lpc.fase_clasificado
       `, [jornadaNumero]);
@@ -832,6 +840,23 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         }
 
         row.equipo_real_avanza = equipoRealQueAvanza || '?';
+
+        // Texto informativo de la ida: pronosticado por el usuario vs. real,
+        // para poder auditar por qué se eligió el equipo que se eligió
+        // (el marcador global usa siempre el resultado real de la ida, no lo
+        // que el usuario había pronosticado para esa jornada).
+        if (row.ida_nombre_local && row.ida_nombre_visita) {
+          const pronTxt = row.pronostico_ida_local !== null && row.pronostico_ida_local !== undefined &&
+            row.pronostico_ida_visita !== null && row.pronostico_ida_visita !== undefined
+            ? `${row.pronostico_ida_local}-${row.pronostico_ida_visita}` : 'sin pronóstico';
+          const realTxt = row.resultado_ida_local !== null && row.resultado_ida_local !== undefined &&
+            row.resultado_ida_visita !== null && row.resultado_ida_visita !== undefined
+            ? `${row.resultado_ida_local}-${row.resultado_ida_visita}` : 'pendiente';
+          row.ida_texto = `${row.ida_nombre_local} vs ${row.ida_nombre_visita} — pron: ${pronTxt} / real: ${realTxt}`;
+        } else {
+          row.ida_texto = '-';
+        }
+
         clasificacionPorUsuario[row.usuario].push(row);
       });
     }
@@ -1035,8 +1060,8 @@ async function generarPDFLibertadoresConGanadores(jornadaNumero, ganadores) {
         if (clasificacion && clasificacion.length > 0) {
           tablaClasificacion = {
             titulo: 'EQUIPO QUE AVANZA',
-            columnas: ['Equipo Pronosticado', 'Equipo Real', 'Puntos'],
-            filas: clasificacion.map(c => [c.equipo_clasificado, c.equipo_real_avanza, String(c.puntos)])
+            columnas: ['Equipo Pronosticado', 'Equipo Real', jornadaNumero === 8 ? 'Ida (J7)' : 'Ida', 'Puntos'],
+            filas: clasificacion.map(c => [c.equipo_clasificado, c.equipo_real_avanza, c.ida_texto || '-', String(c.puntos)])
           };
         }
       }

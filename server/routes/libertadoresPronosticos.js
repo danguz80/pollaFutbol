@@ -610,6 +610,39 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
     // Ordenar partidos por fecha
     partidosUnicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
+    // Para J8 (VUELTA de Octavos): traer también el pronóstico y el resultado
+    // real de la IDA (J7) de cada cruce, para mostrarlos debajo de cada fila —
+    // es lo que realmente decide el marcador global (y por lo tanto si
+    // correspondían penales), y sin verlo ahí es imposible auditar por qué el
+    // sistema eligió el equipo que eligió.
+    const idaPronosticosPorUsuario = {};
+    const idaRealPorPartido = {};
+    if (String(numero) === '8') {
+      const idaPronosticosResult = await pool.query(`
+        SELECT u.nombre as usuario, pa.nombre_local, pa.nombre_visita,
+               p.goles_local, p.goles_visita
+        FROM libertadores_pronosticos p
+        JOIN usuarios u ON p.usuario_id = u.id
+        JOIN libertadores_partidos pa ON p.partido_id = pa.id
+        JOIN libertadores_jornadas j ON p.jornada_id = j.id
+        WHERE j.numero = 7
+      `);
+      idaPronosticosResult.rows.forEach(r => {
+        if (!idaPronosticosPorUsuario[r.usuario]) idaPronosticosPorUsuario[r.usuario] = {};
+        idaPronosticosPorUsuario[r.usuario][`${r.nombre_local}|${r.nombre_visita}`] = r;
+      });
+
+      const idaRealResult = await pool.query(`
+        SELECT pa.nombre_local, pa.nombre_visita, pa.goles_local, pa.goles_visita
+        FROM libertadores_partidos pa
+        JOIN libertadores_jornadas j ON pa.jornada_id = j.id
+        WHERE j.numero = 7
+      `);
+      idaRealResult.rows.forEach(r => {
+        idaRealPorPartido[`${r.nombre_local}|${r.nombre_visita}`] = r;
+      });
+    }
+
     // Agrupar pronósticos por usuario con foto de perfil
     const pronosticosPorUsuario = {};
     pronosticos.forEach(p => {
@@ -620,6 +653,19 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
         };
       }
       const key = `${p.nombre_local}|${p.nombre_visita}`;
+
+      if (String(numero) === '8') {
+        // En la ida (J7), este cruce va con los equipos invertidos.
+        const idaKey = `${p.nombre_visita}|${p.nombre_local}`;
+        const idaPron = idaPronosticosPorUsuario[p.usuario]?.[idaKey];
+        const idaReal = idaRealPorPartido[idaKey];
+        const idaPronTxt = idaPron && idaPron.goles_local !== null && idaPron.goles_visita !== null
+          ? `${idaPron.goles_local}-${idaPron.goles_visita}` : 'sin pronóstico';
+        const idaRealTxt = idaReal && idaReal.goles_local !== null && idaReal.goles_visita !== null
+          ? `${idaReal.goles_local}-${idaReal.goles_visita}` : 'pendiente';
+        p.notaIda = `Ida (J7) ${p.nombre_visita} vs ${p.nombre_local} — pronosticado: ${idaPronTxt}  ·  real: ${idaRealTxt}`;
+      }
+
       pronosticosPorUsuario[p.usuario].pronosticos[key] = p;
     });
 
