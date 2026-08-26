@@ -20,6 +20,7 @@ const COLOR_ROW_BORDER = '#dddddd';
 
 const MARGIN = 40;
 const ROW_HEIGHT = 20;
+const SUB_ROW_HEIGHT = 13;
 const HEADER_ROW_HEIGHT = 22;
 
 /**
@@ -30,7 +31,10 @@ const HEADER_ROW_HEIGHT = 22;
  * @param {number|string} params.jornadaNumero
  * @param {string} [params.jornadaNombre] - Nombre descriptivo opcional (ej: 'Octavos de Final')
  * @param {Array<{nombre_local:string, nombre_visita:string, tipo_partido?:string}>} params.partidosUnicos
- * @param {Object} params.pronosticosPorUsuario - { [nombreUsuario]: { pronosticos: { 'local|visita': { goles_local, goles_visita, penales_local, penales_visita, tipo_partido? } } } }
+ * @param {Object} params.pronosticosPorUsuario - { [nombreUsuario]: { pronosticos: { 'local|visita': { goles_local, goles_visita, penales_local, penales_visita, tipo_partido?, notaIda? } } } }
+ *   notaIda (opcional): texto de una línea que se dibuja atenuado debajo del
+ *   partido — usado para mostrar el cruce de ida (J7) pronosticado y real en
+ *   Libertadores J8, sin acoplar este módulo genérico a esa lógica.
  * @returns {Promise<Buffer>}
  */
 export function generarPdfTestigoBuffer({
@@ -85,12 +89,13 @@ export function generarPdfTestigoBuffer({
         dibujarFilaEncabezado(doc, pageWidth, ['Partido', 'Pronóstico']);
 
         partidosUnicos.forEach((partido) => {
-          asegurarEspacio(doc, ROW_HEIGHT + 2);
-
           const key = `${partido.nombre_local}|${partido.nombre_visita}`;
           const p = userData.pronosticos[key];
           const esFinal = partido.tipo_partido === 'FINAL';
           const nombrePartido = `${partido.nombre_local} vs ${partido.nombre_visita}${esFinal ? '  [FINAL]' : ''}`;
+          const notaIda = p && p.notaIda ? p.notaIda : null;
+
+          asegurarEspacio(doc, ROW_HEIGHT + (notaIda ? SUB_ROW_HEIGHT : 0) + 2);
 
           let textoPronostico;
           let colorPronostico = COLOR_TEXT;
@@ -107,7 +112,7 @@ export function generarPdfTestigoBuffer({
             }
           }
 
-          dibujarFilaDatos(doc, pageWidth, nombrePartido, textoPronostico, colorPronostico);
+          dibujarFilaDatos(doc, pageWidth, nombrePartido, textoPronostico, colorPronostico, notaIda);
         });
 
         doc.moveDown(0.7);
@@ -149,17 +154,23 @@ function dibujarFilaEncabezado(doc, pageWidth, [colA, colB]) {
   doc.x = MARGIN;
 }
 
-function dibujarFilaDatos(doc, pageWidth, colA, colB, colorColB) {
+function dibujarFilaDatos(doc, pageWidth, colA, colB, colorColB, subTexto) {
   const y = doc.y;
   const colAWidth = pageWidth * 0.65;
   const colBWidth = pageWidth * 0.35;
+  const rowHeight = ROW_HEIGHT + (subTexto ? SUB_ROW_HEIGHT : 0);
 
   doc.font('Helvetica').fontSize(9.5).fillColor(COLOR_TEXT);
   doc.text(colA, MARGIN + 6, y + 5, { width: colAWidth - 12, lineBreak: false });
   doc.font('Helvetica-Bold').fillColor(colorColB || COLOR_TEXT);
   doc.text(colB, MARGIN + colAWidth + 6, y + 5, { width: colBWidth - 12, lineBreak: false });
 
-  doc.y = y + ROW_HEIGHT;
+  if (subTexto) {
+    doc.font('Helvetica').fontSize(7.5).fillColor(COLOR_MUTED);
+    doc.text(subTexto, MARGIN + 6, y + ROW_HEIGHT - 3, { width: pageWidth - 12, lineBreak: false });
+  }
+
+  doc.y = y + rowHeight;
   doc.x = MARGIN;
   doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + pageWidth, doc.y)
     .lineWidth(0.5).strokeColor(COLOR_ROW_BORDER).stroke();
