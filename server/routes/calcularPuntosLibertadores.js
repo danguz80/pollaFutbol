@@ -387,39 +387,44 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           }
         }
 
-        // SIEMPRE guardar el pronóstico, con puntos o sin puntos
-        if (equipoQueAvanzaPronostico) {
-          let puntosPorAvance = 0;
-          
-          if (equipoQueAvanzaReal && equipoQueAvanzaPronostico === equipoQueAvanzaReal) {
-            // Determinar a qué fase avanza
-            const faseAvance = getFaseAvance(jornada_numero);
-            puntosPorAvance = reglas.find(
-              r => r.fase === 'CLASIFICACIÓN' && r.concepto.includes(faseAvance)
-            )?.puntos || 0;
-            
-            puntosClasificacion += puntosPorAvance;
-          }
+        // SIEMPRE guardar una fila por cruce, tenga o no equipo determinado.
+        // equipoQueAvanzaPronostico puede quedar null cuando el usuario
+        // pronosticó un global empatado y no cargó penales: antes eso hacía
+        // que el cruce completo desapareciera de "Equipos Clasificados" para
+        // ese usuario (por eso algunos mostraban 6, 7 u 8 filas en vez de
+        // siempre 8). Ahora se guarda igual, sin equipo definido y 0 puntos,
+        // para que la tabla siempre tenga los 8 cruces (en rojo el que no se
+        // pudo definir o no acertó).
+        let puntosPorAvance = 0;
 
-          // Guardar siempre (con puntos o sin puntos). Doble protección contra
-          // duplicados: el DELETE de este jornada_numero al inicio del endpoint
-          // limpia todo antes de recalcular, y el ON CONFLICT es la red de
-          // seguridad si dos cálculos se pisan en el tiempo (dos clics, los dos
-          // botones "Calcular Puntos" corriendo casi juntos, etc.) — el índice
-          // único ux_lpc_usuario_partido_jornada se garantiza que existe justo
-          // arriba, así que este ON CONFLICT ya no puede fallar por restricción
-          // inexistente como pasó antes.
-          await pool.query(`
-            INSERT INTO libertadores_puntos_clasificacion
-            (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (usuario_id, partido_id, jornada_numero)
-            DO UPDATE SET
-              equipo_clasificado = EXCLUDED.equipo_clasificado,
-              fase_clasificado = EXCLUDED.fase_clasificado,
-              puntos = EXCLUDED.puntos
-          `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico, getFaseAvance(jornada_numero), puntosPorAvance]);
+        if (equipoQueAvanzaReal && equipoQueAvanzaPronostico && equipoQueAvanzaPronostico === equipoQueAvanzaReal) {
+          // Determinar a qué fase avanza
+          const faseAvance = getFaseAvance(jornada_numero);
+          puntosPorAvance = reglas.find(
+            r => r.fase === 'CLASIFICACIÓN' && r.concepto.includes(faseAvance)
+          )?.puntos || 0;
+
+          puntosClasificacion += puntosPorAvance;
         }
+
+        // Guardar siempre (con puntos o sin puntos). Doble protección contra
+        // duplicados: el DELETE de este jornada_numero al inicio del endpoint
+        // limpia todo antes de recalcular, y el ON CONFLICT es la red de
+        // seguridad si dos cálculos se pisan en el tiempo (dos clics, los dos
+        // botones "Calcular Puntos" corriendo casi juntos, etc.) — el índice
+        // único ux_lpc_usuario_partido_jornada se garantiza que existe justo
+        // arriba, así que este ON CONFLICT ya no puede fallar por restricción
+        // inexistente como pasó antes.
+        await pool.query(`
+          INSERT INTO libertadores_puntos_clasificacion
+          (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (usuario_id, partido_id, jornada_numero)
+          DO UPDATE SET
+            equipo_clasificado = EXCLUDED.equipo_clasificado,
+            fase_clasificado = EXCLUDED.fase_clasificado,
+            puntos = EXCLUDED.puntos
+        `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico || 'Sin definir (empate sin penales)', getFaseAvance(jornada_numero), puntosPorAvance]);
         } // Fin debeGuardarClasificacion
       }
     }
