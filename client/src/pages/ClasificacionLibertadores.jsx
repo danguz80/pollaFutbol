@@ -1839,17 +1839,21 @@ export default function ClasificacionLibertadores() {
                                       {parseInt(filtroJornada) === 7 && clasif.fase_clasificado}
                                     </td>
                                     <td className="text-center">
-                                      <div className="d-flex align-items-center justify-content-center gap-2">
-                                        {getLogoEquipo(clasif.equipo_clasificado) && (
-                                          <img 
-                                            src={getLogoEquipo(clasif.equipo_clasificado)} 
-                                            alt={clasif.equipo_clasificado}
-                                            style={{ width: '24px', height: '24px', objectFit: 'contain' }}
-                                            onError={(e) => e.target.style.display = 'none'}
-                                          />
-                                        )}
-                                        <span className="fw-bold text-primary">{clasif.equipo_clasificado}</span>
-                                      </div>
+                                      {clasif.equipo_clasificado === 'Sin definir (empate sin penales)' ? (
+                                        <span className="text-muted fst-italic">Sin definir (empate sin pronóstico de penales)</span>
+                                      ) : (
+                                        <div className="d-flex align-items-center justify-content-center gap-2">
+                                          {getLogoEquipo(clasif.equipo_clasificado) && (
+                                            <img
+                                              src={getLogoEquipo(clasif.equipo_clasificado)}
+                                              alt={clasif.equipo_clasificado}
+                                              style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                              onError={(e) => e.target.style.display = 'none'}
+                                            />
+                                          )}
+                                          <span className="fw-bold text-primary">{clasif.equipo_clasificado}</span>
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="text-center">
                                       {clasif.equipo_oficial ? (
