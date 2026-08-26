@@ -276,22 +276,36 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           if (partidoIdaResult.rows.length > 0) {
             const partidoIda = partidoIdaResult.rows[0];
 
+            // Buscar también el PRONÓSTICO que el propio usuario cargó para la
+            // ida (J7). El marcador "pronosticado" no se mezcla con datos
+            // reales en ningún punto: se arma 100% con lo que el usuario
+            // predijo en las dos jornadas del cruce (J7 + J8), y recién al
+            // final se compara contra el marcador real (100% resultados
+            // reales) para decidir los puntos. Son dos cálculos totalmente
+            // independientes que solo se cruzan al comparar el equipo
+            // pronosticado que avanza contra el equipo real que avanza.
+            const pronosticoIdaResult = await pool.query(`
+              SELECT lp.goles_local as pronostico_ida_local, lp.goles_visita as pronostico_ida_visita
+              FROM libertadores_pronosticos lp
+              INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
+              INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
+              WHERE lj.numero = 7
+                AND p.nombre_local = $1
+                AND p.nombre_visita = $2
+                AND lp.usuario_id = $3
+            `, [nombre_visita, nombre_local, usuario_id]);
+
             // Calcular marcador global PRONOSTICADO SIGUIENDO A LOS EQUIPOS POR NOMBRE
             // Equipo LOCAL de VUELTA: goles en VUELTA (pronosticados por el usuario) +
-            // sus goles en IDA — usando el resultado REAL de la ida (J7), no lo que el
-            // usuario había pronosticado para J7 antes de que se jugara.
-            //
-            // Esto tiene que coincidir con JornadaLibertadores.jsx (frontend), que para
-            // J8 SIEMPRE usa el resultado real de J7 + el pronóstico de VUELTA para
-            // decidir si hay empate global y pedirle penales al usuario ("Global: ...
-            // (ida real J7)"). Antes este cálculo usaba el pronóstico que el usuario
-            // había cargado para J7, que casi nunca coincide con el resultado real, así
-            // que el "empate" que evaluaba el backend casi nunca era el mismo empate que
-            // el frontend le mostró al usuario — y por eso quedaban pronósticos sin
-            // equipo definido (equipoQueAvanzaPronostico null) aunque el usuario sí
-            // hubiera cargado penales para el empate que realmente se le pidió.
-            const pronosticoGlobalLocal = pronostico_local + (partidoIda.goles_visita || 0);
-            const pronosticoGlobalVisita = pronostico_visita + (partidoIda.goles_local || 0);
+            // sus goles en IDA (también pronosticados por el usuario en J7)
+            let pronosticoGlobalLocal = pronostico_local;
+            let pronosticoGlobalVisita = pronostico_visita;
+
+            if (pronosticoIdaResult.rows.length > 0) {
+              const pronosticoIda = pronosticoIdaResult.rows[0];
+              pronosticoGlobalLocal = pronostico_local + (pronosticoIda.pronostico_ida_visita || 0);
+              pronosticoGlobalVisita = pronostico_visita + (pronosticoIda.pronostico_ida_local || 0);
+            }
 
             // Determinar equipo que el usuario pronosticó que avanza CON MARCADOR GLOBAL
             equipoQueAvanzaPronostico = determinarEquipoQueAvanza(
@@ -302,7 +316,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
               nombre_local,
               nombre_visita
             );
-            
+
             // Calcular marcador global REAL SIGUIENDO A LOS EQUIPOS POR NOMBRE
             // En VUELTA: nombre_local vs nombre_visita
             // En IDA (invertido): nombre_visita (era local) vs nombre_local (era visita)
