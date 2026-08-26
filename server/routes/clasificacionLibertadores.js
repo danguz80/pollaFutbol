@@ -333,18 +333,30 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
             // En IDA: partidoIda tiene los equipos invertidos
             // partidoIda.nombre_local = row.nombre_visita (el visitante de VUELTA era local en IDA)
             // partidoIda.nombre_visita = row.nombre_local (el local de VUELTA era visita en IDA)
-            
-            // Goles totales del equipo LOCAL de VUELTA (row.nombre_local):
-            // - En VUELTA: row.pronostico_local
-            // - En IDA: era VISITA, entonces partidoIda.pronostico_ida_visita
-            pronosticoGlobalLocal = row.pronostico_local + (partidoIda.pronostico_ida_visita || 0);
-            
-            // Goles totales del equipo VISITA de VUELTA (row.nombre_visita):
-            // - En VUELTA: row.pronostico_visita
-            // - En IDA: era LOCAL, entonces partidoIda.pronostico_ida_local
-            pronosticoGlobalVisita = row.pronostico_visita + (partidoIda.pronostico_ida_local || 0);
-            
+
             if (partidoIda.resultado_ida_local !== null && partidoIda.resultado_ida_visita !== null) {
+              // Global "pronosticado" = resultado REAL de la ida (J7) + lo que el
+              // usuario pronosticó en la vuelta (J8). Tiene que coincidir con lo
+              // que usa JornadaLibertadores.jsx (frontend) para decidir cuándo
+              // pedirle penales al usuario ("Global: ... (ida real J7)") y con
+              // calcularPuntosLibertadores.js al calcular los puntos.
+              //
+              // Antes esto usaba partidoIda.pronostico_ida_* — lo que el usuario
+              // había pronosticado para J7 antes de que se jugara la ida, casi
+              // nunca igual al resultado real — así que esta pantalla (Clasificación)
+              // mostraba un "empate"/equipo pronosticado distinto al que el usuario
+              // vio y respondió con penales al cargar su pronóstico de J8.
+              //
+              // Goles totales del equipo LOCAL de VUELTA (row.nombre_local):
+              // - En VUELTA: row.pronostico_local
+              // - En IDA (real): era VISITA, entonces partidoIda.resultado_ida_visita
+              pronosticoGlobalLocal = row.pronostico_local + (partidoIda.resultado_ida_visita || 0);
+
+              // Goles totales del equipo VISITA de VUELTA (row.nombre_visita):
+              // - En VUELTA: row.pronostico_visita
+              // - En IDA (real): era LOCAL, entonces partidoIda.resultado_ida_local
+              pronosticoGlobalVisita = row.pronostico_visita + (partidoIda.resultado_ida_local || 0);
+
               resultadoGlobalLocal = row.resultado_local + (partidoIda.resultado_ida_visita || 0);
               resultadoGlobalVisita = row.resultado_visita + (partidoIda.resultado_ida_local || 0);
             }
