@@ -2218,17 +2218,15 @@ export default function ClasificacionLibertadores() {
                                             <strong>IDA pronosticada por vos:</strong> {pronostico.partido_ida.nombre_local} {pronostico.partido_ida.pronostico_ida_local !== null && pronostico.partido_ida.pronostico_ida_local !== undefined ? pronostico.partido_ida.pronostico_ida_local : '?'} - {pronostico.partido_ida.pronostico_ida_visita !== null && pronostico.partido_ida.pronostico_ida_visita !== undefined ? pronostico.partido_ida.pronostico_ida_visita : '?'} {pronostico.partido_ida.nombre_visita}
                                           </div>
                                           <div>
-                                            {/* El global que decide qué equipo avanza (y si corresponde pedir
-                                                penales) siempre se calcula con el resultado REAL de la ida
-                                                (J7) + tu pronóstico de vuelta — igual que en la carga del
-                                                pronóstico. Por eso este total usa resultado_ida_*, no lo que
-                                                pronosticaste para J7: si se mostrara tu vieja predicción de
-                                                ida acá, este número casi nunca coincidiría con el que
-                                                realmente definió si te pedían penales. */}
-                                            <strong>Global (ida real J7):</strong> {pronostico.partido.local.nombre} {
-                                              (pronostico.pronostico.local || 0) + (pronostico.partido_ida.resultado_ida_visita || 0)
+                                            {/* El global "pronosticado" se arma 100% con lo que vos
+                                                predijiste en las dos jornadas del cruce (J7 + J8) — nunca
+                                                se mezcla con el resultado real de la ida. Es lo que decide
+                                                el equipo que pronosticaste que avanza y si te pedía
+                                                penales al cargar la vuelta. */}
+                                            <strong>Global pronosticado:</strong> {pronostico.partido.local.nombre} {
+                                              (pronostico.pronostico.local || 0) + (pronostico.partido_ida.pronostico_ida_visita || 0)
                                             } - {
-                                              (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.resultado_ida_local || 0)
+                                              (pronostico.pronostico.visita || 0) + (pronostico.partido_ida.pronostico_ida_local || 0)
                                             } {pronostico.partido.visita.nombre}
                                           </div>
                                         </div>
