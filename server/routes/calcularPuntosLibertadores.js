@@ -276,36 +276,21 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           if (partidoIdaResult.rows.length > 0) {
             const partidoIda = partidoIdaResult.rows[0];
 
-            // Buscar también el PRONÓSTICO que el propio usuario cargó para la
-            // ida (J7). El marcador "pronosticado" no se mezcla con datos
-            // reales en ningún punto: se arma 100% con lo que el usuario
-            // predijo en las dos jornadas del cruce (J7 + J8), y recién al
-            // final se compara contra el marcador real (100% resultados
-            // reales) para decidir los puntos. Son dos cálculos totalmente
-            // independientes que solo se cruzan al comparar el equipo
-            // pronosticado que avanza contra el equipo real que avanza.
-            const pronosticoIdaResult = await pool.query(`
-              SELECT lp.goles_local as pronostico_ida_local, lp.goles_visita as pronostico_ida_visita
-              FROM libertadores_pronosticos lp
-              INNER JOIN libertadores_partidos p ON lp.partido_id = p.id
-              INNER JOIN libertadores_jornadas lj ON p.jornada_id = lj.id
-              WHERE lj.numero = 7
-                AND p.nombre_local = $1
-                AND p.nombre_visita = $2
-                AND lp.usuario_id = $3
-            `, [nombre_visita, nombre_local, usuario_id]);
-
-            // Calcular marcador global PRONOSTICADO SIGUIENDO A LOS EQUIPOS POR NOMBRE
-            // Equipo LOCAL de VUELTA: goles en VUELTA (pronosticados por el usuario) +
-            // sus goles en IDA (también pronosticados por el usuario en J7)
-            let pronosticoGlobalLocal = pronostico_local;
-            let pronosticoGlobalVisita = pronostico_visita;
-
-            if (pronosticoIdaResult.rows.length > 0) {
-              const pronosticoIda = pronosticoIdaResult.rows[0];
-              pronosticoGlobalLocal = pronostico_local + (pronosticoIda.pronostico_ida_visita || 0);
-              pronosticoGlobalVisita = pronostico_visita + (pronosticoIda.pronostico_ida_local || 0);
-            }
+            // Calcular marcador global PRONOSTICADO SIGUIENDO A LOS EQUIPOS POR NOMBRE.
+            // J8 es la única jornada de eliminación directa que arranca "desde
+            // cero" respecto de una ida (J7) que ya se jugó, así que el equipo
+            // PRONOSTICADO que avanza se define con el resultado REAL de la
+            // ida + lo que el usuario pronosticó en la vuelta (J8) — la misma
+            // base que usa la pantalla de carga de pronósticos para decidir
+            // cuándo pedirle penales al usuario. Así se evita que la tabla de
+            // clasificados quede con cruces "sin definir" por falta de
+            // penales: si hubo empate acá, hubo empate también cuando se le
+            // pidieron los penales al cargar el pronóstico de J8.
+            //
+            // Equipo LOCAL de VUELTA: goles en VUELTA (pronosticados por el
+            // usuario) + sus goles en IDA (resultado REAL de J7)
+            const pronosticoGlobalLocal = pronostico_local + (partidoIda.goles_visita || 0);
+            const pronosticoGlobalVisita = pronostico_visita + (partidoIda.goles_local || 0);
 
             // Determinar equipo que el usuario pronosticó que avanza CON MARCADOR GLOBAL
             equipoQueAvanzaPronostico = determinarEquipoQueAvanza(

@@ -334,24 +334,22 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
             // partidoIda.nombre_local = row.nombre_visita (el visitante de VUELTA era local en IDA)
             // partidoIda.nombre_visita = row.nombre_local (el local de VUELTA era visita en IDA)
 
-            // Global "pronosticado" = 100% lo que el usuario predijo, en las dos
-            // jornadas del cruce (J7 + J8). Nunca se mezcla con resultados
-            // reales — eso es un cálculo aparte, totalmente independiente, que
-            // solo se cruza con este al comparar el equipo pronosticado que
-            // avanza contra el equipo real que avanza para asignar puntos.
+            // Global "pronosticado" = resultado REAL de la ida (J7) + lo que el
+            // usuario pronosticó en la vuelta (J8). J8 arranca "desde cero"
+            // respecto de una ida que ya se jugó, así que el equipo
+            // pronosticado que avanza se define igual que el recuadro de
+            // penales de la pantalla de carga (JornadaLibertadores.jsx): con
+            // el resultado real de la ida, no con el pronóstico de J7.
             //
             // Goles totales del equipo LOCAL de VUELTA (row.nombre_local):
             // - En VUELTA: row.pronostico_local
-            // - En IDA: era VISITA, entonces partidoIda.pronostico_ida_visita
-            pronosticoGlobalLocal = row.pronostico_local + (partidoIda.pronostico_ida_visita || 0);
-
-            // Goles totales del equipo VISITA de VUELTA (row.nombre_visita):
-            // - En VUELTA: row.pronostico_visita
-            // - En IDA: era LOCAL, entonces partidoIda.pronostico_ida_local
-            pronosticoGlobalVisita = row.pronostico_visita + (partidoIda.pronostico_ida_local || 0);
-
-            // Global REAL — 100% resultados reales de ambas jornadas
+            // - En IDA (real): era VISITA, entonces partidoIda.resultado_ida_visita
+            //
+            // Global REAL — 100% resultados reales de ambas jornadas (misma base)
             if (partidoIda.resultado_ida_local !== null && partidoIda.resultado_ida_visita !== null) {
+              pronosticoGlobalLocal = row.pronostico_local + (partidoIda.resultado_ida_visita || 0);
+              pronosticoGlobalVisita = row.pronostico_visita + (partidoIda.resultado_ida_local || 0);
+
               resultadoGlobalLocal = row.resultado_local + (partidoIda.resultado_ida_visita || 0);
               resultadoGlobalVisita = row.resultado_visita + (partidoIda.resultado_ida_local || 0);
             }
