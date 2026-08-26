@@ -40,6 +40,14 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       CREATE UNIQUE INDEX IF NOT EXISTS ux_lpc_usuario_partido_jornada
       ON libertadores_puntos_clasificacion (usuario_id, partido_id, jornada_numero)
     `);
+    // equipo_oficial existe en la base de producción pero ninguna migración del
+    // repo la deja asentada — se agrega acá de forma defensiva (IF NOT EXISTS)
+    // para que el INSERT de más abajo (que ahora sí la completa para J7-J9,
+    // antes solo se llenaba para J10) funcione también en una base nueva.
+    await pool.query(`
+      ALTER TABLE libertadores_puntos_clasificacion
+      ADD COLUMN IF NOT EXISTS equipo_oficial VARCHAR(100)
+    `);
 
     // Construir consulta con filtro opcional de jornada
     let query = `
@@ -408,16 +416,24 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         // único ux_lpc_usuario_partido_jornada se garantiza que existe justo
         // arriba, así que este ON CONFLICT ya no puede fallar por restricción
         // inexistente como pasó antes.
+        // equipo_oficial: antes solo se completaba para J10 (campeón/subcampeón,
+        // más abajo). Para J7-J9 quedaba siempre sin guardar, así que
+        // /puntos-clasificacion (la fuente que alimenta el total de "Equipos
+        // Clasificados") nunca podía mostrar el equipo real, solo "Pendiente" —
+        // aunque la pantalla de Clasificación sí lo calculaba al vuelo por su
+        // cuenta con equipoQueAvanzaReal. Se guarda acá también para que ambas
+        // fuentes queden alineadas.
         await pool.query(`
           INSERT INTO libertadores_puntos_clasificacion
-          (usuario_id, partido_id, jornada_numero, equipo_clasificado, fase_clasificado, puntos)
-          VALUES ($1, $2, $3, $4, $5, $6)
+          (usuario_id, partido_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
           ON CONFLICT (usuario_id, partido_id, jornada_numero)
           DO UPDATE SET
             equipo_clasificado = EXCLUDED.equipo_clasificado,
+            equipo_oficial = EXCLUDED.equipo_oficial,
             fase_clasificado = EXCLUDED.fase_clasificado,
             puntos = EXCLUDED.puntos
-        `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico || 'Sin definir (empate sin penales)', getFaseAvance(jornada_numero), puntosPorAvance]);
+        `, [usuario_id, partido_id, jornada_numero, equipoQueAvanzaPronostico || 'Sin definir (empate sin penales)', equipoQueAvanzaReal, getFaseAvance(jornada_numero), puntosPorAvance]);
         } // Fin debeGuardarClasificacion
       }
     }
