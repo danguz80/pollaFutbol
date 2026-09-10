@@ -124,11 +124,11 @@ router.get('/actual', async (req, res) => {
     const ultimaJornada = ultimaJornadaResult.rows[0]?.ultima_jornada || 1;
 
     const result = await pool.query(`
-      SELECT 
+      SELECT
         u.id,
         u.nombre,
         u.foto_perfil,
-        COALESCE(puntos_partidos.total, 0) as puntos_acumulados
+        COALESCE(puntos_partidos.total, 0) + COALESCE(puntos_clasificacion.total, 0) as puntos_acumulados
       FROM usuarios u
       LEFT JOIN (
         SELECT sp.usuario_id, SUM(sp.puntos) as total
@@ -138,8 +138,14 @@ router.get('/actual', async (req, res) => {
         WHERE sj.numero <= $1
         GROUP BY sp.usuario_id
       ) puntos_partidos ON u.id = puntos_partidos.usuario_id
+      LEFT JOIN (
+        SELECT pc.usuario_id, SUM(pc.puntos) as total
+        FROM sudamericana_puntos_clasificacion pc
+        WHERE pc.jornada_numero <= $1
+        GROUP BY pc.usuario_id
+      ) puntos_clasificacion ON u.id = puntos_clasificacion.usuario_id
       WHERE u.rol != 'admin'
-        AND puntos_partidos.total IS NOT NULL
+        AND (puntos_partidos.total IS NOT NULL OR puntos_clasificacion.total IS NOT NULL)
       ORDER BY puntos_acumulados DESC, u.nombre ASC
     `, [ultimaJornada]);
 
