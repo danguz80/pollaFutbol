@@ -341,22 +341,22 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         const partidosIdaJ9 = partidosJ9.filter(p => p.tipo_partido === 'IDA');
         const partidosVueltaJ9 = partidosJ9.filter(p => p.tipo_partido === 'VUELTA');
 
-        // Calcular clasificados reales
-        const clasificadosJ9 = [];
+        // Calcular clasificados reales (por cruce, para poder guardar SIEMPRE una fila
+        // por usuario y cruce, igual que en /clasificados-j9)
+        const crucesJ9 = [];
         for (const vuelta of partidosVueltaJ9) {
-          const ida = partidosIdaJ9.find(p => 
-            p.nombre_local === vuelta.nombre_visita && 
+          const ida = partidosIdaJ9.find(p =>
+            p.nombre_local === vuelta.nombre_visita &&
             p.nombre_visita === vuelta.nombre_local
           );
           if (ida) {
-            const ganador = calcularGanadorCruce(ida, vuelta);
-            if (ganador) clasificadosJ9.push(ganador);
+            crucesJ9.push({ ida, vuelta, ganador: calcularGanadorCruce(ida, vuelta) });
           }
         }
 
         // Obtener pronósticos de los usuarios para J9
         const pronosticosJ9Result = await pool.query(`
-          SELECT 
+          SELECT
             sp.usuario_id, sp.partido_id,
             p.nombre_local, p.nombre_visita,
             sp.goles_local, sp.goles_visita,
@@ -376,38 +376,35 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           usuariosJ9[p.usuario_id].push(p);
         });
 
+        // SIEMPRE guardar una fila por usuario y cruce real, aunque el pronóstico esté
+        // incompleto o el resultado pronosticado quede indefinido (empate sin penales)
+        // -- si no, ese cruce desaparece de la tabla de clasificados.
         const puntosJ9 = [];
         for (const [usuarioId, pronosticos] of Object.entries(usuariosJ9)) {
           const partidosIdaUser = pronosticos.filter(p => p.tipo_partido === 'IDA');
           const partidosVueltaUser = pronosticos.filter(p => p.tipo_partido === 'VUELTA');
 
-          for (const vuelta of partidosVueltaUser) {
-            const ida = partidosIdaUser.find(p => 
-              p.nombre_local === vuelta.nombre_visita && 
-              p.nombre_visita === vuelta.nombre_local
-            );
-            
-            if (ida && ida.goles_local !== null && vuelta.goles_local !== null) {
-              const ganadorPronosticado = calcularGanadorCruce(ida, vuelta);
-              const clasificadoReal = clasificadosJ9.find(c => 
-                (c === ida.nombre_local || c === ida.nombre_visita) ||
-                (c === vuelta.nombre_local || c === vuelta.nombre_visita)
-              );
+          for (const cruce of crucesJ9) {
+            const vuelta = partidosVueltaUser.find(p => p.partido_id === cruce.vuelta.id);
+            const ida = partidosIdaUser.find(p => p.partido_id === cruce.ida.id);
 
-              let puntos = 0;
-              if (ganadorPronosticado && clasificadoReal && ganadorPronosticado === clasificadoReal) {
-                puntos = 3; // Equipo clasificado para SEMIFINALES (regla de sudamericana_puntuacion)
-              }
-
-              puntosJ9.push({
-                usuario_id: parseInt(usuarioId),
-                jornada_numero: 9,
-                equipo_clasificado: ganadorPronosticado,
-                equipo_oficial: clasificadoReal || null,
-                fase_clasificado: 'SEMIFINALES_CUARTOS',
-                puntos: puntos
-              });
+            let ganadorPronosticado = null;
+            if (ida && vuelta &&
+                ida.goles_local !== null && ida.goles_visita !== null &&
+                vuelta.goles_local !== null && vuelta.goles_visita !== null) {
+              ganadorPronosticado = calcularGanadorCruce(ida, vuelta);
             }
+
+            const acerto = cruce.ganador && ganadorPronosticado === cruce.ganador;
+
+            puntosJ9.push({
+              usuario_id: parseInt(usuarioId),
+              jornada_numero: 9,
+              equipo_clasificado: ganadorPronosticado || 'Sin definir (empate sin penales)',
+              equipo_oficial: cruce.ganador || null,
+              fase_clasificado: 'SEMIFINALES_CUARTOS',
+              puntos: acerto ? 3 : 0 // Equipo clasificado para SEMIFINALES (regla de sudamericana_puntuacion)
+            });
           }
         }
 
@@ -415,14 +412,14 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         await pool.query('DELETE FROM sudamericana_puntos_clasificacion WHERE jornada_numero = 9');
         for (const punto of puntosJ9) {
           await pool.query(`
-            INSERT INTO sudamericana_puntos_clasificacion 
+            INSERT INTO sudamericana_puntos_clasificacion
             (usuario_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
             VALUES ($1, $2, $3, $4, $5, $6)
           `, [punto.usuario_id, punto.jornada_numero, punto.equipo_clasificado,
               punto.equipo_oficial, punto.fase_clasificado, punto.puntos]);
         }
 
-        console.log(`✅ J9: ${clasificadosJ9.length} clasificados, ${puntosJ9.length} registros`);
+        console.log(`✅ J9: ${crucesJ9.filter(c => c.ganador).length} clasificados, ${puntosJ9.length} registros`);
       } catch (error) {
         console.error('❌ Error calculando J9:', error);
       }
@@ -709,31 +706,32 @@ router.post('/clasificados-j7', verifyToken, authorizeRoles('admin'), async (req
     const partidosIda = partidos.filter(p => p.tipo_partido === 'IDA');
     const partidosVuelta = partidos.filter(p => p.tipo_partido === 'VUELTA');
 
-    // 2. Calcular clasificados oficiales
-    const clasificadosOficiales = [];
+    // 2. Calcular clasificados oficiales (por cruce, para poder guardar SIEMPRE una
+    // fila por usuario y cruce, incluso cuando el ganador pronosticado o el real no
+    // se puede determinar todavía).
+    const crucesReales = [];
     for (const vuelta of partidosVuelta) {
-      const ida = partidosIda.find(p => 
-        p.nombre_local === vuelta.nombre_visita && 
+      const ida = partidosIda.find(p =>
+        p.nombre_local === vuelta.nombre_visita &&
         p.nombre_visita === vuelta.nombre_local
       );
       if (ida) {
-        const ganador = calcularGanadorCruce(ida, vuelta);
-        if (ganador) clasificadosOficiales.push(ganador);
+        crucesReales.push({ ida, vuelta, ganador: calcularGanadorCruce(ida, vuelta) });
       }
     }
 
-    console.log(`🏆 Clasificados oficiales: ${clasificadosOficiales.length}`);
+    console.log(`🏆 Clasificados oficiales: ${crucesReales.filter(c => c.ganador).length}`);
 
     // 3. Obtener pronósticos
     const pronosticosResult = await pool.query(`
-      SELECT 
+      SELECT
         sp.usuario_id, u.nombre as usuario_nombre,
         p.id as partido_id, p.nombre_local, p.nombre_visita,
         sp.goles_local as pron_goles_local,
         sp.goles_visita as pron_goles_visita,
         sp.penales_local as pron_penales_local,
         sp.penales_visita as pron_penales_visita,
-        CASE 
+        CASE
           WHEN EXISTS (
             SELECT 1 FROM sudamericana_partidos p2
             WHERE p2.jornada_id = p.jornada_id
@@ -760,21 +758,23 @@ router.post('/clasificados-j7', verifyToken, authorizeRoles('admin'), async (req
       usuariosMap[p.usuario_id].pronosticos.push(p);
     });
 
+    // SIEMPRE guardar una fila por usuario y cruce real, aunque el usuario no haya
+    // completado su pronóstico o el resultado pronosticado haya quedado indefinido
+    // (empate sin penales) -- si no, ese cruce desaparece de la tabla de clasificados.
     const puntosAInsertar = [];
     for (const usuario of Object.values(usuariosMap)) {
       const pronosticosIda = usuario.pronosticos.filter(p => p.tipo_partido === 'IDA');
       const pronosticosVuelta = usuario.pronosticos.filter(p => p.tipo_partido === 'VUELTA');
 
-      for (const pronVuelta of pronosticosVuelta) {
-        if (pronVuelta.pron_goles_local === null || pronVuelta.pron_goles_visita === null) continue;
+      for (const cruce of crucesReales) {
+        const pronVuelta = pronosticosVuelta.find(p => p.partido_id === cruce.vuelta.id);
+        const pronIda = pronosticosIda.find(p => p.partido_id === cruce.ida.id);
 
-        const pronIda = pronosticosIda.find(p => 
-          p.nombre_local === pronVuelta.nombre_visita && 
-          p.nombre_visita === pronVuelta.nombre_local
-        );
-
-        if (pronIda && pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
-          const ganadorPronosticado = calcularGanadorCruce(
+        let ganadorPronosticado = null;
+        if (pronVuelta && pronIda &&
+            pronVuelta.pron_goles_local !== null && pronVuelta.pron_goles_visita !== null &&
+            pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
+          ganadorPronosticado = calcularGanadorCruce(
             {
               nombre_local: pronIda.nombre_local,
               nombre_visita: pronIda.nombre_visita,
@@ -792,26 +792,18 @@ router.post('/clasificados-j7', verifyToken, authorizeRoles('admin'), async (req
               penales_visita: pronVuelta.pron_penales_visita
             }
           );
-
-          if (ganadorPronosticado) {
-            // Buscar el clasificado oficial real de este cruce
-            const clasificadoOficialCruce = clasificadosOficiales.find(c => 
-              c === pronVuelta.nombre_local || c === pronVuelta.nombre_visita
-            );
-            
-            const acerto = clasificadoOficialCruce === ganadorPronosticado;
-            const puntos = acerto ? 2 : 0;
-
-            puntosAInsertar.push({
-              usuario_id: usuario.id,
-              jornada_numero: 7,
-              equipo_clasificado: ganadorPronosticado,
-              equipo_oficial: clasificadoOficialCruce || null, // Siempre guarda el clasificado real
-              fase_clasificado: 'OCTAVOS_PLAYOFFS',
-              puntos: puntos
-            });
-          }
         }
+
+        const acerto = cruce.ganador && ganadorPronosticado === cruce.ganador;
+
+        puntosAInsertar.push({
+          usuario_id: usuario.id,
+          jornada_numero: 7,
+          equipo_clasificado: ganadorPronosticado || 'Sin definir (empate sin penales)',
+          equipo_oficial: cruce.ganador || null, // Siempre guarda el clasificado real
+          fase_clasificado: 'OCTAVOS_PLAYOFFS',
+          puntos: acerto ? 2 : 0
+        });
       }
     }
 
@@ -820,7 +812,7 @@ router.post('/clasificados-j7', verifyToken, authorizeRoles('admin'), async (req
 
     for (const punto of puntosAInsertar) {
       await pool.query(`
-        INSERT INTO sudamericana_puntos_clasificacion 
+        INSERT INTO sudamericana_puntos_clasificacion
         (usuario_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
         VALUES ($1, $2, $3, $4, $5, $6)
       `, [
@@ -832,7 +824,7 @@ router.post('/clasificados-j7', verifyToken, authorizeRoles('admin'), async (req
     res.json({
       success: true,
       mensaje: 'Clasificados J7 calculados exitosamente',
-      clasificados_oficiales: clasificadosOficiales.length,
+      clasificados_oficiales: crucesReales.filter(c => c.ganador).length,
       registros_insertados: puntosAInsertar.length
     });
 
@@ -873,31 +865,32 @@ router.post('/clasificados-j8', verifyToken, authorizeRoles('admin'), async (req
     const partidosIda = partidos.filter(p => p.tipo_partido === 'IDA');
     const partidosVuelta = partidos.filter(p => p.tipo_partido === 'VUELTA');
 
-    // 2. Calcular clasificados oficiales
-    const clasificadosOficiales = [];
+    // 2. Calcular clasificados oficiales (por cruce, para poder guardar SIEMPRE una
+    // fila por usuario y cruce, incluso cuando el ganador pronosticado o el real no
+    // se puede determinar todavía).
+    const crucesReales = [];
     for (const vuelta of partidosVuelta) {
-      const ida = partidosIda.find(p => 
-        p.nombre_local === vuelta.nombre_visita && 
+      const ida = partidosIda.find(p =>
+        p.nombre_local === vuelta.nombre_visita &&
         p.nombre_visita === vuelta.nombre_local
       );
       if (ida) {
-        const ganador = calcularGanadorCruce(ida, vuelta);
-        if (ganador) clasificadosOficiales.push(ganador);
+        crucesReales.push({ ida, vuelta, ganador: calcularGanadorCruce(ida, vuelta) });
       }
     }
 
-    console.log(`🏆 Clasificados oficiales J8: ${clasificadosOficiales.length}`);
+    console.log(`🏆 Clasificados oficiales J8: ${crucesReales.filter(c => c.ganador).length}`);
 
     // 3. Obtener pronósticos
     const pronosticosResult = await pool.query(`
-      SELECT 
+      SELECT
         sp.usuario_id, u.nombre as usuario_nombre,
         p.id as partido_id, p.nombre_local, p.nombre_visita,
         sp.goles_local as pron_goles_local,
         sp.goles_visita as pron_goles_visita,
         sp.penales_local as pron_penales_local,
         sp.penales_visita as pron_penales_visita,
-        CASE 
+        CASE
           WHEN EXISTS (
             SELECT 1 FROM sudamericana_partidos p2
             WHERE p2.jornada_id = p.jornada_id
@@ -924,21 +917,23 @@ router.post('/clasificados-j8', verifyToken, authorizeRoles('admin'), async (req
       usuariosMap[p.usuario_id].pronosticos.push(p);
     });
 
+    // SIEMPRE guardar una fila por usuario y cruce real, aunque el usuario no haya
+    // completado su pronóstico o el resultado pronosticado haya quedado indefinido
+    // (empate sin penales) -- si no, ese cruce desaparece de la tabla de clasificados.
     const puntosAInsertar = [];
     for (const usuario of Object.values(usuariosMap)) {
       const pronosticosIda = usuario.pronosticos.filter(p => p.tipo_partido === 'IDA');
       const pronosticosVuelta = usuario.pronosticos.filter(p => p.tipo_partido === 'VUELTA');
 
-      for (const pronVuelta of pronosticosVuelta) {
-        if (pronVuelta.pron_goles_local === null || pronVuelta.pron_goles_visita === null) continue;
+      for (const cruce of crucesReales) {
+        const pronVuelta = pronosticosVuelta.find(p => p.partido_id === cruce.vuelta.id);
+        const pronIda = pronosticosIda.find(p => p.partido_id === cruce.ida.id);
 
-        const pronIda = pronosticosIda.find(p => 
-          p.nombre_local === pronVuelta.nombre_visita && 
-          p.nombre_visita === pronVuelta.nombre_local
-        );
-
-        if (pronIda && pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
-          const ganadorPronosticado = calcularGanadorCruce(
+        let ganadorPronosticado = null;
+        if (pronVuelta && pronIda &&
+            pronVuelta.pron_goles_local !== null && pronVuelta.pron_goles_visita !== null &&
+            pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
+          ganadorPronosticado = calcularGanadorCruce(
             {
               nombre_local: pronIda.nombre_local,
               nombre_visita: pronIda.nombre_visita,
@@ -956,25 +951,18 @@ router.post('/clasificados-j8', verifyToken, authorizeRoles('admin'), async (req
               penales_visita: pronVuelta.pron_penales_visita
             }
           );
-
-          if (ganadorPronosticado) {
-            const clasificadoOficialCruce = clasificadosOficiales.find(c => 
-              c === pronVuelta.nombre_local || c === pronVuelta.nombre_visita
-            );
-            
-            const acerto = clasificadoOficialCruce === ganadorPronosticado;
-            const puntos = acerto ? 2 : 0;
-
-            puntosAInsertar.push({
-              usuario_id: usuario.id,
-              jornada_numero: 8,
-              equipo_clasificado: ganadorPronosticado,
-              equipo_oficial: clasificadoOficialCruce || null,
-              fase_clasificado: 'CUARTOS_OCTAVOS',
-              puntos: puntos
-            });
-          }
         }
+
+        const acerto = cruce.ganador && ganadorPronosticado === cruce.ganador;
+
+        puntosAInsertar.push({
+          usuario_id: usuario.id,
+          jornada_numero: 8,
+          equipo_clasificado: ganadorPronosticado || 'Sin definir (empate sin penales)',
+          equipo_oficial: cruce.ganador || null,
+          fase_clasificado: 'CUARTOS_OCTAVOS',
+          puntos: acerto ? 2 : 0
+        });
       }
     }
 
@@ -983,7 +971,7 @@ router.post('/clasificados-j8', verifyToken, authorizeRoles('admin'), async (req
 
     for (const punto of puntosAInsertar) {
       await pool.query(`
-        INSERT INTO sudamericana_puntos_clasificacion 
+        INSERT INTO sudamericana_puntos_clasificacion
         (usuario_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
         VALUES ($1, $2, $3, $4, $5, $6)
       `, [
@@ -995,7 +983,7 @@ router.post('/clasificados-j8', verifyToken, authorizeRoles('admin'), async (req
     res.json({
       success: true,
       mensaje: 'Clasificados J8 calculados exitosamente',
-      clasificados_oficiales: clasificadosOficiales.length,
+      clasificados_oficiales: crucesReales.filter(c => c.ganador).length,
       registros_insertados: puntosAInsertar.length
     });
 
@@ -1036,31 +1024,32 @@ router.post('/clasificados-j9', verifyToken, authorizeRoles('admin'), async (req
     const partidosIda = partidos.filter(p => p.tipo_partido === 'IDA');
     const partidosVuelta = partidos.filter(p => p.tipo_partido === 'VUELTA');
 
-    // 2. Calcular clasificados oficiales
-    const clasificadosOficiales = [];
+    // 2. Calcular clasificados oficiales (por cruce, para poder guardar SIEMPRE una
+    // fila por usuario y cruce, incluso cuando el ganador pronosticado o el real no
+    // se puede determinar todavía).
+    const crucesReales = [];
     for (const vuelta of partidosVuelta) {
-      const ida = partidosIda.find(p => 
-        p.nombre_local === vuelta.nombre_visita && 
+      const ida = partidosIda.find(p =>
+        p.nombre_local === vuelta.nombre_visita &&
         p.nombre_visita === vuelta.nombre_local
       );
       if (ida) {
-        const ganador = calcularGanadorCruce(ida, vuelta);
-        if (ganador) clasificadosOficiales.push(ganador);
+        crucesReales.push({ ida, vuelta, ganador: calcularGanadorCruce(ida, vuelta) });
       }
     }
 
-    console.log(`🏆 Clasificados oficiales J9: ${clasificadosOficiales.length}`);
+    console.log(`🏆 Clasificados oficiales J9: ${crucesReales.filter(c => c.ganador).length}`);
 
     // 3. Obtener pronósticos
     const pronosticosResult = await pool.query(`
-      SELECT 
+      SELECT
         sp.usuario_id, u.nombre as usuario_nombre,
         p.id as partido_id, p.nombre_local, p.nombre_visita,
         sp.goles_local as pron_goles_local,
         sp.goles_visita as pron_goles_visita,
         sp.penales_local as pron_penales_local,
         sp.penales_visita as pron_penales_visita,
-        CASE 
+        CASE
           WHEN EXISTS (
             SELECT 1 FROM sudamericana_partidos p2
             WHERE p2.jornada_id = p.jornada_id
@@ -1087,21 +1076,23 @@ router.post('/clasificados-j9', verifyToken, authorizeRoles('admin'), async (req
       usuariosMap[p.usuario_id].pronosticos.push(p);
     });
 
+    // SIEMPRE guardar una fila por usuario y cruce real, aunque el usuario no haya
+    // completado su pronóstico o el resultado pronosticado haya quedado indefinido
+    // (empate sin penales) -- si no, ese cruce desaparece de la tabla de clasificados.
     const puntosAInsertar = [];
     for (const usuario of Object.values(usuariosMap)) {
       const pronosticosIda = usuario.pronosticos.filter(p => p.tipo_partido === 'IDA');
       const pronosticosVuelta = usuario.pronosticos.filter(p => p.tipo_partido === 'VUELTA');
 
-      for (const pronVuelta of pronosticosVuelta) {
-        if (pronVuelta.pron_goles_local === null || pronVuelta.pron_goles_visita === null) continue;
+      for (const cruce of crucesReales) {
+        const pronVuelta = pronosticosVuelta.find(p => p.partido_id === cruce.vuelta.id);
+        const pronIda = pronosticosIda.find(p => p.partido_id === cruce.ida.id);
 
-        const pronIda = pronosticosIda.find(p => 
-          p.nombre_local === pronVuelta.nombre_visita && 
-          p.nombre_visita === pronVuelta.nombre_local
-        );
-
-        if (pronIda && pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
-          const ganadorPronosticado = calcularGanadorCruce(
+        let ganadorPronosticado = null;
+        if (pronVuelta && pronIda &&
+            pronVuelta.pron_goles_local !== null && pronVuelta.pron_goles_visita !== null &&
+            pronIda.pron_goles_local !== null && pronIda.pron_goles_visita !== null) {
+          ganadorPronosticado = calcularGanadorCruce(
             {
               nombre_local: pronIda.nombre_local,
               nombre_visita: pronIda.nombre_visita,
@@ -1119,25 +1110,18 @@ router.post('/clasificados-j9', verifyToken, authorizeRoles('admin'), async (req
               penales_visita: pronVuelta.pron_penales_visita
             }
           );
-
-          if (ganadorPronosticado) {
-            const clasificadoOficialCruce = clasificadosOficiales.find(c => 
-              c === pronVuelta.nombre_local || c === pronVuelta.nombre_visita
-            );
-            
-            const acerto = clasificadoOficialCruce === ganadorPronosticado;
-            const puntos = acerto ? 3 : 0; // Equipo clasificado para SEMIFINALES (regla de sudamericana_puntuacion)
-
-            puntosAInsertar.push({
-              usuario_id: usuario.id,
-              jornada_numero: 9,
-              equipo_clasificado: ganadorPronosticado,
-              equipo_oficial: clasificadoOficialCruce || null,
-              fase_clasificado: 'SEMIFINALES_CUARTOS',
-              puntos: puntos
-            });
-          }
         }
+
+        const acerto = cruce.ganador && ganadorPronosticado === cruce.ganador;
+
+        puntosAInsertar.push({
+          usuario_id: usuario.id,
+          jornada_numero: 9,
+          equipo_clasificado: ganadorPronosticado || 'Sin definir (empate sin penales)',
+          equipo_oficial: cruce.ganador || null,
+          fase_clasificado: 'SEMIFINALES_CUARTOS',
+          puntos: acerto ? 3 : 0 // Equipo clasificado para SEMIFINALES (regla de sudamericana_puntuacion)
+        });
       }
     }
 
@@ -1146,7 +1130,7 @@ router.post('/clasificados-j9', verifyToken, authorizeRoles('admin'), async (req
 
     for (const punto of puntosAInsertar) {
       await pool.query(`
-        INSERT INTO sudamericana_puntos_clasificacion 
+        INSERT INTO sudamericana_puntos_clasificacion
         (usuario_id, jornada_numero, equipo_clasificado, equipo_oficial, fase_clasificado, puntos)
         VALUES ($1, $2, $3, $4, $5, $6)
       `, [
@@ -1158,7 +1142,7 @@ router.post('/clasificados-j9', verifyToken, authorizeRoles('admin'), async (req
     res.json({
       success: true,
       mensaje: 'Clasificados J9 calculados exitosamente',
-      clasificados_oficiales: clasificadosOficiales.length,
+      clasificados_oficiales: crucesReales.filter(c => c.ganador).length,
       registros_insertados: puntosAInsertar.length
     });
 
