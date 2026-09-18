@@ -267,6 +267,36 @@ export default function JornadaSudamericana() {
         goles_visita: Math.floor(Math.random() * 4),
       };
     });
+
+    // Si el azar deja empate global en algún cruce IDA/VUELTA, sortear también los penales.
+    partidos.forEach(partidoVuelta => {
+      if (partidoVuelta.tipo_partido !== 'VUELTA') return;
+
+      const partidoIda = partidos.find(p =>
+        p.tipo_partido === 'IDA' &&
+        p.nombre_local === partidoVuelta.nombre_visita &&
+        p.nombre_visita === partidoVuelta.nombre_local
+      );
+      if (!partidoIda) return;
+
+      const golesIdaLocal = nuevosPronosticos[partidoIda.id].goles_local;
+      const golesIdaVisita = nuevosPronosticos[partidoIda.id].goles_visita;
+      const golesVueltaLocal = nuevosPronosticos[partidoVuelta.id].goles_local;
+      const golesVueltaVisita = nuevosPronosticos[partidoVuelta.id].goles_visita;
+
+      const golesLocalGlobal = golesIdaVisita + golesVueltaLocal;
+      const golesVisitaGlobal = golesIdaLocal + golesVueltaVisita;
+      if (golesLocalGlobal !== golesVisitaGlobal) return;
+
+      let penalesLocal = Math.floor(Math.random() * 5);
+      let penalesVisita = Math.floor(Math.random() * 5);
+      while (penalesVisita === penalesLocal) {
+        penalesVisita = Math.floor(Math.random() * 5);
+      }
+      nuevosPronosticos[partidoVuelta.id].penales_local = penalesLocal;
+      nuevosPronosticos[partidoVuelta.id].penales_visita = penalesVisita;
+    });
+
     setPronosticos(nuevosPronosticos);
   };
 

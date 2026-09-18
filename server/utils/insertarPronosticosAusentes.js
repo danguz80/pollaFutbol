@@ -226,8 +226,95 @@ export async function insertarPronosticosAusentesSudamericana(jornadaId) {
       CASE WHEN gl = 3 AND gv = 3 THEN floor(random() * 3)::int ELSE gv END,
       0
     FROM candidatos
+    RETURNING usuario_id, partido_id
   `, [jornadaId]);
+
+  // En Sudamericana, J7 (Play-Offs), J8 (Octavos), J9 (Cuartos) y las semifinales
+  // de J10 son cruces IDA/VUELTA dentro de la MISMA jornada. Si el relleno al azar
+  // deja un cruce con el marcador global empatado, hay que sortear también los
+  // penales de esa vuelta -- si no, ese cruce queda "sin definir" para siempre.
+  //
+  // Solo se tocan las filas insertadas en ESTE llamado, igual que en Libertadores.
+  if (result.rows.length > 0) {
+    await completarPenalesAzarSudamericana(jornadaId, result.rows);
+  }
+
   return result.rowCount;
+}
+
+async function completarPenalesAzarSudamericana(jornadaId, filasInsertadas) {
+  const jornadaResult = await pool.query(
+    'SELECT numero FROM sudamericana_jornadas WHERE id = $1',
+    [jornadaId]
+  );
+  const numero = jornadaResult.rows[0]?.numero;
+  if (![7, 8, 9, 10].includes(numero)) return;
+
+  const insertadas = new Set(filasInsertadas.map(f => `${f.usuario_id}:${f.partido_id}`));
+
+  const partidosResult = await pool.query(
+    `SELECT id, nombre_local, nombre_visita, tipo_partido
+     FROM sudamericana_partidos
+     WHERE jornada_id = $1`,
+    [jornadaId]
+  );
+
+  for (const partido of partidosResult.rows) {
+    if (partido.tipo_partido === 'FINAL') continue; // partido único, sin ida/vuelta
+
+    // Ida del cruce: el partido complementario de la MISMA jornada (equipos
+    // invertidos, con menor id). Si este "partido" tiene el id menor del
+    // cruce, es la ida y se salta (se procesa desde la vuelta).
+    const idaPartidoResult = await pool.query(
+      `SELECT id FROM sudamericana_partidos
+       WHERE jornada_id = $1 AND nombre_local = $2 AND nombre_visita = $3`,
+      [jornadaId, partido.nombre_visita, partido.nombre_local]
+    );
+    if (idaPartidoResult.rows.length === 0) continue;
+    const idaPartidoId = idaPartidoResult.rows[0].id;
+    if (idaPartidoId > partido.id) continue; // este partido es la ida, no la vuelta
+
+    const idaPronPorUsuario = {};
+    const idaPronResult = await pool.query(
+      `SELECT usuario_id, goles_local, goles_visita FROM sudamericana_pronosticos
+       WHERE partido_id = $1`,
+      [idaPartidoId]
+    );
+    idaPronResult.rows.forEach(r => {
+      idaPronPorUsuario[r.usuario_id] = { local: r.goles_local, visita: r.goles_visita };
+    });
+
+    const vueltaPronResult = await pool.query(
+      `SELECT id, usuario_id, goles_local, goles_visita, penales_local, penales_visita
+       FROM sudamericana_pronosticos
+       WHERE partido_id = $1`,
+      [partido.id]
+    );
+
+    for (const vuelta of vueltaPronResult.rows) {
+      if (!insertadas.has(`${vuelta.usuario_id}:${partido.id}`)) continue; // no es una fila recién rellenada al azar
+      if (vuelta.penales_local !== null && vuelta.penales_visita !== null) continue; // ya tiene penales
+      if (vuelta.goles_local === null || vuelta.goles_visita === null) continue;
+
+      const ida = idaPronPorUsuario[vuelta.usuario_id];
+      if (!ida || ida.local === null || ida.visita === null) continue;
+
+      const globalLocal = vuelta.goles_local + ida.visita;
+      const globalVisita = vuelta.goles_visita + ida.local;
+      if (globalLocal !== globalVisita) continue; // no hay empate
+
+      let penalesLocal = Math.floor(Math.random() * 5);
+      let penalesVisita = Math.floor(Math.random() * 5);
+      while (penalesVisita === penalesLocal) {
+        penalesVisita = Math.floor(Math.random() * 5);
+      }
+
+      await pool.query(
+        'UPDATE sudamericana_pronosticos SET penales_local = $1, penales_visita = $2 WHERE id = $3',
+        [penalesLocal, penalesVisita, vuelta.id]
+      );
+    }
+  }
 }
 
 /**

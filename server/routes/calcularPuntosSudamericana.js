@@ -396,7 +396,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
               let puntos = 0;
               if (ganadorPronosticado && clasificadoReal && ganadorPronosticado === clasificadoReal) {
-                puntos = 5;
+                puntos = 3; // Equipo clasificado para SEMIFINALES (regla de sudamericana_puntuacion)
               }
 
               puntosJ9.push({
@@ -1126,7 +1126,7 @@ router.post('/clasificados-j9', verifyToken, authorizeRoles('admin'), async (req
             );
             
             const acerto = clasificadoOficialCruce === ganadorPronosticado;
-            const puntos = acerto ? 2 : 0;
+            const puntos = acerto ? 3 : 0; // Equipo clasificado para SEMIFINALES (regla de sudamericana_puntuacion)
 
             puntosAInsertar.push({
               usuario_id: usuario.id,
