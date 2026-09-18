@@ -829,16 +829,26 @@ export default function ClasificacionLibertadores() {
             // Para J10: Procesar partidos de VUELTA (semifinales) Y partidos FINAL
             const esVuelta = p.partido?.tipo_partido === 'VUELTA';
             const esFinal = p.partido?.tipo_partido === 'FINAL';
-            const tieneClasificacion = p.equipo_pronosticado_avanza && 
-                                       p.puntos_clasificacion !== null && 
+            // Mostrar la fila apenas se conoce el resultado real del cruce
+            // (ya se puede evaluar), no solo cuando se pudo determinar un
+            // equipo pronosticado. Si el usuario empató su pronóstico global
+            // y no cargó penales, equipo_pronosticado_avanza llega null desde
+            // el backend — antes eso hacía que el cruce entero desapareciera
+            // de la tabla en vez de mostrarse en rojo como "sin definir".
+            const resultadoConocido = p.partido?.resultado?.local !== null &&
+                                       p.partido?.resultado?.local !== undefined &&
+                                       p.partido?.resultado?.visita !== null &&
+                                       p.partido?.resultado?.visita !== undefined;
+            const tieneClasificacion = resultadoConocido &&
+                                       p.puntos_clasificacion !== null &&
                                        p.puntos_clasificacion !== undefined;
-            
+
             if ((esVuelta || esFinal) && tieneClasificacion) {
               if (!clasificacionesPorPartido[p.partido.id]) {
                 clasificacionesPorPartido[p.partido.id] = {
                   partido_id: p.partido.id,
                   partido_nombre: `${p.partido.local.nombre} vs ${p.partido.visita.nombre}`,
-                  equipo_pronosticado: p.equipo_pronosticado_avanza,
+                  equipo_pronosticado: p.equipo_pronosticado_avanza || 'Sin definir (empate sin penales)',
                   equipo_real: p.equipo_real_avanza || '?',
                   puntos: p.puntos_clasificacion,
                   tipo_partido: p.partido.tipo_partido,
@@ -1749,7 +1759,12 @@ export default function ClasificacionLibertadores() {
                                   <td className="text-center">
                                     {pronostico.grupoCerrado === false ? (
                                       <span className="text-muted">⏳ Pendiente</span>
-                                    ) : pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
+                                    ) : pronostico.tipoClasificado === 'playoffs' ||
+                                      pronostico.tipoClasificado === 'cuartos' ||
+                                      pronostico.tipoClasificado === 'semifinales' ||
+                                      pronostico.tipoClasificado === 'finalista' ||
+                                      pronostico.tipoClasificado === 'campeon' ||
+                                      pronostico.tipoClasificado === 'subcampeon' ? (
                                       <div className="d-flex align-items-center justify-content-center gap-2">
                                         {getLogoEquipo(pronostico.equipo_oficial) && (
                                           <img 
@@ -1789,7 +1804,12 @@ export default function ClasificacionLibertadores() {
                                   <td className="text-center">
                                     {pronostico.grupoCerrado === false ? (
                                       <span className="text-muted">⏳ Pendiente</span>
-                                    ) : pronostico.tipoClasificado === 'playoffs' || pronostico.tipoClasificado === 'cuartos' ? (
+                                    ) : pronostico.tipoClasificado === 'playoffs' ||
+                                      pronostico.tipoClasificado === 'cuartos' ||
+                                      pronostico.tipoClasificado === 'semifinales' ||
+                                      pronostico.tipoClasificado === 'finalista' ||
+                                      pronostico.tipoClasificado === 'campeon' ||
+                                      pronostico.tipoClasificado === 'subcampeon' ? (
                                       pronostico.puntos > 0 ? (
                                         <span className="badge bg-success">
                                           +{pronostico.puntos} pts
