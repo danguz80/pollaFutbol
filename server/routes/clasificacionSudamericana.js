@@ -27,7 +27,26 @@ router.get('/pronosticos', verifyToken, async (req, res) => {
         el.grupo as grupo_local,
         ev.grupo as grupo_visita,
         p.fecha as partido_fecha,
-        p.tipo_partido,
+        CASE
+          WHEN sj.numero >= 7 THEN
+            CASE
+              WHEN NOT EXISTS (
+                SELECT 1 FROM sudamericana_partidos p2
+                WHERE p2.jornada_id = p.jornada_id
+                AND p2.nombre_local = p.nombre_visita
+                AND p2.nombre_visita = p.nombre_local
+              ) THEN 'FINAL'
+              WHEN EXISTS (
+                SELECT 1 FROM sudamericana_partidos p2
+                WHERE p2.jornada_id = p.jornada_id
+                AND p2.nombre_local = p.nombre_visita
+                AND p2.nombre_visita = p.nombre_local
+                AND p2.id > p.id
+              ) THEN 'IDA'
+              ELSE 'VUELTA'
+            END
+          ELSE NULL
+        END as tipo_partido,
         sp.goles_local as pronostico_local,
         sp.goles_visita as pronostico_visita,
         sp.penales_local as pronostico_penales_local,

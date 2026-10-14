@@ -428,15 +428,37 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
 
     const { numero, nombre } = jornadaInfo.rows[0];
 
-    // Obtener todos los pronósticos de la jornada
+    // Obtener todos los pronósticos de la jornada. tipo_partido NO se lee de la
+    // columna cruda de sudamericana_partidos (puede venir null) -- se recalcula
+    // por complementariedad de nombres, igual que en el resto del sistema, y
+    // solo para J7-J10 (en fase de grupos no aplica el concepto ida/vuelta/final).
     const pronosticosResult = await pool.query(`
-      SELECT 
+      SELECT
         u.nombre as usuario,
         u.foto_perfil,
         pa.nombre_local,
         pa.nombre_visita,
         pa.fecha,
-        pa.tipo_partido,
+        CASE
+          WHEN $2::int >= 7 THEN
+            CASE
+              WHEN NOT EXISTS (
+                SELECT 1 FROM sudamericana_partidos p2
+                WHERE p2.jornada_id = pa.jornada_id
+                AND p2.nombre_local = pa.nombre_visita
+                AND p2.nombre_visita = pa.nombre_local
+              ) THEN 'FINAL'
+              WHEN EXISTS (
+                SELECT 1 FROM sudamericana_partidos p2
+                WHERE p2.jornada_id = pa.jornada_id
+                AND p2.nombre_local = pa.nombre_visita
+                AND p2.nombre_visita = pa.nombre_local
+                AND p2.id > pa.id
+              ) THEN 'IDA'
+              ELSE 'VUELTA'
+            END
+          ELSE NULL
+        END as tipo_partido,
         p.goles_local,
         p.goles_visita,
         p.penales_local,
@@ -449,7 +471,7 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
       JOIN sudamericana_partidos pa ON p.partido_id = pa.id
       WHERE pa.jornada_id = $1
       ORDER BY u.nombre, pa.fecha
-    `, [jornadaId]);
+    `, [jornadaId, parseInt(jornadaNumero)]);
 
     if (pronosticosResult.rows.length === 0) {
       return res.status(404).json({ error: 'No hay pronósticos para esta jornada' });
@@ -533,10 +555,17 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
           if (ganador) finalistas.push(ganador);
         });
         
-        // Si tenemos los 2 finalistas, actualizar el partido FINAL
+        // Si tenemos los 2 finalistas, actualizar el partido FINAL. Se guarda
+        // claveOriginal ANTES de sobrescribir el nombre: los pronósticos de
+        // cada usuario para este partido se guardaron bajo los nombres
+        // placeholder ("Ganador SF1"/"Ganador SF2"), así que pdfTestigo.js
+        // necesita esa clave original para seguir encontrándolos aunque el
+        // título visible ya muestre los finalistas reales.
         if (finalistas.length === 2) {
           const indexFinal = partidosUnicos.findIndex(p => p.tipo_partido === 'FINAL');
           if (indexFinal !== -1) {
+            partidosUnicos[indexFinal].claveOriginal =
+              `${partidosUnicos[indexFinal].nombre_local}|${partidosUnicos[indexFinal].nombre_visita}`;
             partidosUnicos[indexFinal].nombre_local = formatearNombreEquipoSudamericana(finalistas[0]);
             partidosUnicos[indexFinal].nombre_visita = formatearNombreEquipoSudamericana(finalistas[1]);
           }
@@ -559,6 +588,31 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
       const key = `${p.nombre_local}|${p.nombre_visita}`;
       pronosticosPorUsuario[p.usuario].pronosticos[key] = p;
     });
+
+    // Si es jornada 10, agregar los finalistas VIRTUALES de cada usuario como
+    // nota bajo el partido FINAL -- se basan en los pronósticos de semifinal
+    // de cada usuario (no en el resultado real), y varían de jugador a jugador.
+    if (parseInt(jornadaNumero) === 10) {
+      const partidoFinalEntry = partidosUnicos.find(p => p.tipo_partido === 'FINAL');
+      if (partidoFinalEntry) {
+        const claveFinal = partidoFinalEntry.claveOriginal
+          || `${partidoFinalEntry.nombre_local}|${partidoFinalEntry.nombre_visita}`;
+
+        const finalVirtualResult = await pool.query(`
+          SELECT u.nombre as usuario, spfv.equipo_local, spfv.equipo_visita
+          FROM sudamericana_pronosticos_final_virtual spfv
+          JOIN usuarios u ON spfv.usuario_id = u.id
+          WHERE spfv.jornada_id = $1
+        `, [jornadaId]);
+
+        finalVirtualResult.rows.forEach(fv => {
+          const pron = pronosticosPorUsuario[fv.usuario]?.pronosticos[claveFinal];
+          if (pron) {
+            pron.notaIda = `Virtual: ${fv.equipo_local} vs ${fv.equipo_visita}`;
+          }
+        });
+      }
+    }
 
     // Generar PDF con pdfkit (sin Chromium, bajo consumo de memoria)
     console.log('📄 Generando PDF...');
