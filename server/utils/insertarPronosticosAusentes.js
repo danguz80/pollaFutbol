@@ -92,7 +92,147 @@ export async function insertarPronosticosAusentesLibertadores(jornadaId) {
     await completarPenalesAzarLibertadores(jornadaId, result.rows);
   }
 
+  // En J10, los "finalistas pronosticados" de cada usuario (y su pronóstico de la
+  // final) no se derivan de sus pronósticos de semifinal automáticamente salvo que
+  // el usuario haya llegado a enviar el formulario de la final virtual -- si un
+  // usuario fue completado por el azar (arriba) nunca pasa por ese formulario, así
+  // que sus finalistas nunca quedaban guardados. Se corre SIEMPRE (no solo cuando
+  // hubo relleno al azar en este llamado) para también completar a cualquier
+  // usuario real cuyas semifinales ya estén completas pero le falte este paso.
+  await completarFinalVirtualLibertadores(jornadaId);
+
   return result.rowCount;
+}
+
+// Determina el ganador de un cruce ida/vuelta a partir de los pronósticos de un
+// usuario para ambos partidos. Comparte la misma lógica (global + penales) que
+// calcularGanadorCruce en calcularPuntosSudamericana.js y el cálculo de penales
+// al azar de más abajo.
+function determinarGanadorCruce(idaPron, vueltaPron, nombreLocalVuelta, nombreVisitaVuelta) {
+  if (!idaPron || !vueltaPron ||
+      idaPron.goles_local === null || idaPron.goles_visita === null ||
+      vueltaPron.goles_local === null || vueltaPron.goles_visita === null) {
+    return null;
+  }
+  const globalLocal = vueltaPron.goles_local + idaPron.goles_visita;
+  const globalVisita = vueltaPron.goles_visita + idaPron.goles_local;
+  if (globalLocal > globalVisita) return nombreLocalVuelta;
+  if (globalLocal < globalVisita) return nombreVisitaVuelta;
+  if (vueltaPron.penales_local !== null && vueltaPron.penales_visita !== null) {
+    if (vueltaPron.penales_local > vueltaPron.penales_visita) return nombreLocalVuelta;
+    if (vueltaPron.penales_local < vueltaPron.penales_visita) return nombreVisitaVuelta;
+  }
+  return null;
+}
+
+async function completarFinalVirtualLibertadores(jornadaId) {
+  const jornadaResult = await pool.query(
+    'SELECT numero FROM libertadores_jornadas WHERE id = $1',
+    [jornadaId]
+  );
+  if (jornadaResult.rows[0]?.numero !== 10) return;
+
+  const partidosResult = await pool.query(
+    `SELECT id, nombre_local, nombre_visita
+     FROM libertadores_partidos
+     WHERE jornada_id = $1 AND tipo_partido != 'FINAL'`,
+    [jornadaId]
+  );
+  const semifinales = partidosResult.rows;
+
+  // Armar los 2 cruces ida/vuelta: el partido complementario (nombres invertidos)
+  // de menor id dentro de la misma jornada es la ida.
+  const cruces = [];
+  for (const partido of semifinales) {
+    const complementario = semifinales.find(p =>
+      p.nombre_local === partido.nombre_visita && p.nombre_visita === partido.nombre_local
+    );
+    if (!complementario || complementario.id > partido.id) continue; // es la ida, o cruce incompleto
+    cruces.push({
+      idaId: complementario.id,
+      vueltaId: partido.id,
+      nombreLocalVuelta: partido.nombre_local,
+      nombreVisitaVuelta: partido.nombre_visita
+    });
+  }
+  if (cruces.length !== 2) return; // estructura inesperada
+
+  const partidoIds = semifinales.map(p => p.id);
+  const pronosticosResult = await pool.query(
+    `SELECT usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita
+     FROM libertadores_pronosticos
+     WHERE partido_id = ANY($1)`,
+    [partidoIds]
+  );
+  const porUsuario = {};
+  pronosticosResult.rows.forEach(r => {
+    if (!porUsuario[r.usuario_id]) porUsuario[r.usuario_id] = {};
+    porUsuario[r.usuario_id][r.partido_id] = r;
+  });
+
+  const existentesResult = await pool.query(
+    'SELECT usuario_id FROM libertadores_pronosticos_final_virtual WHERE jornada_id = $1',
+    [jornadaId]
+  );
+  const existentes = new Set(existentesResult.rows.map(r => r.usuario_id));
+
+  for (const [usuarioIdStr, pron] of Object.entries(porUsuario)) {
+    const usuarioId = Number(usuarioIdStr);
+    if (existentes.has(usuarioId)) continue; // ya tiene su pronóstico de final virtual
+
+    const finalistas = [];
+    for (const cruce of cruces) {
+      const ganador = determinarGanadorCruce(
+        pron[cruce.idaId], pron[cruce.vueltaId],
+        cruce.nombreLocalVuelta, cruce.nombreVisitaVuelta
+      );
+      if (!ganador) break; // empate sin penales u otro dato incompleto -- no forzar nada
+      finalistas.push(ganador);
+    }
+    if (finalistas.length !== 2) continue;
+
+    let golesLocal = Math.floor(Math.random() * 4);
+    let golesVisita = Math.floor(Math.random() * 4);
+    if (golesLocal === 3 && golesVisita === 3) golesVisita = Math.floor(Math.random() * 3);
+
+    let penalesLocal = null;
+    let penalesVisita = null;
+    if (golesLocal === golesVisita) {
+      penalesLocal = Math.floor(Math.random() * 5);
+      penalesVisita = Math.floor(Math.random() * 5);
+      while (penalesVisita === penalesLocal) {
+        penalesVisita = Math.floor(Math.random() * 5);
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO libertadores_pronosticos_final_virtual
+       (usuario_id, jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (usuario_id, jornada_id) DO NOTHING`,
+      [usuarioId, jornadaId, finalistas[0], finalistas[1], golesLocal, golesVisita, penalesLocal, penalesVisita]
+    );
+
+    let campeon = null;
+    let subcampeon = null;
+    if (golesLocal > golesVisita) {
+      campeon = finalistas[0]; subcampeon = finalistas[1];
+    } else if (golesVisita > golesLocal) {
+      campeon = finalistas[1]; subcampeon = finalistas[0];
+    } else if (penalesLocal !== null && penalesVisita !== null) {
+      if (penalesLocal > penalesVisita) { campeon = finalistas[0]; subcampeon = finalistas[1]; }
+      else if (penalesVisita > penalesLocal) { campeon = finalistas[1]; subcampeon = finalistas[0]; }
+    }
+
+    if (campeon && subcampeon) {
+      await pool.query(
+        `INSERT INTO libertadores_predicciones_campeon (usuario_id, campeon, subcampeon)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (usuario_id) DO NOTHING`,
+        [usuarioId, campeon, subcampeon]
+      );
+    }
+  }
 }
 
 async function completarPenalesAzarLibertadores(jornadaId, filasInsertadas) {
@@ -239,7 +379,101 @@ export async function insertarPronosticosAusentesSudamericana(jornadaId) {
     await completarPenalesAzarSudamericana(jornadaId, result.rows);
   }
 
+  // Igual que en Libertadores: los finalistas pronosticados de J10 solo quedan
+  // guardados en sudamericana_pronosticos_final_virtual si el usuario llegó a
+  // enviar el formulario de esa jornada. Un usuario completado por el azar nunca
+  // pasa por ahí, así que se corre SIEMPRE para completar también a cualquier
+  // usuario real cuyas semifinales ya estén completas pero le falte este paso.
+  await completarFinalVirtualSudamericana(jornadaId);
+
   return result.rowCount;
+}
+
+async function completarFinalVirtualSudamericana(jornadaId) {
+  const jornadaResult = await pool.query(
+    'SELECT numero FROM sudamericana_jornadas WHERE id = $1',
+    [jornadaId]
+  );
+  if (jornadaResult.rows[0]?.numero !== 10) return;
+
+  const partidosResult = await pool.query(
+    `SELECT id, nombre_local, nombre_visita
+     FROM sudamericana_partidos
+     WHERE jornada_id = $1 AND tipo_partido != 'FINAL'`,
+    [jornadaId]
+  );
+  const semifinales = partidosResult.rows;
+
+  const cruces = [];
+  for (const partido of semifinales) {
+    const complementario = semifinales.find(p =>
+      p.nombre_local === partido.nombre_visita && p.nombre_visita === partido.nombre_local
+    );
+    if (!complementario || complementario.id > partido.id) continue; // es la ida, o cruce incompleto
+    cruces.push({
+      idaId: complementario.id,
+      vueltaId: partido.id,
+      nombreLocalVuelta: partido.nombre_local,
+      nombreVisitaVuelta: partido.nombre_visita
+    });
+  }
+  if (cruces.length !== 2) return; // estructura inesperada
+
+  const partidoIds = semifinales.map(p => p.id);
+  const pronosticosResult = await pool.query(
+    `SELECT usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita
+     FROM sudamericana_pronosticos
+     WHERE partido_id = ANY($1)`,
+    [partidoIds]
+  );
+  const porUsuario = {};
+  pronosticosResult.rows.forEach(r => {
+    if (!porUsuario[r.usuario_id]) porUsuario[r.usuario_id] = {};
+    porUsuario[r.usuario_id][r.partido_id] = r;
+  });
+
+  const existentesResult = await pool.query(
+    'SELECT usuario_id FROM sudamericana_pronosticos_final_virtual WHERE jornada_id = $1',
+    [jornadaId]
+  );
+  const existentes = new Set(existentesResult.rows.map(r => r.usuario_id));
+
+  for (const [usuarioIdStr, pron] of Object.entries(porUsuario)) {
+    const usuarioId = Number(usuarioIdStr);
+    if (existentes.has(usuarioId)) continue; // ya tiene su pronóstico de final virtual
+
+    const finalistas = [];
+    for (const cruce of cruces) {
+      const ganador = determinarGanadorCruce(
+        pron[cruce.idaId], pron[cruce.vueltaId],
+        cruce.nombreLocalVuelta, cruce.nombreVisitaVuelta
+      );
+      if (!ganador) break; // empate sin penales u otro dato incompleto -- no forzar nada
+      finalistas.push(ganador);
+    }
+    if (finalistas.length !== 2) continue;
+
+    let golesLocal = Math.floor(Math.random() * 4);
+    let golesVisita = Math.floor(Math.random() * 4);
+    if (golesLocal === 3 && golesVisita === 3) golesVisita = Math.floor(Math.random() * 3);
+
+    let penalesLocal = null;
+    let penalesVisita = null;
+    if (golesLocal === golesVisita) {
+      penalesLocal = Math.floor(Math.random() * 5);
+      penalesVisita = Math.floor(Math.random() * 5);
+      while (penalesVisita === penalesLocal) {
+        penalesVisita = Math.floor(Math.random() * 5);
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO sudamericana_pronosticos_final_virtual
+       (usuario_id, jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [usuarioId, jornadaId, finalistas[0], finalistas[1], golesLocal, golesVisita, penalesLocal, penalesVisita]
+    );
+  }
 }
 
 async function completarPenalesAzarSudamericana(jornadaId, filasInsertadas) {
