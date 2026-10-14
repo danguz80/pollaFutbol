@@ -82,13 +82,22 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       // Para J10: Verificar si es partido FINAL y si el usuario pronosticó los equipos correctos
       let partidoCoincideParaJ10 = true;
       if (jornada_numero == 10) {
-        // Verificar si es partido FINAL
+        // Verificar si es el partido FINAL -- no se usa tipo_partido porque no
+        // siempre está poblada en la BD; el FINAL es el único partido de la
+        // jornada sin un complementario de nombres invertidos.
         const partidoCheck = await pool.query(
-          'SELECT tipo_partido FROM sudamericana_partidos WHERE id = $1',
+          `SELECT NOT EXISTS (
+             SELECT 1 FROM sudamericana_partidos p2
+             WHERE p2.jornada_id = sp.jornada_id
+               AND p2.nombre_local = sp.nombre_visita
+               AND p2.nombre_visita = sp.nombre_local
+           ) AS es_final
+           FROM sudamericana_partidos sp
+           WHERE sp.id = $1`,
           [partido_id]
         );
-        
-        if (partidoCheck.rows[0]?.tipo_partido === 'FINAL') {
+
+        if (partidoCheck.rows[0]?.es_final) {
           // Obtener pronóstico de finalistas del usuario
           const pronosticoFinal = await pool.query(
             `SELECT equipo_local, equipo_visita
@@ -445,24 +454,25 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         `);
 
         const partidosJ10 = partidosJ10Result.rows;
-        const partidosSemifinal = partidosJ10.filter(p => p.tipo_partido === 'IDA' || p.tipo_partido === 'VUELTA');
-        const partidoFinal = partidosJ10.find(p => p.tipo_partido === 'FINAL');
 
-        // Calcular finalistas reales
+        // No se usa tipo_partido para identificar ida/vuelta/final porque no
+        // siempre está poblada en la BD: en vez de eso, se arman los cruces
+        // por complementariedad de nombres. El partido FINAL (p.ej.
+        // "Ganador SF1" vs "Ganador SF2") es el único sin complementario.
         const finalistasReales = [];
-        const semifinalesIda = partidosSemifinal.filter(p => p.tipo_partido === 'IDA');
-        const semifinalesVuelta = partidosSemifinal.filter(p => p.tipo_partido === 'VUELTA');
-
-        for (const vuelta of semifinalesVuelta) {
-          const ida = semifinalesIda.find(p => 
-            p.nombre_local === vuelta.nombre_visita && 
+        for (const vuelta of partidosJ10) {
+          const ida = partidosJ10.find(p =>
+            p.nombre_local === vuelta.nombre_visita &&
             p.nombre_visita === vuelta.nombre_local
           );
-          if (ida) {
-            const ganador = calcularGanadorCruce(ida, vuelta);
-            if (ganador) finalistasReales.push(ganador);
-          }
+          if (!ida || ida.id > vuelta.id) continue; // es la ida, o es el FINAL (sin cruce)
+          const ganador = calcularGanadorCruce(ida, vuelta);
+          if (ganador) finalistasReales.push(ganador);
         }
+
+        const partidoFinal = partidosJ10.find(p =>
+          !partidosJ10.some(p2 => p2.nombre_local === p.nombre_visita && p2.nombre_visita === p.nombre_local)
+        );
 
         // Determinar campeón y subcampeón desde el partido FINAL
         let campeonReal = null;
@@ -1173,24 +1183,25 @@ router.post('/clasificados-j10', verifyToken, authorizeRoles('admin'), async (re
     `);
 
     const partidos = partidosResult.rows;
-    const partidosSemifinal = partidos.filter(p => p.tipo_partido === 'IDA' || p.tipo_partido === 'VUELTA');
-    const partidoFinal = partidos.find(p => p.tipo_partido === 'FINAL');
 
-    // 2. Calcular finalistas (ganadores de semifinales)
+    // No se usa tipo_partido para identificar ida/vuelta/final porque no
+    // siempre está poblada en la BD: en vez de eso, se arman los cruces por
+    // complementariedad de nombres. El partido FINAL (p.ej. "Ganador SF1" vs
+    // "Ganador SF2") es el único sin complementario.
     const finalistasOficiales = [];
-    const semifinalesIda = partidosSemifinal.filter(p => p.tipo_partido === 'IDA');
-    const semifinalesVuelta = partidosSemifinal.filter(p => p.tipo_partido === 'VUELTA');
-
-    for (const vuelta of semifinalesVuelta) {
-      const ida = semifinalesIda.find(p => 
-        p.nombre_local === vuelta.nombre_visita && 
+    for (const vuelta of partidos) {
+      const ida = partidos.find(p =>
+        p.nombre_local === vuelta.nombre_visita &&
         p.nombre_visita === vuelta.nombre_local
       );
-      if (ida) {
-        const ganador = calcularGanadorCruce(ida, vuelta);
-        if (ganador) finalistasOficiales.push(ganador);
-      }
+      if (!ida || ida.id > vuelta.id) continue; // es la ida, o es el FINAL (sin cruce)
+      const ganador = calcularGanadorCruce(ida, vuelta);
+      if (ganador) finalistasOficiales.push(ganador);
     }
+
+    const partidoFinal = partidos.find(p =>
+      !partidos.some(p2 => p2.nombre_local === p.nombre_visita && p2.nombre_visita === p.nombre_local)
+    );
 
     // 3. Determinar campeón y subcampeón desde el partido final
     let campeonOficial = null;

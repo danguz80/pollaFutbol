@@ -460,19 +460,22 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
       `);
 
       const partidosJ10 = partidosJ10Result.rows;
-      const partidosSemifinal = partidosJ10.filter(p => p.tipo_partido === 'IDA' || p.tipo_partido === 'VUELTA');
       const finalistasReales = [];
 
-      // Calcular finalistas reales desde las semis
-      const semifinalesIda = partidosSemifinal.filter(p => p.tipo_partido === 'IDA');
-      const semifinalesVuelta = partidosSemifinal.filter(p => p.tipo_partido === 'VUELTA');
-
-      for (const vuelta of semifinalesVuelta) {
-        const ida = semifinalesIda.find(p =>
+      // Calcular finalistas reales desde las semis. No se usa la columna
+      // tipo_partido para identificar ida/vuelta/final porque no siempre está
+      // poblada en la BD: en vez de eso, se arman los cruces por
+      // complementariedad de nombres (el partido con nombres invertidos
+      // dentro de la misma jornada). El partido FINAL (p.ej. "Ganador SF1"
+      // vs "Ganador SF2") nunca tiene complementario, así que queda excluido
+      // automáticamente.
+      for (const vuelta of partidosJ10) {
+        const ida = partidosJ10.find(p =>
           p.nombre_local === vuelta.nombre_visita &&
           p.nombre_visita === vuelta.nombre_local
         );
-        if (ida && vuelta.goles_local !== null && vuelta.goles_visita !== null &&
+        if (!ida || ida.id > vuelta.id) continue; // es la ida, o es el FINAL (sin cruce)
+        if (vuelta.goles_local !== null && vuelta.goles_visita !== null &&
             ida.goles_local !== null && ida.goles_visita !== null) {
           // Calcular ganador del cruce
           const golesLocalTotal = ida.goles_local + vuelta.goles_visita;
