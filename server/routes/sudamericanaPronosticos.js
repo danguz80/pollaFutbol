@@ -590,8 +590,11 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
     });
 
     // Si es jornada 10, agregar los finalistas VIRTUALES de cada usuario como
-    // nota bajo el partido FINAL -- se basan en los pronósticos de semifinal
-    // de cada usuario (no en el resultado real), y varían de jugador a jugador.
+    // nota bajo el partido FINAL, y la tabla "Equipos Clasificados" (Finalista
+    // x2, Campeón, Subcampeón) -- todo se basa en los pronósticos de semifinal
+    // y final virtual de cada usuario (no en resultados reales, que todavía no
+    // se conocen cuando se genera este documento), y varía de jugador a jugador.
+    let equiposClasificadosPorUsuario;
     if (parseInt(jornadaNumero) === 10) {
       const partidoFinalEntry = partidosUnicos.find(p => p.tipo_partido === 'FINAL');
       if (partidoFinalEntry) {
@@ -599,17 +602,37 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
           || `${partidoFinalEntry.nombre_local}|${partidoFinalEntry.nombre_visita}`;
 
         const finalVirtualResult = await pool.query(`
-          SELECT u.nombre as usuario, spfv.equipo_local, spfv.equipo_visita
+          SELECT u.nombre as usuario, spfv.equipo_local, spfv.equipo_visita,
+                 spfv.goles_local, spfv.goles_visita, spfv.penales_local, spfv.penales_visita
           FROM sudamericana_pronosticos_final_virtual spfv
           JOIN usuarios u ON spfv.usuario_id = u.id
           WHERE spfv.jornada_id = $1
         `, [jornadaId]);
 
+        equiposClasificadosPorUsuario = {};
         finalVirtualResult.rows.forEach(fv => {
           const pron = pronosticosPorUsuario[fv.usuario]?.pronosticos[claveFinal];
           if (pron) {
             pron.notaIda = `Virtual: ${fv.equipo_local} vs ${fv.equipo_visita}`;
           }
+
+          let campeon = null;
+          let subcampeon = null;
+          if (fv.goles_local > fv.goles_visita) {
+            campeon = fv.equipo_local; subcampeon = fv.equipo_visita;
+          } else if (fv.goles_visita > fv.goles_local) {
+            campeon = fv.equipo_visita; subcampeon = fv.equipo_local;
+          } else if (fv.penales_local !== null && fv.penales_visita !== null) {
+            if (fv.penales_local > fv.penales_visita) { campeon = fv.equipo_local; subcampeon = fv.equipo_visita; }
+            else if (fv.penales_visita > fv.penales_local) { campeon = fv.equipo_visita; subcampeon = fv.equipo_local; }
+          }
+
+          equiposClasificadosPorUsuario[fv.usuario] = [
+            { clasificacion: 'Finalista', pronosticado: fv.equipo_local },
+            { clasificacion: 'Finalista', pronosticado: fv.equipo_visita },
+            { clasificacion: 'Campeón', pronosticado: campeon || 'Sin definir' },
+            { clasificacion: 'Subcampeón', pronosticado: subcampeon || 'Sin definir' }
+          ];
         });
       }
     }
@@ -622,7 +645,8 @@ router.post('/generar-pdf/:jornadaNumero', verifyToken, authorizeRoles('admin'),
       jornadaNumero: numero,
       jornadaNombre: nombre,
       partidosUnicos,
-      pronosticosPorUsuario
+      pronosticosPorUsuario,
+      equiposClasificadosPorUsuario
     });
 
     console.log('✅ PDF generado exitosamente');
