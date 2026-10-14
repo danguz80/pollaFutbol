@@ -132,22 +132,27 @@ async function completarFinalVirtualLibertadores(jornadaId) {
   );
   if (jornadaResult.rows[0]?.numero !== 10) return;
 
+  // No se filtra por tipo_partido en la consulta: esa columna no siempre está
+  // poblada en la BD (puede venir null incluso para el partido FINAL real).
+  // En vez de confiar en ella, se arman los cruces por complementariedad de
+  // nombres -- el partido FINAL (p.ej. "Ganador SF1" vs "Ganador SF2") nunca
+  // tiene un complementario, así que queda excluido solo.
   const partidosResult = await pool.query(
     `SELECT id, nombre_local, nombre_visita
      FROM libertadores_partidos
-     WHERE jornada_id = $1 AND tipo_partido != 'FINAL'`,
+     WHERE jornada_id = $1`,
     [jornadaId]
   );
-  const semifinales = partidosResult.rows;
+  const partidosJ10 = partidosResult.rows;
 
   // Armar los 2 cruces ida/vuelta: el partido complementario (nombres invertidos)
   // de menor id dentro de la misma jornada es la ida.
   const cruces = [];
-  for (const partido of semifinales) {
-    const complementario = semifinales.find(p =>
+  for (const partido of partidosJ10) {
+    const complementario = partidosJ10.find(p =>
       p.nombre_local === partido.nombre_visita && p.nombre_visita === partido.nombre_local
     );
-    if (!complementario || complementario.id > partido.id) continue; // es la ida, o cruce incompleto
+    if (!complementario || complementario.id > partido.id) continue; // es la ida, o es el FINAL (sin cruce)
     cruces.push({
       idaId: complementario.id,
       vueltaId: partido.id,
@@ -157,7 +162,7 @@ async function completarFinalVirtualLibertadores(jornadaId) {
   }
   if (cruces.length !== 2) return; // estructura inesperada
 
-  const partidoIds = semifinales.map(p => p.id);
+  const partidoIds = [...new Set(cruces.flatMap(c => [c.idaId, c.vueltaId]))];
   const pronosticosResult = await pool.query(
     `SELECT usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita
      FROM libertadores_pronosticos
@@ -396,20 +401,25 @@ async function completarFinalVirtualSudamericana(jornadaId) {
   );
   if (jornadaResult.rows[0]?.numero !== 10) return;
 
+  // No se filtra por tipo_partido en la consulta: esa columna no siempre está
+  // poblada en la BD (puede venir null incluso para el partido FINAL real).
+  // En vez de confiar en ella, se arman los cruces por complementariedad de
+  // nombres -- el partido FINAL (p.ej. "Ganador SF1" vs "Ganador SF2") nunca
+  // tiene un complementario, así que queda excluido solo.
   const partidosResult = await pool.query(
     `SELECT id, nombre_local, nombre_visita
      FROM sudamericana_partidos
-     WHERE jornada_id = $1 AND tipo_partido != 'FINAL'`,
+     WHERE jornada_id = $1`,
     [jornadaId]
   );
-  const semifinales = partidosResult.rows;
+  const partidosJ10 = partidosResult.rows;
 
   const cruces = [];
-  for (const partido of semifinales) {
-    const complementario = semifinales.find(p =>
+  for (const partido of partidosJ10) {
+    const complementario = partidosJ10.find(p =>
       p.nombre_local === partido.nombre_visita && p.nombre_visita === partido.nombre_local
     );
-    if (!complementario || complementario.id > partido.id) continue; // es la ida, o cruce incompleto
+    if (!complementario || complementario.id > partido.id) continue; // es la ida, o es el FINAL (sin cruce)
     cruces.push({
       idaId: complementario.id,
       vueltaId: partido.id,
@@ -419,7 +429,7 @@ async function completarFinalVirtualSudamericana(jornadaId) {
   }
   if (cruces.length !== 2) return; // estructura inesperada
 
-  const partidoIds = semifinales.map(p => p.id);
+  const partidoIds = [...new Set(cruces.flatMap(c => [c.idaId, c.vueltaId]))];
   const pronosticosResult = await pool.query(
     `SELECT usuario_id, partido_id, goles_local, goles_visita, penales_local, penales_visita
      FROM sudamericana_pronosticos
