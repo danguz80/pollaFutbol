@@ -91,9 +91,10 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
         if (partidoCheck.rows[0]?.tipo_partido === 'FINAL') {
           // Obtener pronóstico de finalistas del usuario
           const pronosticoFinal = await pool.query(
-            `SELECT equipo_local, equipo_visita 
-             FROM sudamericana_pronosticos_final_virtual 
-             WHERE usuario_id = $1 AND jornada_id = 10`,
+            `SELECT equipo_local, equipo_visita
+             FROM sudamericana_pronosticos_final_virtual spfv
+             JOIN sudamericana_jornadas sj ON spfv.jornada_id = sj.id
+             WHERE spfv.usuario_id = $1 AND sj.numero = 10`,
             [usuario_id]
           );
           
@@ -501,10 +502,11 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
         // Obtener pronósticos de la tabla virtual
         const pronosticosFinalesResult = await pool.query(`
-          SELECT usuario_id, equipo_local, equipo_visita, 
-                 goles_local, goles_visita, penales_local, penales_visita
-          FROM sudamericana_pronosticos_final_virtual
-          WHERE jornada_id = 10
+          SELECT spfv.usuario_id, spfv.equipo_local, spfv.equipo_visita,
+                 spfv.goles_local, spfv.goles_visita, spfv.penales_local, spfv.penales_visita
+          FROM sudamericana_pronosticos_final_virtual spfv
+          JOIN sudamericana_jornadas sj ON spfv.jornada_id = sj.id
+          WHERE sj.numero = 10
         `);
 
         const puntosJ10 = [];
@@ -1246,7 +1248,8 @@ router.post('/clasificados-j10', verifyToken, authorizeRoles('admin'), async (re
         spfv.penales_visita
       FROM sudamericana_pronosticos_final_virtual spfv
       JOIN usuarios u ON spfv.usuario_id = u.id
-      WHERE spfv.jornada_id = 10
+      JOIN sudamericana_jornadas sj ON spfv.jornada_id = sj.id
+      WHERE sj.numero = 10
       ORDER BY spfv.usuario_id
     `);
 
