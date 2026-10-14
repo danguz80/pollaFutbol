@@ -1430,26 +1430,16 @@ export default function ClasificacionSudamericana() {
                               </td>
                               <td>
                                 <div className="d-flex flex-column align-items-center">
-                                  {/* Primera línea: PRONOSTICADO (grande) */}
+                                  {/* Primera línea: REAL (grande) - placeholder "Ganador SF1/SF2" hasta que se conozcan los finalistas reales */}
                                   <div className="d-flex justify-content-center align-items-center gap-2 w-100">
                                     <div className="d-flex align-items-center justify-content-end gap-2" style={{flex: 1}}>
                                       <small className="fw-bold text-end">
-                                        {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
-                                          ? formatearNombreEquipo(pronostico.final_virtual_local, null)
-                                          : formatearNombreEquipo(pronostico.partido?.local?.nombre, pronostico.partido?.local?.pais)
-                                        }
+                                        {formatearNombreEquipo(pronostico.partido?.local?.nombre, pronostico.partido?.local?.pais)}
                                       </small>
-                                      {((pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local && getLogoEquipo(pronostico.final_virtual_local)) || 
-                                        (pronostico.partido?.local?.nombre && getLogoEquipo(pronostico.partido.local.nombre))) && (
-                                        <img 
-                                          src={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
-                                            ? getLogoEquipo(pronostico.final_virtual_local)
-                                            : getLogoEquipo(pronostico.partido.local.nombre)
-                                          }
-                                          alt={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local
-                                            ? pronostico.final_virtual_local
-                                            : pronostico.partido.local.nombre
-                                          }
+                                      {pronostico.partido?.local?.nombre && getLogoEquipo(pronostico.partido.local.nombre) && (
+                                        <img
+                                          src={getLogoEquipo(pronostico.partido.local.nombre)}
+                                          alt={pronostico.partido.local.nombre}
                                           style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                           onError={(e) => e.target.style.display = 'none'}
                                         />
@@ -1457,43 +1447,37 @@ export default function ClasificacionSudamericana() {
                                     </div>
                                     <span className="text-muted">vs</span>
                                     <div className="d-flex align-items-center justify-content-start gap-2" style={{flex: 1}}>
-                                      {((pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita && getLogoEquipo(pronostico.final_virtual_visita)) || 
-                                        (pronostico.partido?.visita?.nombre && getLogoEquipo(pronostico.partido.visita.nombre))) && (
-                                        <img 
-                                          src={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
-                                            ? getLogoEquipo(pronostico.final_virtual_visita)
-                                            : getLogoEquipo(pronostico.partido.visita.nombre)
-                                          }
-                                          alt={pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
-                                            ? pronostico.final_virtual_visita
-                                            : pronostico.partido.visita.nombre
-                                          }
+                                      {pronostico.partido?.visita?.nombre && getLogoEquipo(pronostico.partido.visita.nombre) && (
+                                        <img
+                                          src={getLogoEquipo(pronostico.partido.visita.nombre)}
+                                          alt={pronostico.partido.visita.nombre}
                                           style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                                           onError={(e) => e.target.style.display = 'none'}
                                         />
                                       )}
                                       <small className="fw-bold text-start">
-                                        {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_visita
-                                          ? formatearNombreEquipo(pronostico.final_virtual_visita, null)
-                                          : formatearNombreEquipo(pronostico.partido?.visita?.nombre, pronostico.partido?.visita?.pais)
-                                        }
+                                        {formatearNombreEquipo(pronostico.partido?.visita?.nombre, pronostico.partido?.visita?.pais)}
                                       </small>
                                     </div>
                                   </div>
-                                  {/* Segunda línea: REAL (pequeña) */}
+                                  {/* Segunda línea: VIRTUAL (pequeña) - finalistas según los pronósticos de semifinal de este usuario */}
                                   {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local && (
                                     <div className="mt-1">
-                                      <small className="fst-italic text-muted" style={{fontSize: '0.75rem'}}>
-                                        <strong>Real:</strong> {pronostico.partido.local.nombre} vs {pronostico.partido.visita.nombre}
-                                        {pronostico.partido?.resultado?.local !== null && (
-                                          <>
-                                            {' - '}
-                                            <span className={pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? 'text-success fw-bold' : 'text-danger fw-bold'}>
-                                              {pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? '✓ Coincide' : '✗ No coincide'}
-                                            </span>
-                                          </>
-                                        )}
+                                      <small className="fst-italic" style={{fontSize: '0.75rem'}}>
+                                        <strong>Virtual:</strong> {pronostico.final_virtual_local} vs {pronostico.final_virtual_visita}
                                       </small>
+                                    </div>
+                                  )}
+                                  {/* Indicador de coincidencia + puntos, una vez que la final real ya tiene resultado */}
+                                  {pronostico.partido?.tipo_partido === 'FINAL' && pronostico.final_virtual_local && pronostico.partido?.resultado?.local !== null && (
+                                    <div className="mt-1">
+                                      {pronostico.final_virtual_local === pronostico.partido.local.nombre && pronostico.final_virtual_visita === pronostico.partido.visita.nombre ? (
+                                        <small className="text-success fw-bold">
+                                          partido coincide{pronostico.puntos ? ` · +${pronostico.puntos} pts` : ''}
+                                        </small>
+                                      ) : (
+                                        <small className="text-danger fw-bold">partido no coincide · 0 pts</small>
+                                      )}
                                     </div>
                                   )}
                                 </div>

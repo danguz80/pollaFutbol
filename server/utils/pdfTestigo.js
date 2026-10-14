@@ -89,7 +89,12 @@ export function generarPdfTestigoBuffer({
         dibujarFilaEncabezado(doc, pageWidth, ['Partido', 'Pronóstico']);
 
         partidosUnicos.forEach((partido) => {
-          const key = `${partido.nombre_local}|${partido.nombre_visita}`;
+          // claveOriginal (opcional): algunos llamadores muestran un título
+          // distinto al que usaron para guardar los pronósticos de cada
+          // usuario (p.ej. el partido FINAL, cuyo título pasa de
+          // "Ganador SF1 vs Ganador SF2" a los finalistas reales una vez
+          // conocidos, pero los pronósticos se guardaron bajo el placeholder).
+          const key = partido.claveOriginal || `${partido.nombre_local}|${partido.nombre_visita}`;
           const p = userData.pronosticos[key];
           const esFinal = partido.tipo_partido === 'FINAL';
           const nombrePartido = `${partido.nombre_local} vs ${partido.nombre_visita}${esFinal ? '  [FINAL]' : ''}`;
