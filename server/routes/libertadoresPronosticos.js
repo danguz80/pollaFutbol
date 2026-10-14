@@ -669,6 +669,59 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
       pronosticosPorUsuario[p.usuario].pronosticos[key] = p;
     });
 
+    // Si es jornada 10, agregar los finalistas VIRTUALES de cada usuario como
+    // nota bajo el partido FINAL, y la tabla "Equipos Clasificados" (Finalista
+    // x2, Campeón, Subcampeón) -- todo se basa en los pronósticos de semifinal
+    // y final virtual de cada usuario (no en resultados reales, que todavía no
+    // se conocen cuando se genera este documento), y varía de jugador a jugador.
+    let equiposClasificadosPorUsuario;
+    if (String(numero) === '10') {
+      // El partido FINAL es el único sin complementario de nombres invertidos
+      // dentro de la jornada (no se usa tipo_partido: puede venir null en la BD).
+      const partidoFinalEntry = partidosUnicos.find(partido =>
+        !partidosUnicos.some(p2 => p2.nombre_local === partido.nombre_visita && p2.nombre_visita === partido.nombre_local)
+      );
+
+      if (partidoFinalEntry) {
+        const claveFinal = `${partidoFinalEntry.nombre_local}|${partidoFinalEntry.nombre_visita}`;
+
+        const finalVirtualResult = await pool.query(`
+          SELECT u.nombre as usuario, lpfv.equipo_local, lpfv.equipo_visita,
+                 lpfv.goles_local, lpfv.goles_visita, lpfv.penales_local, lpfv.penales_visita
+          FROM libertadores_pronosticos_final_virtual lpfv
+          JOIN usuarios u ON lpfv.usuario_id = u.id
+          JOIN libertadores_jornadas j ON lpfv.jornada_id = j.id
+          WHERE j.numero = $1
+        `, [numero]);
+
+        equiposClasificadosPorUsuario = {};
+        finalVirtualResult.rows.forEach(fv => {
+          const pron = pronosticosPorUsuario[fv.usuario]?.pronosticos[claveFinal];
+          if (pron) {
+            pron.notaIda = `Virtual: ${fv.equipo_local} vs ${fv.equipo_visita}`;
+          }
+
+          let campeon = null;
+          let subcampeon = null;
+          if (fv.goles_local > fv.goles_visita) {
+            campeon = fv.equipo_local; subcampeon = fv.equipo_visita;
+          } else if (fv.goles_visita > fv.goles_local) {
+            campeon = fv.equipo_visita; subcampeon = fv.equipo_local;
+          } else if (fv.penales_local !== null && fv.penales_visita !== null) {
+            if (fv.penales_local > fv.penales_visita) { campeon = fv.equipo_local; subcampeon = fv.equipo_visita; }
+            else if (fv.penales_visita > fv.penales_local) { campeon = fv.equipo_visita; subcampeon = fv.equipo_local; }
+          }
+
+          equiposClasificadosPorUsuario[fv.usuario] = [
+            { clasificacion: 'Finalista', pronosticado: fv.equipo_local },
+            { clasificacion: 'Finalista', pronosticado: fv.equipo_visita },
+            { clasificacion: 'Campeón', pronosticado: campeon || 'Sin definir' },
+            { clasificacion: 'Subcampeón', pronosticado: subcampeon || 'Sin definir' }
+          ];
+        });
+      }
+    }
+
     // Generar PDF con pdfkit (sin Chromium, bajo consumo de memoria)
     console.log('📄 Generando PDF...');
 
@@ -676,7 +729,8 @@ router.post('/generar-pdf/:numero', verifyToken, authorizeRoles('admin'), async 
       competencia: 'Copa Libertadores',
       jornadaNumero: numero,
       partidosUnicos,
-      pronosticosPorUsuario
+      pronosticosPorUsuario,
+      equiposClasificadosPorUsuario
     });
 
     console.log('✅ PDF generado exitosamente');

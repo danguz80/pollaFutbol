@@ -35,6 +35,12 @@ const HEADER_ROW_HEIGHT = 22;
  *   notaIda (opcional): texto de una línea que se dibuja atenuado debajo del
  *   partido — usado para mostrar el cruce de ida (J7) pronosticado y real en
  *   Libertadores J8, sin acoplar este módulo genérico a esa lógica.
+ * @param {Object} [params.equiposClasificadosPorUsuario] - { [nombreUsuario]: Array<{clasificacion: string, pronosticado: string, real?: string}> }
+ *   Opcional: tabla "Equipos Clasificados" (Finalista/Campeón/Subcampeón) que
+ *   se dibuja debajo de la tabla de partidos de cada usuario -- usado en J10
+ *   de Libertadores/Sudamericana para mostrar los finalistas virtuales de
+ *   cada usuario. `real` por defecto es "Pendiente" (el testigo se genera
+ *   antes de conocerse resultados).
  * @returns {Promise<Buffer>}
  */
 export function generarPdfTestigoBuffer({
@@ -42,7 +48,8 @@ export function generarPdfTestigoBuffer({
   jornadaNumero,
   jornadaNombre,
   partidosUnicos,
-  pronosticosPorUsuario
+  pronosticosPorUsuario,
+  equiposClasificadosPorUsuario
 }) {
   return new Promise((resolve, reject) => {
     try {
@@ -120,6 +127,22 @@ export function generarPdfTestigoBuffer({
           dibujarFilaDatos(doc, pageWidth, nombrePartido, textoPronostico, colorPronostico, notaIda);
         });
 
+        const clasificados = equiposClasificadosPorUsuario?.[usuario];
+        if (clasificados && clasificados.length > 0) {
+          doc.moveDown(0.5);
+          asegurarEspacio(doc, HEADER_ROW_HEIGHT + ROW_HEIGHT + 10);
+
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(COLOR_PRIMARY)
+            .text('Equipos Clasificados', MARGIN, doc.y, { width: pageWidth });
+          doc.moveDown(0.2);
+
+          dibujarFilaEncabezado3(doc, pageWidth, ['Clasificación', 'Pronosticado', 'Real']);
+          clasificados.forEach((fila) => {
+            asegurarEspacio(doc, ROW_HEIGHT + 2);
+            dibujarFilaDatos3(doc, pageWidth, fila.clasificacion, fila.pronosticado || 'Sin definir', fila.real || 'Pendiente');
+          });
+        }
+
         doc.moveDown(0.7);
       });
 
@@ -176,6 +199,41 @@ function dibujarFilaDatos(doc, pageWidth, colA, colB, colorColB, subTexto) {
   }
 
   doc.y = y + rowHeight;
+  doc.x = MARGIN;
+  doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + pageWidth, doc.y)
+    .lineWidth(0.5).strokeColor(COLOR_ROW_BORDER).stroke();
+}
+
+function dibujarFilaEncabezado3(doc, pageWidth, [colA, colB, colC]) {
+  const y = doc.y;
+  const colAWidth = pageWidth * 0.3;
+  const colBWidth = pageWidth * 0.4;
+  const colCWidth = pageWidth * 0.3;
+
+  doc.rect(MARGIN, y, pageWidth, HEADER_ROW_HEIGHT).fill(COLOR_PRIMARY);
+  doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#ffffff');
+  doc.text(colA, MARGIN + 6, y + 6, { width: colAWidth - 12, lineBreak: false });
+  doc.text(colB, MARGIN + colAWidth + 6, y + 6, { width: colBWidth - 12, lineBreak: false });
+  doc.text(colC, MARGIN + colAWidth + colBWidth + 6, y + 6, { width: colCWidth - 12, lineBreak: false });
+
+  doc.y = y + HEADER_ROW_HEIGHT;
+  doc.x = MARGIN;
+}
+
+function dibujarFilaDatos3(doc, pageWidth, colA, colB, colC) {
+  const y = doc.y;
+  const colAWidth = pageWidth * 0.3;
+  const colBWidth = pageWidth * 0.4;
+  const colCWidth = pageWidth * 0.3;
+
+  doc.font('Helvetica').fontSize(9).fillColor(COLOR_TEXT);
+  doc.text(colA, MARGIN + 6, y + 5, { width: colAWidth - 12, lineBreak: false });
+  doc.font('Helvetica-Bold').fillColor(COLOR_TEXT);
+  doc.text(colB, MARGIN + colAWidth + 6, y + 5, { width: colBWidth - 12, lineBreak: false });
+  doc.font('Helvetica').fillColor(COLOR_MUTED);
+  doc.text(colC, MARGIN + colAWidth + colBWidth + 6, y + 5, { width: colCWidth - 12, lineBreak: false });
+
+  doc.y = y + ROW_HEIGHT;
   doc.x = MARGIN;
   doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + pageWidth, doc.y)
     .lineWidth(0.5).strokeColor(COLOR_ROW_BORDER).stroke();
