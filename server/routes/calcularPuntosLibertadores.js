@@ -604,50 +604,51 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             puntos: visitaAcerto ? puntosFinalistaJ10 : 0
           });
 
-          // Puntos por campeón/subcampeón -- solo si la final real ya se jugó
-          if (campeonReal && subcampeonReal) {
-            const golesLocalPron = (pron.goles_local || 0) + (pron.penales_local || 0);
-            const golesVisitaPron = (pron.goles_visita || 0) + (pron.penales_visita || 0);
-            let campeonPronosticado = null;
-            let subcampeonPronosticado = null;
+          // Campeón/subcampeón pronosticado -- se guarda SIEMPRE (igual que
+          // FINALISTA), aunque la final real todavía no se haya jugado; el
+          // acierto y los puntos solo se calculan una vez que campeonReal /
+          // subcampeonReal ya se conocen.
+          const golesLocalPron = (pron.goles_local || 0) + (pron.penales_local || 0);
+          const golesVisitaPron = (pron.goles_visita || 0) + (pron.penales_visita || 0);
+          let campeonPronosticado = null;
+          let subcampeonPronosticado = null;
 
-            if (golesLocalPron > golesVisitaPron) {
-              campeonPronosticado = pron.equipo_local;
-              subcampeonPronosticado = pron.equipo_visita;
-            } else if (golesVisitaPron > golesLocalPron) {
-              campeonPronosticado = pron.equipo_visita;
-              subcampeonPronosticado = pron.equipo_local;
-            }
+          if (golesLocalPron > golesVisitaPron) {
+            campeonPronosticado = pron.equipo_local;
+            subcampeonPronosticado = pron.equipo_visita;
+          } else if (golesVisitaPron > golesLocalPron) {
+            campeonPronosticado = pron.equipo_visita;
+            subcampeonPronosticado = pron.equipo_local;
+          }
 
-            // IMPORTANTE: Solo dar puntos si el partido pronosticado coincide con el partido real
-            const partidoCoincide = finalistasReales.length === 2 && (
-              (pron.equipo_local === finalistasReales[0] && pron.equipo_visita === finalistasReales[1]) ||
-              (pron.equipo_local === finalistasReales[1] && pron.equipo_visita === finalistasReales[0])
-            );
+          // IMPORTANTE: Solo dar puntos si el partido pronosticado coincide con el partido real
+          const partidoCoincide = finalistasReales.length === 2 && (
+            (pron.equipo_local === finalistasReales[0] && pron.equipo_visita === finalistasReales[1]) ||
+            (pron.equipo_local === finalistasReales[1] && pron.equipo_visita === finalistasReales[0])
+          );
 
-            if (campeonPronosticado) {
-              const aciertoCampeon = partidoCoincide && campeonPronosticado === campeonReal;
-              puntosJ10.push({
-                usuario_id: pron.usuario_id,
-                jornada_numero: 10,
-                equipo_clasificado: campeonPronosticado,
-                equipo_oficial: campeonReal,
-                fase_clasificado: 'CAMPEON',
-                puntos: aciertoCampeon ? puntosCampeon : 0
-              });
-            }
+          if (campeonPronosticado) {
+            const aciertoCampeon = campeonReal && partidoCoincide && campeonPronosticado === campeonReal;
+            puntosJ10.push({
+              usuario_id: pron.usuario_id,
+              jornada_numero: 10,
+              equipo_clasificado: campeonPronosticado,
+              equipo_oficial: campeonReal || null,
+              fase_clasificado: 'CAMPEON',
+              puntos: aciertoCampeon ? puntosCampeon : 0
+            });
+          }
 
-            if (subcampeonPronosticado) {
-              const aciertoSubcampeon = partidoCoincide && subcampeonPronosticado === subcampeonReal;
-              puntosJ10.push({
-                usuario_id: pron.usuario_id,
-                jornada_numero: 10,
-                equipo_clasificado: subcampeonPronosticado,
-                equipo_oficial: subcampeonReal,
-                fase_clasificado: 'SUBCAMPEON',
-                puntos: aciertoSubcampeon ? puntosSubcampeon : 0
-              });
-            }
+          if (subcampeonPronosticado) {
+            const aciertoSubcampeon = subcampeonReal && partidoCoincide && subcampeonPronosticado === subcampeonReal;
+            puntosJ10.push({
+              usuario_id: pron.usuario_id,
+              jornada_numero: 10,
+              equipo_clasificado: subcampeonPronosticado,
+              equipo_oficial: subcampeonReal || null,
+              fase_clasificado: 'SUBCAMPEON',
+              puntos: aciertoSubcampeon ? puntosSubcampeon : 0
+            });
           }
         }
 
