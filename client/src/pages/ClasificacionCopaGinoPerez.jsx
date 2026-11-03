@@ -80,6 +80,7 @@ export default function ClasificacionCopaGinoPerez() {
   const [partidos, setPartidos] = useState([]);
   const [equipos, setEquipos] = useState([]);
   const [cerrado, setCerrado] = useState(false);
+  const [bonusConfig, setBonusConfig] = useState(null);
   const [miPronostico, setMiPronostico] = useState(null);
   const [todosPronosticos, setTodosPronosticos] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +103,7 @@ export default function ClasificacionCopaGinoPerez() {
       setPartidos(partidosRes.data);
       setEquipos(equiposRes.data);
       setCerrado(configRes.data.cerrado);
+      setBonusConfig(configRes.data);
 
       const token = localStorage.getItem('token');
       if (configRes.data.cerrado || esAdmin) {
@@ -130,6 +132,19 @@ export default function ClasificacionCopaGinoPerez() {
   };
 
   const nombrePartido = (p) => `${p.equipo_local_nombre || p.descripcion_local} vs ${p.equipo_visita_nombre || p.descripcion_visita}`;
+
+  // El partido con bonus es una configuración global fijada por el admin
+  // (no una elección de cada usuario), así que aplica igual a todas las filas.
+  const infoBonus = (partidoId) => {
+    if (!bonusConfig) return { esBonus: false };
+    if (bonusConfig.bonus_grupo1_partido === partidoId || bonusConfig.bonus_grupo2_partido === partidoId) {
+      return { esBonus: true, multiplicador: 2 };
+    }
+    if (bonusConfig.bonus_final_partido === partidoId) {
+      return { esBonus: true, multiplicador: bonusConfig.bonus_final_multiplicador || 2 };
+    }
+    return { esBonus: false };
+  };
   const partidosPorId = useMemo(() => {
     const m = {};
     partidos.forEach(p => { m[p.id] = p; });
@@ -194,9 +209,7 @@ export default function ClasificacionCopaGinoPerez() {
               <tbody>
                 {[...miPronostico.pronosticos].sort((a, b) => a.partido_id - b.partido_id).map((p, idx, arr) => {
                   const partido = partidosPorId[p.partido_id];
-                  const extra = miPronostico.extra;
-                  const esBonusGrupo = extra && ((extra.bonus_grupo1_partido === p.partido_id) || (extra.bonus_grupo2_partido === p.partido_id));
-                  const esBonusFinal = extra && extra.bonus_final_partido === p.partido_id;
+                  const bonus = infoBonus(p.partido_id);
                   const etiquetaFinal = etiquetasFinalPorPronostico[p.partido_id];
                   const seccion = seccionDePartido(p.partido_id);
                   const esInicioSeccion = idx === 0 || seccionDePartido(arr[idx - 1].partido_id) !== seccion;
@@ -215,8 +228,7 @@ export default function ClasificacionCopaGinoPerez() {
                           {p.goles_local} - {p.goles_visita}
                         </td>
                         <td style={{ width: 50 }}>
-                          {esBonusGrupo && <span className="badge bg-warning text-dark">x2</span>}
-                          {esBonusFinal && <span className="badge bg-warning text-dark">x{extra.bonus_final_multiplicador}</span>}
+                          {bonus.esBonus && <span className="badge bg-warning text-dark">x{bonus.multiplicador}</span>}
                         </td>
                       </tr>
                     </Fragment>
@@ -269,13 +281,11 @@ export default function ClasificacionCopaGinoPerez() {
                     </td>
                     {[1,2,3,4,5,6,7,8,9].map(id => {
                       const pred = u.pronosticos[id];
-                      const esBonusGrupo = u.extra && ((u.extra.bonus_grupo1_partido === id) || (u.extra.bonus_grupo2_partido === id));
-                      const esBonusFinal = u.extra && u.extra.bonus_final_partido === id;
+                      const bonus = infoBonus(id);
                       return (
-                        <td key={id} className={esBonusGrupo || esBonusFinal ? 'table-warning fw-bold' : ''}>
+                        <td key={id} className={bonus.esBonus ? 'table-warning fw-bold' : ''}>
                           {pred ? `${pred.goles_local}-${pred.goles_visita}` : '—'}
-                          {esBonusGrupo && ' (x2)'}
-                          {esBonusFinal && ` (x${u.extra.bonus_final_multiplicador})`}
+                          {bonus.esBonus && ` (x${bonus.multiplicador})`}
                         </td>
                       );
                     })}

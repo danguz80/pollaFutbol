@@ -77,12 +77,50 @@ async function pronosticosCerrados() {
 // GET /api/copa-gino-perez/config
 router.get('/config', async (req, res) => {
   try {
-    const result = await pool.query(`SELECT cerrado, fecha_cierre FROM copa_gino_perez_config WHERE id = 1`);
-    const config = result.rows[0] || { cerrado: false, fecha_cierre: null };
-    res.json({ cerrado: config.cerrado === true, fecha_cierre: config.fecha_cierre });
+    const result = await pool.query(`
+      SELECT cerrado, fecha_cierre, bonus_grupo1_partido, bonus_grupo2_partido,
+             bonus_final_partido, bonus_final_multiplicador
+      FROM copa_gino_perez_config WHERE id = 1
+    `);
+    const config = result.rows[0] || {};
+    res.json({
+      cerrado: config.cerrado === true,
+      fecha_cierre: config.fecha_cierre || null,
+      bonus_grupo1_partido: config.bonus_grupo1_partido || null,
+      bonus_grupo2_partido: config.bonus_grupo2_partido || null,
+      bonus_final_partido: config.bonus_final_partido || null,
+      bonus_final_multiplicador: config.bonus_final_multiplicador || 2
+    });
   } catch (error) {
     console.error('Error obteniendo config de Copa Gino Pérez:', error);
     res.status(500).json({ error: 'Error obteniendo configuración' });
+  }
+});
+
+// PATCH /api/copa-gino-perez/admin/bonus (Admin) - fija globalmente cuál es
+// el partido con bonus de cada grupo y de la fase final (los jugadores solo
+// pueden VER cuál es, no elegirlo).
+router.patch('/admin/bonus', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador } = req.body;
+    if (![1,2,3].includes(bonus_grupo1_partido) || ![4,5,6].includes(bonus_grupo2_partido)
+      || ![7,8,9].includes(bonus_final_partido) || ![2,3].includes(bonus_final_multiplicador)) {
+      return res.status(400).json({ error: 'Selección de bonus inválida' });
+    }
+    await pool.query(`
+      UPDATE copa_gino_perez_config SET
+        bonus_grupo1_partido = $1,
+        bonus_grupo2_partido = $2,
+        bonus_final_partido = $3,
+        bonus_final_multiplicador = $4,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `, [bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador]);
+    await recalcularTodo();
+    res.json({ mensaje: '✅ Partidos con bonus actualizados y puntajes recalculados' });
+  } catch (error) {
+    console.error('Error actualizando bonus de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error actualizando los partidos con bonus' });
   }
 });
 
@@ -144,18 +182,13 @@ router.get('/pronosticos-todos', autenticacionOpcional, async (req, res) => {
       ORDER BY nombre ASC
     `);
     const pronosticosRes = await pool.query(`SELECT usuario_id, partido_id, goles_local, goles_visita FROM copa_gino_perez_pronosticos`);
-    const extrasRes = await pool.query(`
-      SELECT usuario_id, bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador
-      FROM copa_gino_perez_predicciones_extra
-    `);
 
     const usuarios = usuariosRes.rows.map(u => {
       const pronosticos = {};
       pronosticosRes.rows
         .filter(p => p.usuario_id === u.id)
         .forEach(p => { pronosticos[p.partido_id] = { goles_local: p.goles_local, goles_visita: p.goles_visita }; });
-      const extra = extrasRes.rows.find(e => e.usuario_id === u.id) || null;
-      return { id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil, pronosticos, extra };
+      return { id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil, pronosticos };
     });
 
     res.json({ cerrado, usuarios });
@@ -175,8 +208,7 @@ router.get('/pronostico', verifyToken, async (req, res) => {
       [usuarioId]
     );
     const extra = await pool.query(
-      `SELECT bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador,
-              puntos_posiciones_grupos, puntos_posiciones_finales, grupos_guardados, final_guardado, enviado
+      `SELECT puntos_posiciones_grupos, puntos_posiciones_finales, grupos_guardados, final_guardado, enviado
        FROM copa_gino_perez_predicciones_extra WHERE usuario_id = $1`,
       [usuarioId]
     );
@@ -203,7 +235,7 @@ router.post('/pronostico/grupos', verifyToken, verificarAccesoJugador, async (re
     }
 
     const usuarioId = req.usuario.id;
-    const { predicciones, bonus_grupo1_partido, bonus_grupo2_partido } = req.body;
+    const { predicciones } = req.body;
 
     if (!Array.isArray(predicciones) || predicciones.length !== 6) {
       return res.status(400).json({ error: 'Se requieren pronósticos para los 6 partidos de fase de grupos' });
@@ -213,9 +245,6 @@ router.post('/pronostico/grupos', verifyToken, verificarAccesoJugador, async (re
         || p.goles_local < 0 || p.goles_visita < 0) {
         return res.status(400).json({ error: 'Pronóstico inválido' });
       }
-    }
-    if (![1,2,3].includes(bonus_grupo1_partido) || ![4,5,6].includes(bonus_grupo2_partido)) {
-      return res.status(400).json({ error: 'Selección de bonus inválida' });
     }
 
     for (const p of predicciones) {
@@ -228,15 +257,12 @@ router.post('/pronostico/grupos', verifyToken, verificarAccesoJugador, async (re
     }
 
     await pool.query(`
-      INSERT INTO copa_gino_perez_predicciones_extra
-        (usuario_id, bonus_grupo1_partido, bonus_grupo2_partido, grupos_guardados, updated_at)
-      VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP)
+      INSERT INTO copa_gino_perez_predicciones_extra (usuario_id, grupos_guardados, updated_at)
+      VALUES ($1, true, CURRENT_TIMESTAMP)
       ON CONFLICT (usuario_id) DO UPDATE SET
-        bonus_grupo1_partido = $2,
-        bonus_grupo2_partido = $3,
         grupos_guardados = true,
         updated_at = CURRENT_TIMESTAMP
-    `, [usuarioId, bonus_grupo1_partido, bonus_grupo2_partido]);
+    `, [usuarioId]);
 
     res.json({ mensaje: '✅ Pronóstico de fase de grupos guardado exitosamente' });
   } catch (error) {
@@ -256,7 +282,7 @@ router.post('/pronostico/final', verifyToken, verificarAccesoJugador, async (req
     }
 
     const usuarioId = req.usuario.id;
-    const { predicciones, bonus_final_partido, bonus_final_multiplicador } = req.body;
+    const { predicciones } = req.body;
 
     const extraActual = await pool.query(
       `SELECT grupos_guardados FROM copa_gino_perez_predicciones_extra WHERE usuario_id = $1`,
@@ -275,9 +301,6 @@ router.post('/pronostico/final', verifyToken, verificarAccesoJugador, async (req
         return res.status(400).json({ error: 'Pronóstico inválido' });
       }
     }
-    if (![7,8,9].includes(bonus_final_partido) || ![2,3].includes(bonus_final_multiplicador)) {
-      return res.status(400).json({ error: 'Selección de bonus inválida' });
-    }
 
     for (const p of predicciones) {
       await pool.query(`
@@ -290,13 +313,11 @@ router.post('/pronostico/final', verifyToken, verificarAccesoJugador, async (req
 
     await pool.query(`
       UPDATE copa_gino_perez_predicciones_extra SET
-        bonus_final_partido = $2,
-        bonus_final_multiplicador = $3,
         final_guardado = true,
         enviado = true,
         updated_at = CURRENT_TIMESTAMP
       WHERE usuario_id = $1
-    `, [usuarioId, bonus_final_partido, bonus_final_multiplicador]);
+    `, [usuarioId]);
 
     res.json({ mensaje: '✅ Pronóstico de fase final guardado exitosamente' });
   } catch (error) {

@@ -28,6 +28,11 @@ export default function AdminCopaGinoPerezResultados() {
   const [cambiandoCierre, setCambiandoCierre] = useState(false);
   const [fechaCierre, setFechaCierre] = useState('');
   const [guardandoFecha, setGuardandoFecha] = useState(false);
+  const [bonusGrupo1, setBonusGrupo1] = useState(1);
+  const [bonusGrupo2, setBonusGrupo2] = useState(4);
+  const [bonusFinal, setBonusFinal] = useState(7);
+  const [bonusFinalMultiplicador, setBonusFinalMultiplicador] = useState(2);
+  const [guardandoBonus, setGuardandoBonus] = useState(false);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(null);
@@ -49,6 +54,10 @@ export default function AdminCopaGinoPerezResultados() {
       setClasificacion(clasificacionRes.data);
       setCerrado(configRes.data.cerrado);
       setFechaCierre(fechaATextoLocal(configRes.data.fecha_cierre));
+      if (configRes.data.bonus_grupo1_partido) setBonusGrupo1(configRes.data.bonus_grupo1_partido);
+      if (configRes.data.bonus_grupo2_partido) setBonusGrupo2(configRes.data.bonus_grupo2_partido);
+      if (configRes.data.bonus_final_partido) setBonusFinal(configRes.data.bonus_final_partido);
+      if (configRes.data.bonus_final_multiplicador) setBonusFinalMultiplicador(configRes.data.bonus_final_multiplicador);
       const nuevoForm = {};
       partidosRes.data.forEach(p => {
         nuevoForm[p.id] = {
@@ -116,6 +125,30 @@ export default function AdminCopaGinoPerezResultados() {
     } finally {
       setGuardandoFecha(false);
     }
+  };
+
+  const guardarBonus = async () => {
+    try {
+      setGuardandoBonus(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.patch(`${API_URL}/api/copa-gino-perez/admin/bonus`, {
+        bonus_grupo1_partido: Number(bonusGrupo1),
+        bonus_grupo2_partido: Number(bonusGrupo2),
+        bonus_final_partido: Number(bonusFinal),
+        bonus_final_multiplicador: Number(bonusFinalMultiplicador)
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      setMensaje(res.data.mensaje);
+    } catch (err) {
+      console.error('Error guardando bonus:', err);
+      alert('❌ ' + (err.response?.data?.error || 'Error guardando los partidos con bonus'));
+    } finally {
+      setGuardandoBonus(false);
+    }
+  };
+
+  const nombrePartidoGrupo = (partidoId) => {
+    const p = partidos.find(x => x.id === partidoId);
+    return p ? `${p.equipo_local_nombre || p.descripcion_local} vs ${p.equipo_visita_nombre || p.descripcion_visita}` : `Partido ${partidoId}`;
   };
 
   const actualizarCampo = (partidoId, campo, valor) => {
@@ -204,6 +237,47 @@ export default function AdminCopaGinoPerezResultados() {
           <p className="text-muted small mb-0">
             Al llegar esa fecha/hora, los pronósticos se cierran solos (no hace falta que entres a cerrarlos a mano).
           </p>
+        </div>
+      </div>
+
+      <div className="card mb-4">
+        <div className="card-header bg-dark text-white text-center">⭐ Partidos con bonus</div>
+        <div className="card-body">
+          <p className="text-muted small text-center">
+            Esto lo define solo el admin para todo el torneo: los jugadores ven cuál es el partido con
+            bonus en su pronóstico, pero no lo pueden elegir ni cambiar.
+          </p>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label fw-bold">Bonus x2 — Grupo 1</label>
+              <select className="form-select" value={bonusGrupo1} onChange={e => setBonusGrupo1(e.target.value)}>
+                {[1, 2, 3].map(id => <option key={id} value={id}>{nombrePartidoGrupo(id)}</option>)}
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label fw-bold">Bonus x2 — Grupo 2</label>
+              <select className="form-select" value={bonusGrupo2} onChange={e => setBonusGrupo2(e.target.value)}>
+                {[4, 5, 6].map(id => <option key={id} value={id}>{nombrePartidoGrupo(id)}</option>)}
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label fw-bold">Bonus — Fase Final</label>
+              <select className="form-select mb-2" value={bonusFinal} onChange={e => setBonusFinal(e.target.value)}>
+                <option value={7}>La Gran Final</option>
+                <option value={8}>3er y 4to Puesto</option>
+                <option value={9}>Partido de la Vergüenza</option>
+              </select>
+              <select className="form-select" value={bonusFinalMultiplicador} onChange={e => setBonusFinalMultiplicador(e.target.value)}>
+                <option value={2}>x2</option>
+                <option value={3}>x3</option>
+              </select>
+            </div>
+          </div>
+          <div className="text-center mt-3">
+            <button className="btn btn-primary" disabled={guardandoBonus} onClick={guardarBonus}>
+              {guardandoBonus ? 'Guardando...' : 'Guardar partidos con bonus'}
+            </button>
+          </div>
         </div>
       </div>
 
