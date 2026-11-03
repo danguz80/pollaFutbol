@@ -177,12 +177,16 @@ export async function recalcularTodo() {
   let partidos = partidosRes.rows;
   const partidoPorId = id => partidos.find(p => p.id === id);
 
+  // El partido con bonus es una configuración GLOBAL que fija el admin (no
+  // una elección de cada usuario): se aplica por igual a todos.
+  const configRes = await pool.query(`
+    SELECT bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador
+    FROM copa_gino_perez_config WHERE id = 1
+  `);
+  const configBonus = configRes.rows[0] || {};
+
   // 1) Puntaje de los 6 partidos de fase de grupos (a ciegas por partido,
   // sin importar qué equipos hayan terminado jugándolo en la realidad).
-  const extrasRes = await pool.query(`SELECT * FROM copa_gino_perez_predicciones_extra`);
-  const extrasPorUsuario = {};
-  extrasRes.rows.forEach(e => { extrasPorUsuario[e.usuario_id] = e; });
-
   const pronosticosRes = await pool.query(`SELECT * FROM copa_gino_perez_pronosticos`);
   const pronosticos = pronosticosRes.rows;
 
@@ -190,10 +194,9 @@ export async function recalcularTodo() {
     const real = partidoPorId(partidoNum);
     const predsDeEstePartido = pronosticos.filter(p => p.partido_id === partidoNum);
     for (const pred of predsDeEstePartido) {
-      const extra = extrasPorUsuario[pred.usuario_id];
       let multiplicador = 1;
-      if (extra && ((partidoNum <= 3 && extra.bonus_grupo1_partido === partidoNum) ||
-                     (partidoNum >= 4 && extra.bonus_grupo2_partido === partidoNum))) {
+      if ((partidoNum <= 3 && configBonus.bonus_grupo1_partido === partidoNum) ||
+          (partidoNum >= 4 && configBonus.bonus_grupo2_partido === partidoNum)) {
         multiplicador = 2;
       }
       const base = real.jugado
@@ -274,15 +277,14 @@ export async function recalcularTodo() {
     const real = partidoPorId(partidoNum);
     const predsDeEstePartido = pronosticos.filter(p => p.partido_id === partidoNum);
     for (const pred of predsDeEstePartido) {
-      const extra = extrasPorUsuario[pred.usuario_id];
       const virtual = virtualesPorUsuario[pred.usuario_id];
       const virtualLocalId = mapaFinal[partidoNum].virtualLocal(virtual).equipo_id;
       const virtualVisitaId = mapaFinal[partidoNum].virtualVisita(virtual).equipo_id;
       const coincide = virtualLocalId === real.equipo_local_id && virtualVisitaId === real.equipo_visita_id;
 
       let multiplicador = 1;
-      if (extra && extra.bonus_final_partido === partidoNum) {
-        multiplicador = extra.bonus_final_multiplicador || 2;
+      if (configBonus.bonus_final_partido === partidoNum) {
+        multiplicador = configBonus.bonus_final_multiplicador || 2;
       }
 
       const base = (coincide && real.jugado)

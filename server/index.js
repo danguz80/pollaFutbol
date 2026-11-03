@@ -582,13 +582,21 @@ app.get("/", (req, res) => {
         id SERIAL PRIMARY KEY,
         cerrado BOOLEAN NOT NULL DEFAULT false,
         fecha_cierre TIMESTAMP,
+        bonus_grupo1_partido INTEGER,
+        bonus_grupo2_partido INTEGER,
+        bonus_final_partido INTEGER,
+        bonus_final_multiplicador INTEGER DEFAULT 2,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await pool.query(`ALTER TABLE copa_gino_perez_config ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE copa_gino_perez_config ADD COLUMN IF NOT EXISTS bonus_grupo1_partido INTEGER`).catch(() => {});
+    await pool.query(`ALTER TABLE copa_gino_perez_config ADD COLUMN IF NOT EXISTS bonus_grupo2_partido INTEGER`).catch(() => {});
+    await pool.query(`ALTER TABLE copa_gino_perez_config ADD COLUMN IF NOT EXISTS bonus_final_partido INTEGER`).catch(() => {});
+    await pool.query(`ALTER TABLE copa_gino_perez_config ADD COLUMN IF NOT EXISTS bonus_final_multiplicador INTEGER DEFAULT 2`).catch(() => {});
     await pool.query(`
-      INSERT INTO copa_gino_perez_config (id, cerrado)
-      VALUES (1, false)
+      INSERT INTO copa_gino_perez_config (id, cerrado, bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador)
+      VALUES (1, false, 1, 4, 7, 2)
       ON CONFLICT (id) DO NOTHING
     `);
 

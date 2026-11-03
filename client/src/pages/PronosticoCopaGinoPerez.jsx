@@ -56,10 +56,7 @@ export default function PronosticoCopaGinoPerez() {
     4: { ...VACIO }, 5: { ...VACIO }, 6: { ...VACIO },
     7: { ...VACIO }, 8: { ...VACIO }, 9: { ...VACIO }
   });
-  const [bonusGrupo1, setBonusGrupo1] = useState(1);
-  const [bonusGrupo2, setBonusGrupo2] = useState(4);
-  const [bonusFinal, setBonusFinal] = useState(7);
-  const [bonusFinalMultiplicador, setBonusFinalMultiplicador] = useState(2);
+  const [bonusConfig, setBonusConfig] = useState(null);
   const [editable, setEditable] = useState(true);
   const [gruposGuardados, setGruposGuardados] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -88,6 +85,13 @@ export default function PronosticoCopaGinoPerez() {
     }
 
     try {
+      const configRes = await axios.get(`${API_URL}/api/copa-gino-perez/config`);
+      setBonusConfig(configRes.data);
+    } catch (err) {
+      console.error('Error cargando configuración de bonus:', err);
+    }
+
+    try {
       const token = localStorage.getItem('token');
       const pronosticoRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronostico`, { headers: { Authorization: `Bearer ${token}` } });
       setEditable(pronosticoRes.data.editable);
@@ -102,12 +106,7 @@ export default function PronosticoCopaGinoPerez() {
         });
       }
       if (pronosticoRes.data.extra) {
-        const e = pronosticoRes.data.extra;
-        if (e.bonus_grupo1_partido) setBonusGrupo1(e.bonus_grupo1_partido);
-        if (e.bonus_grupo2_partido) setBonusGrupo2(e.bonus_grupo2_partido);
-        if (e.bonus_final_partido) setBonusFinal(e.bonus_final_partido);
-        if (e.bonus_final_multiplicador) setBonusFinalMultiplicador(e.bonus_final_multiplicador);
-        setGruposGuardados(!!e.grupos_guardados);
+        setGruposGuardados(!!pronosticoRes.data.extra.grupos_guardados);
       }
     } catch (err) {
       console.error('Error cargando pronóstico:', err);
@@ -230,9 +229,7 @@ export default function PronosticoCopaGinoPerez() {
           partido_id,
           goles_local: Number(predicciones[partido_id].goles_local),
           goles_visita: Number(predicciones[partido_id].goles_visita)
-        })),
-        bonus_grupo1_partido: Number(bonusGrupo1),
-        bonus_grupo2_partido: Number(bonusGrupo2)
+        }))
       };
       await axios.post(`${API_URL}/api/copa-gino-perez/pronostico/grupos`, payload, { headers: { Authorization: `Bearer ${token}` } });
       setGruposGuardados(true);
@@ -257,9 +254,7 @@ export default function PronosticoCopaGinoPerez() {
           partido_id,
           goles_local: Number(predicciones[partido_id].goles_local),
           goles_visita: Number(predicciones[partido_id].goles_visita)
-        })),
-        bonus_final_partido: Number(bonusFinal),
-        bonus_final_multiplicador: Number(bonusFinalMultiplicador)
+        }))
       };
       await axios.post(`${API_URL}/api/copa-gino-perez/pronostico/final`, payload, { headers: { Authorization: `Bearer ${token}` } });
       setMensaje('✅ Pronóstico de fase final guardado exitosamente');
@@ -273,16 +268,10 @@ export default function PronosticoCopaGinoPerez() {
 
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
-  const opcionesBonusGrupo = (partidosFijosGrupo) => partidosFijosGrupo.map(p => (
-    <option key={p.id} value={p.id}>{p.nombreLocal} vs {p.nombreVisita}</option>
-  ));
-
-  const nombreFinal = (standings, idx) => standings[idx]?.nombre;
-  const opcionesBonusFinal = [
-    { id: 7, texto: `Final: ${nombreFinal(standingsVirtualG1, 0) && nombreFinal(standingsVirtualG2, 0) ? `${nombreFinal(standingsVirtualG1, 0)} vs ${nombreFinal(standingsVirtualG2, 0)}` : '(completa los grupos)'}` },
-    { id: 8, texto: `3er/4to puesto: ${nombreFinal(standingsVirtualG1, 1) && nombreFinal(standingsVirtualG2, 1) ? `${nombreFinal(standingsVirtualG1, 1)} vs ${nombreFinal(standingsVirtualG2, 1)}` : '(completa los grupos)'}` },
-    { id: 9, texto: `Vergüenza: ${nombreFinal(standingsVirtualG1, 2) && nombreFinal(standingsVirtualG2, 2) ? `${nombreFinal(standingsVirtualG1, 2)} vs ${nombreFinal(standingsVirtualG2, 2)}` : '(completa los grupos)'}` }
-  ];
+  const nombrePartidoFijo = (partidosFijosGrupo, partidoId) => {
+    const p = partidosFijosGrupo.find(x => x.id === partidoId);
+    return p ? `${p.nombreLocal} vs ${p.nombreVisita}` : null;
+  };
 
   return (
     <div className="container mt-4 mb-5 cgp-pronostico">
@@ -373,20 +362,24 @@ export default function PronosticoCopaGinoPerez() {
           <div className="cgp-card cgp-grupo1">
             <div className="cgp-card-header">Grupo 1</div>
             {partidosFijosG1.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita, editable))}
-            <label className="cgp-bonus-label">Partido con bonus x2 de este grupo:</label>
-            <select className="form-select" value={bonusGrupo1} disabled={!editable} onChange={e => setBonusGrupo1(e.target.value)}>
-              {opcionesBonusGrupo(partidosFijosG1)}
-            </select>
+            <label className="cgp-bonus-label">Partido con bonus x2 de este grupo (lo define el admin):</label>
+            <div className="alert alert-light border text-center mb-0 py-2">
+              {bonusConfig?.bonus_grupo1_partido
+                ? (nombrePartidoFijo(partidosFijosG1, bonusConfig.bonus_grupo1_partido) || `Partido ${bonusConfig.bonus_grupo1_partido}`)
+                : 'Todavía no definido'}
+            </div>
           </div>
         </div>
         <div className="col-md-6">
           <div className="cgp-card cgp-grupo2">
             <div className="cgp-card-header">Grupo 2</div>
             {partidosFijosG2.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita, editable))}
-            <label className="cgp-bonus-label">Partido con bonus x2 de este grupo:</label>
-            <select className="form-select" value={bonusGrupo2} disabled={!editable} onChange={e => setBonusGrupo2(e.target.value)}>
-              {opcionesBonusGrupo(partidosFijosG2)}
-            </select>
+            <label className="cgp-bonus-label">Partido con bonus x2 de este grupo (lo define el admin):</label>
+            <div className="alert alert-light border text-center mb-0 py-2">
+              {bonusConfig?.bonus_grupo2_partido
+                ? (nombrePartidoFijo(partidosFijosG2, bonusConfig.bonus_grupo2_partido) || `Partido ${bonusConfig.bonus_grupo2_partido}`)
+                : 'Todavía no definido'}
+            </div>
           </div>
         </div>
       </div>
@@ -428,15 +421,17 @@ export default function PronosticoCopaGinoPerez() {
 
             <div className="row mt-2">
               <div className="col-md-8 offset-md-2">
-                <label className="cgp-bonus-label">Partido de la fase final con bonus:</label>
-                <select className="form-select mb-2" value={bonusFinal} disabled={!finalHabilitada} onChange={e => setBonusFinal(e.target.value)}>
-                  {opcionesBonusFinal.map(o => <option key={o.id} value={o.id}>{o.texto}</option>)}
-                </select>
-                <label className="cgp-bonus-label">Multiplicador del bonus de la final:</label>
-                <select className="form-select" value={bonusFinalMultiplicador} disabled={!finalHabilitada} onChange={e => setBonusFinalMultiplicador(e.target.value)}>
-                  <option value={2}>x2</option>
-                  <option value={3}>x3</option>
-                </select>
+                <label className="cgp-bonus-label">Partido de la fase final con bonus (lo define el admin):</label>
+                <div className="alert alert-light border text-center mb-0 py-2">
+                  {bonusConfig?.bonus_final_partido ? (
+                    <>
+                      {bonusConfig.bonus_final_partido === 7 && 'La Gran Final'}
+                      {bonusConfig.bonus_final_partido === 8 && '3er y 4to Puesto'}
+                      {bonusConfig.bonus_final_partido === 9 && 'Partido de la Vergüenza'}
+                      {' '}— bonus x{bonusConfig.bonus_final_multiplicador || 2}
+                    </>
+                  ) : 'Todavía no definido'}
+                </div>
               </div>
             </div>
 
