@@ -58,8 +58,6 @@ export default function GanadoresJornadaMundial() {
   const [jugadores, setJugadores] = useState([]);
   const [fotoPerfilMap, setFotoPerfilMap] = useState({});
   const [loading, setLoading] = useState(true);
-  const [ganadoresAcumulado, setGanadoresAcumulado] = useState([]);
-  const [jornada7Cerrada, setJornada7Cerrada] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -70,19 +68,6 @@ export default function GanadoresJornadaMundial() {
         // Obtener jornadas
         const jornadasRes = await fetch(`${API_BASE_URL}/api/mundial/jornadas`, { headers });
         const jornadasData = await jornadasRes.json();
-
-        // Verificar si la jornada 7 está cerrada
-        const jornada7 = jornadasData.find(j => j.numero === 7);
-        if (jornada7 && jornada7.cerrada) {
-          setJornada7Cerrada(true);
-        }
-
-        // Obtener ganadores del acumulado para excluirlos de la tabla de vergüenza
-        const acumuladoRes = await fetch(`${API_BASE_URL}/api/mundial-ganadores-jornada/acumulado`, { headers });
-        const acumuladoData = await acumuladoRes.json();
-        if (acumuladoData.ganadores) {
-          setGanadoresAcumulado(acumuladoData.ganadores.map(g => g.nombre));
-        }
 
         // Obtener usuarios
         const usuariosRes = await fetch(`${API_BASE_URL}/api/usuarios`, { headers });
@@ -296,66 +281,6 @@ export default function GanadoresJornadaMundial() {
           </tbody>
         </table>
       </div>
-
-      {/* Tabla de la Deshonra y la Vergüenza - Solo se muestra después de cerrada la jornada 7 */}
-      {jornada7Cerrada && (
-        <>
-          <h4 className="mt-5 text-center" style={{...headerStyle, background: '#444', color: '#aaa'}}>
-            Tabla de la Deshonra y la Vergüenza
-          </h4>
-          <div style={{ maxWidth: 470, margin: "0 auto", marginBottom: 40 }}>
-            <table className="table table-bordered text-center" style={{ fontSize: '1.1rem' }}>
-              <thead>
-                <tr style={{ background: "#666", color: "#ddd", fontWeight: "bold", fontSize: isMobile ? '1.13em' : '1.25em' }}>
-                  <th>Participante</th>
-                  <th>Jornadas Ganadas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranking
-                  .filter(jugador => 
-                    jugador.total === 0 && 
-                    !ganadoresAcumulado.includes(jugador.nombre)
-                  )
-                  .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                  .map((jugador) => (
-                    <tr key={jugador.nombre} style={{ background: '#f8f8f8' }}>
-                      <td>
-                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {fotoPerfilMap[jugador.nombre] && (
-                            <img
-                              src={fotoPerfilMap[jugador.nombre].startsWith('/') ? fotoPerfilMap[jugador.nombre] : `/perfil/${fotoPerfilMap[jugador.nombre]}`}
-                              alt={`Foto de ${jugador.nombre}`}
-                              style={{
-                                width: isMobile ? '44px' : '60px',
-                                height: isMobile ? '44px' : '60px',
-                                borderRadius: '50%',
-                                objectFit: 'cover',
-                                marginRight: '8px',
-                                border: '2px solid #ddd',
-                                objectPosition: 'center 30%',
-                                filter: 'grayscale(100%)'
-                              }}
-                            />
-                          )}
-                          {jugador.nombre}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 'bold', fontSize: isMobile ? '1.1em' : '1.2em', color: '#999' }}>
-                        0
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-            {ranking.filter(j => j.total === 0 && !ganadoresAcumulado.includes(j.nombre)).length === 0 && (
-              <p className="text-center text-muted" style={{ fontStyle: 'italic', marginTop: 20 }}>
-                ¡Todos los participantes han ganado al menos una jornada! 🎉
-              </p>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

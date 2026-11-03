@@ -35,6 +35,7 @@ import SimuladorMundial from "./pages/SimuladorMundial";
 import ResumenJornadaMundial from "./pages/ResumenJornadaMundial";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 import RankingUnificado from "./pages/RankingUnificado";
+import RankingVergonzoso from "./pages/RankingVergonzoso";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
 import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
 import AdminTorneoResultados from "./pages/Admin/AdminTorneoResultados";
@@ -223,6 +224,7 @@ export default function AppRouter() {
         <Route path="/mundial/resumen" element={<ResumenJornadaMundial />} />
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/ranking-unificado" element={<RankingUnificado />} />
+        <Route path="/ranking-vergonzoso" element={<RankingVergonzoso />} />
         <Route path="/notificaciones" element={<TodasNotificaciones />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />

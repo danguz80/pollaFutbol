@@ -434,6 +434,12 @@ export default function Home() {
                 >
                     🏅 Ranking Unificado
                 </button>
+                <button
+                    className="btn btn-secondary px-4 py-2"
+                    onClick={() => navigate("/ranking-vergonzoso")}
+                >
+                    🙈 Ranking de la Vergüenza
+                </button>
             </div>
 
             {/* Hero Section con partidos destacados - DEBAJO DE BOTONES */}
