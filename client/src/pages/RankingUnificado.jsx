@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -21,6 +21,7 @@ export default function RankingUnificado() {
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [modo, setModo] = useState('total'); // 'total' | 'promedio'
 
   useEffect(() => {
     cargarRanking();
@@ -40,6 +41,16 @@ export default function RankingUnificado() {
     }
   };
 
+  const rankingOrdenado = useMemo(() => {
+    const copia = [...ranking];
+    if (modo === 'promedio') {
+      copia.sort((a, b) => b.promedio - a.promedio || b.puntos_totales - a.puntos_totales || a.nombre.localeCompare(b.nombre, 'es'));
+    } else {
+      copia.sort((a, b) => b.puntos_totales - a.puntos_totales || a.nombre.localeCompare(b.nombre, 'es'));
+    }
+    return copia;
+  }, [ranking, modo]);
+
   return (
     <div className="container mt-4 mb-5">
       <div className="d-flex justify-content-between align-items-center mb-3">
@@ -49,9 +60,35 @@ export default function RankingUnificado() {
       </div>
 
       <h1 className="text-center mb-1">🏆 Ranking Unificado</h1>
-      <p className="text-center text-muted mb-4">
+      <p className="text-center text-muted mb-3">
         Suma de puntos de Torneo Nacional, Copa Libertadores, Copa Sudamericana y Mundial de Clubes
       </p>
+
+      <div className="d-flex justify-content-center mb-4">
+        <div className="btn-group" role="group" aria-label="Modo de ranking">
+          <button
+            type="button"
+            className={`btn ${modo === 'total' ? 'btn-primary' : 'btn-outline-primary'}`}
+            onClick={() => setModo('total')}
+          >
+            Por Puntaje Total
+          </button>
+          <button
+            type="button"
+            className={`btn ${modo === 'promedio' ? 'btn-primary' : 'btn-outline-primary'}`}
+            onClick={() => setModo('promedio')}
+          >
+            Por Promedio
+          </button>
+        </div>
+      </div>
+
+      {modo === 'promedio' && (
+        <p className="text-center text-muted small mb-4">
+          Promedio = puntos totales ÷ cantidad de competencias en las que el jugador participa
+          (quien juega una sola competencia divide entre 1, quien juega dos divide entre 2, y así).
+        </p>
+      )}
 
       {loading ? (
         <div className="text-center my-5">
@@ -72,11 +109,13 @@ export default function RankingUnificado() {
                 <th className="text-center">🔴 Libertadores</th>
                 <th className="text-center">🟢 Sudamericana</th>
                 <th className="text-center">🌍 Mundial</th>
-                <th className="text-center">Total</th>
+                <th className="text-center">Competencias</th>
+                <th className={`text-center ${modo === 'total' ? 'bg-primary' : ''}`}>Total</th>
+                <th className={`text-center ${modo === 'promedio' ? 'bg-primary' : ''}`}>Promedio</th>
               </tr>
             </thead>
             <tbody>
-              {ranking.map((jugador, idx) => {
+              {rankingOrdenado.map((jugador, idx) => {
                 const posicion = idx + 1;
                 const foto = fotoUrl(jugador.foto_perfil);
                 return (
@@ -106,8 +145,16 @@ export default function RankingUnificado() {
                     <td className="text-center">{jugador.puntos_libertadores}</td>
                     <td className="text-center">{jugador.puntos_sudamericana}</td>
                     <td className="text-center">{jugador.puntos_mundial}</td>
+                    <td className="text-center text-muted">{jugador.competencias_jugadas}</td>
                     <td className="text-center">
-                      <span className="badge bg-primary fs-6">{jugador.puntos_totales} pts</span>
+                      <span className={`badge fs-6 ${modo === 'total' ? 'bg-primary' : 'bg-secondary'}`}>
+                        {jugador.puntos_totales} pts
+                      </span>
+                    </td>
+                    <td className="text-center">
+                      <span className={`badge fs-6 ${modo === 'promedio' ? 'bg-primary' : 'bg-secondary'}`}>
+                        {jugador.promedio.toFixed(2)}
+                      </span>
                     </td>
                   </tr>
                 );

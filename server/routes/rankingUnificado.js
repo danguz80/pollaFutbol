@@ -17,6 +17,10 @@ router.get('/actual', async (req, res) => {
         u.id,
         u.nombre,
         u.foto_perfil,
+        u.activo_torneo_nacional,
+        u.activo_libertadores,
+        u.activo_sudamericana,
+        u.activo_mundial,
         COALESCE(nacional.total, 0) as puntos_nacional,
         COALESCE(libertadores.total, 0) as puntos_libertadores,
         COALESCE(sudamericana.total, 0) as puntos_sudamericana,
@@ -81,14 +85,33 @@ router.get('/actual', async (req, res) => {
       ORDER BY puntos_totales DESC, u.nombre ASC
     `);
 
-    const ranking = result.rows.map(row => ({
-      ...row,
-      puntos_nacional: parseInt(row.puntos_nacional) || 0,
-      puntos_libertadores: parseInt(row.puntos_libertadores) || 0,
-      puntos_sudamericana: parseInt(row.puntos_sudamericana) || 0,
-      puntos_mundial: parseInt(row.puntos_mundial) || 0,
-      puntos_totales: parseInt(row.puntos_totales) || 0
-    }));
+    const ranking = result.rows.map(row => {
+      const puntosTotales = parseInt(row.puntos_totales) || 0;
+      // "Competencias jugadas" = en las que el usuario está activo, no solo las
+      // que ya tienen puntos > 0 (si está activo pero aún va en 0, igual cuenta
+      // como una competencia jugada para el promedio).
+      const competenciasJugadas = [
+        row.activo_torneo_nacional,
+        row.activo_libertadores,
+        row.activo_sudamericana,
+        row.activo_mundial
+      ].filter(Boolean).length;
+
+      return {
+        id: row.id,
+        nombre: row.nombre,
+        foto_perfil: row.foto_perfil,
+        puntos_nacional: parseInt(row.puntos_nacional) || 0,
+        puntos_libertadores: parseInt(row.puntos_libertadores) || 0,
+        puntos_sudamericana: parseInt(row.puntos_sudamericana) || 0,
+        puntos_mundial: parseInt(row.puntos_mundial) || 0,
+        puntos_totales: puntosTotales,
+        competencias_jugadas: competenciasJugadas,
+        promedio: competenciasJugadas > 0
+          ? Math.round((puntosTotales / competenciasJugadas) * 100) / 100
+          : 0
+      };
+    });
 
     res.json({ ranking });
   } catch (error) {
