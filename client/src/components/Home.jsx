@@ -4,6 +4,7 @@ import CuentaRegresivaGlobal from "./CuentaRegresivaGlobal";
 import CuentaRegresivaLibertadores from "./CuentaRegresivaLibertadores";
 import CuentaRegresivaSudamericana from "./CuentaRegresivaSudamericana";
 import CuentaRegresivaMundial from "./CuentaRegresivaMundial";
+import CuentaRegresivaCopaGinoPerez from "./CuentaRegresivaCopaGinoPerez";
 import HeroSection from "./HeroSection";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -469,6 +470,9 @@ export default function Home() {
 
                     {/* Cuenta Regresiva Mundial */}
                     <CuentaRegresivaMundial />
+
+                    {/* Cuenta Regresiva Copa Gino Pérez */}
+                    <CuentaRegresivaCopaGinoPerez />
 
                     {/* Top 3 Ranking Torneo Nacional - Solo si hay puntos */}
                     {rankingCampeonato.length > 0 && rankingCampeonato[0]?.puntaje_total > 0 && (

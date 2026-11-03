@@ -74,6 +74,8 @@ function calcularStandingsGrupo(equiposGrupo, partidosGrupo) {
 
 export default function ClasificacionCopaGinoPerez() {
   const navigate = useNavigate();
+  const usuarioLogueado = JSON.parse(localStorage.getItem('usuario') || 'null');
+  const esAdmin = usuarioLogueado?.rol === 'admin';
   const [ranking, setRanking] = useState([]);
   const [partidos, setPartidos] = useState([]);
   const [equipos, setEquipos] = useState([]);
@@ -101,22 +103,22 @@ export default function ClasificacionCopaGinoPerez() {
       setEquipos(equiposRes.data);
       setCerrado(configRes.data.cerrado);
 
-      if (configRes.data.cerrado) {
+      const token = localStorage.getItem('token');
+      if (configRes.data.cerrado || esAdmin) {
         try {
-          const todosRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronosticos-todos`);
+          const todosRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronosticos-todos`,
+            token ? { headers: { Authorization: `Bearer ${token}` } } : {});
           setTodosPronosticos(todosRes.data.usuarios || []);
         } catch (err) {
           console.error('Error cargando pronósticos de todos:', err);
         }
-      } else {
-        const token = localStorage.getItem('token');
-        if (token) {
-          try {
-            const miRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronostico`, { headers: { Authorization: `Bearer ${token}` } });
-            setMiPronostico(miRes.data);
-          } catch (err) {
-            console.error('Error cargando mi pronóstico:', err);
-          }
+      }
+      if (!configRes.data.cerrado && token) {
+        try {
+          const miRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronostico`, { headers: { Authorization: `Bearer ${token}` } });
+          setMiPronostico(miRes.data);
+        } catch (err) {
+          console.error('Error cargando mi pronóstico:', err);
         }
       }
     } catch (err) {
@@ -180,7 +182,7 @@ export default function ClasificacionCopaGinoPerez() {
 
       <h1 className="text-center mb-4">📊 Clasificación Copa Gino Pérez</h1>
 
-      {!cerrado && miPronostico?.pronosticos?.length > 0 && (
+      {!cerrado && !esAdmin && miPronostico?.pronosticos?.length > 0 && (
         <div className="card mb-4">
           <div className="card-header bg-dark text-white text-center">Mi Pronóstico</div>
           <div className="card-body">
@@ -226,10 +228,11 @@ export default function ClasificacionCopaGinoPerez() {
         </div>
       )}
 
-      {cerrado && todosPronosticos && todosPronosticos.length > 0 && (
+      {(cerrado || esAdmin) && todosPronosticos && todosPronosticos.length > 0 && (
         <div className="mb-4">
           <h4 className="text-center" style={{ background: '#111', color: '#fff', padding: 8, borderRadius: 6 }}>
             Pronósticos de Todos
+            {!cerrado && esAdmin && <span className="badge bg-warning text-dark ms-2">vista admin — todavía no cerrado</span>}
           </h4>
           <div className="table-responsive">
             <table className="table table-bordered table-sm text-center align-middle">
