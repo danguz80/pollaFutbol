@@ -80,6 +80,7 @@ router.post("/login", async (req, res) => {
         activo_sudamericana: user.activo_sudamericana || false,
         activo_copa_mundo: user.activo_copa_mundo || false,
         activo_mundial: user.activo_mundial || false,
+        activo_copa_gino_perez: user.activo_copa_gino_perez || false,
         foto_perfil: user.foto_perfil || null
       }
     });

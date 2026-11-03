@@ -25,6 +25,7 @@ import puntuacionLibertadoresRoutes from "./routes/puntuacionLibertadores.js";
 import calcularPuntosLibertadoresRoutes from "./routes/calcularPuntosLibertadores.js";
 import rankingsLibertadoresRoutes from "./routes/rankingsLibertadores.js";
 import rankingUnificadoRoutes from "./routes/rankingUnificado.js";
+import copaGinoPerezRoutes from "./routes/copaGinoPerez.js";
 import libertadoresClasificadosRoutes from "./routes/libertadoresClasificados.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 import ganadoresJornadaLibertadoresRoutes from "./routes/ganadoresJornadaLibertadores.js";
@@ -307,6 +308,7 @@ app.use('/api/libertadores-puntuacion', puntuacionLibertadoresRoutes);
 app.use('/api/libertadores-calcular', calcularPuntosLibertadoresRoutes);
 app.use('/api/libertadores-rankings', rankingsLibertadoresRoutes);
 app.use('/api/ranking-unificado', rankingUnificadoRoutes);
+app.use('/api/copa-gino-perez', copaGinoPerezRoutes);
 app.use('/api/libertadores-clasificados', libertadoresClasificadosRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 app.use('/api/libertadores-ganadores-jornada', ganadoresJornadaLibertadoresRoutes);
@@ -421,6 +423,140 @@ app.get("/", (req, res) => {
     await pool.query(`ALTER TABLE mundial_jornadas ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP`).catch(() => {});
   } catch (error) {
     console.error('❌ Error en migración tesorería:', error.message);
+  }
+})();
+
+// Migración automática: esquema de la Copa Gino Pérez
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo_copa_gino_perez BOOLEAN DEFAULT false`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS copa_gino_perez_equipos (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(100) UNIQUE NOT NULL,
+        grupo INTEGER NOT NULL CHECK (grupo IN (1,2)),
+        orden INTEGER NOT NULL CHECK (orden IN (1,2,3)),
+        UNIQUE (grupo, orden)
+      )
+    `);
+
+    await pool.query(`
+      INSERT INTO copa_gino_perez_equipos (nombre, grupo, orden) VALUES
+        ('H2', 1, 1),
+        ('Cokal (Coker)', 1, 2),
+        ('Resto del Mundo', 1, 3),
+        ('LQQ (Quintero)', 2, 1),
+        ('Los Chavos (Topping)', 2, 2),
+        ('Norte - Sur (Cracking)', 2, 3)
+      ON CONFLICT (nombre) DO NOTHING
+    `);
+
+    const equipos = await pool.query(`SELECT id, nombre, grupo, orden FROM copa_gino_perez_equipos`);
+    const equipoId = (grupo, orden) => equipos.rows.find(e => e.grupo === grupo && e.orden === orden)?.id || null;
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS copa_gino_perez_partidos (
+        id INTEGER PRIMARY KEY,
+        grupo INTEGER,
+        fase VARCHAR(20) NOT NULL,
+        descripcion_local VARCHAR(100) NOT NULL,
+        descripcion_visita VARCHAR(100) NOT NULL,
+        equipo_local_id INTEGER REFERENCES copa_gino_perez_equipos(id),
+        equipo_visita_id INTEGER REFERENCES copa_gino_perez_equipos(id),
+        goles_local INTEGER,
+        goles_visita INTEGER,
+        ganador_id INTEGER REFERENCES copa_gino_perez_equipos(id),
+        jugado BOOLEAN NOT NULL DEFAULT false
+      )
+    `);
+
+    const partidosSeed = [
+      [1, 1, 'grupos', '2° (Cokal)', '3° (Resto del Mundo)', equipoId(1,2), equipoId(1,3)],
+      [2, 1, 'grupos', 'Perdedor Partido 1', '1° (H2)', null, equipoId(1,1)],
+      [3, 1, 'grupos', '1° (H2)', 'Ganador Partido 1', equipoId(1,1), null],
+      [4, 2, 'grupos', '2° (Los Chavos)', '3° (Norte - Sur)', equipoId(2,2), equipoId(2,3)],
+      [5, 2, 'grupos', 'Perdedor Partido 4', '1° (LQQ)', null, equipoId(2,1)],
+      [6, 2, 'grupos', '1° (LQQ)', 'Ganador Partido 4', equipoId(2,1), null],
+      [7, null, 'final', '1° Grupo 1', '1° Grupo 2', null, null],
+      [8, null, 'tercer_puesto', '2° Grupo 1', '2° Grupo 2', null, null],
+      [9, null, 'verguenza', '3° Grupo 1', '3° Grupo 2', null, null],
+    ];
+    for (const p of partidosSeed) {
+      await pool.query(`
+        INSERT INTO copa_gino_perez_partidos
+          (id, grupo, fase, descripcion_local, descripcion_visita, equipo_local_id, equipo_visita_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (id) DO NOTHING
+      `, p);
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS copa_gino_perez_pronosticos (
+        id SERIAL PRIMARY KEY,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        partido_id INTEGER NOT NULL REFERENCES copa_gino_perez_partidos(id),
+        goles_local INTEGER NOT NULL,
+        goles_visita INTEGER NOT NULL,
+        puntos_base INTEGER DEFAULT 0,
+        bonus_multiplicador INTEGER DEFAULT 1,
+        puntos INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (usuario_id, partido_id)
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS copa_gino_perez_predicciones_extra (
+        id SERIAL PRIMARY KEY,
+        usuario_id INTEGER UNIQUE NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        bonus_grupo1_partido INTEGER,
+        bonus_grupo2_partido INTEGER,
+        bonus_final_partido INTEGER,
+        bonus_final_multiplicador INTEGER DEFAULT 2,
+        puntos_posiciones_grupos INTEGER DEFAULT 0,
+        puntos_posiciones_finales INTEGER DEFAULT 0,
+        enviado BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS copa_gino_perez_puntuacion (
+        id SERIAL PRIMARY KEY,
+        fase VARCHAR(50) NOT NULL,
+        concepto VARCHAR(100) NOT NULL,
+        puntos INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (fase, concepto)
+      )
+    `);
+
+    await pool.query(`
+      INSERT INTO copa_gino_perez_puntuacion (fase, concepto, puntos) VALUES
+        ('grupos', 'resultado', 1),
+        ('grupos', 'diferencia', 3),
+        ('grupos', 'exacto', 5),
+        ('final', 'resultado', 3),
+        ('final', 'diferencia', 5),
+        ('final', 'exacto', 7),
+        ('posiciones_grupo', '1er_lugar', 5),
+        ('posiciones_grupo', '2do_lugar', 3),
+        ('posiciones_grupo', '3er_lugar', 3),
+        ('posiciones_finales', 'campeon', 20),
+        ('posiciones_finales', 'subcampeon', 15),
+        ('posiciones_finales', '3er_lugar', 10),
+        ('posiciones_finales', '4to_lugar', 10),
+        ('posiciones_finales', '5to_lugar', 10),
+        ('posiciones_finales', 'ultimo', 15)
+      ON CONFLICT (fase, concepto) DO NOTHING
+    `);
+
+    console.log('✅ Esquema de Copa Gino Pérez listo');
+  } catch (error) {
+    console.error('❌ Error en migración Copa Gino Pérez:', error.message);
   }
 })();
 

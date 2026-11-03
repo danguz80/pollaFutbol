@@ -84,11 +84,11 @@ router.get("/pendientes", verifyToken, authorizeRoles("admin"), async (req, res)
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, nombre, foto_perfil, rol, 
-              activo_torneo_nacional, activo_libertadores, 
-              activo_sudamericana, activo_mundial
-       FROM usuarios 
-       WHERE activo = true 
+      `SELECT id, nombre, foto_perfil, rol,
+              activo_torneo_nacional, activo_libertadores,
+              activo_sudamericana, activo_mundial, activo_copa_gino_perez
+       FROM usuarios
+       WHERE activo = true
        ORDER BY nombre ASC`
     );
     res.json(result.rows);
@@ -103,9 +103,9 @@ router.get("/admin", verifyToken, authorizeRoles("admin"), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, nombre, email, activo, rol, foto_perfil,
-              activo_torneo_nacional, activo_libertadores, 
-              activo_sudamericana, activo_mundial
-       FROM usuarios 
+              activo_torneo_nacional, activo_libertadores,
+              activo_sudamericana, activo_mundial, activo_copa_gino_perez
+       FROM usuarios
        ORDER BY nombre ASC`
     );
     res.json(result.rows);

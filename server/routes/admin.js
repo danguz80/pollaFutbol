@@ -67,27 +67,30 @@ router.put("/actualizar-usuario/:id", verifyToken, authorizeRoles("admin"), asyn
     activo_libertadores,
     activo_sudamericana,
     activo_copa_mundo,
-    activo_mundial
+    activo_mundial,
+    activo_copa_gino_perez
   } = req.body;
 
   try {
     const result = await pool.query(
-      `UPDATE usuarios 
-       SET nombre = $1, 
-           email = $2, 
-           rol = $3, 
+      `UPDATE usuarios
+       SET nombre = $1,
+           email = $2,
+           rol = $3,
            activo = $4,
            foto_perfil = $5,
            activo_torneo_nacional = $6,
            activo_libertadores = $7,
            activo_sudamericana = $8,
            activo_copa_mundo = $9,
-           activo_mundial = $10
-       WHERE id = $11 
-       RETURNING id, nombre, email, rol, activo, foto_perfil, activo_torneo_nacional, 
-                 activo_libertadores, activo_sudamericana, activo_copa_mundo, activo_mundial`,
-      [nombre, email, rol, activo, foto_perfil, activo_torneo_nacional, activo_libertadores, 
-       activo_sudamericana, activo_copa_mundo, activo_mundial, id]
+           activo_mundial = $10,
+           activo_copa_gino_perez = $12
+       WHERE id = $11
+       RETURNING id, nombre, email, rol, activo, foto_perfil, activo_torneo_nacional,
+                 activo_libertadores, activo_sudamericana, activo_copa_mundo, activo_mundial,
+                 activo_copa_gino_perez`,
+      [nombre, email, rol, activo, foto_perfil, activo_torneo_nacional, activo_libertadores,
+       activo_sudamericana, activo_copa_mundo, activo_mundial, id, activo_copa_gino_perez]
     );
 
     if (result.rowCount === 0) {
