@@ -366,3 +366,17 @@ export async function recalcularTodo() {
 
   return { fase: 'torneo_completo', posicionesReales };
 }
+
+// Cierre automático por fecha/hora (igual que "fecha_cierre" en los demás
+// torneos): si el admin fijó una fecha de cierre y ya pasó, cierra los
+// pronósticos solo. Se llama cada minuto desde server/index.js.
+export async function cerrarPronosticosSiCorresponde() {
+  const result = await pool.query(`
+    SELECT cerrado, fecha_cierre FROM copa_gino_perez_config
+    WHERE id = 1 AND cerrado = false AND fecha_cierre IS NOT NULL AND fecha_cierre <= NOW()
+  `);
+  if (result.rowCount === 0) return;
+
+  await pool.query(`UPDATE copa_gino_perez_config SET cerrado = true, updated_at = CURRENT_TIMESTAMP WHERE id = 1`);
+  console.log('🔒 Pronósticos de Copa Gino Pérez cerrados automáticamente (fecha_cierre alcanzada)');
+}

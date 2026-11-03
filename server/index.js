@@ -17,6 +17,7 @@ import prediccionFinalAdminRouter from "./routes/prediccionFinalAdmin.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import { getWhatsAppService } from "./services/whatsappService.js";
 import { cierreAutomaticoJornadas } from "./routes/jornadas.js";
+import { cerrarPronosticosSiCorresponde } from "./utils/copaGinoPerezScoring.js";
 import libertadoresRoutes from "./routes/libertadores.js";
 import libertadoresPronosticosRoutes from "./routes/libertadoresPronosticos.js";
 import estadisticasLibertadoresRoutes from "./routes/estadisticasLibertadores.js";
@@ -580,9 +581,11 @@ app.get("/", (req, res) => {
       CREATE TABLE IF NOT EXISTS copa_gino_perez_config (
         id SERIAL PRIMARY KEY,
         cerrado BOOLEAN NOT NULL DEFAULT false,
+        fecha_cierre TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await pool.query(`ALTER TABLE copa_gino_perez_config ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMP`).catch(() => {});
     await pool.query(`
       INSERT INTO copa_gino_perez_config (id, cerrado)
       VALUES (1, false)
@@ -597,6 +600,11 @@ app.get("/", (req, res) => {
 
 // Cron para cierre automático de jornadas
 setInterval(cierreAutomaticoJornadas, 60000);
+
+// Cron para cierre automático de los pronósticos de Copa Gino Pérez
+setInterval(() => {
+  cerrarPronosticosSiCorresponde().catch(err => console.error('❌ Error en cierre automático de Copa Gino Pérez:', err.message));
+}, 60000);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

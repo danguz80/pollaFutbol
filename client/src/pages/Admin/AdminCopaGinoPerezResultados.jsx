@@ -4,6 +4,15 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+// Convierte un timestamp ISO (como lo devuelve el backend) al formato que
+// espera un <input type="datetime-local"> (hora local, sin zona horaria).
+const fechaATextoLocal = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 const FASES = {
   grupos: 'Fase de grupos',
   final: 'Final (1° y 2° lugar)',
@@ -17,6 +26,8 @@ export default function AdminCopaGinoPerezResultados() {
   const [clasificacion, setClasificacion] = useState(null);
   const [cerrado, setCerrado] = useState(false);
   const [cambiandoCierre, setCambiandoCierre] = useState(false);
+  const [fechaCierre, setFechaCierre] = useState('');
+  const [guardandoFecha, setGuardandoFecha] = useState(false);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(null);
@@ -37,6 +48,7 @@ export default function AdminCopaGinoPerezResultados() {
       setPartidos(partidosRes.data);
       setClasificacion(clasificacionRes.data);
       setCerrado(configRes.data.cerrado);
+      setFechaCierre(fechaATextoLocal(configRes.data.fecha_cierre));
       const nuevoForm = {};
       partidosRes.data.forEach(p => {
         nuevoForm[p.id] = {
@@ -71,6 +83,38 @@ export default function AdminCopaGinoPerezResultados() {
       alert('❌ ' + (err.response?.data?.error || 'Error cambiando el cierre de pronósticos'));
     } finally {
       setCambiandoCierre(false);
+    }
+  };
+
+  const guardarFechaCierre = async () => {
+    try {
+      setGuardandoFecha(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.patch(`${API_URL}/api/copa-gino-perez/admin/fecha-cierre`,
+        { fecha_cierre: fechaCierre || null },
+        { headers: { Authorization: `Bearer ${token}` } });
+      setMensaje(res.data.mensaje);
+    } catch (err) {
+      console.error('Error guardando fecha de cierre:', err);
+      alert('❌ ' + (err.response?.data?.error || 'Error guardando la fecha de cierre'));
+    } finally {
+      setGuardandoFecha(false);
+    }
+  };
+
+  const quitarFechaCierre = async () => {
+    setFechaCierre('');
+    try {
+      setGuardandoFecha(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.patch(`${API_URL}/api/copa-gino-perez/admin/fecha-cierre`,
+        { fecha_cierre: null },
+        { headers: { Authorization: `Bearer ${token}` } });
+      setMensaje(res.data.mensaje);
+    } catch (err) {
+      console.error('Error quitando fecha de cierre:', err);
+    } finally {
+      setGuardandoFecha(false);
     }
   };
 
@@ -141,6 +185,26 @@ export default function AdminCopaGinoPerezResultados() {
           Al cerrar, los usuarios ya no pueden editar su pronóstico y en la página Clasificación se
           muestran los pronósticos de todos (antes de cerrar, cada uno solo ve el propio).
         </p>
+
+        <div className="d-flex flex-column align-items-center gap-2 mt-3" style={{ maxWidth: 360, margin: '0 auto' }}>
+          <label className="form-label mb-0 fw-bold">Cierre automático (opcional)</label>
+          <input type="datetime-local" className="form-control" value={fechaCierre}
+            disabled={cerrado}
+            onChange={e => setFechaCierre(e.target.value)} />
+          <div className="d-flex gap-2">
+            <button className="btn btn-sm btn-primary" disabled={cerrado || guardandoFecha || !fechaCierre}
+              onClick={guardarFechaCierre}>
+              {guardandoFecha ? 'Guardando...' : 'Programar cierre'}
+            </button>
+            <button className="btn btn-sm btn-outline-secondary" disabled={cerrado || guardandoFecha || !fechaCierre}
+              onClick={quitarFechaCierre}>
+              Quitar fecha
+            </button>
+          </div>
+          <p className="text-muted small mb-0">
+            Al llegar esa fecha/hora, los pronósticos se cierran solos (no hace falta que entres a cerrarlos a mano).
+          </p>
+        </div>
       </div>
 
       <p className="text-muted text-center small">
