@@ -3,6 +3,40 @@ import { pool } from '../db/pool.js';
 const GRUPOS = { 1: [1, 2, 3], 2: [4, 5, 6] };
 const FINAL_PARTIDOS = [7, 8, 9];
 
+// Enfrentamientos fijos de cada grupo (todos-contra-todos): el partido que
+// corresponde a cada posición de la lista (1°,2°,3°) dentro del grupo, sin
+// importar en qué orden se jueguen en la realidad.
+const EMPAREJAMIENTOS_GRUPO = [
+  { ordenLocal: 2, ordenVisita: 3 },
+  { ordenLocal: 1, ordenVisita: 3 },
+  { ordenLocal: 1, ordenVisita: 2 }
+];
+
+// Se asegura de que los 6 partidos de fase de grupos tengan siempre los
+// equipos fijos que les corresponden (idempotente y segura de llamar en
+// cualquier momento): corrige datos sembrados por una versión anterior de
+// la migración, sin tocar partidos ya jugados.
+export async function asegurarEquiposGrupoFijos() {
+  const equiposRes = await pool.query(`SELECT id, nombre, grupo, orden FROM copa_gino_perez_equipos`);
+  const equipoId = (grupo, orden) => equiposRes.rows.find(e => e.grupo === grupo && e.orden === orden)?.id || null;
+
+  for (const [grupoNum, ids] of Object.entries(GRUPOS)) {
+    const grupo = Number(grupoNum);
+    for (let idx = 0; idx < ids.length; idx++) {
+      const partidoId = ids[idx];
+      const { ordenLocal, ordenVisita } = EMPAREJAMIENTOS_GRUPO[idx];
+      const localId = equipoId(grupo, ordenLocal);
+      const visitaId = equipoId(grupo, ordenVisita);
+      if (localId && visitaId) {
+        await pool.query(
+          `UPDATE copa_gino_perez_partidos SET equipo_local_id = $1, equipo_visita_id = $2 WHERE id = $3 AND jugado = false`,
+          [localId, visitaId, partidoId]
+        );
+      }
+    }
+  }
+}
+
 // Puntaje de un partido: se otorga solo el tramo más alto que se cumpla
 // (no son acumulativos), igual que en Libertadores/Sudamericana/Mundial.
 export function calcularPuntosPartido(golLocalPred, golVisitaPred, golLocalReal, golVisitaReal, reglas) {
@@ -129,6 +163,8 @@ export async function recalcularTodo() {
   const reglasPosFinal = reglas.posiciones_finales || {
     campeon: 20, subcampeon: 15, '3er_lugar': 10, '4to_lugar': 10, '5to_lugar': 10, ultimo: 15
   };
+
+  await asegurarEquiposGrupoFijos();
 
   const equiposRes = await pool.query(`SELECT id, nombre, grupo, orden FROM copa_gino_perez_equipos`);
   const equipos = equiposRes.rows;
