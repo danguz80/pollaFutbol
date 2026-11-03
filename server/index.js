@@ -532,11 +532,15 @@ app.get("/", (req, res) => {
         bonus_final_multiplicador INTEGER DEFAULT 2,
         puntos_posiciones_grupos INTEGER DEFAULT 0,
         puntos_posiciones_finales INTEGER DEFAULT 0,
+        grupos_guardados BOOLEAN DEFAULT false,
+        final_guardado BOOLEAN DEFAULT false,
         enviado BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await pool.query(`ALTER TABLE copa_gino_perez_predicciones_extra ADD COLUMN IF NOT EXISTS grupos_guardados BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE copa_gino_perez_predicciones_extra ADD COLUMN IF NOT EXISTS final_guardado BOOLEAN DEFAULT false`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS copa_gino_perez_puntuacion (

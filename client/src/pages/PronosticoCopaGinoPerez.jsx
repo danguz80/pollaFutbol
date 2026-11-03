@@ -61,8 +61,10 @@ export default function PronosticoCopaGinoPerez() {
   const [bonusFinal, setBonusFinal] = useState(7);
   const [bonusFinalMultiplicador, setBonusFinalMultiplicador] = useState(2);
   const [editable, setEditable] = useState(true);
+  const [gruposGuardados, setGruposGuardados] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [guardando, setGuardando] = useState(false);
+  const [guardandoGrupos, setGuardandoGrupos] = useState(false);
+  const [guardandoFinal, setGuardandoFinal] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
@@ -96,6 +98,7 @@ export default function PronosticoCopaGinoPerez() {
         if (e.bonus_grupo2_partido) setBonusGrupo2(e.bonus_grupo2_partido);
         if (e.bonus_final_partido) setBonusFinal(e.bonus_final_partido);
         if (e.bonus_final_multiplicador) setBonusFinalMultiplicador(e.bonus_final_multiplicador);
+        setGruposGuardados(!!e.grupos_guardados);
       }
     } catch (err) {
       console.error('Error cargando pronóstico:', err);
@@ -166,59 +169,96 @@ export default function PronosticoCopaGinoPerez() {
   const nombrePorPosicion = (standings, idx, grupoCompleto) =>
     grupoCompleto ? (standings[idx]?.nombre || '...') : `(completa el Grupo ${standings === standingsVirtualG1 ? 1 : 2})`;
 
-  const partidoInput = (id, labelLocal, labelVisita) => (
+  const finalHabilitada = editable && gruposGuardados;
+
+  const partidoInput = (id, labelLocal, labelVisita, habilitado) => (
     <div className="cgp-fila-partido">
       <span className="cgp-equipo cgp-equipo-local">{labelLocal}</span>
       <div className="cgp-marcador">
         <input type="number" min="0" className="form-control form-control-sm text-center cgp-input"
           value={predicciones[id].goles_local}
-          disabled={!editable}
+          disabled={!habilitado}
           onChange={e => actualizarPrediccion(id, 'goles_local', e.target.value)} />
         <span className="cgp-guion">-</span>
         <input type="number" min="0" className="form-control form-control-sm text-center cgp-input"
           value={predicciones[id].goles_visita}
-          disabled={!editable}
+          disabled={!habilitado}
           onChange={e => actualizarPrediccion(id, 'goles_visita', e.target.value)} />
       </div>
       <span className="cgp-equipo cgp-equipo-visita">{labelVisita}</span>
     </div>
   );
 
-  const validar = () => {
-    for (let i = 1; i <= 9; i++) {
-      const p = predicciones[i];
+  const validarGrupos = () => {
+    for (const id of [1, 2, 3, 4, 5, 6]) {
+      const p = predicciones[id];
       if (p.goles_local === '' || p.goles_visita === '' || Number(p.goles_local) < 0 || Number(p.goles_visita) < 0) {
-        return 'Completa el marcador de los 9 partidos';
+        return 'Completa el marcador de los 6 partidos de fase de grupos';
       }
     }
     return null;
   };
 
-  const guardar = async () => {
-    const err = validar();
+  const validarFinal = () => {
+    for (const id of [7, 8, 9]) {
+      const p = predicciones[id];
+      if (p.goles_local === '' || p.goles_visita === '' || Number(p.goles_local) < 0 || Number(p.goles_visita) < 0) {
+        return 'Completa el marcador de los 3 partidos de fase final';
+      }
+    }
+    return null;
+  };
+
+  const guardarGrupos = async () => {
+    const err = validarGrupos();
     if (err) { setError(err); return; }
     setError('');
     try {
-      setGuardando(true);
+      setGuardandoGrupos(true);
       const token = localStorage.getItem('token');
       const payload = {
-        predicciones: Object.entries(predicciones).map(([partido_id, p]) => ({
-          partido_id: Number(partido_id),
-          goles_local: Number(p.goles_local),
-          goles_visita: Number(p.goles_visita)
+        predicciones: [1, 2, 3, 4, 5, 6].map(partido_id => ({
+          partido_id,
+          goles_local: Number(predicciones[partido_id].goles_local),
+          goles_visita: Number(predicciones[partido_id].goles_visita)
         })),
         bonus_grupo1_partido: Number(bonusGrupo1),
-        bonus_grupo2_partido: Number(bonusGrupo2),
+        bonus_grupo2_partido: Number(bonusGrupo2)
+      };
+      await axios.post(`${API_URL}/api/copa-gino-perez/pronostico/grupos`, payload, { headers: { Authorization: `Bearer ${token}` } });
+      setGruposGuardados(true);
+      setMensaje('✅ Pronóstico de fase de grupos guardado. Ya puedes pronosticar la fase final.');
+    } catch (err) {
+      console.error('Error guardando pronóstico de grupos:', err);
+      setError(err.response?.data?.error || 'Error guardando pronóstico de fase de grupos');
+    } finally {
+      setGuardandoGrupos(false);
+    }
+  };
+
+  const guardarFinal = async () => {
+    const err = validarFinal();
+    if (err) { setError(err); return; }
+    setError('');
+    try {
+      setGuardandoFinal(true);
+      const token = localStorage.getItem('token');
+      const payload = {
+        predicciones: [7, 8, 9].map(partido_id => ({
+          partido_id,
+          goles_local: Number(predicciones[partido_id].goles_local),
+          goles_visita: Number(predicciones[partido_id].goles_visita)
+        })),
         bonus_final_partido: Number(bonusFinal),
         bonus_final_multiplicador: Number(bonusFinalMultiplicador)
       };
-      await axios.post(`${API_URL}/api/copa-gino-perez/pronostico`, payload, { headers: { Authorization: `Bearer ${token}` } });
-      setMensaje('✅ Pronóstico guardado exitosamente');
+      await axios.post(`${API_URL}/api/copa-gino-perez/pronostico/final`, payload, { headers: { Authorization: `Bearer ${token}` } });
+      setMensaje('✅ Pronóstico de fase final guardado exitosamente');
     } catch (err) {
-      console.error('Error guardando pronóstico:', err);
-      setError(err.response?.data?.error || 'Error guardando pronóstico');
+      console.error('Error guardando pronóstico final:', err);
+      setError(err.response?.data?.error || 'Error guardando pronóstico de fase final');
     } finally {
-      setGuardando(false);
+      setGuardandoFinal(false);
     }
   };
 
@@ -258,6 +298,7 @@ export default function PronosticoCopaGinoPerez() {
         .cgp-pronostico .cgp-grupo1 .cgp-card-header { background: #d32f2f; }
         .cgp-pronostico .cgp-grupo2 .cgp-card-header { background: #28a745; }
         .cgp-pronostico .cgp-final .cgp-card-header { background: #111; }
+        .cgp-pronostico .cgp-final.cgp-bloqueada { opacity: 0.6; }
         .cgp-pronostico .cgp-fila-partido {
           display: flex;
           align-items: center;
@@ -299,9 +340,9 @@ export default function PronosticoCopaGinoPerez() {
 
       <h1 className="text-center mb-1">⚽ Pronóstico Copa Gino Pérez</h1>
       <p className="text-center text-muted mb-4">
-        Se pronostica el torneo completo de una sola vez. Los partidos de la fase final se muestran según
-        tu propio pronóstico de la fase de grupos: si no coincide con lo que termina pasando en la realidad,
-        esos partidos valen 0 puntos.
+        Primero se guarda el pronóstico de la fase de grupos. Con eso guardado, la app calcula tu propio
+        bracket virtual y te muestra contra quién pronosticas en la fase final: si ese enfrentamiento no
+        coincide con lo que termina pasando en la realidad, esos partidos valen 0 puntos.
       </p>
 
       {!editable && (
@@ -322,7 +363,7 @@ export default function PronosticoCopaGinoPerez() {
         <div className="col-md-6">
           <div className="cgp-card cgp-grupo1">
             <div className="cgp-card-header">Grupo 1</div>
-            {partidosFijosG1.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita))}
+            {partidosFijosG1.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita, editable))}
             <label className="cgp-bonus-label">Partido con bonus x2 de este grupo:</label>
             <select className="form-select" value={bonusGrupo1} disabled={!editable} onChange={e => setBonusGrupo1(e.target.value)}>
               {opcionesBonusGrupo(partidosFijosG1)}
@@ -332,7 +373,7 @@ export default function PronosticoCopaGinoPerez() {
         <div className="col-md-6">
           <div className="cgp-card cgp-grupo2">
             <div className="cgp-card-header">Grupo 2</div>
-            {partidosFijosG2.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita))}
+            {partidosFijosG2.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita, editable))}
             <label className="cgp-bonus-label">Partido con bonus x2 de este grupo:</label>
             <select className="form-select" value={bonusGrupo2} disabled={!editable} onChange={e => setBonusGrupo2(e.target.value)}>
               {opcionesBonusGrupo(partidosFijosG2)}
@@ -341,47 +382,62 @@ export default function PronosticoCopaGinoPerez() {
         </div>
       </div>
 
-      <div className="cgp-card cgp-final">
-        <div className="cgp-card-header">Fase Final (según tu propio pronóstico de grupos)</div>
-        <div className="text-center mb-3">
-          <button type="button" className="btn btn-outline-dark" disabled={!editable} onClick={azarDefinicionPuestos}>
-            🎲 Azar (definición de puestos)
-          </button>
-        </div>
-        <div className="row">
-          <div className="col-md-4">
-            <p className="cgp-fase-final-sub">Final (1° y 2° lugar)</p>
-            {partidoInput(7, nombrePorPosicion(standingsVirtualG1, 0, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 0, grupo2Completo))}
-          </div>
-          <div className="col-md-4">
-            <p className="cgp-fase-final-sub">3er y 4to puesto</p>
-            {partidoInput(8, nombrePorPosicion(standingsVirtualG1, 1, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 1, grupo2Completo))}
-          </div>
-          <div className="col-md-4">
-            <p className="cgp-fase-final-sub">Partido de la vergüenza (5to y 6to)</p>
-            {partidoInput(9, nombrePorPosicion(standingsVirtualG1, 2, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 2, grupo2Completo))}
-          </div>
-        </div>
-
-        <div className="row mt-2">
-          <div className="col-md-8 offset-md-2">
-            <label className="cgp-bonus-label">Partido de la fase final con bonus:</label>
-            <select className="form-select mb-2" value={bonusFinal} disabled={!editable} onChange={e => setBonusFinal(e.target.value)}>
-              {opcionesBonusFinal.map(o => <option key={o.id} value={o.id}>{o.texto}</option>)}
-            </select>
-            <label className="cgp-bonus-label">Multiplicador del bonus de la final:</label>
-            <select className="form-select" value={bonusFinalMultiplicador} disabled={!editable} onChange={e => setBonusFinalMultiplicador(e.target.value)}>
-              <option value={2}>x2</option>
-              <option value={3}>x3</option>
-            </select>
-          </div>
-        </div>
+      <div className="text-center mb-4">
+        <button className="btn btn-primary" disabled={!editable || guardandoGrupos} onClick={guardarGrupos}>
+          {guardandoGrupos ? 'Guardando...' : '💾 Guardar Pronóstico de Fase de Grupos'}
+        </button>
       </div>
 
-      <div className="text-center mt-4">
-        <button className="btn btn-primary btn-lg" disabled={!editable || guardando} onClick={guardar}>
-          {guardando ? 'Guardando...' : 'Guardar Pronóstico'}
-        </button>
+      <div className={`cgp-card cgp-final ${finalHabilitada ? '' : 'cgp-bloqueada'}`}>
+        <div className="cgp-card-header">Fase Final (según tu propio pronóstico de grupos)</div>
+
+        {!gruposGuardados ? (
+          <p className="text-center text-muted">
+            Primero guarda tu pronóstico de fase de grupos para poder pronosticar la fase final.
+          </p>
+        ) : (
+          <>
+            <div className="text-center mb-3">
+              <button type="button" className="btn btn-outline-dark" disabled={!finalHabilitada} onClick={azarDefinicionPuestos}>
+                🎲 Azar (definición de puestos)
+              </button>
+            </div>
+            <div className="row">
+              <div className="col-md-4">
+                <p className="cgp-fase-final-sub">Final (1° y 2° lugar)</p>
+                {partidoInput(7, nombrePorPosicion(standingsVirtualG1, 0, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 0, grupo2Completo), finalHabilitada)}
+              </div>
+              <div className="col-md-4">
+                <p className="cgp-fase-final-sub">3er y 4to puesto</p>
+                {partidoInput(8, nombrePorPosicion(standingsVirtualG1, 1, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 1, grupo2Completo), finalHabilitada)}
+              </div>
+              <div className="col-md-4">
+                <p className="cgp-fase-final-sub">Partido de la vergüenza (5to y 6to)</p>
+                {partidoInput(9, nombrePorPosicion(standingsVirtualG1, 2, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 2, grupo2Completo), finalHabilitada)}
+              </div>
+            </div>
+
+            <div className="row mt-2">
+              <div className="col-md-8 offset-md-2">
+                <label className="cgp-bonus-label">Partido de la fase final con bonus:</label>
+                <select className="form-select mb-2" value={bonusFinal} disabled={!finalHabilitada} onChange={e => setBonusFinal(e.target.value)}>
+                  {opcionesBonusFinal.map(o => <option key={o.id} value={o.id}>{o.texto}</option>)}
+                </select>
+                <label className="cgp-bonus-label">Multiplicador del bonus de la final:</label>
+                <select className="form-select" value={bonusFinalMultiplicador} disabled={!finalHabilitada} onChange={e => setBonusFinalMultiplicador(e.target.value)}>
+                  <option value={2}>x2</option>
+                  <option value={3}>x3</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-center mt-4">
+              <button className="btn btn-primary btn-lg" disabled={!finalHabilitada || guardandoFinal} onClick={guardarFinal}>
+                {guardandoFinal ? 'Guardando...' : '💾 Guardar Pronóstico de Fase Final'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
