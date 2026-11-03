@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -21,6 +21,17 @@ const ETIQUETAS_PARTIDO = {
   4: 'P4 G2', 5: 'P5 G2', 6: 'P6 G2',
   7: 'Final', 8: '3°/4°', 9: 'Vergüenza'
 };
+
+// Secciones del torneo: a qué grupo pertenece cada partido de fase de
+// grupos, y qué puesto define cada uno de los 3 partidos de fase final.
+const SECCIONES = [
+  { ids: [1, 2, 3], color: '#d32f2f', titulo: 'Grupo 1' },
+  { ids: [4, 5, 6], color: '#28a745', titulo: 'Grupo 2' },
+  { ids: [7], color: '#b8860b', titulo: 'La Gran Final — Define 1° y 2° lugar' },
+  { ids: [8], color: '#0d6efd', titulo: '3er y 4to Puesto' },
+  { ids: [9], color: '#444', titulo: 'Partido de la Vergüenza — Define 5to y 6to lugar' }
+];
+const seccionDePartido = id => SECCIONES.find(s => s.ids.includes(id));
 
 // Enfrentamientos fijos de cada grupo (todos contra todos) — igual que en
 // PronosticoCopaGinoPerez.jsx — para calcular, a partir del propio
@@ -179,23 +190,34 @@ export default function ClasificacionCopaGinoPerez() {
             </p>
             <table className="table table-sm align-middle mb-0">
               <tbody>
-                {miPronostico.pronosticos.map(p => {
+                {[...miPronostico.pronosticos].sort((a, b) => a.partido_id - b.partido_id).map((p, idx, arr) => {
                   const partido = partidosPorId[p.partido_id];
                   const extra = miPronostico.extra;
                   const esBonusGrupo = extra && ((extra.bonus_grupo1_partido === p.partido_id) || (extra.bonus_grupo2_partido === p.partido_id));
                   const esBonusFinal = extra && extra.bonus_final_partido === p.partido_id;
                   const etiquetaFinal = etiquetasFinalPorPronostico[p.partido_id];
+                  const seccion = seccionDePartido(p.partido_id);
+                  const esInicioSeccion = idx === 0 || seccionDePartido(arr[idx - 1].partido_id) !== seccion;
                   return (
-                    <tr key={p.partido_id}>
-                      <td>{etiquetaFinal || (partido ? nombrePartido(partido) : `Partido ${p.partido_id}`)}</td>
-                      <td className="text-end fw-bold" style={{ whiteSpace: 'nowrap', width: 70 }}>
-                        {p.goles_local} - {p.goles_visita}
-                      </td>
-                      <td style={{ width: 50 }}>
-                        {esBonusGrupo && <span className="badge bg-warning text-dark">x2</span>}
-                        {esBonusFinal && <span className="badge bg-warning text-dark">x{extra.bonus_final_multiplicador}</span>}
-                      </td>
-                    </tr>
+                    <Fragment key={p.partido_id}>
+                      {esInicioSeccion && (
+                        <tr>
+                          <td colSpan={3} style={{ background: seccion.color, color: '#fff', fontWeight: 700, textAlign: 'center' }}>
+                            {seccion.titulo}
+                          </td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td>{etiquetaFinal || (partido ? nombrePartido(partido) : `Partido ${p.partido_id}`)}</td>
+                        <td className="text-end fw-bold" style={{ whiteSpace: 'nowrap', width: 70 }}>
+                          {p.goles_local} - {p.goles_visita}
+                        </td>
+                        <td style={{ width: 50 }}>
+                          {esBonusGrupo && <span className="badge bg-warning text-dark">x2</span>}
+                          {esBonusFinal && <span className="badge bg-warning text-dark">x{extra.bonus_final_multiplicador}</span>}
+                        </td>
+                      </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -211,8 +233,18 @@ export default function ClasificacionCopaGinoPerez() {
           </h4>
           <div className="table-responsive">
             <table className="table table-bordered table-sm text-center align-middle">
-              <thead className="table-dark">
+              <thead>
                 <tr>
+                  <th className="table-dark" style={{ border: 'none' }}></th>
+                  {SECCIONES.map(seccion => (
+                    <th key={seccion.titulo} colSpan={seccion.ids.length}
+                      style={{ background: seccion.color, color: '#fff', textAlign: 'center' }}
+                      title={seccion.titulo}>
+                      {seccion.titulo}
+                    </th>
+                  ))}
+                </tr>
+                <tr className="table-dark">
                   <th>Jugador</th>
                   {[1,2,3,4,5,6,7,8,9].map(id => (
                     <th key={id} title={partidosPorId[id] ? nombrePartido(partidosPorId[id]) : ''}>
