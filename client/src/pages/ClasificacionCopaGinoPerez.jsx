@@ -101,24 +101,28 @@ export default function ClasificacionCopaGinoPerez() {
               Mientras los pronósticos no estén cerrados, solo vos podés ver el tuyo. Cuando el admin los
               cierre, se mostrarán acá los de todos los jugadores.
             </p>
-            <ul className="list-unstyled mb-0">
-              {miPronostico.pronosticos.map(p => {
-                const partido = partidosPorId[p.partido_id];
-                const extra = miPronostico.extra;
-                const esBonusGrupo = extra && ((extra.bonus_grupo1_partido === p.partido_id) || (extra.bonus_grupo2_partido === p.partido_id));
-                const esBonusFinal = extra && extra.bonus_final_partido === p.partido_id;
-                return (
-                  <li key={p.partido_id} className="d-flex justify-content-between border-bottom py-1">
-                    <span>{partido ? nombrePartido(partido) : `Partido ${p.partido_id}`}</span>
-                    <span>
-                      <strong>{p.goles_local} - {p.goles_visita}</strong>
-                      {esBonusGrupo && <span className="badge bg-warning text-dark ms-2">x2</span>}
-                      {esBonusFinal && <span className="badge bg-warning text-dark ms-2">x{extra.bonus_final_multiplicador}</span>}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <table className="table table-sm align-middle mb-0">
+              <tbody>
+                {miPronostico.pronosticos.map(p => {
+                  const partido = partidosPorId[p.partido_id];
+                  const extra = miPronostico.extra;
+                  const esBonusGrupo = extra && ((extra.bonus_grupo1_partido === p.partido_id) || (extra.bonus_grupo2_partido === p.partido_id));
+                  const esBonusFinal = extra && extra.bonus_final_partido === p.partido_id;
+                  return (
+                    <tr key={p.partido_id}>
+                      <td>{partido ? nombrePartido(partido) : `Partido ${p.partido_id}`}</td>
+                      <td className="text-end fw-bold" style={{ whiteSpace: 'nowrap', width: 70 }}>
+                        {p.goles_local} - {p.goles_visita}
+                      </td>
+                      <td style={{ width: 50 }}>
+                        {esBonusGrupo && <span className="badge bg-warning text-dark">x2</span>}
+                        {esBonusFinal && <span className="badge bg-warning text-dark">x{extra.bonus_final_multiplicador}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
