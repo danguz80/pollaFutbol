@@ -55,20 +55,13 @@ export default function GanadoresJornada() {
   const [jugadores, setJugadores] = useState([]);
   const [fotoPerfilMap, setFotoPerfilMap] = useState({});
   const [loading, setLoading] = useState(true);
-  const [ganadoresCuadroFinal, setGanadoresCuadroFinal] = useState([]);
 
   useEffect(() => {
     async function fetchData() {
       try {
         const jornadasRes = await fetch(`${API_BASE_URL}/api/jornadas`);
         const jornadasData = await jornadasRes.json();
-        
-        // Obtener ganadores del cuadro final (jornada 999) para excluirlos de la tabla de vergüenza
-        const jornadaCuadroFinal = jornadasData.find(j => j.numero === 999);
-        if (jornadaCuadroFinal && jornadaCuadroFinal.ganadores) {
-          setGanadoresCuadroFinal(jornadaCuadroFinal.ganadores);
-        }
-        
+
         // Relacionar nombre de usuario con foto_perfil
         const jugadoresRes = await fetch(`${API_BASE_URL}/api/usuarios`);
         const jugadoresData = await jugadoresRes.json();
@@ -259,65 +252,6 @@ export default function GanadoresJornada() {
         </table>
       </div>
 
-      {/* Tabla de la Deshonra y la Vergüenza - Solo se muestra desde la jornada 21 */}
-      {jornadasConGanadores.some(j => j.numero >= 21) && (
-        <>
-          <h4 className="mt-5 text-center" style={{...headerStyle, background: '#444', color: '#aaa'}}>
-            Tabla de la Deshonra y la Vergüenza
-          </h4>
-          <div style={{ maxWidth: 470, margin: "0 auto", marginBottom: 40 }}>
-            <table className="table table-bordered text-center">
-              <thead>
-                <tr style={{ background: "#666", color: "#ddd", fontWeight: "bold", fontSize: isMobile ? '1.13em' : '1.25em' }}>
-                  <th>Participante</th>
-                  <th>Jornadas Ganadas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranking
-                  .filter(jugador => 
-                    jugador.total === 0 && 
-                    !ganadoresCuadroFinal.includes(jugador.nombre)
-                  )
-                  .sort((a, b) => b.nombre.localeCompare(a.nombre))
-                  .map((jugador) => (
-                    <tr key={jugador.nombre} style={{ background: '#f8f8f8' }}>
-                      <td>
-                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {fotoPerfilMap[jugador.nombre] && (
-                            <img
-                              src={fotoPerfilMap[jugador.nombre].startsWith('/') ? fotoPerfilMap[jugador.nombre] : `/perfil/${fotoPerfilMap[jugador.nombre]}`}
-                              alt={`Foto de ${jugador.nombre}`}
-                              style={{
-                                width: isMobile ? '44px' : '60px',
-                                height: isMobile ? '44px' : '60px',
-                                borderRadius: '50%',
-                                objectFit: 'cover',
-                                marginRight: '8px',
-                                border: '2px solid #ddd',
-                                objectPosition: 'center 30%',
-                                filter: 'grayscale(100%)'
-                              }}
-                            />
-                          )}
-                          {jugador.nombre}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 'bold', fontSize: isMobile ? '1.1em' : '1.2em', color: '#999' }}>
-                        0
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-            {ranking.filter(j => j.total === 0).length === 0 && (
-              <p className="text-center text-muted" style={{ fontStyle: 'italic', marginTop: 20 }}>
-                ¡Todos los participantes han ganado al menos una jornada! 🎉
-              </p>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

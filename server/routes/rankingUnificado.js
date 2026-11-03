@@ -120,4 +120,58 @@ router.get('/actual', async (req, res) => {
   }
 });
 
+// GET /api/ranking-unificado/vergonzosa - Ranking de la Vergüenza unificado:
+// jugadores activos que no han ganado NINGUNA jornada en ninguna de las 4
+// competencias (Torneo Nacional, Libertadores, Sudamericana, Mundial).
+router.get('/vergonzosa', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        u.id,
+        u.nombre,
+        u.foto_perfil,
+        COALESCE(nacional.total, 0)
+          + COALESCE(libertadores.total, 0)
+          + COALESCE(sudamericana.total, 0)
+          + COALESCE(mundial.total, 0) as jornadas_ganadas
+      FROM usuarios u
+      LEFT JOIN (
+        SELECT gj.jugador_id as usuario_id, COUNT(*) as total
+        FROM ganadores_jornada gj
+        GROUP BY gj.jugador_id
+      ) nacional ON nacional.usuario_id = u.id
+      LEFT JOIN (
+        SELECT lgj.usuario_id, COUNT(*) as total
+        FROM libertadores_ganadores_jornada lgj
+        GROUP BY lgj.usuario_id
+      ) libertadores ON libertadores.usuario_id = u.id
+      LEFT JOIN (
+        SELECT sgj.usuario_id, COUNT(*) as total
+        FROM sudamericana_ganadores_jornada sgj
+        GROUP BY sgj.usuario_id
+      ) sudamericana ON sudamericana.usuario_id = u.id
+      LEFT JOIN (
+        SELECT mgj.usuario_id, COUNT(*) as total
+        FROM mundial_ganadores_jornada mgj
+        GROUP BY mgj.usuario_id
+      ) mundial ON mundial.usuario_id = u.id
+      WHERE u.rol != 'admin'
+        AND (u.activo_torneo_nacional = true
+          OR u.activo_libertadores = true
+          OR u.activo_sudamericana = true
+          OR u.activo_mundial = true)
+        AND (COALESCE(nacional.total, 0)
+          + COALESCE(libertadores.total, 0)
+          + COALESCE(sudamericana.total, 0)
+          + COALESCE(mundial.total, 0)) = 0
+      ORDER BY u.nombre ASC
+    `);
+
+    res.json({ ranking: result.rows });
+  } catch (error) {
+    console.error('Error obteniendo ranking de la vergüenza:', error);
+    res.status(500).json({ error: 'Error obteniendo ranking de la vergüenza' });
+  }
+});
+
 export default router;
