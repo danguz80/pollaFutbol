@@ -73,14 +73,23 @@ export default function PronosticoCopaGinoPerez() {
   }, []);
 
   const cargarDatos = async () => {
+    setLoading(true);
+    setError('');
+
+    // Se piden por separado (no Promise.all) para que si falla la carga del
+    // pronóstico guardado, igual se puedan mostrar los equipos y los
+    // partidos de grupo en blanco, en vez de dejar toda la página vacía.
     try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const [equiposRes, pronosticoRes] = await Promise.all([
-        axios.get(`${API_URL}/api/copa-gino-perez/equipos`),
-        axios.get(`${API_URL}/api/copa-gino-perez/pronostico`, { headers: { Authorization: `Bearer ${token}` } })
-      ]);
+      const equiposRes = await axios.get(`${API_URL}/api/copa-gino-perez/equipos`);
       setEquipos(equiposRes.data);
+    } catch (err) {
+      console.error('Error cargando equipos:', err);
+      setError('No se pudieron cargar los equipos');
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const pronosticoRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronostico`, { headers: { Authorization: `Bearer ${token}` } });
       setEditable(pronosticoRes.data.editable);
 
       if (pronosticoRes.data.pronosticos?.length) {
@@ -102,7 +111,7 @@ export default function PronosticoCopaGinoPerez() {
       }
     } catch (err) {
       console.error('Error cargando pronóstico:', err);
-      setError('No se pudo cargar el pronóstico');
+      setError(prev => prev ? `${prev}. No se pudo cargar tu pronóstico guardado` : 'No se pudo cargar tu pronóstico guardado');
     } finally {
       setLoading(false);
     }
