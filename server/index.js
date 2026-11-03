@@ -24,6 +24,7 @@ import clasificacionLibertadoresRoutes from "./routes/clasificacionLibertadores.
 import puntuacionLibertadoresRoutes from "./routes/puntuacionLibertadores.js";
 import calcularPuntosLibertadoresRoutes from "./routes/calcularPuntosLibertadores.js";
 import rankingsLibertadoresRoutes from "./routes/rankingsLibertadores.js";
+import rankingUnificadoRoutes from "./routes/rankingUnificado.js";
 import libertadoresClasificadosRoutes from "./routes/libertadoresClasificados.js";
 import rankingsHistoricosRoutes from "./routes/rankingsHistoricos.js";
 import ganadoresJornadaLibertadoresRoutes from "./routes/ganadoresJornadaLibertadores.js";
@@ -305,6 +306,7 @@ app.use('/api/libertadores-clasificacion', clasificacionLibertadoresRoutes);
 app.use('/api/libertadores-puntuacion', puntuacionLibertadoresRoutes);
 app.use('/api/libertadores-calcular', calcularPuntosLibertadoresRoutes);
 app.use('/api/libertadores-rankings', rankingsLibertadoresRoutes);
+app.use('/api/ranking-unificado', rankingUnificadoRoutes);
 app.use('/api/libertadores-clasificados', libertadoresClasificadosRoutes);
 app.use('/api/rankings-historicos', rankingsHistoricosRoutes);
 app.use('/api/libertadores-ganadores-jornada', ganadoresJornadaLibertadoresRoutes);
