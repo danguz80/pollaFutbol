@@ -14,6 +14,7 @@ const FASES = {
 export default function AdminCopaGinoPerezResultados() {
   const navigate = useNavigate();
   const [partidos, setPartidos] = useState([]);
+  const [clasificacion, setClasificacion] = useState(null);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(null);
@@ -26,10 +27,14 @@ export default function AdminCopaGinoPerezResultados() {
   const cargarPartidos = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/api/copa-gino-perez/partidos`);
-      setPartidos(res.data);
+      const [partidosRes, clasificacionRes] = await Promise.all([
+        axios.get(`${API_URL}/api/copa-gino-perez/partidos`),
+        axios.get(`${API_URL}/api/copa-gino-perez/clasificacion`)
+      ]);
+      setPartidos(partidosRes.data);
+      setClasificacion(clasificacionRes.data);
       const nuevoForm = {};
-      res.data.forEach(p => {
+      partidosRes.data.forEach(p => {
         nuevoForm[p.id] = {
           goles_local: p.goles_local ?? '',
           goles_visita: p.goles_visita ?? '',
@@ -95,6 +100,49 @@ export default function AdminCopaGinoPerezResultados() {
 
       <h1 className="text-center mb-4">⚽ Admin: Resultados Copa Gino Pérez</h1>
       {mensaje && <div className="alert alert-success text-center">{mensaje}</div>}
+
+      <p className="text-muted text-center small">
+        Los 2 primeros de cada grupo avanzan a la Final, los 2 segundos al 3er/4to puesto
+        y los 2 terceros al partido de la vergüenza. El orden se actualiza solo a medida
+        que se van cargando los resultados reales de la fase de grupos.
+      </p>
+
+      {clasificacion && (
+        <div className="row mb-4">
+          {[1, 2].map(grupoNum => {
+            const standings = grupoNum === 1 ? clasificacion.grupo1 : clasificacion.grupo2;
+            return (
+              <div key={grupoNum} className="col-md-6">
+                <h5 className="text-center">Grupo {grupoNum}</h5>
+                <table className="table table-sm table-bordered text-center">
+                  <thead className="table-dark">
+                    <tr><th>#</th><th>Equipo</th><th>Pts</th><th>DG</th><th>GF</th></tr>
+                  </thead>
+                  <tbody>
+                    {standings.map((s, idx) => (
+                      <tr key={s.equipo_id} className={idx === 0 ? 'table-success' : idx === 1 ? 'table-warning' : ''}>
+                        <td>{idx + 1}°</td>
+                        <td>{s.nombre}</td>
+                        <td>{s.puntos}</td>
+                        <td>{s.dg}</td>
+                        <td>{s.gf}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {clasificacion?.posicionesFinales && (
+        <div className="alert alert-dark text-center mb-4">
+          🏆 1° {clasificacion.posicionesFinales[1]} · 🥈 2° {clasificacion.posicionesFinales[2]} ·
+          3° {clasificacion.posicionesFinales[3]} · 4° {clasificacion.posicionesFinales[4]} ·
+          5° {clasificacion.posicionesFinales[5]} · 🙈 6° {clasificacion.posicionesFinales[6]}
+        </div>
+      )}
 
       {partidos.map(p => {
         const datos = form[p.id] || {};

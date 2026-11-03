@@ -114,6 +114,21 @@ export default function PronosticoCopaGinoPerez() {
     setPredicciones(prev => ({ ...prev, [partidoId]: { ...prev[partidoId], [campo]: valor } }));
   };
 
+  const golAzar = () => String(Math.floor(Math.random() * 5));
+
+  const azarPartidos = (ids) => {
+    setPredicciones(prev => {
+      const nuevas = { ...prev };
+      ids.forEach(id => {
+        nuevas[id] = { goles_local: golAzar(), goles_visita: golAzar() };
+      });
+      return nuevas;
+    });
+  };
+
+  const azarGrupos = () => azarPartidos([1, 2, 3, 4, 5, 6]);
+  const azarDefinicionPuestos = () => azarPartidos([7, 8, 9]);
+
   const partidosFijos = (grupoNum, equiposGrupo) => PARTIDOS_GRUPO[grupoNum].map(p => ({
     id: p.id,
     equipo_local_id: idPorOrden(equiposGrupo, p.ordenLocal),
@@ -297,6 +312,12 @@ export default function PronosticoCopaGinoPerez() {
       {mensaje && <div className="alert alert-success text-center">{mensaje}</div>}
       {error && <div className="alert alert-danger text-center">{error}</div>}
 
+      <div className="text-center mb-3">
+        <button type="button" className="btn btn-outline-dark" disabled={!editable} onClick={azarGrupos}>
+          🎲 Azar (fase de grupos)
+        </button>
+      </div>
+
       <div className="row">
         <div className="col-md-6">
           <div className="cgp-card cgp-grupo1">
@@ -322,6 +343,11 @@ export default function PronosticoCopaGinoPerez() {
 
       <div className="cgp-card cgp-final">
         <div className="cgp-card-header">Fase Final (según tu propio pronóstico de grupos)</div>
+        <div className="text-center mb-3">
+          <button type="button" className="btn btn-outline-dark" disabled={!editable} onClick={azarDefinicionPuestos}>
+            🎲 Azar (definición de puestos)
+          </button>
+        </div>
         <div className="row">
           <div className="col-md-4">
             <p className="cgp-fase-final-sub">Final (1° y 2° lugar)</p>

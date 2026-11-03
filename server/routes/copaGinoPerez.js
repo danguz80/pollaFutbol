@@ -2,7 +2,7 @@ import express from 'express';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
-import { recalcularTodo, determinarGanador } from '../utils/copaGinoPerezScoring.js';
+import { recalcularTodo, determinarGanador, asegurarEquiposGrupoFijos, calcularStandingsGrupo } from '../utils/copaGinoPerezScoring.js';
 
 const router = express.Router();
 
@@ -29,6 +29,7 @@ router.get('/equipos', async (req, res) => {
 // GET /api/copa-gino-perez/partidos
 router.get('/partidos', async (req, res) => {
   try {
+    await asegurarEquiposGrupoFijos();
     const result = await pool.query(`
       SELECT p.id, p.grupo, p.fase, p.descripcion_local, p.descripcion_visita,
              p.equipo_local_id, el.nombre as equipo_local_nombre,
@@ -197,12 +198,12 @@ router.post('/admin/recalcular', verifyToken, authorizeRoles('admin'), async (re
 // GET /api/copa-gino-perez/clasificacion
 router.get('/clasificacion', async (req, res) => {
   try {
+    await asegurarEquiposGrupoFijos();
     const equiposRes = await pool.query(`SELECT id, nombre, grupo, orden FROM copa_gino_perez_equipos ORDER BY grupo, orden`);
     const partidosRes = await pool.query(`SELECT * FROM copa_gino_perez_partidos ORDER BY id`);
     const equipos = equiposRes.rows;
     const partidos = partidosRes.rows;
 
-    const { calcularStandingsGrupo } = await import('../utils/copaGinoPerezScoring.js');
     const equiposG1 = equipos.filter(e => e.grupo === 1);
     const equiposG2 = equipos.filter(e => e.grupo === 2);
     const partidosG1 = partidos.filter(p => [1,2,3].includes(p.id));
