@@ -4,46 +4,21 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const FASES = {
-  grupos: 'Fase de grupos',
-  final: 'Final',
-  tercer_puesto: '3er y 4to puesto',
-  verguenza: 'Partido de la vergüenza'
+const fotoUrl = (foto) => {
+  if (!foto) return null;
+  return foto.startsWith('/') ? foto : `/perfil/${foto}`;
 };
 
-function TablaGrupo({ titulo, standings }) {
-  return (
-    <div className="col-md-6 mb-4">
-      <h4 className="text-center">{titulo}</h4>
-      <table className="table table-bordered text-center">
-        <thead className="table-dark">
-          <tr>
-            <th>#</th>
-            <th>Equipo</th>
-            <th>Pts</th>
-            <th>DG</th>
-            <th>GF</th>
-          </tr>
-        </thead>
-        <tbody>
-          {standings.map((s, idx) => (
-            <tr key={s.equipo_id} className={idx === 0 ? 'table-success' : ''}>
-              <td>{idx + 1}°</td>
-              <td>{s.nombre}</td>
-              <td>{s.puntos}</td>
-              <td>{s.dg}</td>
-              <td>{s.gf}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+const medalla = (posicion) => {
+  if (posicion === 1) return '🥇';
+  if (posicion === 2) return '🥈';
+  if (posicion === 3) return '🥉';
+  return null;
+};
 
 export default function ClasificacionCopaGinoPerez() {
   const navigate = useNavigate();
-  const [datos, setDatos] = useState(null);
+  const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -54,8 +29,8 @@ export default function ClasificacionCopaGinoPerez() {
   const cargar = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/api/copa-gino-perez/clasificacion`);
-      setDatos(res.data);
+      const res = await axios.get(`${API_URL}/api/copa-gino-perez/estadisticas`);
+      setRanking(res.data.ranking || []);
     } catch (err) {
       console.error('Error cargando clasificación:', err);
       setError('No se pudo cargar la clasificación');
@@ -75,55 +50,50 @@ export default function ClasificacionCopaGinoPerez() {
       </div>
 
       <h1 className="text-center mb-4">📊 Clasificación Copa Gino Pérez</h1>
-      {error && <div className="alert alert-danger text-center">{error}</div>}
-
-      {datos && (
-        <>
-          <div className="row">
-            <TablaGrupo titulo="Grupo 1" standings={datos.grupo1} />
-            <TablaGrupo titulo="Grupo 2" standings={datos.grupo2} />
-          </div>
-
-          <h4 className="text-center mt-3">Partidos</h4>
-          <table className="table table-bordered text-center">
+      {error ? (
+        <div className="alert alert-danger text-center">{error}</div>
+      ) : ranking.length === 0 ? (
+        <p className="text-center text-muted">Todavía no hay pronósticos registrados.</p>
+      ) : (
+        <div className="table-responsive">
+          <table className="table table-hover align-middle">
             <thead className="table-dark">
               <tr>
-                <th>#</th>
-                <th>Fase</th>
-                <th>Local</th>
-                <th>Marcador</th>
-                <th>Visita</th>
+                <th className="text-center" style={{ width: 70 }}>#</th>
+                <th>Jugador</th>
+                <th className="text-center">Puntos Partidos</th>
+                <th className="text-center">Posiciones de Grupo</th>
+                <th className="text-center">Posiciones Finales</th>
+                <th className="text-center">Total</th>
               </tr>
             </thead>
             <tbody>
-              {datos.partidos.map(p => (
-                <tr key={p.id} className={p.jugado ? '' : 'table-light text-muted'}>
-                  <td>{p.id}</td>
-                  <td>{FASES[p.fase]}{p.grupo ? ` G${p.grupo}` : ''}</td>
-                  <td>{p.equipo_local_nombre || p.descripcion_local}</td>
-                  <td>{p.jugado ? `${p.goles_local} - ${p.goles_visita}` : 'Pendiente'}</td>
-                  <td>{p.equipo_visita_nombre || p.descripcion_visita}</td>
-                </tr>
-              ))}
+              {ranking.map((j, idx) => {
+                const posicion = idx + 1;
+                const foto = fotoUrl(j.foto_perfil);
+                return (
+                  <tr key={j.id} className={posicion <= 3 ? 'table-warning' : ''}>
+                    <td className="text-center fw-bold">{medalla(posicion) || posicion}</td>
+                    <td>
+                      <div className="d-flex align-items-center gap-2">
+                        {foto && (
+                          <img src={foto} alt={j.nombre} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '2px solid #ddd' }} />
+                        )}
+                        <span className="fw-bold">{j.nombre}</span>
+                      </div>
+                    </td>
+                    <td className="text-center">{j.puntos_partidos}</td>
+                    <td className="text-center">{j.puntos_posiciones_grupos}</td>
+                    <td className="text-center">{j.puntos_posiciones_finales}</td>
+                    <td className="text-center">
+                      <span className="badge bg-primary fs-6">{j.puntos_totales} pts</span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-
-          {datos.posicionesFinales && (
-            <>
-              <h4 className="text-center mt-4" style={{ color: '#d4af37' }}>🏆 Posiciones Finales</h4>
-              <table className="table table-bordered text-center" style={{ maxWidth: 470, margin: '0 auto' }}>
-                <tbody>
-                  <tr><td>🥇 Campeón</td><td>{datos.posicionesFinales[1]}</td></tr>
-                  <tr><td>🥈 Subcampeón</td><td>{datos.posicionesFinales[2]}</td></tr>
-                  <tr><td>3er lugar</td><td>{datos.posicionesFinales[3]}</td></tr>
-                  <tr><td>4to lugar</td><td>{datos.posicionesFinales[4]}</td></tr>
-                  <tr><td>5to lugar</td><td>{datos.posicionesFinales[5]}</td></tr>
-                  <tr><td>🙈 Último</td><td>{datos.posicionesFinales[6]}</td></tr>
-                </tbody>
-              </table>
-            </>
-          )}
-        </>
+        </div>
       )}
     </div>
   );

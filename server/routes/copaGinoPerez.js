@@ -64,7 +64,7 @@ router.get('/pronostico', verifyToken, async (req, res) => {
     );
     const extra = await pool.query(
       `SELECT bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador,
-              puntos_posiciones_grupos, puntos_posiciones_finales, enviado
+              puntos_posiciones_grupos, puntos_posiciones_finales, grupos_guardados, final_guardado, enviado
        FROM copa_gino_perez_predicciones_extra WHERE usuario_id = $1`,
       [usuarioId]
     );
@@ -80,33 +80,29 @@ router.get('/pronostico', verifyToken, async (req, res) => {
   }
 });
 
-// POST /api/copa-gino-perez/pronostico - guardar/actualizar pronóstico completo
-router.post('/pronostico', verifyToken, verificarAccesoJugador, async (req, res) => {
+// POST /api/copa-gino-perez/pronostico/grupos - guardar los 6 pronósticos de
+// fase de grupos. Al guardarse, la app ya puede calcular (en base a estos
+// mismos pronósticos del usuario) qué equipo le corresponde a cada partido
+// de la fase final según su propio bracket virtual.
+router.post('/pronostico/grupos', verifyToken, verificarAccesoJugador, async (req, res) => {
   try {
     if (await torneoArrancado()) {
       return res.status(403).json({ error: 'El torneo ya comenzó, no se puede modificar el pronóstico' });
     }
 
     const usuarioId = req.usuario.id;
-    const {
-      predicciones,
-      bonus_grupo1_partido,
-      bonus_grupo2_partido,
-      bonus_final_partido,
-      bonus_final_multiplicador
-    } = req.body;
+    const { predicciones, bonus_grupo1_partido, bonus_grupo2_partido } = req.body;
 
-    if (!Array.isArray(predicciones) || predicciones.length !== 9) {
-      return res.status(400).json({ error: 'Se requieren pronósticos para los 9 partidos' });
+    if (!Array.isArray(predicciones) || predicciones.length !== 6) {
+      return res.status(400).json({ error: 'Se requieren pronósticos para los 6 partidos de fase de grupos' });
     }
     for (const p of predicciones) {
-      if (![1,2,3,4,5,6,7,8,9].includes(p.partido_id) || p.goles_local == null || p.goles_visita == null
+      if (![1,2,3,4,5,6].includes(p.partido_id) || p.goles_local == null || p.goles_visita == null
         || p.goles_local < 0 || p.goles_visita < 0) {
         return res.status(400).json({ error: 'Pronóstico inválido' });
       }
     }
-    if (![1,2,3].includes(bonus_grupo1_partido) || ![4,5,6].includes(bonus_grupo2_partido)
-      || ![7,8,9].includes(bonus_final_partido) || ![2,3].includes(bonus_final_multiplicador)) {
+    if (![1,2,3].includes(bonus_grupo1_partido) || ![4,5,6].includes(bonus_grupo2_partido)) {
       return res.status(400).json({ error: 'Selección de bonus inválida' });
     }
 
@@ -121,21 +117,79 @@ router.post('/pronostico', verifyToken, verificarAccesoJugador, async (req, res)
 
     await pool.query(`
       INSERT INTO copa_gino_perez_predicciones_extra
-        (usuario_id, bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador, enviado, updated_at)
-      VALUES ($1, $2, $3, $4, $5, true, CURRENT_TIMESTAMP)
+        (usuario_id, bonus_grupo1_partido, bonus_grupo2_partido, grupos_guardados, updated_at)
+      VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP)
       ON CONFLICT (usuario_id) DO UPDATE SET
         bonus_grupo1_partido = $2,
         bonus_grupo2_partido = $3,
-        bonus_final_partido = $4,
-        bonus_final_multiplicador = $5,
+        grupos_guardados = true,
+        updated_at = CURRENT_TIMESTAMP
+    `, [usuarioId, bonus_grupo1_partido, bonus_grupo2_partido]);
+
+    res.json({ mensaje: '✅ Pronóstico de fase de grupos guardado exitosamente' });
+  } catch (error) {
+    console.error('Error guardando pronóstico de grupos de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error guardando pronóstico de fase de grupos' });
+  }
+});
+
+// POST /api/copa-gino-perez/pronostico/final - guardar los 3 pronósticos de
+// fase final. Requiere haber guardado antes el pronóstico de fase de grupos
+// (de ahí sale, según el propio pronóstico del usuario, contra quién juega
+// cada partido de la fase final).
+router.post('/pronostico/final', verifyToken, verificarAccesoJugador, async (req, res) => {
+  try {
+    if (await torneoArrancado()) {
+      return res.status(403).json({ error: 'El torneo ya comenzó, no se puede modificar el pronóstico' });
+    }
+
+    const usuarioId = req.usuario.id;
+    const { predicciones, bonus_final_partido, bonus_final_multiplicador } = req.body;
+
+    const extraActual = await pool.query(
+      `SELECT grupos_guardados FROM copa_gino_perez_predicciones_extra WHERE usuario_id = $1`,
+      [usuarioId]
+    );
+    if (extraActual.rowCount === 0 || !extraActual.rows[0].grupos_guardados) {
+      return res.status(400).json({ error: 'Primero debes guardar tu pronóstico de fase de grupos' });
+    }
+
+    if (!Array.isArray(predicciones) || predicciones.length !== 3) {
+      return res.status(400).json({ error: 'Se requieren pronósticos para los 3 partidos de fase final' });
+    }
+    for (const p of predicciones) {
+      if (![7,8,9].includes(p.partido_id) || p.goles_local == null || p.goles_visita == null
+        || p.goles_local < 0 || p.goles_visita < 0) {
+        return res.status(400).json({ error: 'Pronóstico inválido' });
+      }
+    }
+    if (![7,8,9].includes(bonus_final_partido) || ![2,3].includes(bonus_final_multiplicador)) {
+      return res.status(400).json({ error: 'Selección de bonus inválida' });
+    }
+
+    for (const p of predicciones) {
+      await pool.query(`
+        INSERT INTO copa_gino_perez_pronosticos (usuario_id, partido_id, goles_local, goles_visita, updated_at)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+        ON CONFLICT (usuario_id, partido_id)
+        DO UPDATE SET goles_local = $3, goles_visita = $4, updated_at = CURRENT_TIMESTAMP
+      `, [usuarioId, p.partido_id, p.goles_local, p.goles_visita]);
+    }
+
+    await pool.query(`
+      UPDATE copa_gino_perez_predicciones_extra SET
+        bonus_final_partido = $2,
+        bonus_final_multiplicador = $3,
+        final_guardado = true,
         enviado = true,
         updated_at = CURRENT_TIMESTAMP
-    `, [usuarioId, bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador]);
+      WHERE usuario_id = $1
+    `, [usuarioId, bonus_final_partido, bonus_final_multiplicador]);
 
-    res.json({ mensaje: '✅ Pronóstico guardado exitosamente' });
+    res.json({ mensaje: '✅ Pronóstico de fase final guardado exitosamente' });
   } catch (error) {
-    console.error('Error guardando pronóstico de Copa Gino Pérez:', error);
-    res.status(500).json({ error: 'Error guardando pronóstico' });
+    console.error('Error guardando pronóstico final de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error guardando pronóstico de fase final' });
   }
 });
 
