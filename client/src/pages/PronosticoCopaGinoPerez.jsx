@@ -4,43 +4,9 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-// --- Réplica en el frontend del cálculo de tabla/bracket virtual del backend
+// --- Réplica en el frontend del cálculo de tabla de grupo del backend
 // (server/utils/copaGinoPerezScoring.js), para mostrar en vivo, mientras el
 // usuario llena el formulario, contra quién cree que jugará la fase final. ---
-
-function ganadorVirtualPrediccion(pred, equipoLocalId, equipoVisitaId) {
-  if (!pred || pred.goles_local === '' || pred.goles_visita === '' || pred.goles_local == null || pred.goles_visita == null) return null;
-  const gl = Number(pred.goles_local);
-  const gv = Number(pred.goles_visita);
-  if (gl > gv) return equipoLocalId;
-  if (gv > gl) return equipoVisitaId;
-  return equipoLocalId;
-}
-
-function construirPartidosVirtualesGrupo(equiposGrupo, predicciones, idA, idB, idC) {
-  const t1 = equiposGrupo.find(e => e.orden === 1);
-  const t2 = equiposGrupo.find(e => e.orden === 2);
-  const t3 = equiposGrupo.find(e => e.orden === 3);
-  if (!t1 || !t2 || !t3) return [];
-  const predA = predicciones[idA];
-  const predB = predicciones[idB];
-  const predC = predicciones[idC];
-
-  const ganadorA = ganadorVirtualPrediccion(predA, t2.id, t3.id);
-  const perdedorA = ganadorA ? (ganadorA === t2.id ? t3.id : t2.id) : null;
-
-  const virtuales = [];
-  if (predA && predA.goles_local !== '' && predA.goles_visita !== '') {
-    virtuales.push({ equipo_local_id: t2.id, equipo_visita_id: t3.id, goles_local: Number(predA.goles_local), goles_visita: Number(predA.goles_visita) });
-  }
-  if (predB && perdedorA && predB.goles_local !== '' && predB.goles_visita !== '') {
-    virtuales.push({ equipo_local_id: perdedorA, equipo_visita_id: t1.id, goles_local: Number(predB.goles_local), goles_visita: Number(predB.goles_visita) });
-  }
-  if (predC && ganadorA && predC.goles_local !== '' && predC.goles_visita !== '') {
-    virtuales.push({ equipo_local_id: t1.id, equipo_visita_id: ganadorA, goles_local: Number(predC.goles_local), goles_visita: Number(predC.goles_visita) });
-  }
-  return virtuales;
-}
 
 function calcularStandingsGrupo(equiposGrupo, partidosGrupo) {
   const stats = {};
@@ -73,6 +39,14 @@ function calcularStandingsGrupo(equiposGrupo, partidosGrupo) {
 }
 
 const VACIO = { goles_local: '', goles_visita: '' };
+
+// Enfrentamientos fijos de cada grupo (todos contra todos): el orden en que
+// se jueguen en la realidad no importa para el pronóstico, que es a ciegas
+// por partido.
+const PARTIDOS_GRUPO = {
+  1: [{ id: 1, ordenLocal: 2, ordenVisita: 3 }, { id: 2, ordenLocal: 1, ordenVisita: 3 }, { id: 3, ordenLocal: 1, ordenVisita: 2 }],
+  2: [{ id: 4, ordenLocal: 2, ordenVisita: 3 }, { id: 5, ordenLocal: 1, ordenVisita: 3 }, { id: 6, ordenLocal: 1, ordenVisita: 2 }]
+};
 
 export default function PronosticoCopaGinoPerez() {
   const navigate = useNavigate();
@@ -108,11 +82,13 @@ export default function PronosticoCopaGinoPerez() {
       setEditable(pronosticoRes.data.editable);
 
       if (pronosticoRes.data.pronosticos?.length) {
-        const nuevas = { ...predicciones };
-        pronosticoRes.data.pronosticos.forEach(p => {
-          nuevas[p.partido_id] = { goles_local: String(p.goles_local), goles_visita: String(p.goles_visita) };
+        setPredicciones(prev => {
+          const nuevas = { ...prev };
+          pronosticoRes.data.pronosticos.forEach(p => {
+            nuevas[p.partido_id] = { goles_local: String(p.goles_local), goles_visita: String(p.goles_visita) };
+          });
+          return nuevas;
         });
-        setPredicciones(nuevas);
       }
       if (pronosticoRes.data.extra) {
         const e = pronosticoRes.data.extra;
@@ -131,53 +107,65 @@ export default function PronosticoCopaGinoPerez() {
 
   const equiposG1 = useMemo(() => equipos.filter(e => e.grupo === 1).sort((a, b) => a.orden - b.orden), [equipos]);
   const equiposG2 = useMemo(() => equipos.filter(e => e.grupo === 2).sort((a, b) => a.orden - b.orden), [equipos]);
+  const nombrePorOrden = (equiposGrupo, orden) => equiposGrupo.find(e => e.orden === orden)?.nombre || '...';
+  const idPorOrden = (equiposGrupo, orden) => equiposGrupo.find(e => e.orden === orden)?.id;
 
   const actualizarPrediccion = (partidoId, campo, valor) => {
     setPredicciones(prev => ({ ...prev, [partidoId]: { ...prev[partidoId], [campo]: valor } }));
   };
 
-  const standingsVirtualG1 = useMemo(
-    () => equiposG1.length === 3 ? calcularStandingsGrupo(equiposG1, construirPartidosVirtualesGrupo(equiposG1, predicciones, 1, 2, 3)) : [],
-    [equiposG1, predicciones]
-  );
-  const standingsVirtualG2 = useMemo(
-    () => equiposG2.length === 3 ? calcularStandingsGrupo(equiposG2, construirPartidosVirtualesGrupo(equiposG2, predicciones, 4, 5, 6)) : [],
-    [equiposG2, predicciones]
-  );
+  const partidosFijos = (grupoNum, equiposGrupo) => PARTIDOS_GRUPO[grupoNum].map(p => ({
+    id: p.id,
+    equipo_local_id: idPorOrden(equiposGrupo, p.ordenLocal),
+    equipo_visita_id: idPorOrden(equiposGrupo, p.ordenVisita),
+    nombreLocal: nombrePorOrden(equiposGrupo, p.ordenLocal),
+    nombreVisita: nombrePorOrden(equiposGrupo, p.ordenVisita)
+  }));
 
-  const nombrePorPosicion = (standings, idx) => standings[idx]?.nombre || '(completa la fase de grupos de este grupo)';
+  const partidosFijosG1 = useMemo(() => equiposG1.length === 3 ? partidosFijos(1, equiposG1) : [], [equiposG1]);
+  const partidosFijosG2 = useMemo(() => equiposG2.length === 3 ? partidosFijos(2, equiposG2) : [], [equiposG2]);
 
-  const t1G1 = equiposG1.find(e => e.orden === 1);
-  const t2G1 = equiposG1.find(e => e.orden === 2);
-  const t3G1 = equiposG1.find(e => e.orden === 3);
-  const t1G2 = equiposG2.find(e => e.orden === 1);
-  const t2G2 = equiposG2.find(e => e.orden === 2);
-  const t3G2 = equiposG2.find(e => e.orden === 3);
+  const standingsVirtualG1 = useMemo(() => {
+    if (partidosFijosG1.length !== 3) return [];
+    const virtuales = partidosFijosG1.map(p => ({
+      equipo_local_id: p.equipo_local_id, equipo_visita_id: p.equipo_visita_id,
+      goles_local: predicciones[p.id].goles_local === '' ? null : Number(predicciones[p.id].goles_local),
+      goles_visita: predicciones[p.id].goles_visita === '' ? null : Number(predicciones[p.id].goles_visita)
+    }));
+    return calcularStandingsGrupo(equiposG1, virtuales);
+  }, [partidosFijosG1, equiposG1, predicciones]);
 
-  const ganadorA_G1 = ganadorVirtualPrediccion(predicciones[1], t2G1?.id, t3G1?.id);
-  const perdedorA_G1 = ganadorA_G1 ? (ganadorA_G1 === t2G1.id ? t3G1.id : t2G1.id) : null;
-  const nombreEquipo = id => equipos.find(e => e.id === id)?.nombre || '?';
+  const standingsVirtualG2 = useMemo(() => {
+    if (partidosFijosG2.length !== 3) return [];
+    const virtuales = partidosFijosG2.map(p => ({
+      equipo_local_id: p.equipo_local_id, equipo_visita_id: p.equipo_visita_id,
+      goles_local: predicciones[p.id].goles_local === '' ? null : Number(predicciones[p.id].goles_local),
+      goles_visita: predicciones[p.id].goles_visita === '' ? null : Number(predicciones[p.id].goles_visita)
+    }));
+    return calcularStandingsGrupo(equiposG2, virtuales);
+  }, [partidosFijosG2, equiposG2, predicciones]);
 
-  const ganadorA_G2 = ganadorVirtualPrediccion(predicciones[4], t2G2?.id, t3G2?.id);
-  const perdedorA_G2 = ganadorA_G2 ? (ganadorA_G2 === t2G2.id ? t3G2.id : t2G2.id) : null;
+  const grupo1Completo = [1, 2, 3].every(id => predicciones[id].goles_local !== '' && predicciones[id].goles_visita !== '');
+  const grupo2Completo = [4, 5, 6].every(id => predicciones[id].goles_local !== '' && predicciones[id].goles_visita !== '');
+
+  const nombrePorPosicion = (standings, idx, grupoCompleto) =>
+    grupoCompleto ? (standings[idx]?.nombre || '...') : `(completa el Grupo ${standings === standingsVirtualG1 ? 1 : 2})`;
 
   const partidoInput = (id, labelLocal, labelVisita) => (
-    <div className="row align-items-center g-2 mb-2">
-      <div className="col-5 text-end">{labelLocal}</div>
-      <div className="col-1">
-        <input type="number" min="0" className="form-control form-control-sm text-center"
+    <div className="cgp-fila-partido">
+      <span className="cgp-equipo cgp-equipo-local">{labelLocal}</span>
+      <div className="cgp-marcador">
+        <input type="number" min="0" className="form-control form-control-sm text-center cgp-input"
           value={predicciones[id].goles_local}
           disabled={!editable}
           onChange={e => actualizarPrediccion(id, 'goles_local', e.target.value)} />
-      </div>
-      <div className="col-auto">-</div>
-      <div className="col-1">
-        <input type="number" min="0" className="form-control form-control-sm text-center"
+        <span className="cgp-guion">-</span>
+        <input type="number" min="0" className="form-control form-control-sm text-center cgp-input"
           value={predicciones[id].goles_visita}
           disabled={!editable}
           onChange={e => actualizarPrediccion(id, 'goles_visita', e.target.value)} />
       </div>
-      <div className="col-5">{labelVisita}</div>
+      <span className="cgp-equipo cgp-equipo-visita">{labelVisita}</span>
     </div>
   );
 
@@ -221,8 +209,73 @@ export default function PronosticoCopaGinoPerez() {
 
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
+  const opcionesBonusGrupo = (partidosFijosGrupo) => partidosFijosGrupo.map(p => (
+    <option key={p.id} value={p.id}>{p.nombreLocal} vs {p.nombreVisita}</option>
+  ));
+
+  const nombreFinal = (standings, idx) => standings[idx]?.nombre;
+  const opcionesBonusFinal = [
+    { id: 7, texto: `Final: ${nombreFinal(standingsVirtualG1, 0) && nombreFinal(standingsVirtualG2, 0) ? `${nombreFinal(standingsVirtualG1, 0)} vs ${nombreFinal(standingsVirtualG2, 0)}` : '(completa los grupos)'}` },
+    { id: 8, texto: `3er/4to puesto: ${nombreFinal(standingsVirtualG1, 1) && nombreFinal(standingsVirtualG2, 1) ? `${nombreFinal(standingsVirtualG1, 1)} vs ${nombreFinal(standingsVirtualG2, 1)}` : '(completa los grupos)'}` },
+    { id: 9, texto: `Vergüenza: ${nombreFinal(standingsVirtualG1, 2) && nombreFinal(standingsVirtualG2, 2) ? `${nombreFinal(standingsVirtualG1, 2)} vs ${nombreFinal(standingsVirtualG2, 2)}` : '(completa los grupos)'}` }
+  ];
+
   return (
-    <div className="container mt-4 mb-5">
+    <div className="container mt-4 mb-5 cgp-pronostico">
+      <style>{`
+        .cgp-pronostico .cgp-card {
+          background: #fff;
+          border: 1px solid #ddd;
+          border-radius: 10px;
+          padding: 18px 20px;
+          margin-bottom: 18px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .cgp-pronostico .cgp-card-header {
+          font-weight: 700;
+          font-size: 1.15em;
+          text-align: center;
+          color: #fff;
+          padding: 8px;
+          border-radius: 6px;
+          margin-bottom: 16px;
+        }
+        .cgp-pronostico .cgp-grupo1 .cgp-card-header { background: #d32f2f; }
+        .cgp-pronostico .cgp-grupo2 .cgp-card-header { background: #28a745; }
+        .cgp-pronostico .cgp-final .cgp-card-header { background: #111; }
+        .cgp-pronostico .cgp-fila-partido {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin-bottom: 12px;
+          flex-wrap: nowrap;
+        }
+        .cgp-pronostico .cgp-equipo {
+          flex: 1 1 0;
+          font-weight: 600;
+          font-size: 0.98em;
+          min-width: 0;
+        }
+        .cgp-pronostico .cgp-equipo-local { text-align: right; }
+        .cgp-pronostico .cgp-equipo-visita { text-align: left; }
+        .cgp-pronostico .cgp-marcador {
+          flex: 0 0 auto;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .cgp-pronostico .cgp-input { width: 54px; font-weight: 700; }
+        .cgp-pronostico .cgp-guion { font-weight: 700; color: #888; }
+        .cgp-pronostico .cgp-bonus-label { font-weight: 600; margin-top: 10px; margin-bottom: 4px; display: block; }
+        .cgp-pronostico .cgp-fase-final-sub {
+          text-align: center;
+          font-weight: 600;
+          color: #555;
+          margin-bottom: 10px;
+        }
+      `}</style>
+
       <div className="d-flex justify-content-between align-items-center mb-3">
         <button className="btn btn-outline-secondary" onClick={() => navigate('/copa-gino-perez')}>
           ← Volver a Copa Gino Pérez
@@ -246,64 +299,56 @@ export default function PronosticoCopaGinoPerez() {
 
       <div className="row">
         <div className="col-md-6">
-          <h4 className="text-center">Grupo 1</h4>
-          {t2G1 && t3G1 && partidoInput(1, nombreEquipo(t2G1.id), nombreEquipo(t3G1.id))}
-          {t1G1 && partidoInput(2, perdedorA_G1 ? `Perdedor P1 (${nombreEquipo(perdedorA_G1)})` : 'Perdedor Partido 1', nombreEquipo(t1G1.id))}
-          {t1G1 && partidoInput(3, nombreEquipo(t1G1.id), ganadorA_G1 ? `Ganador P1 (${nombreEquipo(ganadorA_G1)})` : 'Ganador Partido 1')}
-          <div className="mb-3">
-            <label className="form-label">Partido con bonus x2 de este grupo:</label>
+          <div className="cgp-card cgp-grupo1">
+            <div className="cgp-card-header">Grupo 1</div>
+            {partidosFijosG1.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita))}
+            <label className="cgp-bonus-label">Partido con bonus x2 de este grupo:</label>
             <select className="form-select" value={bonusGrupo1} disabled={!editable} onChange={e => setBonusGrupo1(e.target.value)}>
-              <option value={1}>Partido 1</option>
-              <option value={2}>Partido 2</option>
-              <option value={3}>Partido 3</option>
+              {opcionesBonusGrupo(partidosFijosG1)}
             </select>
           </div>
         </div>
         <div className="col-md-6">
-          <h4 className="text-center">Grupo 2</h4>
-          {t2G2 && t3G2 && partidoInput(4, nombreEquipo(t2G2.id), nombreEquipo(t3G2.id))}
-          {t1G2 && partidoInput(5, perdedorA_G2 ? `Perdedor P4 (${nombreEquipo(perdedorA_G2)})` : 'Perdedor Partido 4', nombreEquipo(t1G2.id))}
-          {t1G2 && partidoInput(6, nombreEquipo(t1G2.id), ganadorA_G2 ? `Ganador P4 (${nombreEquipo(ganadorA_G2)})` : 'Ganador Partido 4')}
-          <div className="mb-3">
-            <label className="form-label">Partido con bonus x2 de este grupo:</label>
+          <div className="cgp-card cgp-grupo2">
+            <div className="cgp-card-header">Grupo 2</div>
+            {partidosFijosG2.map(p => partidoInput(p.id, p.nombreLocal, p.nombreVisita))}
+            <label className="cgp-bonus-label">Partido con bonus x2 de este grupo:</label>
             <select className="form-select" value={bonusGrupo2} disabled={!editable} onChange={e => setBonusGrupo2(e.target.value)}>
-              <option value={4}>Partido 4</option>
-              <option value={5}>Partido 5</option>
-              <option value={6}>Partido 6</option>
+              {opcionesBonusGrupo(partidosFijosG2)}
             </select>
           </div>
         </div>
       </div>
 
-      <h4 className="text-center mt-4">Fase Final (según tu propio pronóstico de grupos)</h4>
-      <div className="row">
-        <div className="col-md-4">
-          <p className="text-center text-muted small mb-1">Final (1° y 2° lugar)</p>
-          {partidoInput(7, nombrePorPosicion(standingsVirtualG1, 0), nombrePorPosicion(standingsVirtualG2, 0))}
+      <div className="cgp-card cgp-final">
+        <div className="cgp-card-header">Fase Final (según tu propio pronóstico de grupos)</div>
+        <div className="row">
+          <div className="col-md-4">
+            <p className="cgp-fase-final-sub">Final (1° y 2° lugar)</p>
+            {partidoInput(7, nombrePorPosicion(standingsVirtualG1, 0, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 0, grupo2Completo))}
+          </div>
+          <div className="col-md-4">
+            <p className="cgp-fase-final-sub">3er y 4to puesto</p>
+            {partidoInput(8, nombrePorPosicion(standingsVirtualG1, 1, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 1, grupo2Completo))}
+          </div>
+          <div className="col-md-4">
+            <p className="cgp-fase-final-sub">Partido de la vergüenza (5to y 6to)</p>
+            {partidoInput(9, nombrePorPosicion(standingsVirtualG1, 2, grupo1Completo), nombrePorPosicion(standingsVirtualG2, 2, grupo2Completo))}
+          </div>
         </div>
-        <div className="col-md-4">
-          <p className="text-center text-muted small mb-1">3er y 4to puesto</p>
-          {partidoInput(8, nombrePorPosicion(standingsVirtualG1, 1), nombrePorPosicion(standingsVirtualG2, 1))}
-        </div>
-        <div className="col-md-4">
-          <p className="text-center text-muted small mb-1">Partido de la vergüenza (5to y 6to)</p>
-          {partidoInput(9, nombrePorPosicion(standingsVirtualG1, 2), nombrePorPosicion(standingsVirtualG2, 2))}
-        </div>
-      </div>
 
-      <div className="row mt-3">
-        <div className="col-md-6 offset-md-3">
-          <label className="form-label">Partido de la fase final con bonus:</label>
-          <select className="form-select mb-2" value={bonusFinal} disabled={!editable} onChange={e => setBonusFinal(e.target.value)}>
-            <option value={7}>Final</option>
-            <option value={8}>3er y 4to puesto</option>
-            <option value={9}>Partido de la vergüenza</option>
-          </select>
-          <label className="form-label">Multiplicador del bonus de la final:</label>
-          <select className="form-select" value={bonusFinalMultiplicador} disabled={!editable} onChange={e => setBonusFinalMultiplicador(e.target.value)}>
-            <option value={2}>x2</option>
-            <option value={3}>x3</option>
-          </select>
+        <div className="row mt-2">
+          <div className="col-md-8 offset-md-2">
+            <label className="cgp-bonus-label">Partido de la fase final con bonus:</label>
+            <select className="form-select mb-2" value={bonusFinal} disabled={!editable} onChange={e => setBonusFinal(e.target.value)}>
+              {opcionesBonusFinal.map(o => <option key={o.id} value={o.id}>{o.texto}</option>)}
+            </select>
+            <label className="cgp-bonus-label">Multiplicador del bonus de la final:</label>
+            <select className="form-select" value={bonusFinalMultiplicador} disabled={!editable} onChange={e => setBonusFinalMultiplicador(e.target.value)}>
+              <option value={2}>x2</option>
+              <option value={3}>x3</option>
+            </select>
+          </div>
         </div>
       </div>
 
