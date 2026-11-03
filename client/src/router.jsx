@@ -36,6 +36,12 @@ import ResumenJornadaMundial from "./pages/ResumenJornadaMundial";
 import RankingsHistoricos from "./pages/RankingsHistoricos";
 import RankingUnificado from "./pages/RankingUnificado";
 import RankingVergonzoso from "./pages/RankingVergonzoso";
+import CopaGinoPerez from "./pages/CopaGinoPerez";
+import PronosticoCopaGinoPerez from "./pages/PronosticoCopaGinoPerez";
+import ClasificacionCopaGinoPerez from "./pages/ClasificacionCopaGinoPerez";
+import PuntuacionCopaGinoPerez from "./pages/PuntuacionCopaGinoPerez";
+import EstadisticasCopaGinoPerez from "./pages/EstadisticasCopaGinoPerez";
+import AdminCopaGinoPerezResultados from "./pages/Admin/AdminCopaGinoPerezResultados";
 import AdminTorneoNacional from "./pages/Admin/AdminTorneoNacional";
 import FixtureTorneoNacional from "./pages/Admin/FixtureTorneoNacional";
 import AdminTorneoResultados from "./pages/Admin/AdminTorneoResultados";
@@ -225,6 +231,16 @@ export default function AppRouter() {
         <Route path="/rankings-historicos" element={<RankingsHistoricos />} />
         <Route path="/ranking-unificado" element={<RankingUnificado />} />
         <Route path="/ranking-vergonzoso" element={<RankingVergonzoso />} />
+        <Route path="/copa-gino-perez" element={<CopaGinoPerez />} />
+        <Route path="/copa-gino-perez/pronostico" element={<PronosticoCopaGinoPerez />} />
+        <Route path="/copa-gino-perez/clasificacion" element={<ClasificacionCopaGinoPerez />} />
+        <Route path="/copa-gino-perez/puntuacion" element={<PuntuacionCopaGinoPerez />} />
+        <Route path="/copa-gino-perez/estadisticas" element={<EstadisticasCopaGinoPerez />} />
+        <Route path="/admin/copa-gino-perez/resultados" element={
+          <RutaProtegidaAdmin>
+            <AdminCopaGinoPerezResultados />
+          </RutaProtegidaAdmin>
+        } />
         <Route path="/notificaciones" element={<TodasNotificaciones />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />

@@ -192,10 +192,11 @@ export default function Home() {
                     activo_torneo_nacional: usuarioEditando.activo_torneo_nacional,
                     activo_libertadores: usuarioEditando.activo_libertadores,
                     activo_sudamericana: usuarioEditando.activo_sudamericana,
-                    activo_mundial: usuarioEditando.activo_mundial
+                    activo_mundial: usuarioEditando.activo_mundial,
+                    activo_copa_gino_perez: usuarioEditando.activo_copa_gino_perez
                 })
             });
-            
+
             if (res.ok) {
                 alert('✅ Usuario actualizado');
                 
@@ -211,7 +212,8 @@ export default function Home() {
                         activo_torneo_nacional: usuarioEditando.activo_torneo_nacional,
                         activo_libertadores: usuarioEditando.activo_libertadores,
                         activo_sudamericana: usuarioEditando.activo_sudamericana,
-                        activo_mundial: usuarioEditando.activo_mundial
+                        activo_mundial: usuarioEditando.activo_mundial,
+                        activo_copa_gino_perez: usuarioEditando.activo_copa_gino_perez
                     };
                     localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
                     console.log('✅ Usuario actualizado en localStorage:', usuarioActualizado);
@@ -323,7 +325,8 @@ export default function Home() {
                         activo_torneo_nacional: u.activo_torneo_nacional,
                         activo_libertadores: u.activo_libertadores,
                         activo_sudamericana: u.activo_sudamericana,
-                        activo_mundial: u.activo_mundial
+                        activo_mundial: u.activo_mundial,
+                        activo_copa_gino_perez: u.activo_copa_gino_perez
                     })
                 });
                 
@@ -440,6 +443,14 @@ export default function Home() {
                 >
                     🙈 Ranking de la Vergüenza
                 </button>
+                {usuario && (usuario.activo_copa_gino_perez || usuario.rol === 'admin') && (
+                    <button
+                        className="btn btn-dark px-4 py-2"
+                        onClick={() => navigate("/copa-gino-perez")}
+                    >
+                        ⚽ Copa Gino Pérez
+                    </button>
+                )}
             </div>
 
             {/* Hero Section con partidos destacados - DEBAJO DE BOTONES */}
@@ -614,6 +625,7 @@ export default function Home() {
                                                         <th>🔴 Libertadores</th>
                                                         <th>🟢 Sudamericana</th>
                                                         <th>🌍 Mundial</th>
+                                                        <th>⚽ Copa Gino Pérez</th>
                                                         <th>Acciones</th>
                                                     </tr>
                                                 </thead>
@@ -714,6 +726,14 @@ export default function Home() {
                                                                         className="form-check-input"
                                                                         checked={u.activo_mundial || false}
                                                                         onChange={(e) => handleCambioMasivo(index, 'activo_mundial', e.target.checked)}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={u.activo_copa_gino_perez || false}
+                                                                        onChange={(e) => handleCambioMasivo(index, 'activo_copa_gino_perez', e.target.checked)}
                                                                     />
                                                                 </td>
                                                                 <td>
@@ -822,7 +842,15 @@ export default function Home() {
                                                                     />
                                                                 </td>
                                                                 <td>
-                                                                    <button 
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="form-check-input"
+                                                                        checked={usuarioEditando.activo_copa_gino_perez || false}
+                                                                        onChange={(e) => setUsuarioEditando({...usuarioEditando, activo_copa_gino_perez: e.target.checked})}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <button
                                                                         className="btn btn-sm btn-success me-1"
                                                                         onClick={handleActualizarUsuario}
                                                                     >
@@ -892,8 +920,11 @@ export default function Home() {
                                                                 <td className="text-center">
                                                                     {u.activo_mundial ? '✅' : '❌'}
                                                                 </td>
+                                                                <td className="text-center">
+                                                                    {u.activo_copa_gino_perez ? '✅' : '❌'}
+                                                                </td>
                                                                 <td>
-                                                                   <button 
+                                                                   <button
                                                                         className="btn btn-sm btn-warning me-1"
                                                                         onClick={() => setUsuarioEditando({...u})}
                                                                         disabled={modoEdicionMasiva}
