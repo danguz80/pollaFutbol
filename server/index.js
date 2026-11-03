@@ -500,9 +500,9 @@ app.get("/", (req, res) => {
       if (p[1] !== null) {
         await pool.query(`
           UPDATE copa_gino_perez_partidos
-          SET descripcion_local = $4, descripcion_visita = $5, equipo_local_id = $6, equipo_visita_id = $7
+          SET descripcion_local = $2, descripcion_visita = $3, equipo_local_id = $4, equipo_visita_id = $5
           WHERE id = $1 AND jugado = false
-        `, p);
+        `, [p[0], p[3], p[4], p[5], p[6]]);
       }
     }
 
