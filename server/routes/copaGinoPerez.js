@@ -58,8 +58,9 @@ async function pronosticosCerrados() {
 // GET /api/copa-gino-perez/config
 router.get('/config', async (req, res) => {
   try {
-    const cerrado = await pronosticosCerrados();
-    res.json({ cerrado });
+    const result = await pool.query(`SELECT cerrado, fecha_cierre FROM copa_gino_perez_config WHERE id = 1`);
+    const config = result.rows[0] || { cerrado: false, fecha_cierre: null };
+    res.json({ cerrado: config.cerrado === true, fecha_cierre: config.fecha_cierre });
   } catch (error) {
     console.error('Error obteniendo config de Copa Gino Pérez:', error);
     res.status(500).json({ error: 'Error obteniendo configuración' });
@@ -81,6 +82,28 @@ router.patch('/admin/cerrar', verifyToken, authorizeRoles('admin'), async (req, 
   } catch (error) {
     console.error('Error cerrando pronósticos de Copa Gino Pérez:', error);
     res.status(500).json({ error: 'Error actualizando el cierre de pronósticos' });
+  }
+});
+
+// PATCH /api/copa-gino-perez/admin/fecha-cierre (Admin) - programa (o quita)
+// una fecha/hora de cierre automático de los pronósticos.
+router.patch('/admin/fecha-cierre', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { fecha_cierre } = req.body;
+    if (fecha_cierre === undefined) {
+      return res.status(400).json({ error: 'Se requiere el campo fecha_cierre (puede ser null para quitarla)' });
+    }
+    await pool.query(
+      `UPDATE copa_gino_perez_config SET fecha_cierre = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1`,
+      [fecha_cierre]
+    );
+    res.json({
+      mensaje: fecha_cierre ? '✅ Fecha de cierre programada' : '✅ Fecha de cierre eliminada',
+      fecha_cierre
+    });
+  } catch (error) {
+    console.error('Error programando fecha de cierre de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error programando la fecha de cierre' });
   }
 });
 
