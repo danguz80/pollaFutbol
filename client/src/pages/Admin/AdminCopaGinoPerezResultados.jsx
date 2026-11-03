@@ -15,6 +15,8 @@ export default function AdminCopaGinoPerezResultados() {
   const navigate = useNavigate();
   const [partidos, setPartidos] = useState([]);
   const [clasificacion, setClasificacion] = useState(null);
+  const [cerrado, setCerrado] = useState(false);
+  const [cambiandoCierre, setCambiandoCierre] = useState(false);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(null);
@@ -27,12 +29,14 @@ export default function AdminCopaGinoPerezResultados() {
   const cargarPartidos = async () => {
     try {
       setLoading(true);
-      const [partidosRes, clasificacionRes] = await Promise.all([
+      const [partidosRes, clasificacionRes, configRes] = await Promise.all([
         axios.get(`${API_URL}/api/copa-gino-perez/partidos`),
-        axios.get(`${API_URL}/api/copa-gino-perez/clasificacion`)
+        axios.get(`${API_URL}/api/copa-gino-perez/clasificacion`),
+        axios.get(`${API_URL}/api/copa-gino-perez/config`)
       ]);
       setPartidos(partidosRes.data);
       setClasificacion(clasificacionRes.data);
+      setCerrado(configRes.data.cerrado);
       const nuevoForm = {};
       partidosRes.data.forEach(p => {
         nuevoForm[p.id] = {
@@ -46,6 +50,27 @@ export default function AdminCopaGinoPerezResultados() {
       console.error('Error cargando partidos:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cambiarCierre = async (nuevoCerrado) => {
+    const confirmacion = nuevoCerrado
+      ? '¿Cerrar los pronósticos? Los usuarios ya no podrán modificarlos y se mostrarán los pronósticos de todos en la página Clasificación.'
+      : '¿Reabrir los pronósticos? Los usuarios podrán volver a modificarlos.';
+    if (!confirm(confirmacion)) return;
+    try {
+      setCambiandoCierre(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.patch(`${API_URL}/api/copa-gino-perez/admin/cerrar`,
+        { cerrado: nuevoCerrado },
+        { headers: { Authorization: `Bearer ${token}` } });
+      setCerrado(res.data.cerrado);
+      setMensaje(res.data.mensaje);
+    } catch (err) {
+      console.error('Error cambiando el cierre de pronósticos:', err);
+      alert('❌ ' + (err.response?.data?.error || 'Error cambiando el cierre de pronósticos'));
+    } finally {
+      setCambiandoCierre(false);
     }
   };
 
@@ -100,6 +125,23 @@ export default function AdminCopaGinoPerezResultados() {
 
       <h1 className="text-center mb-4">⚽ Admin: Resultados Copa Gino Pérez</h1>
       {mensaje && <div className="alert alert-success text-center">{mensaje}</div>}
+
+      <div className="text-center mb-4">
+        <span className={`badge ${cerrado ? 'bg-danger' : 'bg-success'} me-2`} style={{ fontSize: '1em' }}>
+          {cerrado ? '🔒 Pronósticos cerrados' : '🔓 Pronósticos abiertos'}
+        </span>
+        <button
+          className={`btn btn-sm ${cerrado ? 'btn-outline-success' : 'btn-outline-danger'}`}
+          disabled={cambiandoCierre}
+          onClick={() => cambiarCierre(!cerrado)}
+        >
+          {cambiandoCierre ? 'Guardando...' : cerrado ? 'Reabrir pronósticos' : 'Cerrar pronósticos'}
+        </button>
+        <p className="text-muted small mt-2 mb-0">
+          Al cerrar, los usuarios ya no pueden editar su pronóstico y en la página Clasificación se
+          muestran los pronósticos de todos (antes de cerrar, cada uno solo ve el propio).
+        </p>
+      </div>
 
       <p className="text-muted text-center small">
         Los 2 primeros de cada grupo avanzan a la Final, los 2 segundos al 3er/4to puesto

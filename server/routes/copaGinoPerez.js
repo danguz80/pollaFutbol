@@ -47,11 +47,79 @@ router.get('/partidos', async (req, res) => {
   }
 });
 
-// Helper: ¿ya arrancó el torneo? (partido 1 o 4 ya jugado)
-async function torneoArrancado() {
-  const result = await pool.query(`SELECT jugado FROM copa_gino_perez_partidos WHERE id IN (1, 4)`);
-  return result.rows.some(r => r.jugado);
+// Helper: ¿el admin ya cerró los pronósticos? (equivalente a "cerrar
+// jornada" en los demás torneos: bloquea la edición y revela los
+// pronósticos de todos).
+async function pronosticosCerrados() {
+  const result = await pool.query(`SELECT cerrado FROM copa_gino_perez_config WHERE id = 1`);
+  return result.rows[0]?.cerrado === true;
 }
+
+// GET /api/copa-gino-perez/config
+router.get('/config', async (req, res) => {
+  try {
+    const cerrado = await pronosticosCerrados();
+    res.json({ cerrado });
+  } catch (error) {
+    console.error('Error obteniendo config de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error obteniendo configuración' });
+  }
+});
+
+// PATCH /api/copa-gino-perez/admin/cerrar (Admin) - cierra/reabre los pronósticos
+router.patch('/admin/cerrar', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { cerrado } = req.body;
+    if (typeof cerrado !== 'boolean') {
+      return res.status(400).json({ error: 'Falta el campo cerrado (true/false)' });
+    }
+    await pool.query(
+      `UPDATE copa_gino_perez_config SET cerrado = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1`,
+      [cerrado]
+    );
+    res.json({ mensaje: cerrado ? '🔒 Pronósticos cerrados' : '🔓 Pronósticos reabiertos', cerrado });
+  } catch (error) {
+    console.error('Error cerrando pronósticos de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error actualizando el cierre de pronósticos' });
+  }
+});
+
+// GET /api/copa-gino-perez/pronosticos-todos - pronósticos de todos los
+// usuarios, solo disponible una vez que el admin cerró los pronósticos.
+router.get('/pronosticos-todos', async (req, res) => {
+  try {
+    const cerrado = await pronosticosCerrados();
+    if (!cerrado) {
+      return res.status(403).json({ error: 'Los pronósticos todavía no están cerrados' });
+    }
+
+    const usuariosRes = await pool.query(`
+      SELECT id, nombre, foto_perfil
+      FROM usuarios
+      WHERE rol != 'admin' AND activo_copa_gino_perez = true
+      ORDER BY nombre ASC
+    `);
+    const pronosticosRes = await pool.query(`SELECT usuario_id, partido_id, goles_local, goles_visita FROM copa_gino_perez_pronosticos`);
+    const extrasRes = await pool.query(`
+      SELECT usuario_id, bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador
+      FROM copa_gino_perez_predicciones_extra
+    `);
+
+    const usuarios = usuariosRes.rows.map(u => {
+      const pronosticos = {};
+      pronosticosRes.rows
+        .filter(p => p.usuario_id === u.id)
+        .forEach(p => { pronosticos[p.partido_id] = { goles_local: p.goles_local, goles_visita: p.goles_visita }; });
+      const extra = extrasRes.rows.find(e => e.usuario_id === u.id) || null;
+      return { id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil, pronosticos, extra };
+    });
+
+    res.json({ cerrado: true, usuarios });
+  } catch (error) {
+    console.error('Error obteniendo pronósticos de todos en Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error obteniendo los pronósticos' });
+  }
+});
 
 // GET /api/copa-gino-perez/pronostico - pronóstico propio (9 partidos + extras)
 router.get('/pronostico', verifyToken, async (req, res) => {
@@ -68,11 +136,11 @@ router.get('/pronostico', verifyToken, async (req, res) => {
        FROM copa_gino_perez_predicciones_extra WHERE usuario_id = $1`,
       [usuarioId]
     );
-    const arrancado = await torneoArrancado();
+    const cerrado = await pronosticosCerrados();
     res.json({
       pronosticos: pronosticos.rows,
       extra: extra.rows[0] || null,
-      editable: !arrancado
+      editable: !cerrado
     });
   } catch (error) {
     console.error('Error obteniendo pronóstico de Copa Gino Pérez:', error);
@@ -86,8 +154,8 @@ router.get('/pronostico', verifyToken, async (req, res) => {
 // de la fase final según su propio bracket virtual.
 router.post('/pronostico/grupos', verifyToken, verificarAccesoJugador, async (req, res) => {
   try {
-    if (await torneoArrancado()) {
-      return res.status(403).json({ error: 'El torneo ya comenzó, no se puede modificar el pronóstico' });
+    if (await pronosticosCerrados()) {
+      return res.status(403).json({ error: 'Los pronósticos ya están cerrados, no se puede modificar' });
     }
 
     const usuarioId = req.usuario.id;
@@ -139,8 +207,8 @@ router.post('/pronostico/grupos', verifyToken, verificarAccesoJugador, async (re
 // cada partido de la fase final).
 router.post('/pronostico/final', verifyToken, verificarAccesoJugador, async (req, res) => {
   try {
-    if (await torneoArrancado()) {
-      return res.status(403).json({ error: 'El torneo ya comenzó, no se puede modificar el pronóstico' });
+    if (await pronosticosCerrados()) {
+      return res.status(403).json({ error: 'Los pronósticos ya están cerrados, no se puede modificar' });
     }
 
     const usuarioId = req.usuario.id;

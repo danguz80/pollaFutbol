@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -16,9 +16,19 @@ const medalla = (posicion) => {
   return null;
 };
 
+const ETIQUETAS_PARTIDO = {
+  1: 'P1 G1', 2: 'P2 G1', 3: 'P3 G1',
+  4: 'P4 G2', 5: 'P5 G2', 6: 'P6 G2',
+  7: 'Final', 8: '3°/4°', 9: 'Vergüenza'
+};
+
 export default function ClasificacionCopaGinoPerez() {
   const navigate = useNavigate();
   const [ranking, setRanking] = useState([]);
+  const [partidos, setPartidos] = useState([]);
+  const [cerrado, setCerrado] = useState(false);
+  const [miPronostico, setMiPronostico] = useState(null);
+  const [todosPronosticos, setTodosPronosticos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -29,8 +39,33 @@ export default function ClasificacionCopaGinoPerez() {
   const cargar = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/api/copa-gino-perez/estadisticas`);
-      setRanking(res.data.ranking || []);
+      const [rankingRes, partidosRes, configRes] = await Promise.all([
+        axios.get(`${API_URL}/api/copa-gino-perez/estadisticas`),
+        axios.get(`${API_URL}/api/copa-gino-perez/partidos`),
+        axios.get(`${API_URL}/api/copa-gino-perez/config`)
+      ]);
+      setRanking(rankingRes.data.ranking || []);
+      setPartidos(partidosRes.data);
+      setCerrado(configRes.data.cerrado);
+
+      if (configRes.data.cerrado) {
+        try {
+          const todosRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronosticos-todos`);
+          setTodosPronosticos(todosRes.data.usuarios || []);
+        } catch (err) {
+          console.error('Error cargando pronósticos de todos:', err);
+        }
+      } else {
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const miRes = await axios.get(`${API_URL}/api/copa-gino-perez/pronostico`, { headers: { Authorization: `Bearer ${token}` } });
+            setMiPronostico(miRes.data);
+          } catch (err) {
+            console.error('Error cargando mi pronóstico:', err);
+          }
+        }
+      }
     } catch (err) {
       console.error('Error cargando clasificación:', err);
       setError('No se pudo cargar la clasificación');
@@ -38,6 +73,13 @@ export default function ClasificacionCopaGinoPerez() {
       setLoading(false);
     }
   };
+
+  const nombrePartido = (p) => `${p.equipo_local_nombre || p.descripcion_local} vs ${p.equipo_visita_nombre || p.descripcion_visita}`;
+  const partidosPorId = useMemo(() => {
+    const m = {};
+    partidos.forEach(p => { m[p.id] = p; });
+    return m;
+  }, [partidos]);
 
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
@@ -50,6 +92,85 @@ export default function ClasificacionCopaGinoPerez() {
       </div>
 
       <h1 className="text-center mb-4">📊 Clasificación Copa Gino Pérez</h1>
+
+      {!cerrado && miPronostico?.pronosticos?.length > 0 && (
+        <div className="card mb-4">
+          <div className="card-header bg-dark text-white text-center">Mi Pronóstico</div>
+          <div className="card-body">
+            <p className="text-muted small text-center">
+              Mientras los pronósticos no estén cerrados, solo vos podés ver el tuyo. Cuando el admin los
+              cierre, se mostrarán acá los de todos los jugadores.
+            </p>
+            <ul className="list-unstyled mb-0">
+              {miPronostico.pronosticos.map(p => {
+                const partido = partidosPorId[p.partido_id];
+                const extra = miPronostico.extra;
+                const esBonusGrupo = extra && ((extra.bonus_grupo1_partido === p.partido_id) || (extra.bonus_grupo2_partido === p.partido_id));
+                const esBonusFinal = extra && extra.bonus_final_partido === p.partido_id;
+                return (
+                  <li key={p.partido_id} className="d-flex justify-content-between border-bottom py-1">
+                    <span>{partido ? nombrePartido(partido) : `Partido ${p.partido_id}`}</span>
+                    <span>
+                      <strong>{p.goles_local} - {p.goles_visita}</strong>
+                      {esBonusGrupo && <span className="badge bg-warning text-dark ms-2">x2</span>}
+                      {esBonusFinal && <span className="badge bg-warning text-dark ms-2">x{extra.bonus_final_multiplicador}</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {cerrado && todosPronosticos && todosPronosticos.length > 0 && (
+        <div className="mb-4">
+          <h4 className="text-center" style={{ background: '#111', color: '#fff', padding: 8, borderRadius: 6 }}>
+            Pronósticos de Todos
+          </h4>
+          <div className="table-responsive">
+            <table className="table table-bordered table-sm text-center align-middle">
+              <thead className="table-dark">
+                <tr>
+                  <th>Jugador</th>
+                  {[1,2,3,4,5,6,7,8,9].map(id => (
+                    <th key={id} title={partidosPorId[id] ? nombrePartido(partidosPorId[id]) : ''}>
+                      {ETIQUETAS_PARTIDO[id]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {todosPronosticos.map(u => (
+                  <tr key={u.id}>
+                    <td className="text-start">
+                      <div className="d-flex align-items-center gap-2">
+                        {fotoUrl(u.foto_perfil) && (
+                          <img src={fotoUrl(u.foto_perfil)} alt={u.nombre} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+                        )}
+                        <span>{u.nombre}</span>
+                      </div>
+                    </td>
+                    {[1,2,3,4,5,6,7,8,9].map(id => {
+                      const pred = u.pronosticos[id];
+                      const esBonusGrupo = u.extra && ((u.extra.bonus_grupo1_partido === id) || (u.extra.bonus_grupo2_partido === id));
+                      const esBonusFinal = u.extra && u.extra.bonus_final_partido === id;
+                      return (
+                        <td key={id} className={esBonusGrupo || esBonusFinal ? 'table-warning fw-bold' : ''}>
+                          {pred ? `${pred.goles_local}-${pred.goles_visita}` : '—'}
+                          {esBonusGrupo && ' (x2)'}
+                          {esBonusFinal && ` (x${u.extra.bonus_final_multiplicador})`}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {error ? (
         <div className="alert alert-danger text-center">{error}</div>
       ) : ranking.length === 0 ? (
