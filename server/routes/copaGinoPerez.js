@@ -1,16 +1,35 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { recalcularTodo, determinarGanador, asegurarEquiposGrupoFijos, calcularStandingsGrupo } from '../utils/copaGinoPerezScoring.js';
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'secreto-temporal';
 
 async function verificarAccesoJugador(req, res, next) {
   if (req.usuario.rol === 'admin') return next();
   const check = await pool.query('SELECT activo_copa_gino_perez FROM usuarios WHERE id = $1', [req.usuario.id]);
   if (check.rowCount === 0 || check.rows[0].activo_copa_gino_perez !== true) {
     return res.status(403).json({ error: 'No tienes acceso a la Copa Gino Pérez' });
+  }
+  next();
+}
+
+// Autenticación opcional: si viene un token válido lo decodifica en
+// req.usuario, pero nunca bloquea la petición si no viene o es inválido
+// (a diferencia de verifyToken). Se usa en endpoints públicos que, además,
+// le dan más acceso al admin si está identificado.
+async function autenticacionOpcional(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return next();
+  try {
+    const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+    const result = await pool.query('SELECT id, nombre, rol FROM usuarios WHERE id = $1', [decoded.id]);
+    if (result.rowCount > 0) req.usuario = result.rows[0];
+  } catch (err) {
+    // Token ausente/ inválido: seguir sin req.usuario, no es un error acá.
   }
   next();
 }
@@ -108,11 +127,13 @@ router.patch('/admin/fecha-cierre', verifyToken, authorizeRoles('admin'), async 
 });
 
 // GET /api/copa-gino-perez/pronosticos-todos - pronósticos de todos los
-// usuarios, solo disponible una vez que el admin cerró los pronósticos.
-router.get('/pronosticos-todos', async (req, res) => {
+// usuarios. Para un jugador normal, solo disponible una vez que el admin
+// cerró los pronósticos; el admin puede verlos en cualquier momento.
+router.get('/pronosticos-todos', autenticacionOpcional, async (req, res) => {
   try {
+    const esAdmin = req.usuario?.rol === 'admin';
     const cerrado = await pronosticosCerrados();
-    if (!cerrado) {
+    if (!cerrado && !esAdmin) {
       return res.status(403).json({ error: 'Los pronósticos todavía no están cerrados' });
     }
 
@@ -137,7 +158,7 @@ router.get('/pronosticos-todos', async (req, res) => {
       return { id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil, pronosticos, extra };
     });
 
-    res.json({ cerrado: true, usuarios });
+    res.json({ cerrado, usuarios });
   } catch (error) {
     console.error('Error obteniendo pronósticos de todos en Copa Gino Pérez:', error);
     res.status(500).json({ error: 'Error obteniendo los pronósticos' });

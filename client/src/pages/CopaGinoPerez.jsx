@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import CuentaRegresivaCopaGinoPerez from '../components/CuentaRegresivaCopaGinoPerez';
 
 export default function CopaGinoPerez() {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ export default function CopaGinoPerez() {
         Torneo local de 6 equipos en 2 grupos. Grupo 1: H2, Cokal (Coker), Resto del Mundo.
         Grupo 2: LQQ (Quintero), Los Chavos (Topping), Norte - Sur (Cracking).
       </p>
+
+      <CuentaRegresivaCopaGinoPerez />
 
       <div className="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3 mb-4">
         <button className="btn btn-dark px-4 py-2" onClick={() => navigate('/copa-gino-perez/pronostico')}>
