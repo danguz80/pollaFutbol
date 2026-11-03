@@ -48,7 +48,7 @@ export default function AdminCopaGinoPerezResultados() {
     setForm(prev => ({ ...prev, [partidoId]: { ...prev[partidoId], [campo]: valor } }));
   };
 
-  const requiereGanador = partidoId => [1, 4, 7, 8, 9].includes(partidoId);
+  const requiereGanador = partidoId => [7, 8, 9].includes(partidoId);
 
   const guardarResultado = async (partido) => {
     const datos = form[partido.id];

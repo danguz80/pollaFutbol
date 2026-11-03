@@ -471,13 +471,19 @@ app.get("/", (req, res) => {
       )
     `);
 
+    // Al ser todos-contra-todos dentro de cada grupo, los 3 enfrentamientos de
+    // cada grupo son fijos y conocidos de antemano (el orden en que se jueguen
+    // en la realidad no importa para el pronóstico, que es a ciegas por partido).
+    const nombreG1 = equipos.rows.filter(e => e.grupo === 1).reduce((m, e) => ({ ...m, [e.orden]: e.nombre }), {});
+    const nombreG2 = equipos.rows.filter(e => e.grupo === 2).reduce((m, e) => ({ ...m, [e.orden]: e.nombre }), {});
+
     const partidosSeed = [
-      [1, 1, 'grupos', '2° (Cokal)', '3° (Resto del Mundo)', equipoId(1,2), equipoId(1,3)],
-      [2, 1, 'grupos', 'Perdedor Partido 1', '1° (H2)', null, equipoId(1,1)],
-      [3, 1, 'grupos', '1° (H2)', 'Ganador Partido 1', equipoId(1,1), null],
-      [4, 2, 'grupos', '2° (Los Chavos)', '3° (Norte - Sur)', equipoId(2,2), equipoId(2,3)],
-      [5, 2, 'grupos', 'Perdedor Partido 4', '1° (LQQ)', null, equipoId(2,1)],
-      [6, 2, 'grupos', '1° (LQQ)', 'Ganador Partido 4', equipoId(2,1), null],
+      [1, 1, 'grupos', nombreG1[2], nombreG1[3], equipoId(1,2), equipoId(1,3)],
+      [2, 1, 'grupos', nombreG1[1], nombreG1[3], equipoId(1,1), equipoId(1,3)],
+      [3, 1, 'grupos', nombreG1[1], nombreG1[2], equipoId(1,1), equipoId(1,2)],
+      [4, 2, 'grupos', nombreG2[2], nombreG2[3], equipoId(2,2), equipoId(2,3)],
+      [5, 2, 'grupos', nombreG2[1], nombreG2[3], equipoId(2,1), equipoId(2,3)],
+      [6, 2, 'grupos', nombreG2[1], nombreG2[2], equipoId(2,1), equipoId(2,2)],
       [7, null, 'final', '1° Grupo 1', '1° Grupo 2', null, null],
       [8, null, 'tercer_puesto', '2° Grupo 1', '2° Grupo 2', null, null],
       [9, null, 'verguenza', '3° Grupo 1', '3° Grupo 2', null, null],
@@ -489,6 +495,15 @@ app.get("/", (req, res) => {
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (id) DO NOTHING
       `, p);
+      // Corrige partidos de grupo sembrados por una versión anterior de esta
+      // migración (con equipos null/dinámicos) mientras el partido no se haya jugado.
+      if (p[1] !== null) {
+        await pool.query(`
+          UPDATE copa_gino_perez_partidos
+          SET descripcion_local = $4, descripcion_visita = $5, equipo_local_id = $6, equipo_visita_id = $7
+          WHERE id = $1 AND jugado = false
+        `, p);
+      }
     }
 
     await pool.query(`

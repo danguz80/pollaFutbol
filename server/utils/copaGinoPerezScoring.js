@@ -91,43 +91,21 @@ export function calcularStandingsGrupo(equiposGrupo, partidosGrupo) {
   return arr;
 }
 
-// Determina el ganador "virtual" de un pronóstico (empate => gana el local,
-// convención arbitraria pero determinista).
-function ganadorVirtualPrediccion(pred, equipoLocalId, equipoVisitaId) {
-  if (!pred) return null;
-  if (pred.goles_local > pred.goles_visita) return equipoLocalId;
-  if (pred.goles_visita > pred.goles_local) return equipoVisitaId;
-  return equipoLocalId;
-}
-
-// Construye los 3 "partidos virtuales" de un grupo a partir de los propios
-// pronósticos del usuario para esos 3 partidos (slots), resolviendo quién
-// juega el partido 2 y 3 del grupo según el propio pronóstico del usuario
-// para el partido 1 (NO según el resultado real) — así el bracket virtual
-// se puede calcular y mostrar desde el momento en que el usuario llena su
-// pronóstico, sin esperar a que se jueguen partidos reales.
-function construirPartidosVirtualesGrupo(equiposGrupo, prediccionesPorPartido, idSlotA, idSlotB, idSlotC) {
-  const t1 = equiposGrupo.find(e => e.orden === 1);
-  const t2 = equiposGrupo.find(e => e.orden === 2);
-  const t3 = equiposGrupo.find(e => e.orden === 3);
-  const predA = prediccionesPorPartido[idSlotA];
-  const predB = prediccionesPorPartido[idSlotB];
-  const predC = prediccionesPorPartido[idSlotC];
-
-  const ganadorA = predA ? ganadorVirtualPrediccion(predA, t2.id, t3.id) : null;
-  const perdedorA = ganadorA ? (ganadorA === t2.id ? t3.id : t2.id) : null;
-
-  const virtuales = [];
-  if (predA) {
-    virtuales.push({ equipo_local_id: t2.id, equipo_visita_id: t3.id, goles_local: predA.goles_local, goles_visita: predA.goles_visita });
-  }
-  if (predB && perdedorA) {
-    virtuales.push({ equipo_local_id: perdedorA, equipo_visita_id: t1.id, goles_local: predB.goles_local, goles_visita: predB.goles_visita });
-  }
-  if (predC && ganadorA) {
-    virtuales.push({ equipo_local_id: t1.id, equipo_visita_id: ganadorA, goles_local: predC.goles_local, goles_visita: predC.goles_visita });
-  }
-  return virtuales;
+// Construye los 3 "partidos virtuales" de un grupo aplicando los propios
+// pronósticos del usuario a los 3 enfrentamientos FIJOS del grupo (al ser
+// todos-contra-todos, los 3 enfrentamientos de cada grupo son siempre los
+// mismos, sin importar en qué orden se jueguen en la realidad) — así el
+// bracket virtual se puede calcular desde el momento en que el usuario
+// llena su pronóstico, sin esperar a que se jueguen partidos reales.
+function construirPartidosVirtualesGrupo(partidosFijosGrupo, prediccionesPorPartido) {
+  return partidosFijosGrupo
+    .filter(p => prediccionesPorPartido[p.id])
+    .map(p => ({
+      equipo_local_id: p.equipo_local_id,
+      equipo_visita_id: p.equipo_visita_id,
+      goles_local: prediccionesPorPartido[p.id].goles_local,
+      goles_visita: prediccionesPorPartido[p.id].goles_visita
+    }));
 }
 
 async function obtenerReglas() {
@@ -163,23 +141,7 @@ export async function recalcularTodo() {
   let partidos = partidosRes.rows;
   const partidoPorId = id => partidos.find(p => p.id === id);
 
-  // 1) Resolver equipos dinámicos de los partidos 2/3 y 5/6 según el
-  // ganador/perdedor real del partido 1/4 de cada grupo.
-  for (const [grupoNum, ids] of Object.entries(GRUPOS)) {
-    const [p1Id, p2Id, p3Id] = ids;
-    const p1 = partidoPorId(p1Id);
-    const ganador1 = determinarGanador(p1);
-    if (ganador1) {
-      const perdedor1 = ganador1 === p1.equipo_local_id ? p1.equipo_visita_id : p1.equipo_local_id;
-      await pool.query(`UPDATE copa_gino_perez_partidos SET equipo_local_id = $1 WHERE id = $2`, [perdedor1, p2Id]);
-      await pool.query(`UPDATE copa_gino_perez_partidos SET equipo_visita_id = $1 WHERE id = $2`, [ganador1, p3Id]);
-    }
-  }
-
-  partidosRes = await pool.query(`SELECT * FROM copa_gino_perez_partidos ORDER BY id`);
-  partidos = partidosRes.rows;
-
-  // 2) Puntaje de los 6 partidos de fase de grupos (a ciegas por partido,
+  // 1) Puntaje de los 6 partidos de fase de grupos (a ciegas por partido,
   // sin importar qué equipos hayan terminado jugándolo en la realidad).
   const extrasRes = await pool.query(`SELECT * FROM copa_gino_perez_predicciones_extra`);
   const extrasPorUsuario = {};
@@ -232,8 +194,8 @@ export async function recalcularTodo() {
   partidos = partidosRes.rows;
 
   // 4) Para cada usuario: tabla virtual de cada grupo (sus propios
-  // pronósticos de los 6 partidos de grupo, aplicados a los emparejamientos
-  // reales), puntos de posiciones de grupo, y clasificados virtuales.
+  // pronósticos de los 6 partidos de grupo, aplicados a los 3 enfrentamientos
+  // fijos de cada grupo), puntos de posiciones de grupo, y clasificados virtuales.
   const usuarioIds = [...new Set(pronosticos.map(p => p.usuario_id))];
   const virtualesPorUsuario = {};
 
@@ -241,8 +203,8 @@ export async function recalcularTodo() {
     const prediccionesUsuario = {};
     pronosticos.filter(p => p.usuario_id === usuarioId).forEach(p => { prediccionesUsuario[p.partido_id] = p; });
 
-    const virtualesG1 = construirPartidosVirtualesGrupo(equiposPorGrupo[1], prediccionesUsuario, 1, 2, 3);
-    const virtualesG2 = construirPartidosVirtualesGrupo(equiposPorGrupo[2], prediccionesUsuario, 4, 5, 6);
+    const virtualesG1 = construirPartidosVirtualesGrupo(GRUPOS[1].map(id => partidoPorId(id)), prediccionesUsuario);
+    const virtualesG2 = construirPartidosVirtualesGrupo(GRUPOS[2].map(id => partidoPorId(id)), prediccionesUsuario);
 
     const standingsVirtualG1 = calcularStandingsGrupo(equiposPorGrupo[1], virtualesG1);
     const standingsVirtualG2 = calcularStandingsGrupo(equiposPorGrupo[2], virtualesG2);

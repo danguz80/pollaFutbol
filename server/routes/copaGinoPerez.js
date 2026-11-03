@@ -160,7 +160,7 @@ router.put('/admin/partidos/:id', verifyToken, authorizeRoles('admin'), async (r
       return res.status(400).json({ error: 'Los equipos de este partido todavía no están definidos' });
     }
 
-    const requiereGanador = [1, 4, 7, 8, 9].includes(partidoId);
+    const requiereGanador = [7, 8, 9].includes(partidoId);
     const esEmpate = goles_local === goles_visita;
     let ganadorFinal = null;
     if (esEmpate && requiereGanador) {
