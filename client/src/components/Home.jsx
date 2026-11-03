@@ -428,6 +428,12 @@ export default function Home() {
                 >
                     🌍 Mundial 2026
                 </button>
+                <button
+                    className="btn btn-warning px-4 py-2"
+                    onClick={() => navigate("/ranking-unificado")}
+                >
+                    🏅 Ranking Unificado
+                </button>
             </div>
 
             {/* Hero Section con partidos destacados - DEBAJO DE BOTONES */}
