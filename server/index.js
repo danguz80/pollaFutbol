@@ -573,6 +573,22 @@ app.get("/", (req, res) => {
       ON CONFLICT (fase, concepto) DO NOTHING
     `);
 
+    // Config: el admin cierra manualmente los pronósticos (igual que "cerrar
+    // jornada" en los demás torneos) — un solo flag controla tanto que ya no
+    // se puedan editar como que se revelen los pronósticos de todos.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS copa_gino_perez_config (
+        id SERIAL PRIMARY KEY,
+        cerrado BOOLEAN NOT NULL DEFAULT false,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      INSERT INTO copa_gino_perez_config (id, cerrado)
+      VALUES (1, false)
+      ON CONFLICT (id) DO NOTHING
+    `);
+
     console.log('✅ Esquema de Copa Gino Pérez listo');
   } catch (error) {
     console.error('❌ Error en migración Copa Gino Pérez:', error.message);
