@@ -36,6 +36,7 @@ export default function AdminCopaGinoPerezResultados() {
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(null);
+  const [guardandoTodo, setGuardandoTodo] = useState(false);
   const [mensaje, setMensaje] = useState('');
 
   useEffect(() => {
@@ -190,6 +191,54 @@ export default function AdminCopaGinoPerezResultados() {
     }
   };
 
+  // Guarda de una sola vez todos los marcadores ingresados en los partidos
+  // (sin necesidad de apretar "Guardar" partido por partido) y al final
+  // fuerza un recálculo explícito de puntajes de todo el torneo.
+  const guardarTodoYCalcular = async () => {
+    const pendientes = partidos.filter(p => {
+      const datos = form[p.id];
+      return p.equipo_local_id && p.equipo_visita_id && datos && datos.goles_local !== '' && datos.goles_visita !== '';
+    });
+
+    if (pendientes.length === 0) {
+      alert('No hay marcadores ingresados para guardar');
+      return;
+    }
+
+    for (const p of pendientes) {
+      const datos = form[p.id];
+      const esEmpate = parseInt(datos.goles_local) === parseInt(datos.goles_visita);
+      if (esEmpate && requiereGanador(p.id) && !datos.ganador_id) {
+        alert(`El Partido ${p.id} (${p.equipo_local_nombre} vs ${p.equipo_visita_nombre}) terminó empatado: indica quién ganó (ej. por penales) antes de guardar todo.`);
+        return;
+      }
+    }
+
+    try {
+      setGuardandoTodo(true);
+      const token = localStorage.getItem('token');
+      for (const p of pendientes) {
+        const datos = form[p.id];
+        const golesLocal = parseInt(datos.goles_local);
+        const golesVisita = parseInt(datos.goles_visita);
+        const esEmpate = golesLocal === golesVisita;
+        await axios.put(`${API_URL}/api/copa-gino-perez/admin/partidos/${p.id}`, {
+          goles_local: golesLocal,
+          goles_visita: golesVisita,
+          ganador_id: esEmpate ? parseInt(datos.ganador_id) : null
+        }, { headers: { Authorization: `Bearer ${token}` } });
+      }
+      await axios.post(`${API_URL}/api/copa-gino-perez/admin/recalcular`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setMensaje(`✅ ${pendientes.length} resultado(s) guardado(s) y puntajes recalculados`);
+      await cargarPartidos();
+    } catch (err) {
+      console.error('Error guardando todos los resultados:', err);
+      alert('❌ ' + (err.response?.data?.error || 'Error guardando los resultados'));
+    } finally {
+      setGuardandoTodo(false);
+    }
+  };
+
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
   return (
@@ -323,6 +372,15 @@ export default function AdminCopaGinoPerezResultados() {
           5° {clasificacion.posicionesFinales[5]} · 🙈 6° {clasificacion.posicionesFinales[6]}
         </div>
       )}
+
+      <div className="text-center mb-4">
+        <button className="btn btn-success btn-lg" disabled={guardandoTodo} onClick={guardarTodoYCalcular}>
+          {guardandoTodo ? '⏳ Guardando y calculando...' : '💾🧮 Guardar y Calcular Puntajes'}
+        </button>
+        <p className="text-muted small mt-2 mb-0">
+          Guarda de una vez todos los marcadores que ingreses abajo y recalcula los puntajes de todo el torneo.
+        </p>
+      </div>
 
       {partidos.map(p => {
         const datos = form[p.id] || {};
