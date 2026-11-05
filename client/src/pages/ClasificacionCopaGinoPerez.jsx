@@ -151,15 +151,12 @@ export default function ClasificacionCopaGinoPerez() {
     return m;
   }, [partidos]);
 
-  // Para los 3 partidos de fase final: mostrar el enfrentamiento según el
-  // propio pronóstico de grupos del usuario (su bracket virtual), no la
-  // descripción genérica ("1° Grupo 1 vs 1° Grupo 2") — se compara contra
-  // lo real recién cuando se juegan esos partidos.
-  const etiquetasFinalPorPronostico = useMemo(() => {
-    if (!miPronostico?.pronosticos?.length || equipos.length !== 6) return {};
-    const prediccionesPorPartido = {};
-    miPronostico.pronosticos.forEach(p => { prediccionesPorPartido[p.partido_id] = p; });
-
+  // Para los 3 partidos de fase final: a partir de cualquier set de 6
+  // pronósticos de grupo (propios o de otro usuario), calcula contra qué
+  // equipos reales pronosticó cada partido de fase final (su bracket
+  // virtual) — no la descripción genérica ("1° Grupo 1 vs 1° Grupo 2").
+  const calcularEtiquetasFinal = (prediccionesPorPartido) => {
+    if (!prediccionesPorPartido || equipos.length !== 6) return {};
     const calcularGrupo = grupoNum => {
       const equiposGrupo = equipos.filter(e => e.grupo === grupoNum);
       const partidosFijos = PARTIDOS_GRUPO[grupoNum].map(pf => {
@@ -183,7 +180,24 @@ export default function ClasificacionCopaGinoPerez() {
       8: nombre(standingsG1, 1) && nombre(standingsG2, 1) ? `${nombre(standingsG1, 1)} vs ${nombre(standingsG2, 1)}` : null,
       9: nombre(standingsG1, 2) && nombre(standingsG2, 2) ? `${nombre(standingsG1, 2)} vs ${nombre(standingsG2, 2)}` : null
     };
+  };
+
+  const etiquetasFinalPorPronostico = useMemo(() => {
+    if (!miPronostico?.pronosticos?.length) return {};
+    const prediccionesPorPartido = {};
+    miPronostico.pronosticos.forEach(p => { prediccionesPorPartido[p.partido_id] = p; });
+    return calcularEtiquetasFinal(prediccionesPorPartido);
   }, [miPronostico, equipos]);
+
+  // Lo mismo, pero para cada usuario de la tabla "Pronósticos de Todos":
+  // el bracket virtual de fase final según los propios pronósticos de
+  // grupo de ESE usuario (no los del usuario logueado).
+  const etiquetasFinalPorUsuario = useMemo(() => {
+    if (!todosPronosticos) return {};
+    const map = {};
+    todosPronosticos.forEach(u => { map[u.id] = calcularEtiquetasFinal(u.pronosticos || {}); });
+    return map;
+  }, [todosPronosticos, equipos]);
 
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
@@ -261,11 +275,18 @@ export default function ClasificacionCopaGinoPerez() {
                 </tr>
                 <tr className="table-dark">
                   <th>Jugador</th>
-                  {[1,2,3,4,5,6,7,8,9].map(id => (
-                    <th key={id} title={partidosPorId[id] ? nombrePartido(partidosPorId[id]) : ''}>
-                      {ETIQUETAS_PARTIDO[id]}
-                    </th>
-                  ))}
+                  {[1,2,3,4,5,6,7,8,9].map(id => {
+                    const partido = partidosPorId[id];
+                    const esGrupo = id <= 6;
+                    return (
+                      <th key={id} style={{ fontSize: '0.72rem', minWidth: 85, whiteSpace: 'normal' }}
+                        title={partido ? nombrePartido(partido) : ''}>
+                        {esGrupo && partido
+                          ? <>{partido.equipo_local_nombre}<br />vs<br />{partido.equipo_visita_nombre}</>
+                          : ETIQUETAS_PARTIDO[id]}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -282,8 +303,12 @@ export default function ClasificacionCopaGinoPerez() {
                     {[1,2,3,4,5,6,7,8,9].map(id => {
                       const pred = u.pronosticos[id];
                       const bonus = infoBonus(id);
+                      const etiqueta = id >= 7 && pred ? etiquetasFinalPorUsuario[u.id]?.[id] : null;
                       return (
                         <td key={id} className={bonus.esBonus ? 'table-warning fw-bold' : ''}>
+                          {etiqueta && (
+                            <div className="text-muted" style={{ fontSize: '0.68rem', lineHeight: 1.1 }}>{etiqueta}</div>
+                          )}
                           {pred ? `${pred.goles_local}-${pred.goles_visita}` : '—'}
                           {bonus.esBonus && ` (x${bonus.multiplicador})`}
                         </td>
