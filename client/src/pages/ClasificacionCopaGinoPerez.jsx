@@ -125,7 +125,7 @@ export default function ClasificacionCopaGinoPerez() {
           console.error('Error cargando mi pronóstico:', err);
         }
       }
-      if (!configRes.data.cerrado && !esAdmin) {
+      if (!configRes.data.cerrado) {
         try {
           const partRes = await axios.get(`${API_URL}/api/copa-gino-perez/participantes`);
           setParticipantes(partRes.data.filter(u => u.enviado));
@@ -222,7 +222,7 @@ export default function ClasificacionCopaGinoPerez() {
 
       <h1 className="text-center mb-4">📊 Clasificación Copa Gino Pérez</h1>
 
-      {!cerrado && !esAdmin && (participantes.length > 0 || noParticipantes.length > 0) && (
+      {!cerrado && (participantes.length > 0 || noParticipantes.length > 0) && (
         <div className="mb-4">
           {participantes.length > 0 && (
             <div className="card mb-3">
