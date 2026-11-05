@@ -164,6 +164,27 @@ router.patch('/admin/fecha-cierre', verifyToken, authorizeRoles('admin'), async 
   }
 });
 
+// GET /api/copa-gino-perez/participantes - quién ya envió su pronóstico
+// completo (fase de grupos + fase final) y quién todavía no, sin revelar los
+// pronósticos en sí. Público: se usa para mostrarlo mientras el pronóstico
+// sigue abierto, igual que en los demás torneos.
+router.get('/participantes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.nombre, u.foto_perfil,
+             COALESCE(ex.enviado, false) as enviado
+      FROM usuarios u
+      LEFT JOIN copa_gino_perez_predicciones_extra ex ON ex.usuario_id = u.id
+      WHERE u.rol != 'admin' AND u.activo_copa_gino_perez = true
+      ORDER BY u.nombre ASC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo participantes de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error obteniendo participantes' });
+  }
+});
+
 // GET /api/copa-gino-perez/pronosticos-todos - pronósticos de todos los
 // usuarios. Para un jugador normal, solo disponible una vez que el admin
 // cerró los pronósticos; el admin puede verlos en cualquier momento.

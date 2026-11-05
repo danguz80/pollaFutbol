@@ -83,6 +83,8 @@ export default function ClasificacionCopaGinoPerez() {
   const [bonusConfig, setBonusConfig] = useState(null);
   const [miPronostico, setMiPronostico] = useState(null);
   const [todosPronosticos, setTodosPronosticos] = useState(null);
+  const [participantes, setParticipantes] = useState([]);
+  const [noParticipantes, setNoParticipantes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -121,6 +123,15 @@ export default function ClasificacionCopaGinoPerez() {
           setMiPronostico(miRes.data);
         } catch (err) {
           console.error('Error cargando mi pronóstico:', err);
+        }
+      }
+      if (!configRes.data.cerrado && !esAdmin) {
+        try {
+          const partRes = await axios.get(`${API_URL}/api/copa-gino-perez/participantes`);
+          setParticipantes(partRes.data.filter(u => u.enviado));
+          setNoParticipantes(partRes.data.filter(u => !u.enviado));
+        } catch (err) {
+          console.error('Error cargando participantes:', err);
         }
       }
     } catch (err) {
@@ -210,6 +221,82 @@ export default function ClasificacionCopaGinoPerez() {
       </div>
 
       <h1 className="text-center mb-4">📊 Clasificación Copa Gino Pérez</h1>
+
+      {!cerrado && !esAdmin && (participantes.length > 0 || noParticipantes.length > 0) && (
+        <div className="mb-4">
+          {participantes.length > 0 && (
+            <div className="card mb-3">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">✅ Participantes que ya entregaron su pronóstico ({participantes.length})</h5>
+              </div>
+              <div className="card-body">
+                <div className="row g-3">
+                  {participantes.map(p => (
+                    <div key={p.id} className="col-6 col-md-4 col-lg-3">
+                      <div className="card h-100 shadow-sm">
+                        <div className="card-body text-center p-2">
+                          {fotoUrl(p.foto_perfil) ? (
+                            <img
+                              src={fotoUrl(p.foto_perfil)}
+                              alt={p.nombre}
+                              className="rounded-circle mb-2"
+                              style={{ width: 60, height: 60, objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-circle bg-secondary d-flex align-items-center justify-content-center mb-2 mx-auto"
+                              style={{ width: 60, height: 60 }}
+                            >
+                              <span className="text-white fs-4">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <p className="mb-0 small fw-bold">{p.nombre || 'Usuario'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {noParticipantes.length > 0 && (
+            <div className="card">
+              <div className="card-header bg-warning text-dark">
+                <h5 className="mb-0">⏳ Participantes que AÚN NO han entregado su pronóstico ({noParticipantes.length})</h5>
+              </div>
+              <div className="card-body">
+                <div className="row g-3">
+                  {noParticipantes.map(p => (
+                    <div key={p.id} className="col-6 col-md-4 col-lg-3">
+                      <div className="card h-100 shadow-sm border-warning">
+                        <div className="card-body text-center p-2">
+                          {fotoUrl(p.foto_perfil) ? (
+                            <img
+                              src={fotoUrl(p.foto_perfil)}
+                              alt={p.nombre}
+                              className="rounded-circle mb-2 opacity-50"
+                              style={{ width: 60, height: 60, objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-circle bg-warning d-flex align-items-center justify-content-center mb-2 mx-auto opacity-50"
+                              style={{ width: 60, height: 60 }}
+                            >
+                              <span className="text-dark fs-4">{(p.nombre || 'U').charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <p className="mb-0 small fw-bold text-muted">{p.nombre || 'Usuario'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {!cerrado && !esAdmin && miPronostico?.pronosticos?.length > 0 && (
         <div className="card mb-4">
