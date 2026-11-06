@@ -324,12 +324,15 @@ export async function recalcularTodo() {
   };
 
   // Ganador "virtual" de un partido de fase final según el marcador que
-  // predijo el usuario; si predijo un empate, se asume como ganador al
-  // equipo local de ese enfrentamiento (desempate arbitrario y determinista).
-  const ganadorVirtual = (pred, equipoLocalId, equipoVisitaId) => {
-    if (pred.goles_local > pred.goles_visita) return equipoLocalId;
-    if (pred.goles_visita > pred.goles_local) return equipoVisitaId;
-    return equipoLocalId;
+  // predijo el usuario, aplicado sobre los equipos de SU PROPIO bracket
+  // virtual (no sobre los equipos del cruce real): si predijo a su equipo
+  // "local" (representante de su Grupo 1 virtual) con más goles, ese es su
+  // campeón/ganador virtual; en caso de empate, se asume como ganador a ese
+  // mismo equipo "local" de su bracket (desempate arbitrario y determinista).
+  const ganadorVirtual = (pred, equipoVirtualLocalId, equipoVirtualVisitaId) => {
+    if (pred.goles_local > pred.goles_visita) return equipoVirtualLocalId;
+    if (pred.goles_visita > pred.goles_local) return equipoVirtualVisitaId;
+    return equipoVirtualLocalId;
   };
 
   for (const usuarioId of usuarioIds) {
@@ -338,23 +341,30 @@ export async function recalcularTodo() {
     const pred7 = prediccionesUsuario[7];
     const pred8 = prediccionesUsuario[8];
     const pred9 = prediccionesUsuario[9];
+    const virtual = virtualesPorUsuario[usuarioId];
 
     let puntosPosicionesFinales = 0;
-    if (pred7) {
-      const ganVirtual7 = ganadorVirtual(pred7, p7.equipo_local_id, p7.equipo_visita_id);
-      const perdVirtual7 = ganVirtual7 === p7.equipo_local_id ? p7.equipo_visita_id : p7.equipo_local_id;
+    if (pred7 && virtual) {
+      const virtualLocal7 = virtual.standingsVirtualG1[0].equipo_id;
+      const virtualVisita7 = virtual.standingsVirtualG2[0].equipo_id;
+      const ganVirtual7 = ganadorVirtual(pred7, virtualLocal7, virtualVisita7);
+      const perdVirtual7 = ganVirtual7 === virtualLocal7 ? virtualVisita7 : virtualLocal7;
       if (ganVirtual7 === posicionesReales[1]) puntosPosicionesFinales += reglasPosFinal.campeon;
       if (perdVirtual7 === posicionesReales[2]) puntosPosicionesFinales += reglasPosFinal.subcampeon;
     }
-    if (pred8) {
-      const ganVirtual8 = ganadorVirtual(pred8, p8.equipo_local_id, p8.equipo_visita_id);
-      const perdVirtual8 = ganVirtual8 === p8.equipo_local_id ? p8.equipo_visita_id : p8.equipo_local_id;
+    if (pred8 && virtual) {
+      const virtualLocal8 = virtual.standingsVirtualG1[1].equipo_id;
+      const virtualVisita8 = virtual.standingsVirtualG2[1].equipo_id;
+      const ganVirtual8 = ganadorVirtual(pred8, virtualLocal8, virtualVisita8);
+      const perdVirtual8 = ganVirtual8 === virtualLocal8 ? virtualVisita8 : virtualLocal8;
       if (ganVirtual8 === posicionesReales[3]) puntosPosicionesFinales += reglasPosFinal['3er_lugar'];
       if (perdVirtual8 === posicionesReales[4]) puntosPosicionesFinales += reglasPosFinal['4to_lugar'];
     }
-    if (pred9) {
-      const ganVirtual9 = ganadorVirtual(pred9, p9.equipo_local_id, p9.equipo_visita_id);
-      const perdVirtual9 = ganVirtual9 === p9.equipo_local_id ? p9.equipo_visita_id : p9.equipo_local_id;
+    if (pred9 && virtual) {
+      const virtualLocal9 = virtual.standingsVirtualG1[2].equipo_id;
+      const virtualVisita9 = virtual.standingsVirtualG2[2].equipo_id;
+      const ganVirtual9 = ganadorVirtual(pred9, virtualLocal9, virtualVisita9);
+      const perdVirtual9 = ganVirtual9 === virtualLocal9 ? virtualVisita9 : virtualLocal9;
       if (ganVirtual9 === posicionesReales[5]) puntosPosicionesFinales += reglasPosFinal['5to_lugar'];
       if (perdVirtual9 === posicionesReales[6]) puntosPosicionesFinales += reglasPosFinal.ultimo;
     }

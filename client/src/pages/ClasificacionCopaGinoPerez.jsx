@@ -200,14 +200,15 @@ export default function ClasificacionCopaGinoPerez() {
   };
 
   // Ganador "virtual" de un partido de fase final según el marcador
-  // pronosticado, aplicado sobre los equipos REALES de ese cruce (igual
-  // convención que usa el backend en recalcularTodo: si predijo empate, se
-  // asume como ganador al equipo "local" del cruce).
-  const ganadorVirtual = (pred, equipoLocalId, equipoVisitaId) => {
+  // pronosticado, aplicado sobre los equipos de SU PROPIO bracket virtual
+  // (no sobre los equipos del cruce real) — igual convención que usa el
+  // backend en recalcularTodo: si predijo empate, se asume como ganador al
+  // equipo "local" de su bracket.
+  const ganadorVirtual = (pred, equipoVirtualLocalId, equipoVirtualVisitaId) => {
     if (!pred || pred.goles_local == null || pred.goles_visita == null) return null;
-    if (pred.goles_local > pred.goles_visita) return equipoLocalId;
-    if (pred.goles_visita > pred.goles_local) return equipoVisitaId;
-    return equipoLocalId;
+    if (pred.goles_local > pred.goles_visita) return equipoVirtualLocalId;
+    if (pred.goles_visita > pred.goles_local) return equipoVirtualVisitaId;
+    return equipoVirtualLocalId;
   };
 
   const nombreEquipo = (id) => equipos.find(e => e.id === id)?.nombre;
@@ -283,32 +284,37 @@ export default function ClasificacionCopaGinoPerez() {
     });
 
     const filasPosFinal = [];
-    const agregarPosFinal = (etiquetaGan, etiquetaPerd, pred, p, conceptoGan, conceptoPerd, slotGan, slotPerd) => {
-      if (!finalCompleto || !p?.equipo_local_id) {
-        filasPosFinal.push({ key: etiquetaGan, etiqueta: etiquetaGan, virtual: null, real: null, puntos: null });
-        filasPosFinal.push({ key: etiquetaPerd, etiqueta: etiquetaPerd, virtual: null, real: null, puntos: null });
+    const agregarPosFinal = (etiquetaGan, etiquetaPerd, pred, idx, conceptoGan, conceptoPerd, slotGan, slotPerd) => {
+      const virtualLocal = standingsVirt?.g1?.[idx];
+      const virtualVisita = standingsVirt?.g2?.[idx];
+      const ganVirtualId = virtualLocal && virtualVisita ? ganadorVirtual(pred, virtualLocal.equipo_id, virtualVisita.equipo_id) : null;
+      const perdVirtualId = ganVirtualId ? (ganVirtualId === virtualLocal.equipo_id ? virtualVisita.equipo_id : virtualLocal.equipo_id) : null;
+      const ganVirtualNombre = ganVirtualId ? nombreEquipo(ganVirtualId) : null;
+      const perdVirtualNombre = perdVirtualId ? nombreEquipo(perdVirtualId) : null;
+
+      if (!finalCompleto) {
+        filasPosFinal.push({ key: etiquetaGan, etiqueta: etiquetaGan, virtual: ganVirtualNombre, real: null, puntos: null });
+        filasPosFinal.push({ key: etiquetaPerd, etiqueta: etiquetaPerd, virtual: perdVirtualNombre, real: null, puntos: null });
         return;
       }
-      const ganVirtual = ganadorVirtual(pred, p.equipo_local_id, p.equipo_visita_id);
-      const perdVirtual = ganVirtual ? (ganVirtual === p.equipo_local_id ? p.equipo_visita_id : p.equipo_local_id) : null;
       const ganReal = posicionesRealesIds[slotGan];
       const perdReal = posicionesRealesIds[slotPerd];
       filasPosFinal.push({
         key: etiquetaGan, etiqueta: etiquetaGan,
-        virtual: ganVirtual ? nombreEquipo(ganVirtual) : null,
+        virtual: ganVirtualNombre,
         real: ganReal ? nombreEquipo(ganReal) : null,
-        puntos: ganVirtual && ganReal ? (ganVirtual === ganReal ? (reglas.posiciones_finales?.[conceptoGan] ?? 0) : 0) : null
+        puntos: ganVirtualId && ganReal ? (ganVirtualId === ganReal ? (reglas.posiciones_finales?.[conceptoGan] ?? 0) : 0) : null
       });
       filasPosFinal.push({
         key: etiquetaPerd, etiqueta: etiquetaPerd,
-        virtual: perdVirtual ? nombreEquipo(perdVirtual) : null,
+        virtual: perdVirtualNombre,
         real: perdReal ? nombreEquipo(perdReal) : null,
-        puntos: perdVirtual && perdReal ? (perdVirtual === perdReal ? (reglas.posiciones_finales?.[conceptoPerd] ?? 0) : 0) : null
+        puntos: perdVirtualId && perdReal ? (perdVirtualId === perdReal ? (reglas.posiciones_finales?.[conceptoPerd] ?? 0) : 0) : null
       });
     };
-    agregarPosFinal('🏆 Campeón', '🥈 Subcampeón', prediccionesPorPartido[7], partidosPorId[7], 'campeon', 'subcampeon', 1, 2);
-    agregarPosFinal('🥉 3er lugar', '4to lugar', prediccionesPorPartido[8], partidosPorId[8], '3er_lugar', '4to_lugar', 3, 4);
-    agregarPosFinal('5to lugar', '🙈 Último lugar', prediccionesPorPartido[9], partidosPorId[9], '5to_lugar', 'ultimo', 5, 6);
+    agregarPosFinal('🏆 Campeón', '🥈 Subcampeón', prediccionesPorPartido[7], 0, 'campeon', 'subcampeon', 1, 2);
+    agregarPosFinal('🥉 3er lugar', '4to lugar', prediccionesPorPartido[8], 1, '3er_lugar', '4to_lugar', 3, 4);
+    agregarPosFinal('5to lugar', '🙈 Último lugar', prediccionesPorPartido[9], 2, '5to_lugar', 'ultimo', 5, 6);
 
     const totalPosiciones = [...filasPosGrupo, ...filasPosFinal].reduce((sum, f) => sum + (f.puntos || 0), 0);
 
