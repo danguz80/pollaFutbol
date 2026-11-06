@@ -16,6 +16,22 @@ const medalla = (posicion) => {
   return null;
 };
 
+// Áreas de trabajo de cada jugador (no tiene relación con los equipos del
+// torneo) — se usan para la tabla de "Clasificación por Área". Identifica a
+// cada jugador por su apellido (sin tildes, sin importar mayúsculas) dentro
+// de su nombre completo.
+const AREAS_EQUIPO = [
+  { area: 'Cracking', apellidos: ['guzman', 'amestica'] },
+  { area: 'H2', apellidos: ['silva', 'tprrijo'] },
+  { area: 'Coker', apellidos: ['abad'] }
+];
+const normalizar = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const areaDeJugador = (nombre) => {
+  const n = normalizar(nombre);
+  const encontrada = AREAS_EQUIPO.find(a => a.apellidos.some(ap => n.includes(ap)));
+  return encontrada ? encontrada.area : 'Sin área asignada';
+};
+
 // Secciones del torneo: a qué grupo pertenece cada partido de fase de
 // grupos, y qué puesto define cada uno de los 3 partidos de fase final.
 const SECCIONES = [
@@ -249,6 +265,19 @@ export default function ClasificacionCopaGinoPerez() {
     };
   }, [partidosPorId]);
   const finalCompleto = Object.keys(posicionesRealesIds).length === 6;
+
+  // Ranking por área: agrupa a los jugadores del ranking general según su
+  // área de trabajo y suma sus puntos totales.
+  const rankingPorArea = useMemo(() => {
+    const grupos = {};
+    ranking.forEach(j => {
+      const area = areaDeJugador(j.nombre);
+      if (!grupos[area]) grupos[area] = { area, jugadores: [], puntos: 0 };
+      grupos[area].jugadores.push(j.nombre);
+      grupos[area].puntos += Number(j.puntos_totales) || 0;
+    });
+    return Object.values(grupos).sort((a, b) => b.puntos - a.puntos || a.area.localeCompare(b.area));
+  }, [ranking]);
 
   // Detalle completo de un jugador: tabla de los 9 partidos (resultado real
   // vs su pronóstico, bono y puntos) + tabla de posiciones (virtual vs real)
@@ -570,6 +599,37 @@ export default function ClasificacionCopaGinoPerez() {
                     <td className="text-center">{j.puntos_posiciones_finales}</td>
                     <td className="text-center">
                       <span className="badge bg-primary fs-6">{j.puntos_totales} pts</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {rankingPorArea.length > 0 && (
+        <div className="table-responsive mt-4">
+          <h4 className="text-center mb-3">🏢 Clasificación por Área</h4>
+          <table className="table table-hover align-middle">
+            <thead className="table-dark">
+              <tr>
+                <th className="text-center" style={{ width: 70 }}>#</th>
+                <th>Área</th>
+                <th>Jugadores</th>
+                <th className="text-center">Puntos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankingPorArea.map((a, idx) => {
+                const posicion = idx + 1;
+                return (
+                  <tr key={a.area} className={posicion === 1 ? 'table-warning' : ''}>
+                    <td className="text-center fw-bold">{medalla(posicion) || posicion}</td>
+                    <td className="fw-bold">{a.area}</td>
+                    <td>{a.jugadores.join(', ')}</td>
+                    <td className="text-center">
+                      <span className="badge bg-primary fs-6">{a.puntos} pts</span>
                     </td>
                   </tr>
                 );
