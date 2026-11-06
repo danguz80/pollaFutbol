@@ -392,3 +392,183 @@ export async function cerrarPronosticosSiCorresponde() {
   await pool.query(`UPDATE copa_gino_perez_config SET cerrado = true, updated_at = CURRENT_TIMESTAMP WHERE id = 1`);
   console.log('🔒 Pronósticos de Copa Gino Pérez cerrados automáticamente (fecha_cierre alcanzada)');
 }
+
+// Arma el detalle completo del torneo (partidos, bonos y puntos de cada
+// pronóstico, posiciones virtual-vs-real y ranking final) para cada jugador
+// activo — usado por el PDF final. Replica, sobre datos reales de la BD, la
+// misma lógica de "bracket virtual" que recalcularTodo() usa para puntuar
+// (incluido el fix: un usuario sin ningún pronóstico de grupos no obtiene
+// una tabla virtual fabricada por el desempate de orden original).
+export async function obtenerDetalleCompletoTorneo() {
+  const reglas = await obtenerReglas();
+  const reglasPosGrupo = reglas.posiciones_grupo || { '1er_lugar': 5, '2do_lugar': 3, '3er_lugar': 3 };
+  const reglasPosFinal = reglas.posiciones_finales || {
+    campeon: 20, subcampeon: 15, '3er_lugar': 10, '4to_lugar': 10, '5to_lugar': 10, ultimo: 15
+  };
+
+  await asegurarEquiposGrupoFijos();
+
+  const equiposRes = await pool.query(`SELECT id, nombre, grupo, orden FROM copa_gino_perez_equipos ORDER BY grupo, orden`);
+  const equipos = equiposRes.rows;
+  const equiposPorGrupo = { 1: equipos.filter(e => e.grupo === 1), 2: equipos.filter(e => e.grupo === 2) };
+  const nombreEquipo = id => equipos.find(e => e.id === id)?.nombre || null;
+
+  const partidosRes = await pool.query(`SELECT * FROM copa_gino_perez_partidos ORDER BY id`);
+  const partidos = partidosRes.rows;
+  const partidoPorId = id => partidos.find(p => p.id === id);
+  const nombreLado = (p, lado) => {
+    const id = lado === 'local' ? p.equipo_local_id : p.equipo_visita_id;
+    return (id && nombreEquipo(id)) || (lado === 'local' ? p.descripcion_local : p.descripcion_visita);
+  };
+  const nombrePartidoTexto = p => `${nombreLado(p, 'local')} vs ${nombreLado(p, 'visita')}`;
+
+  const configRes = await pool.query(`
+    SELECT bonus_grupo1_partido, bonus_grupo2_partido, bonus_final_partido, bonus_final_multiplicador
+    FROM copa_gino_perez_config WHERE id = 1
+  `);
+  const configBonus = configRes.rows[0] || {};
+  const infoBonus = partidoId => {
+    if (partidoId <= 3 && configBonus.bonus_grupo1_partido === partidoId) return { esBonus: true, multiplicador: 2 };
+    if (partidoId >= 4 && partidoId <= 6 && configBonus.bonus_grupo2_partido === partidoId) return { esBonus: true, multiplicador: 2 };
+    if (configBonus.bonus_final_partido === partidoId) return { esBonus: true, multiplicador: configBonus.bonus_final_multiplicador || 2 };
+    return { esBonus: false, multiplicador: 1 };
+  };
+
+  const usuariosRes = await pool.query(`
+    SELECT id, nombre FROM usuarios WHERE rol != 'admin' AND activo_copa_gino_perez = true ORDER BY nombre ASC
+  `);
+  const pronosticosRes = await pool.query(`SELECT * FROM copa_gino_perez_pronosticos`);
+  const pronosticos = pronosticosRes.rows;
+  const extraRes = await pool.query(`
+    SELECT usuario_id, puntos_posiciones_grupos, puntos_posiciones_finales FROM copa_gino_perez_predicciones_extra
+  `);
+  const extraPorUsuario = {};
+  extraRes.rows.forEach(e => { extraPorUsuario[e.usuario_id] = e; });
+
+  const standingsRealG1 = calcularStandingsGrupo(equiposPorGrupo[1], GRUPOS[1].map(id => partidoPorId(id)));
+  const standingsRealG2 = calcularStandingsGrupo(equiposPorGrupo[2], GRUPOS[2].map(id => partidoPorId(id)));
+  const gruposCompletos = [...GRUPOS[1], ...GRUPOS[2]].every(id => partidoPorId(id).jugado);
+
+  const p7 = partidoPorId(7), p8 = partidoPorId(8), p9 = partidoPorId(9);
+  const finalCompleto = [p7, p8, p9].every(p => p.jugado && determinarGanador(p));
+  let posicionesReales = {};
+  if (finalCompleto) {
+    const gan7 = determinarGanador(p7), gan8 = determinarGanador(p8), gan9 = determinarGanador(p9);
+    posicionesReales = {
+      1: gan7, 2: gan7 === p7.equipo_local_id ? p7.equipo_visita_id : p7.equipo_local_id,
+      3: gan8, 4: gan8 === p8.equipo_local_id ? p8.equipo_visita_id : p8.equipo_local_id,
+      5: gan9, 6: gan9 === p9.equipo_local_id ? p9.equipo_visita_id : p9.equipo_local_id
+    };
+  }
+
+  const ganadorVirtual = (pred, equipoVirtualLocalId, equipoVirtualVisitaId) => {
+    if (!pred || pred.goles_local == null || pred.goles_visita == null) return null;
+    if (pred.goles_local > pred.goles_visita) return equipoVirtualLocalId;
+    if (pred.goles_visita > pred.goles_local) return equipoVirtualVisitaId;
+    return equipoVirtualLocalId;
+  };
+
+  const usuarios = usuariosRes.rows.map(u => {
+    const predicciones = {};
+    pronosticos.filter(p => p.usuario_id === u.id).forEach(p => { predicciones[p.partido_id] = p; });
+
+    const tienePredGrupos = [...GRUPOS[1], ...GRUPOS[2]].some(id => predicciones[id]);
+    let standingsVirt = null;
+    if (tienePredGrupos) {
+      const virtualesG1 = construirPartidosVirtualesGrupo(GRUPOS[1].map(id => partidoPorId(id)), predicciones);
+      const virtualesG2 = construirPartidosVirtualesGrupo(GRUPOS[2].map(id => partidoPorId(id)), predicciones);
+      standingsVirt = {
+        g1: calcularStandingsGrupo(equiposPorGrupo[1], virtualesG1),
+        g2: calcularStandingsGrupo(equiposPorGrupo[2], virtualesG2)
+      };
+    }
+    const etiquetaFinalVirtual = idx => {
+      if (!standingsVirt) return null;
+      const n1 = standingsVirt.g1[idx]?.nombre, n2 = standingsVirt.g2[idx]?.nombre;
+      return n1 && n2 ? `${n1} vs ${n2}` : null;
+    };
+
+    let totalPartidos = 0;
+    const filasPartidos = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(id => {
+      const partido = partidoPorId(id);
+      const pred = predicciones[id];
+      const bonus = infoBonus(id);
+      const puntos = pred?.puntos ?? 0;
+      if (pred) totalPartidos += puntos;
+      const esFinal = id >= 7;
+      const nombreReal = nombrePartidoTexto(partido);
+      const etiquetaVirtual = esFinal ? etiquetaFinalVirtual(id - 7) : null;
+      const noCoincide = esFinal && etiquetaVirtual && partido.equipo_local_id && etiquetaVirtual !== nombreReal;
+      return {
+        partido: esFinal
+          ? (etiquetaVirtual || 'Pendiente (sin pronóstico de grupos)') + (noCoincide ? ` [no es el cruce real: ${nombreReal}]` : '')
+          : nombreReal,
+        resultadoReal: partido.jugado
+          ? (esFinal ? `${nombreReal}: ${partido.goles_local}-${partido.goles_visita}` : `${partido.goles_local}-${partido.goles_visita}`)
+          : (esFinal && partido.equipo_local_id ? `${nombreReal} — pendiente` : 'Pendiente'),
+        suResultado: pred ? `${pred.goles_local}-${pred.goles_visita}` : '—',
+        bonus: bonus.esBonus ? `x${bonus.multiplicador}` : 'x1',
+        puntos: pred ? puntos : '—'
+      };
+    });
+
+    const filasPosGrupo = [1, 2].flatMap(grupoNum => {
+      const standingsVirtG = grupoNum === 1 ? standingsVirt?.g1 : standingsVirt?.g2;
+      const standingsRealG = grupoNum === 1 ? standingsRealG1 : standingsRealG2;
+      const etiquetasPos = ['1er lugar', '2do lugar', '3er lugar'];
+      const conceptos = ['1er_lugar', '2do_lugar', '3er_lugar'];
+      return [0, 1, 2].map(idx => {
+        const virtual = standingsVirtG ? standingsVirtG[idx]?.nombre : null;
+        const real = gruposCompletos ? standingsRealG[idx]?.nombre : null;
+        const coincide = gruposCompletos && virtual && real && standingsVirtG[idx].equipo_id === standingsRealG[idx].equipo_id;
+        const puntos = gruposCompletos ? (coincide ? (reglasPosGrupo[conceptos[idx]] ?? 0) : 0) : null;
+        return { posicion: `Grupo ${grupoNum} — ${etiquetasPos[idx]}`, virtual, real, puntos };
+      });
+    });
+
+    const filasPosFinal = [];
+    const agregarPosFinal = (etiquetaGan, etiquetaPerd, pred, idx, conceptoGan, conceptoPerd, slotGan, slotPerd) => {
+      const virtualLocal = standingsVirt?.g1?.[idx];
+      const virtualVisita = standingsVirt?.g2?.[idx];
+      const ganVirtualId = virtualLocal && virtualVisita ? ganadorVirtual(pred, virtualLocal.equipo_id, virtualVisita.equipo_id) : null;
+      const perdVirtualId = ganVirtualId ? (ganVirtualId === virtualLocal.equipo_id ? virtualVisita.equipo_id : virtualLocal.equipo_id) : null;
+      const ganVirtualNombre = ganVirtualId ? nombreEquipo(ganVirtualId) : null;
+      const perdVirtualNombre = perdVirtualId ? nombreEquipo(perdVirtualId) : null;
+
+      if (!finalCompleto) {
+        filasPosFinal.push({ posicion: etiquetaGan, virtual: ganVirtualNombre, real: null, puntos: null });
+        filasPosFinal.push({ posicion: etiquetaPerd, virtual: perdVirtualNombre, real: null, puntos: null });
+        return;
+      }
+      const ganReal = posicionesReales[slotGan];
+      const perdReal = posicionesReales[slotPerd];
+      filasPosFinal.push({
+        posicion: etiquetaGan, virtual: ganVirtualNombre,
+        real: ganReal ? nombreEquipo(ganReal) : null,
+        puntos: ganVirtualId && ganReal ? (ganVirtualId === ganReal ? (reglasPosFinal[conceptoGan] ?? 0) : 0) : null
+      });
+      filasPosFinal.push({
+        posicion: etiquetaPerd, virtual: perdVirtualNombre,
+        real: perdReal ? nombreEquipo(perdReal) : null,
+        puntos: perdVirtualId && perdReal ? (perdVirtualId === perdReal ? (reglasPosFinal[conceptoPerd] ?? 0) : 0) : null
+      });
+    };
+    agregarPosFinal('Campeón', 'Subcampeón', predicciones[7], 0, 'campeon', 'subcampeon', 1, 2);
+    agregarPosFinal('3er lugar', '4to lugar', predicciones[8], 1, '3er_lugar', '4to_lugar', 3, 4);
+    agregarPosFinal('5to lugar', 'Último lugar', predicciones[9], 2, '5to_lugar', 'ultimo', 5, 6);
+
+    const extra = extraPorUsuario[u.id] || {};
+    const totalPosiciones = (extra.puntos_posiciones_grupos || 0) + (extra.puntos_posiciones_finales || 0);
+    const puntosTotal = totalPartidos + totalPosiciones;
+
+    return {
+      id: u.id, nombre: u.nombre,
+      totalPartidos, totalPosiciones, puntosTotal,
+      filasPartidos, filasPosGrupo, filasPosFinal
+    };
+  });
+
+  const ranking = [...usuarios].sort((a, b) => b.puntosTotal - a.puntosTotal || a.nombre.localeCompare(b.nombre));
+
+  return { standingsRealG1, standingsRealG2, gruposCompletos, finalCompleto, posicionesReales, usuarios, ranking };
+}

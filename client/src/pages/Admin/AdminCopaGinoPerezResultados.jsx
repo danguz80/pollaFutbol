@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import FireworksEffect from '../../components/FireworksEffect';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -38,6 +39,10 @@ export default function AdminCopaGinoPerezResultados() {
   const [guardando, setGuardando] = useState(null);
   const [guardandoTodo, setGuardandoTodo] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [calculandoGanador, setCalculandoGanador] = useState(false);
+  const [ganador, setGanador] = useState(null);
+  const [mostrarGanador, setMostrarGanador] = useState(false);
 
   useEffect(() => {
     cargarPartidos();
@@ -239,6 +244,57 @@ export default function AdminCopaGinoPerezResultados() {
     }
   };
 
+  const generarPdfFinal = async () => {
+    if (!confirm('¿Generar el PDF final con el detalle de todos los pronósticos y posiciones?')) return;
+    try {
+      setGenerandoPdf(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${API_URL}/api/copa-gino-perez/admin/pdf-final`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Resultados_CopaGinoPerez_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setMensaje('✅ PDF final descargado');
+    } catch (err) {
+      console.error('Error generando PDF final:', err);
+      alert('❌ Error generando el PDF final');
+    } finally {
+      setGenerandoPdf(false);
+    }
+  };
+
+  const calcularGanador = async () => {
+    try {
+      setCalculandoGanador(true);
+      const res = await axios.get(`${API_URL}/api/copa-gino-perez/estadisticas`);
+      const ranking = res.data.ranking || [];
+      if (ranking.length === 0) {
+        alert('Todavía no hay pronósticos registrados para calcular un ganador');
+        return;
+      }
+      const puntajeMax = ranking[0].puntos_totales;
+      if (!puntajeMax || puntajeMax <= 0) {
+        alert('Todavía nadie tiene puntos para ser ganador');
+        return;
+      }
+      const ganadores = ranking.filter(j => j.puntos_totales === puntajeMax);
+      setGanador({ ganadores, mensaje: '¡Felicitaciones a quien se quedó con la Copa Gino Pérez!' });
+      setMostrarGanador(true);
+    } catch (err) {
+      console.error('Error calculando el ganador:', err);
+      alert('❌ Error calculando el ganador');
+    } finally {
+      setCalculandoGanador(false);
+    }
+  };
+
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
   return (
@@ -382,6 +438,15 @@ export default function AdminCopaGinoPerezResultados() {
         </p>
       </div>
 
+      <div className="text-center mb-4 d-flex flex-wrap justify-content-center gap-2">
+        <button className="btn btn-info btn-lg" disabled={generandoPdf} onClick={generarPdfFinal}>
+          {generandoPdf ? '⏳ Generando PDF...' : '📊 PDF Final'}
+        </button>
+        <button className="btn btn-warning btn-lg" disabled={calculandoGanador} onClick={calcularGanador}>
+          {calculandoGanador ? '⏳ Calculando...' : '🏆 Calcular Ganador'}
+        </button>
+      </div>
+
       {partidos.map(p => {
         const datos = form[p.id] || {};
         const equiposListos = p.equipo_local_id && p.equipo_visita_id;
@@ -442,6 +507,54 @@ export default function AdminCopaGinoPerezResultados() {
           </div>
         );
       })}
+
+      {mostrarGanador && ganador && (
+        <>
+          <FireworksEffect />
+          <div
+            className="modal show d-block"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setMostrarGanador(false)}
+          >
+            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header bg-warning text-dark">
+                  <h5 className="modal-title">
+                    🏆 {ganador.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Copa Gino Pérez
+                  </h5>
+                  <button type="button" className="btn-close" onClick={() => setMostrarGanador(false)}></button>
+                </div>
+                <div className="modal-body text-center py-4">
+                  <div className="mb-4">
+                    <h2 className="text-warning">🎉 ¡Felicitaciones! 🎉</h2>
+                  </div>
+                  {ganador.ganadores.map((g) => (
+                    <div key={g.id} className="alert alert-success mb-3">
+                      {g.foto_perfil && (
+                        <img
+                          src={g.foto_perfil.startsWith('/') ? g.foto_perfil : `/perfil/${g.foto_perfil}`}
+                          alt={g.nombre}
+                          className="rounded-circle mb-2"
+                          style={{ width: 80, height: 80, objectFit: 'cover' }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <h4 className="mb-0">🏆 {g.nombre}</h4>
+                      <p className="mb-0 fs-5 fw-bold text-success">{g.puntos_totales} puntos</p>
+                    </div>
+                  ))}
+                  <p className="text-muted mt-3">{ganador.mensaje}</p>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-primary" onClick={() => setMostrarGanador(false)}>
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
