@@ -14,6 +14,30 @@ const fechaATextoLocal = (iso) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+// Ícono de una planta de hidrocarburos (torres de destilación, estanque
+// esférico y antorcha) para el modal de ganador — hace referencia a que
+// las "áreas" (Cracking, H2, Coker, Fraccionamiento) son unidades de
+// proceso de una refinería.
+const PlantaHidrocarburosLogo = () => (
+  <svg width="160" height="100" viewBox="0 0 160 100" role="img" aria-label="Planta de hidrocarburos">
+    <rect x="0" y="92" width="160" height="4" fill="#666" />
+    <rect x="12" y="42" width="16" height="50" fill="#8a8f98" stroke="#444" strokeWidth="1" />
+    <rect x="10" y="38" width="20" height="6" fill="#6c7078" />
+    <rect x="45" y="18" width="18" height="74" fill="#9aa0a8" stroke="#444" strokeWidth="1" />
+    <rect x="43" y="14" width="22" height="6" fill="#6c7078" />
+    <rect x="48" y="30" width="12" height="3" fill="#555" />
+    <rect x="48" y="48" width="12" height="3" fill="#555" />
+    <rect x="48" y="66" width="12" height="3" fill="#555" />
+    <circle cx="100" cy="66" r="20" fill="#b0b5bc" stroke="#444" strokeWidth="1" />
+    <line x1="100" y1="86" x2="100" y2="92" stroke="#444" strokeWidth="2" />
+    <rect x="130" y="24" width="6" height="68" fill="#777" />
+    <path d="M133 24 C 125 13, 142 8, 133 -4 C 141 6, 146 18, 133 24 Z" fill="#ff7a1a" />
+    <circle cx="118" cy="34" r="5" fill="#ccc" opacity="0.5" />
+    <circle cx="124" cy="26" r="7" fill="#ccc" opacity="0.4" />
+    <circle cx="116" cy="20" r="6" fill="#ccc" opacity="0.3" />
+  </svg>
+);
+
 const FASES = {
   grupos: 'Fase de grupos',
   final: 'Final (1° y 2° lugar)',
@@ -273,8 +297,11 @@ export default function AdminCopaGinoPerezResultados() {
   const calcularGanador = async () => {
     try {
       setCalculandoGanador(true);
-      const res = await axios.get(`${API_URL}/api/copa-gino-perez/estadisticas`);
-      const ranking = res.data.ranking || [];
+      const [resEstadisticas, resArea] = await Promise.all([
+        axios.get(`${API_URL}/api/copa-gino-perez/estadisticas`),
+        axios.get(`${API_URL}/api/copa-gino-perez/ranking-por-area`)
+      ]);
+      const ranking = resEstadisticas.data.ranking || [];
       if (ranking.length === 0) {
         alert('Todavía no hay pronósticos registrados para calcular un ganador');
         return;
@@ -285,7 +312,19 @@ export default function AdminCopaGinoPerezResultados() {
         return;
       }
       const ganadores = ranking.filter(j => j.puntos_totales === puntajeMax);
-      setGanador({ ganadores, mensaje: '¡Felicitaciones a quien se quedó con la Copa Gino Pérez!' });
+
+      const rankingPorArea = resArea.data.rankingPorArea || [];
+      let areasGanadoras = [];
+      if (rankingPorArea.length > 0 && rankingPorArea[0].puntos > 0) {
+        const puntajeMaxArea = rankingPorArea[0].puntos;
+        areasGanadoras = rankingPorArea.filter(a => a.puntos === puntajeMaxArea);
+      }
+
+      setGanador({
+        ganadores,
+        areasGanadoras,
+        mensaje: '¡Felicitaciones a quien se quedó con la Copa Gino Pérez!'
+      });
       setMostrarGanador(true);
     } catch (err) {
       console.error('Error calculando el ganador:', err);
@@ -525,6 +564,9 @@ export default function AdminCopaGinoPerezResultados() {
                   <button type="button" className="btn-close" onClick={() => setMostrarGanador(false)}></button>
                 </div>
                 <div className="modal-body text-center py-4">
+                  <div className="d-flex justify-content-center mb-2">
+                    <PlantaHidrocarburosLogo />
+                  </div>
                   <div className="mb-4">
                     <h2 className="text-warning">🎉 ¡Felicitaciones! 🎉</h2>
                   </div>
@@ -543,6 +585,21 @@ export default function AdminCopaGinoPerezResultados() {
                       <p className="mb-0 fs-5 fw-bold text-success">{g.puntos_totales} puntos</p>
                     </div>
                   ))}
+                  {ganador.areasGanadoras && ganador.areasGanadoras.length > 0 && (
+                    <>
+                      <hr />
+                      <h5 className="text-dark mb-3">
+                        🏭 {ganador.areasGanadoras.length === 1 ? 'Área Ganadora' : 'Áreas Ganadoras'}
+                      </h5>
+                      {ganador.areasGanadoras.map((a) => (
+                        <div key={a.area} className="alert alert-info mb-2">
+                          <h5 className="mb-1">🏭 {a.area}</h5>
+                          <p className="mb-1 small text-muted">{a.jugadores.join(', ')}</p>
+                          <p className="mb-0 fs-6 fw-bold text-primary">{a.puntos} puntos</p>
+                        </div>
+                      ))}
+                    </>
+                  )}
                   <p className="text-muted mt-3">{ganador.mensaje}</p>
                 </div>
                 <div className="modal-footer">
