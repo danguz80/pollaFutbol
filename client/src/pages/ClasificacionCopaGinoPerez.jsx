@@ -22,7 +22,7 @@ const medalla = (posicion) => {
 // de su nombre completo.
 const AREAS_EQUIPO = [
   { area: 'Cracking', apellidos: ['guzman', 'amestica'] },
-  { area: 'H2', apellidos: ['silva', 'tprrijo'] },
+  { area: 'H2', apellidos: ['silva', 'torrijo'] },
   { area: 'Coker', apellidos: ['abad'] }
 ];
 const normalizar = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
