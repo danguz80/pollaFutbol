@@ -48,6 +48,7 @@ export default function AdminCopaGinoPerezResultados() {
   const [calculandoGanador, setCalculandoGanador] = useState(false);
   const [ganador, setGanador] = useState(null);
   const [mostrarGanador, setMostrarGanador] = useState(false);
+  const [mostrarGanadorArea, setMostrarGanadorArea] = useState(false);
 
   useEffect(() => {
     cargarPartidos();
@@ -315,6 +316,16 @@ export default function AdminCopaGinoPerezResultados() {
     }
   };
 
+  // Cierra el modal del ganador individual y, si hay área(s) ganadora(s),
+  // encadena la apertura del modal de área ganadora (aparecen en secuencia,
+  // nunca juntos).
+  const cerrarModalGanadorIndividual = () => {
+    setMostrarGanador(false);
+    if (ganador?.areasGanadoras?.length > 0) {
+      setMostrarGanadorArea(true);
+    }
+  };
+
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
   return (
@@ -534,7 +545,7 @@ export default function AdminCopaGinoPerezResultados() {
           <div
             className="modal show d-block"
             style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-            onClick={() => setMostrarGanador(false)}
+            onClick={cerrarModalGanadorIndividual}
           >
             <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
               <div className="modal-content">
@@ -542,17 +553,9 @@ export default function AdminCopaGinoPerezResultados() {
                   <h5 className="modal-title">
                     🏆 {ganador.ganadores.length === 1 ? 'Ganador' : 'Ganadores'} de la Copa Gino Pérez
                   </h5>
-                  <button type="button" className="btn-close" onClick={() => setMostrarGanador(false)}></button>
+                  <button type="button" className="btn-close" onClick={cerrarModalGanadorIndividual}></button>
                 </div>
                 <div className="modal-body text-center py-4">
-                  <div className="d-flex justify-content-center mb-2">
-                    <img
-                      src={PLANTA_LOGO_URL}
-                      alt="Planta industrial"
-                      style={{ width: 140, height: 140, objectFit: 'contain' }}
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                  </div>
                   <div className="mb-4">
                     <h2 className="text-warning">🎉 ¡Felicitaciones! 🎉</h2>
                   </div>
@@ -571,25 +574,58 @@ export default function AdminCopaGinoPerezResultados() {
                       <p className="mb-0 fs-5 fw-bold text-success">{g.puntos_totales} puntos</p>
                     </div>
                   ))}
-                  {ganador.areasGanadoras && ganador.areasGanadoras.length > 0 && (
-                    <>
-                      <hr />
-                      <h5 className="text-dark mb-3">
-                        🏭 {ganador.areasGanadoras.length === 1 ? 'Área Ganadora' : 'Áreas Ganadoras'}
-                      </h5>
-                      {ganador.areasGanadoras.map((a) => (
-                        <div key={a.area} className="alert alert-info mb-2">
-                          <h5 className="mb-1">🏭 {a.area}</h5>
-                          <p className="mb-1 small text-muted">{a.jugadores.join(', ')}</p>
-                          <p className="mb-0 fs-6 fw-bold text-primary">{a.puntos} puntos</p>
-                        </div>
-                      ))}
-                    </>
-                  )}
                   <p className="text-muted mt-3">{ganador.mensaje}</p>
                 </div>
                 <div className="modal-footer">
-                  <button type="button" className="btn btn-primary" onClick={() => setMostrarGanador(false)}>
+                  <button type="button" className="btn btn-primary" onClick={cerrarModalGanadorIndividual}>
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {mostrarGanadorArea && ganador?.areasGanadoras?.length > 0 && (
+        <>
+          <FireworksEffect />
+          <div
+            className="modal show d-block"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setMostrarGanadorArea(false)}
+          >
+            <div className="modal-dialog modal-lg modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header bg-info text-dark">
+                  <h5 className="modal-title fs-4">
+                    🏭 {ganador.areasGanadoras.length === 1 ? 'Área Ganadora' : 'Áreas Ganadoras'} de la Copa Gino Pérez
+                  </h5>
+                  <button type="button" className="btn-close" onClick={() => setMostrarGanadorArea(false)}></button>
+                </div>
+                <div className="modal-body text-center py-5">
+                  <div className="d-flex justify-content-center mb-3">
+                    <img
+                      src={PLANTA_LOGO_URL}
+                      alt="Planta industrial"
+                      style={{ width: 220, height: 220, objectFit: 'contain' }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <h1 className="text-info">🎉 ¡Felicitaciones! 🎉</h1>
+                  </div>
+                  {ganador.areasGanadoras.map((a) => (
+                    <div key={a.area} className="alert alert-info mb-3 py-4">
+                      <h2 className="mb-2">🏭 {a.area}</h2>
+                      <p className="mb-2 fs-5 text-muted">{a.jugadores.join(', ')}</p>
+                      <p className="mb-0 fs-3 fw-bold text-primary">{a.puntos} puntos</p>
+                    </div>
+                  ))}
+                  <p className="text-muted mt-3 fs-6">{ganador.mensaje}</p>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-info btn-lg" onClick={() => setMostrarGanadorArea(false)}>
                     Cerrar
                   </button>
                 </div>
