@@ -481,6 +481,18 @@ router.get('/estadisticas', async (req, res) => {
   }
 });
 
+// GET /api/copa-gino-perez/ranking-por-area - ranking de áreas de trabajo
+// (suma de los puntos de los jugadores de cada área).
+router.get('/ranking-por-area', async (req, res) => {
+  try {
+    const detalle = await obtenerDetalleCompletoTorneo();
+    res.json({ rankingPorArea: detalle.rankingPorArea });
+  } catch (error) {
+    console.error('Error obteniendo ranking por área de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error obteniendo ranking por área' });
+  }
+});
+
 // GET /api/copa-gino-perez/puntuacion/reglas
 router.get('/puntuacion/reglas', async (req, res) => {
   try {
