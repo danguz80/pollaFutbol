@@ -21,11 +21,12 @@ const PAD_Y = 3;
 /**
  * @param {Object} datos
  * @param {Array<{posicion:number, nombre:string, puntosTotal:number}>} datos.ranking
+ * @param {Array<{area:string, jugadores:string[], puntos:number}>} datos.rankingPorArea
  * @param {Array<Object>} datos.usuarios - ver obtenerDetalleCompletoTorneo()
  * @returns {Promise<Buffer>}
  */
 export function generarPdfFinalCopaGinoPerezBuffer(datos) {
-  const { ranking = [], usuarios = [] } = datos;
+  const { ranking = [], rankingPorArea = [], usuarios = [] } = datos;
 
   return new Promise((resolve, reject) => {
     try {
@@ -69,6 +70,18 @@ export function generarPdfFinalCopaGinoPerezBuffer(datos) {
           ranking.map((r, idx) => ({
             cells: [String(idx + 1), r.nombre, String(r.totalPartidos), String(r.totalPosiciones)],
             destacada: idx < 3
+          }))
+        );
+      }
+
+      // ---- Clasificación por área ----
+      if (rankingPorArea.length > 0) {
+        dibujarSubtitulo(doc, pageWidth, 'CLASIFICACIÓN POR ÁREA');
+        dibujarTabla(doc, pageWidth,
+          [{ h: 'Pos.', f: 0.10, align: 'center' }, { h: 'Área', f: 0.20 }, { h: 'Jugadores', f: 0.50 }, { h: 'Puntos', f: 0.20, align: 'center' }],
+          rankingPorArea.map((a, idx) => ({
+            cells: [String(idx + 1), a.area, a.jugadores.join(', '), String(a.puntos)],
+            destacada: idx === 0
           }))
         );
       }
