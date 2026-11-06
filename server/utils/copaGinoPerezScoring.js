@@ -3,6 +3,24 @@ import { pool } from '../db/pool.js';
 const GRUPOS = { 1: [1, 2, 3], 2: [4, 5, 6] };
 const FINAL_PARTIDOS = [7, 8, 9];
 
+// Áreas de trabajo de cada jugador (no tiene relación con los equipos del
+// torneo) — mismo mapeo que ClasificacionCopaGinoPerez.jsx, para que el PDF
+// final incluya la misma tabla de "Clasificación por Área". Identifica a
+// cada jugador por su apellido (sin tildes, sin importar mayúsculas) dentro
+// de su nombre completo.
+const AREAS_EQUIPO = [
+  { area: 'Cracking', apellidos: ['guzman', 'amestica', 'herrera', 'oyanedel', 'castillo'] },
+  { area: 'H2', apellidos: ['silva', 'torrijo'] },
+  { area: 'Coker', apellidos: ['abad'] },
+  { area: 'Fraccionamiento', apellidos: ['slater', 'aguilera', 'titus'] }
+];
+const normalizarNombre = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const areaDeJugador = (nombre) => {
+  const n = normalizarNombre(nombre);
+  const encontrada = AREAS_EQUIPO.find(a => a.apellidos.some(ap => n.includes(ap)));
+  return encontrada ? encontrada.area : 'Sin área asignada';
+};
+
 // Enfrentamientos fijos de cada grupo (todos-contra-todos): el partido que
 // corresponde a cada posición de la lista (1°,2°,3°) dentro del grupo, sin
 // importar en qué orden se jueguen en la realidad.
@@ -570,5 +588,16 @@ export async function obtenerDetalleCompletoTorneo() {
 
   const ranking = [...usuarios].sort((a, b) => b.puntosTotal - a.puntosTotal || a.nombre.localeCompare(b.nombre));
 
-  return { standingsRealG1, standingsRealG2, gruposCompletos, finalCompleto, posicionesReales, usuarios, ranking };
+  // Clasificación por área: agrupa el ranking por área de trabajo y suma
+  // los puntos totales de cada una.
+  const gruposArea = {};
+  ranking.forEach(u => {
+    const area = areaDeJugador(u.nombre);
+    if (!gruposArea[area]) gruposArea[area] = { area, jugadores: [], puntos: 0 };
+    gruposArea[area].jugadores.push(u.nombre);
+    gruposArea[area].puntos += u.puntosTotal;
+  });
+  const rankingPorArea = Object.values(gruposArea).sort((a, b) => b.puntos - a.puntos || a.area.localeCompare(b.area));
+
+  return { standingsRealG1, standingsRealG2, gruposCompletos, finalCompleto, posicionesReales, usuarios, ranking, rankingPorArea };
 }
