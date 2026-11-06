@@ -3,7 +3,8 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
-import { recalcularTodo, determinarGanador, asegurarEquiposGrupoFijos, calcularStandingsGrupo } from '../utils/copaGinoPerezScoring.js';
+import { recalcularTodo, determinarGanador, asegurarEquiposGrupoFijos, calcularStandingsGrupo, obtenerDetalleCompletoTorneo } from '../utils/copaGinoPerezScoring.js';
+import { generarPdfFinalCopaGinoPerezBuffer } from '../utils/pdfFinalCopaGinoPerez.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'secreto-temporal';
@@ -508,6 +509,24 @@ router.put('/puntuacion/reglas', verifyToken, authorizeRoles('admin'), async (re
   } catch (error) {
     console.error('Error actualizando reglas de Copa Gino Pérez:', error);
     res.status(500).json({ error: 'Error actualizando reglas de puntuación' });
+  }
+});
+
+// POST /api/copa-gino-perez/admin/pdf-final (Admin) - PDF con el detalle
+// completo del torneo: partidos, bonos, puntos, posiciones virtual-vs-real
+// y ranking final de cada jugador.
+router.post('/admin/pdf-final', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    console.log('📄 Generando PDF Final de Copa Gino Pérez...');
+    const detalle = await obtenerDetalleCompletoTorneo();
+    const pdfBuffer = await generarPdfFinalCopaGinoPerezBuffer(detalle);
+    const nombreArchivo = `Resultados_CopaGinoPerez_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error generando PDF Final de Copa Gino Pérez:', error);
+    res.status(500).json({ error: 'Error generando PDF final', details: error.message });
   }
 });
 

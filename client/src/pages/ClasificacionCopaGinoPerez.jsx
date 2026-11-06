@@ -169,6 +169,13 @@ export default function ClasificacionCopaGinoPerez() {
   // la tabla de posiciones "virtual" de cada grupo según ese pronóstico.
   const calcularStandingsVirtuales = (prediccionesPorPartido) => {
     if (!prediccionesPorPartido || equipos.length !== 6) return null;
+    // Si el usuario no pronosticó NINGÚN partido de grupos, no hay bracket
+    // virtual real que mostrar — devolver null en vez de caer en el
+    // desempate por "orden" original de la lista de equipos (que podría
+    // coincidir por casualidad con la tabla real y hacer parecer que
+    // acertó una posición que nunca pronosticó).
+    const tienePredicciones = [1, 2, 3, 4, 5, 6].some(id => prediccionesPorPartido[id]);
+    if (!tienePredicciones) return null;
     const calcularGrupo = grupoNum => {
       const equiposGrupo = equipos.filter(e => e.grupo === grupoNum);
       const partidosFijos = PARTIDOS_GRUPO[grupoNum].map(pf => {
