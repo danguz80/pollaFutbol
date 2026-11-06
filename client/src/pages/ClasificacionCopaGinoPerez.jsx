@@ -16,12 +16,6 @@ const medalla = (posicion) => {
   return null;
 };
 
-const ETIQUETAS_PARTIDO = {
-  1: 'P1 G1', 2: 'P2 G1', 3: 'P3 G1',
-  4: 'P4 G2', 5: 'P5 G2', 6: 'P6 G2',
-  7: 'Final', 8: '3°/4°', 9: 'Vergüenza'
-};
-
 // Secciones del torneo: a qué grupo pertenece cada partido de fase de
 // grupos, y qué puesto define cada uno de los 3 partidos de fase final.
 const SECCIONES = [
@@ -85,6 +79,7 @@ export default function ClasificacionCopaGinoPerez() {
   const [todosPronosticos, setTodosPronosticos] = useState(null);
   const [participantes, setParticipantes] = useState([]);
   const [noParticipantes, setNoParticipantes] = useState([]);
+  const [reglas, setReglas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -95,17 +90,24 @@ export default function ClasificacionCopaGinoPerez() {
   const cargar = async () => {
     try {
       setLoading(true);
-      const [rankingRes, partidosRes, equiposRes, configRes] = await Promise.all([
+      const [rankingRes, partidosRes, equiposRes, configRes, reglasRes] = await Promise.all([
         axios.get(`${API_URL}/api/copa-gino-perez/estadisticas`),
         axios.get(`${API_URL}/api/copa-gino-perez/partidos`),
         axios.get(`${API_URL}/api/copa-gino-perez/equipos`),
-        axios.get(`${API_URL}/api/copa-gino-perez/config`)
+        axios.get(`${API_URL}/api/copa-gino-perez/config`),
+        axios.get(`${API_URL}/api/copa-gino-perez/puntuacion/reglas`)
       ]);
       setRanking(rankingRes.data.ranking || []);
       setPartidos(partidosRes.data);
       setEquipos(equiposRes.data);
       setCerrado(configRes.data.cerrado);
       setBonusConfig(configRes.data);
+      const reglasObj = {};
+      (reglasRes.data || []).forEach(r => {
+        if (!reglasObj[r.fase]) reglasObj[r.fase] = {};
+        reglasObj[r.fase][r.concepto] = r.puntos;
+      });
+      setReglas(reglasObj);
 
       const token = localStorage.getItem('token');
       if (configRes.data.cerrado || esAdmin) {
@@ -162,12 +164,11 @@ export default function ClasificacionCopaGinoPerez() {
     return m;
   }, [partidos]);
 
-  // Para los 3 partidos de fase final: a partir de cualquier set de 6
-  // pronósticos de grupo (propios o de otro usuario), calcula contra qué
-  // equipos reales pronosticó cada partido de fase final (su bracket
-  // virtual) — no la descripción genérica ("1° Grupo 1 vs 1° Grupo 2").
-  const calcularEtiquetasFinal = (prediccionesPorPartido) => {
-    if (!prediccionesPorPartido || equipos.length !== 6) return {};
+  // A partir de cualquier set de 6 pronósticos de grupo (propios o de otro
+  // usuario), aplicados a los 3 enfrentamientos FIJOS de cada grupo, calcula
+  // la tabla de posiciones "virtual" de cada grupo según ese pronóstico.
+  const calcularStandingsVirtuales = (prediccionesPorPartido) => {
+    if (!prediccionesPorPartido || equipos.length !== 6) return null;
     const calcularGrupo = grupoNum => {
       const equiposGrupo = equipos.filter(e => e.grupo === grupoNum);
       const partidosFijos = PARTIDOS_GRUPO[grupoNum].map(pf => {
@@ -181,34 +182,231 @@ export default function ClasificacionCopaGinoPerez() {
       });
       return calcularStandingsGrupo(equiposGrupo, partidosFijos);
     };
+    return { g1: calcularGrupo(1), g2: calcularGrupo(2) };
+  };
 
-    const standingsG1 = calcularGrupo(1);
-    const standingsG2 = calcularGrupo(2);
-    const nombre = (standings, idx) => standings[idx]?.nombre;
-
+  // Para los 3 partidos de fase final: contra qué equipos reales pronosticó
+  // cada uno según su bracket virtual — no la descripción genérica
+  // ("1° Grupo 1 vs 1° Grupo 2").
+  const calcularEtiquetasFinal = (prediccionesPorPartido) => {
+    const standings = calcularStandingsVirtuales(prediccionesPorPartido);
+    if (!standings) return {};
+    const nombre = (standingsG, idx) => standingsG[idx]?.nombre;
     return {
-      7: nombre(standingsG1, 0) && nombre(standingsG2, 0) ? `${nombre(standingsG1, 0)} vs ${nombre(standingsG2, 0)}` : null,
-      8: nombre(standingsG1, 1) && nombre(standingsG2, 1) ? `${nombre(standingsG1, 1)} vs ${nombre(standingsG2, 1)}` : null,
-      9: nombre(standingsG1, 2) && nombre(standingsG2, 2) ? `${nombre(standingsG1, 2)} vs ${nombre(standingsG2, 2)}` : null
+      7: nombre(standings.g1, 0) && nombre(standings.g2, 0) ? `${nombre(standings.g1, 0)} vs ${nombre(standings.g2, 0)}` : null,
+      8: nombre(standings.g1, 1) && nombre(standings.g2, 1) ? `${nombre(standings.g1, 1)} vs ${nombre(standings.g2, 1)}` : null,
+      9: nombre(standings.g1, 2) && nombre(standings.g2, 2) ? `${nombre(standings.g1, 2)} vs ${nombre(standings.g2, 2)}` : null
     };
   };
 
-  const etiquetasFinalPorPronostico = useMemo(() => {
-    if (!miPronostico?.pronosticos?.length) return {};
-    const prediccionesPorPartido = {};
-    miPronostico.pronosticos.forEach(p => { prediccionesPorPartido[p.partido_id] = p; });
-    return calcularEtiquetasFinal(prediccionesPorPartido);
-  }, [miPronostico, equipos]);
+  // Ganador "virtual" de un partido de fase final según el marcador
+  // pronosticado, aplicado sobre los equipos REALES de ese cruce (igual
+  // convención que usa el backend en recalcularTodo: si predijo empate, se
+  // asume como ganador al equipo "local" del cruce).
+  const ganadorVirtual = (pred, equipoLocalId, equipoVisitaId) => {
+    if (!pred || pred.goles_local == null || pred.goles_visita == null) return null;
+    if (pred.goles_local > pred.goles_visita) return equipoLocalId;
+    if (pred.goles_visita > pred.goles_local) return equipoVisitaId;
+    return equipoLocalId;
+  };
 
-  // Lo mismo, pero para cada usuario de la tabla "Pronósticos de Todos":
-  // el bracket virtual de fase final según los propios pronósticos de
-  // grupo de ESE usuario (no los del usuario logueado).
-  const etiquetasFinalPorUsuario = useMemo(() => {
-    if (!todosPronosticos) return {};
-    const map = {};
-    todosPronosticos.forEach(u => { map[u.id] = calcularEtiquetasFinal(u.pronosticos || {}); });
-    return map;
-  }, [todosPronosticos, equipos]);
+  const nombreEquipo = (id) => equipos.find(e => e.id === id)?.nombre;
+
+  // Tablas REALES de cada grupo (en base a los resultados reales ya
+  // cargados) y resolución real de las 6 posiciones finales (campeón a
+  // último), replicando en el cliente la misma lógica que usa el backend.
+  const standingsRealG1 = useMemo(() =>
+    calcularStandingsGrupo(equipos.filter(e => e.grupo === 1), [1, 2, 3].map(id => partidosPorId[id]).filter(Boolean)),
+    [equipos, partidosPorId]);
+  const standingsRealG2 = useMemo(() =>
+    calcularStandingsGrupo(equipos.filter(e => e.grupo === 2), [4, 5, 6].map(id => partidosPorId[id]).filter(Boolean)),
+    [equipos, partidosPorId]);
+  const gruposCompletos = useMemo(() => [1, 2, 3, 4, 5, 6].every(id => partidosPorId[id]?.jugado), [partidosPorId]);
+
+  const posicionesRealesIds = useMemo(() => {
+    const p7 = partidosPorId[7], p8 = partidosPorId[8], p9 = partidosPorId[9];
+    if (!p7 || !p8 || !p9) return {};
+    const determinarGanadorReal = p => {
+      if (p.goles_local == null || p.goles_visita == null) return null;
+      if (p.goles_local > p.goles_visita) return p.equipo_local_id;
+      if (p.goles_visita > p.goles_local) return p.equipo_visita_id;
+      return p.ganador_id || null;
+    };
+    const gan7 = determinarGanadorReal(p7), gan8 = determinarGanadorReal(p8), gan9 = determinarGanadorReal(p9);
+    if (!gan7 || !gan8 || !gan9) return {};
+    return {
+      1: gan7, 2: gan7 === p7.equipo_local_id ? p7.equipo_visita_id : p7.equipo_local_id,
+      3: gan8, 4: gan8 === p8.equipo_local_id ? p8.equipo_visita_id : p8.equipo_local_id,
+      5: gan9, 6: gan9 === p9.equipo_local_id ? p9.equipo_visita_id : p9.equipo_local_id
+    };
+  }, [partidosPorId]);
+  const finalCompleto = Object.keys(posicionesRealesIds).length === 6;
+
+  // Detalle completo de un jugador: tabla de los 9 partidos (resultado real
+  // vs su pronóstico, bono y puntos) + tabla de posiciones (virtual vs real)
+  // con los puntos de la página Puntuación — igual que en Torneo Nacional /
+  // Copa Libertadores.
+  const renderBloqueJugador = (key, nombre, fotoPerfil, prediccionesPorPartido) => {
+    const etiquetasFinal = calcularEtiquetasFinal(prediccionesPorPartido);
+    const standingsVirt = calcularStandingsVirtuales(prediccionesPorPartido);
+
+    let totalPartidos = 0;
+    const filasPartidos = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((id, idx, arr) => {
+      const partido = partidosPorId[id];
+      const pred = prediccionesPorPartido[id];
+      const bonus = infoBonus(id);
+      const puntos = pred?.puntos ?? 0;
+      totalPartidos += puntos;
+      const esFinal = id >= 7;
+      const nombrePartidoReal = partido ? nombrePartido(partido) : `Partido ${id}`;
+      const etiquetaVirtual = esFinal ? etiquetasFinal[id] : null;
+      const noCoincide = esFinal && etiquetaVirtual && partido?.equipo_local_id && etiquetaVirtual !== nombrePartidoReal;
+      const seccion = seccionDePartido(id);
+      const esInicioSeccion = idx === 0 || seccionDePartido(arr[idx - 1]) !== seccion;
+      return { id, seccion, esInicioSeccion, esFinal, partido, pred, bonus, puntos,
+        etiqueta: esFinal ? (etiquetaVirtual || 'Pendiente (falta tu pronóstico de grupos)') : nombrePartidoReal,
+        nombrePartidoReal, noCoincide };
+    });
+
+    const filasPosGrupo = [1, 2].flatMap(grupoNum => {
+      const standingsVirtG = grupoNum === 1 ? standingsVirt?.g1 : standingsVirt?.g2;
+      const standingsRealG = grupoNum === 1 ? standingsRealG1 : standingsRealG2;
+      const etiquetasPos = ['1er lugar', '2do lugar', '3er lugar'];
+      const conceptos = ['1er_lugar', '2do_lugar', '3er_lugar'];
+      return [0, 1, 2].map(idx => {
+        const virtual = standingsVirtG ? standingsVirtG[idx]?.nombre : null;
+        const real = gruposCompletos ? standingsRealG[idx]?.nombre : null;
+        const coincide = gruposCompletos && virtual && real && standingsVirtG[idx].equipo_id === standingsRealG[idx].equipo_id;
+        const puntos = gruposCompletos ? (coincide ? (reglas.posiciones_grupo?.[conceptos[idx]] ?? 0) : 0) : null;
+        return { key: `g${grupoNum}-${idx}`, etiqueta: `Grupo ${grupoNum} — ${etiquetasPos[idx]}`, virtual, real, puntos };
+      });
+    });
+
+    const filasPosFinal = [];
+    const agregarPosFinal = (etiquetaGan, etiquetaPerd, pred, p, conceptoGan, conceptoPerd, slotGan, slotPerd) => {
+      if (!finalCompleto || !p?.equipo_local_id) {
+        filasPosFinal.push({ key: etiquetaGan, etiqueta: etiquetaGan, virtual: null, real: null, puntos: null });
+        filasPosFinal.push({ key: etiquetaPerd, etiqueta: etiquetaPerd, virtual: null, real: null, puntos: null });
+        return;
+      }
+      const ganVirtual = ganadorVirtual(pred, p.equipo_local_id, p.equipo_visita_id);
+      const perdVirtual = ganVirtual ? (ganVirtual === p.equipo_local_id ? p.equipo_visita_id : p.equipo_local_id) : null;
+      const ganReal = posicionesRealesIds[slotGan];
+      const perdReal = posicionesRealesIds[slotPerd];
+      filasPosFinal.push({
+        key: etiquetaGan, etiqueta: etiquetaGan,
+        virtual: ganVirtual ? nombreEquipo(ganVirtual) : null,
+        real: ganReal ? nombreEquipo(ganReal) : null,
+        puntos: ganVirtual && ganReal ? (ganVirtual === ganReal ? (reglas.posiciones_finales?.[conceptoGan] ?? 0) : 0) : null
+      });
+      filasPosFinal.push({
+        key: etiquetaPerd, etiqueta: etiquetaPerd,
+        virtual: perdVirtual ? nombreEquipo(perdVirtual) : null,
+        real: perdReal ? nombreEquipo(perdReal) : null,
+        puntos: perdVirtual && perdReal ? (perdVirtual === perdReal ? (reglas.posiciones_finales?.[conceptoPerd] ?? 0) : 0) : null
+      });
+    };
+    agregarPosFinal('🏆 Campeón', '🥈 Subcampeón', prediccionesPorPartido[7], partidosPorId[7], 'campeon', 'subcampeon', 1, 2);
+    agregarPosFinal('🥉 3er lugar', '4to lugar', prediccionesPorPartido[8], partidosPorId[8], '3er_lugar', '4to_lugar', 3, 4);
+    agregarPosFinal('5to lugar', '🙈 Último lugar', prediccionesPorPartido[9], partidosPorId[9], '5to_lugar', 'ultimo', 5, 6);
+
+    const totalPosiciones = [...filasPosGrupo, ...filasPosFinal].reduce((sum, f) => sum + (f.puntos || 0), 0);
+
+    return (
+      <div key={key} className="card mb-4">
+        <div className="card-header bg-dark text-white text-center d-flex align-items-center justify-content-center gap-2">
+          {fotoUrl(fotoPerfil) && (
+            <img src={fotoUrl(fotoPerfil)} alt={nombre} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+          )}
+          <span>{nombre}</span>
+        </div>
+        <div className="card-body">
+          <h6 className="text-center text-muted">Partidos (resultado real vs pronóstico)</h6>
+          <table className="table table-sm align-middle mb-4">
+            <thead className="table-secondary">
+              <tr>
+                <th>Partido</th>
+                <th className="text-center">Resultado real</th>
+                <th className="text-center">Su resultado</th>
+                <th className="text-center">Bonus</th>
+                <th className="text-center">Puntos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filasPartidos.map(f => (
+                <Fragment key={f.id}>
+                  {f.esInicioSeccion && (
+                    <tr>
+                      <td colSpan={5} style={{ background: f.seccion.color, color: '#fff', fontWeight: 700, textAlign: 'center' }}>
+                        {f.seccion.titulo}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className={f.pred ? (f.puntos > 0 ? 'table-success' : 'table-danger') : ''}>
+                    <td>
+                      {f.etiqueta}
+                      {f.noCoincide && (
+                        <div className="small text-danger">No es el cruce real ({f.nombrePartidoReal}) — 0 pts</div>
+                      )}
+                    </td>
+                    <td className="text-center">
+                      {f.partido?.jugado
+                        ? (f.esFinal ? `${f.nombrePartidoReal}: ${f.partido.goles_local} - ${f.partido.goles_visita}` : `${f.partido.goles_local} - ${f.partido.goles_visita}`)
+                        : (f.esFinal && f.partido?.equipo_local_id ? `${f.nombrePartidoReal} — pendiente` : 'Pendiente')}
+                    </td>
+                    <td className="text-center fw-bold">
+                      {f.pred ? `${f.pred.goles_local} - ${f.pred.goles_visita}` : '—'}
+                    </td>
+                    <td className="text-center">{f.bonus.esBonus ? `x${f.bonus.multiplicador}` : 'x1'}</td>
+                    <td className="text-center fw-bold">{f.pred ? f.puntos : '—'}</td>
+                  </tr>
+                </Fragment>
+              ))}
+              <tr className="fw-bold" style={{ background: '#fff6d6' }}>
+                <td colSpan={4} className="text-end">Total puntos por partidos:</td>
+                <td className="text-center">{totalPartidos}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h6 className="text-center text-muted">Posiciones: pronóstico virtual vs real</h6>
+          <table className="table table-sm align-middle mb-0">
+            <thead className="table-secondary">
+              <tr>
+                <th>Posición</th>
+                <th className="text-center">Pronóstico (virtual)</th>
+                <th className="text-center">Real</th>
+                <th className="text-center">Puntos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[{ titulo: 'Posiciones de Grupo', filas: filasPosGrupo }, { titulo: 'Posiciones Finales', filas: filasPosFinal }].map(bloque => (
+                <Fragment key={bloque.titulo}>
+                  <tr>
+                    <td colSpan={4} style={{ background: '#444', color: '#fff', fontWeight: 700, textAlign: 'center' }}>
+                      {bloque.titulo}
+                    </td>
+                  </tr>
+                  {bloque.filas.map(f => (
+                    <tr key={f.key} className={f.puntos == null ? '' : f.puntos > 0 ? 'table-success' : 'table-danger'}>
+                      <td>{f.etiqueta}</td>
+                      <td className="text-center">{f.virtual || '—'}</td>
+                      <td className="text-center">{f.real || 'Pendiente'}</td>
+                      <td className="text-center fw-bold">{f.puntos == null ? '—' : f.puntos}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+              <tr className="fw-bold" style={{ background: '#fff6d6' }}>
+                <td colSpan={3} className="text-end">Total puntos por posiciones:</td>
+                <td className="text-center">{totalPosiciones}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) return <div className="text-center mt-4">Cargando...</div>;
 
@@ -299,45 +497,16 @@ export default function ClasificacionCopaGinoPerez() {
       )}
 
       {!cerrado && !esAdmin && miPronostico?.pronosticos?.length > 0 && (
-        <div className="card mb-4">
-          <div className="card-header bg-dark text-white text-center">Mi Pronóstico</div>
-          <div className="card-body">
-            <p className="text-muted small text-center">
-              Mientras los pronósticos no estén cerrados, solo vos podés ver el tuyo. Cuando el admin los
-              cierre, se mostrarán acá los de todos los jugadores.
-            </p>
-            <table className="table table-sm align-middle mb-0">
-              <tbody>
-                {[...miPronostico.pronosticos].sort((a, b) => a.partido_id - b.partido_id).map((p, idx, arr) => {
-                  const partido = partidosPorId[p.partido_id];
-                  const bonus = infoBonus(p.partido_id);
-                  const etiquetaFinal = etiquetasFinalPorPronostico[p.partido_id];
-                  const seccion = seccionDePartido(p.partido_id);
-                  const esInicioSeccion = idx === 0 || seccionDePartido(arr[idx - 1].partido_id) !== seccion;
-                  return (
-                    <Fragment key={p.partido_id}>
-                      {esInicioSeccion && (
-                        <tr>
-                          <td colSpan={3} style={{ background: seccion.color, color: '#fff', fontWeight: 700, textAlign: 'center' }}>
-                            {seccion.titulo}
-                          </td>
-                        </tr>
-                      )}
-                      <tr>
-                        <td>{etiquetaFinal || (partido ? nombrePartido(partido) : `Partido ${p.partido_id}`)}</td>
-                        <td className="text-end fw-bold" style={{ whiteSpace: 'nowrap', width: 70 }}>
-                          {p.goles_local} - {p.goles_visita}
-                        </td>
-                        <td style={{ width: 50 }}>
-                          {bonus.esBonus && <span className="badge bg-warning text-dark">x{bonus.multiplicador}</span>}
-                        </td>
-                      </tr>
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="mb-4">
+          <p className="text-muted small text-center">
+            Mientras los pronósticos no estén cerrados, solo vos podés ver el detalle del tuyo. Cuando el
+            admin los cierre, se mostrará acá el de todos los jugadores.
+          </p>
+          {(() => {
+            const prediccionesPorPartido = {};
+            miPronostico.pronosticos.forEach(p => { prediccionesPorPartido[p.partido_id] = p; });
+            return renderBloqueJugador('mi-pronostico', usuarioLogueado?.nombre || 'Mi pronóstico', usuarioLogueado?.foto_perfil, prediccionesPorPartido);
+          })()}
         </div>
       )}
 
@@ -347,65 +516,7 @@ export default function ClasificacionCopaGinoPerez() {
             Pronósticos de Todos
             {!cerrado && esAdmin && <span className="badge bg-warning text-dark ms-2">vista admin — todavía no cerrado</span>}
           </h4>
-          <div className="table-responsive">
-            <table className="table table-bordered table-sm text-center align-middle">
-              <thead>
-                <tr>
-                  <th className="table-dark" style={{ border: 'none' }}></th>
-                  {SECCIONES.map(seccion => (
-                    <th key={seccion.titulo} colSpan={seccion.ids.length}
-                      style={{ background: seccion.color, color: '#fff', textAlign: 'center' }}
-                      title={seccion.titulo}>
-                      {seccion.titulo}
-                    </th>
-                  ))}
-                </tr>
-                <tr className="table-dark">
-                  <th>Jugador</th>
-                  {[1,2,3,4,5,6,7,8,9].map(id => {
-                    const partido = partidosPorId[id];
-                    const esGrupo = id <= 6;
-                    return (
-                      <th key={id} style={{ fontSize: '0.72rem', minWidth: 85, whiteSpace: 'normal' }}
-                        title={partido ? nombrePartido(partido) : ''}>
-                        {esGrupo && partido
-                          ? <>{partido.equipo_local_nombre}<br />vs<br />{partido.equipo_visita_nombre}</>
-                          : ETIQUETAS_PARTIDO[id]}
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {todosPronosticos.map(u => (
-                  <tr key={u.id}>
-                    <td className="text-start">
-                      <div className="d-flex align-items-center gap-2">
-                        {fotoUrl(u.foto_perfil) && (
-                          <img src={fotoUrl(u.foto_perfil)} alt={u.nombre} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-                        )}
-                        <span>{u.nombre}</span>
-                      </div>
-                    </td>
-                    {[1,2,3,4,5,6,7,8,9].map(id => {
-                      const pred = u.pronosticos[id];
-                      const bonus = infoBonus(id);
-                      const etiqueta = id >= 7 && pred ? etiquetasFinalPorUsuario[u.id]?.[id] : null;
-                      return (
-                        <td key={id} className={bonus.esBonus ? 'table-warning fw-bold' : ''}>
-                          {etiqueta && (
-                            <div className="text-muted" style={{ fontSize: '0.68rem', lineHeight: 1.1 }}>{etiqueta}</div>
-                          )}
-                          {pred ? `${pred.goles_local}-${pred.goles_visita}` : '—'}
-                          {bonus.esBonus && ` (x${bonus.multiplicador})`}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {todosPronosticos.map(u => renderBloqueJugador(u.id, u.nombre, u.foto_perfil, u.pronosticos || {}))}
         </div>
       )}
 
