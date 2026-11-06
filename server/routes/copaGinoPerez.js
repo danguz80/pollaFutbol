@@ -202,13 +202,13 @@ router.get('/pronosticos-todos', autenticacionOpcional, async (req, res) => {
       WHERE rol != 'admin' AND activo_copa_gino_perez = true
       ORDER BY nombre ASC
     `);
-    const pronosticosRes = await pool.query(`SELECT usuario_id, partido_id, goles_local, goles_visita FROM copa_gino_perez_pronosticos`);
+    const pronosticosRes = await pool.query(`SELECT usuario_id, partido_id, goles_local, goles_visita, puntos FROM copa_gino_perez_pronosticos`);
 
     const usuarios = usuariosRes.rows.map(u => {
       const pronosticos = {};
       pronosticosRes.rows
         .filter(p => p.usuario_id === u.id)
-        .forEach(p => { pronosticos[p.partido_id] = { goles_local: p.goles_local, goles_visita: p.goles_visita }; });
+        .forEach(p => { pronosticos[p.partido_id] = { goles_local: p.goles_local, goles_visita: p.goles_visita, puntos: p.puntos }; });
       return { id: u.id, nombre: u.nombre, foto_perfil: u.foto_perfil, pronosticos };
     });
 
