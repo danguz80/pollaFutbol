@@ -21,9 +21,10 @@ const medalla = (posicion) => {
 // cada jugador por su apellido (sin tildes, sin importar mayúsculas) dentro
 // de su nombre completo.
 const AREAS_EQUIPO = [
-  { area: 'Cracking', apellidos: ['guzman', 'amestica'] },
+  { area: 'Cracking', apellidos: ['guzman', 'amestica', 'herrera', 'oyanedel', 'castillo'] },
   { area: 'H2', apellidos: ['silva', 'torrijo'] },
-  { area: 'Coker', apellidos: ['abad'] }
+  { area: 'Coker', apellidos: ['abad'] },
+  { area: 'Fraccionamiento', apellidos: ['slater', 'aguilera', 'titus'] }
 ];
 const normalizar = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const areaDeJugador = (nombre) => {
