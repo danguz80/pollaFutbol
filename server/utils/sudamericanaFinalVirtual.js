@@ -15,9 +15,35 @@
 // salga invertido. Por eso acá se usa exactamente el mismo orden
 // (fecha, id) que ve el usuario al pronosticar.
 export async function recalcularFinalVirtualUsuario(queryable, usuarioId, jornadaNumero) {
+  // No confiar solo en la columna p.tipo_partido (puede no haber quedado
+  // seteada al cargar los partidos): si falta, se deduce por
+  // complementariedad de nombres -- el FINAL es el único partido de la
+  // jornada sin un "espejo" (local/visita invertidos); de los que sí tienen
+  // espejo, IDA es el de id más chico. Es el mismo criterio que ya usa
+  // clasificacionSudamericana.js para mostrar el partido en pantalla, así
+  // que acá siempre coincide con lo que el usuario vio.
   const partidosRes = await queryable.query(`
     SELECT sp.partido_id, sp.goles_local, sp.goles_visita, sp.penales_local, sp.penales_visita,
-           p.nombre_local, p.nombre_visita, p.tipo_partido, p.jornada_id
+           p.nombre_local, p.nombre_visita, p.jornada_id,
+           COALESCE(
+             p.tipo_partido,
+             CASE
+               WHEN NOT EXISTS (
+                 SELECT 1 FROM sudamericana_partidos p2
+                 WHERE p2.jornada_id = p.jornada_id
+                 AND p2.nombre_local = p.nombre_visita
+                 AND p2.nombre_visita = p.nombre_local
+               ) THEN 'FINAL'
+               WHEN EXISTS (
+                 SELECT 1 FROM sudamericana_partidos p2
+                 WHERE p2.jornada_id = p.jornada_id
+                 AND p2.nombre_local = p.nombre_visita
+                 AND p2.nombre_visita = p.nombre_local
+                 AND p2.id > p.id
+               ) THEN 'IDA'
+               ELSE 'VUELTA'
+             END
+           ) as tipo_partido
     FROM sudamericana_pronosticos sp
     JOIN sudamericana_partidos p ON sp.partido_id = p.id
     JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
