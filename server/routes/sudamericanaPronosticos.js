@@ -4,6 +4,7 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { getWhatsAppService } from '../services/whatsappService.js';
 import { generarPdfTestigoBuffer } from '../utils/pdfTestigo.js';
+import { recalcularFinalVirtualUsuario } from '../utils/sudamericanaFinalVirtual.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -306,93 +307,12 @@ router.post('/guardar', verifyToken, async (req, res) => {
       }
     }
 
-    // Si es jornada 10, calcular y guardar finalistas virtuales
+    // Si es jornada 10, calcular y guardar los finalistas virtuales de este
+    // usuario (ver utils/sudamericanaFinalVirtual.js para el porqué del
+    // orden fecha+id, clave para que el marcador quede pegado al equipo
+    // correcto).
     if (parseInt(jornada_numero) === 10) {
-      // Obtener todos los pronósticos de esta jornada para este usuario
-      const pronosticosJ10 = await client.query(`
-        SELECT 
-          sp.partido_id,
-          sp.goles_local,
-          sp.goles_visita,
-          sp.penales_local,
-          sp.penales_visita,
-          p.nombre_local,
-          p.nombre_visita,
-          p.tipo_partido
-        FROM sudamericana_pronosticos sp
-        JOIN sudamericana_partidos p ON sp.partido_id = p.id
-        JOIN sudamericana_jornadas sj ON p.jornada_id = sj.id
-        WHERE sp.usuario_id = $1 AND sj.numero = 10
-        ORDER BY p.id
-      `, [usuario_id]);
-
-      const partidos = pronosticosJ10.rows;
-      const semifinalesIda = partidos.filter(p => p.tipo_partido === 'IDA');
-      const semifinalesVuelta = partidos.filter(p => p.tipo_partido === 'VUELTA');
-      const partidoFinal = partidos.find(p => p.tipo_partido === 'FINAL');
-
-      // Calcular finalistas
-      const finalistas = [];
-      
-      semifinalesVuelta.forEach(vuelta => {
-        const ida = semifinalesIda.find(i =>
-          i.nombre_local === vuelta.nombre_visita && i.nombre_visita === vuelta.nombre_local
-        );
-
-        if (ida && ida.goles_local !== null && ida.goles_visita !== null &&
-            vuelta.goles_local !== null && vuelta.goles_visita !== null) {
-          
-          const golesEquipoLocal = Number(ida.goles_local) + Number(vuelta.goles_visita);
-          const golesEquipoVisita = Number(ida.goles_visita) + Number(vuelta.goles_local);
-
-          let ganador = null;
-          if (golesEquipoLocal > golesEquipoVisita) {
-            ganador = ida.nombre_local;
-          } else if (golesEquipoVisita > golesEquipoLocal) {
-            ganador = ida.nombre_visita;
-          } else {
-            const penalesLocal = Number(vuelta.penales_local || 0);
-            const penalesVisita = Number(vuelta.penales_visita || 0);
-            if (penalesLocal > penalesVisita) {
-              ganador = vuelta.nombre_local;
-            } else if (penalesVisita > penalesLocal) {
-              ganador = vuelta.nombre_visita;
-            } else {
-              ganador = ida.nombre_local;
-            }
-          }
-
-          if (ganador) finalistas.push(ganador);
-        }
-      });
-
-      // Si tenemos los 2 finalistas y hay pronóstico de final, guardar
-      if (finalistas.length === 2 && partidoFinal) {
-        const [equipo_local, equipo_visita] = finalistas;
-        
-        // Eliminar registro anterior si existe
-        await client.query(
-          'DELETE FROM sudamericana_pronosticos_final_virtual WHERE usuario_id = $1 AND jornada_id = $2',
-          [usuario_id, jornada_id]
-        );
-
-        // Insertar nuevo registro
-        await client.query(
-          `INSERT INTO sudamericana_pronosticos_final_virtual 
-           (usuario_id, jornada_id, equipo_local, equipo_visita, goles_local, goles_visita, penales_local, penales_visita)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            usuario_id,
-            jornada_id,
-            equipo_local,
-            equipo_visita,
-            partidoFinal.goles_local,
-            partidoFinal.goles_visita,
-            partidoFinal.penales_local,
-            partidoFinal.penales_visita
-          ]
-        );
-      }
+      await recalcularFinalVirtualUsuario(client, usuario_id, 10);
     }
 
     await client.query('COMMIT');
