@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { authorizeRoles } from '../middleware/authorizeRoles.js';
 import { calcularTablaOficial, calcularTablaUsuario } from '../utils/calcularClasificadosSudamericana.js';
+import { recalcularFinalVirtualTodos } from '../utils/sudamericanaFinalVirtual.js';
 
 const router = express.Router();
 
@@ -509,6 +510,15 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
 
         console.log('🏆 Campeón real:', campeonReal);
         console.log('🥈 Subcampeón real:', subcampeonReal);
+
+        // Recalcular el final virtual de cada usuario ANTES de leerlo: no hay
+        // que confiar en lo que ya esté guardado en
+        // sudamericana_pronosticos_final_virtual, porque pudo haberse
+        // guardado con un orden de semifinales incorrecto (ver
+        // utils/sudamericanaFinalVirtual.js). Esto corrige además, de paso,
+        // cualquier fila vieja ya guardada mal.
+        const finalesVirtualesActualizados = await recalcularFinalVirtualTodos(pool, 10);
+        console.log(`🔁 Finales virtuales recalculados: ${finalesVirtualesActualizados}`);
 
         // Obtener pronósticos de la tabla virtual
         const pronosticosFinalesResult = await pool.query(`
