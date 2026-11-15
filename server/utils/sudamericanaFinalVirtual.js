@@ -72,6 +72,15 @@ export async function recalcularFinalVirtualUsuario(queryable, usuarioId, jornad
   const [equipo_local, equipo_visita] = finalistas;
   const jornada_id = partidoFinal.jornada_id;
 
+  // Los penales solo tienen sentido si el marcador pronosticado de la final
+  // quedó empatado. Si el usuario cambió su pronóstico de un empate a un
+  // resultado definido, el formulario puede dejar penales viejos sin
+  // limpiar en la tabla de pronósticos -- no los arrastramos al final
+  // virtual para que no contaminen la comparación de campeón/subcampeón.
+  const empatado = partidoFinal.goles_local === partidoFinal.goles_visita;
+  const penalesLocal = empatado ? partidoFinal.penales_local : null;
+  const penalesVisita = empatado ? partidoFinal.penales_visita : null;
+
   await queryable.query(
     'DELETE FROM sudamericana_pronosticos_final_virtual WHERE usuario_id = $1 AND jornada_id = $2',
     [usuarioId, jornada_id]
@@ -83,7 +92,7 @@ export async function recalcularFinalVirtualUsuario(queryable, usuarioId, jornad
   `, [
     usuarioId, jornada_id, equipo_local, equipo_visita,
     partidoFinal.goles_local, partidoFinal.goles_visita,
-    partidoFinal.penales_local, partidoFinal.penales_visita
+    penalesLocal, penalesVisita
   ]);
 
   return { equipo_local, equipo_visita };
