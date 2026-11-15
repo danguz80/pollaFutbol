@@ -560,9 +560,15 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             puntos: visitaAcerto ? 5 : 0
           });
 
-          // Puntos por campeón (15pts) - Solo si pronosticó correctamente los finalistas
-          const golesLocalPron = pron.goles_local + (pron.penales_local || 0);
-          const golesVisitaPron = pron.goles_visita + (pron.penales_visita || 0);
+          // Puntos por campeón (15pts) - Solo si pronosticó correctamente los finalistas.
+          // Los penales SOLO deben pesar si el marcador pronosticado quedó
+          // empatado -- si no, un penal viejo que haya quedado guardado de
+          // una versión anterior del pronóstico (ej. el usuario cambió su
+          // marcador de un empate a un resultado definido pero el formulario
+          // no limpió los penales) puede invertir al campeón pronosticado.
+          const empatePron = pron.goles_local === pron.goles_visita;
+          const golesLocalPron = empatePron ? pron.goles_local + (pron.penales_local || 0) : pron.goles_local;
+          const golesVisitaPron = empatePron ? pron.goles_visita + (pron.penales_visita || 0) : pron.goles_visita;
           let campeonPronosticado = null;
           let subcampeonPronosticado = null;
 
