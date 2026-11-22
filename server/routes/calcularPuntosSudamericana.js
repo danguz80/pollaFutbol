@@ -585,50 +585,31 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             (pron.equipo_local === finalistasReales[0] && pron.equipo_visita === finalistasReales[1]) ||
             (pron.equipo_local === finalistasReales[1] && pron.equipo_visita === finalistasReales[0]);
 
-          if (campeonPronosticado && campeonReal && partidoCoincide) {
-            const aciertoCampeon = campeonPronosticado === campeonReal;
-            puntosJ10.push({
-              usuario_id: pron.usuario_id,
-              jornada_numero: 10,
-              equipo_clasificado: campeonPronosticado,
-              equipo_oficial: campeonReal,
-              fase_clasificado: 'CAMPEON',
-              puntos: aciertoCampeon ? 15 : 0
-            });
-          } else if (campeonPronosticado) {
-            // Si el partido no coincide, guardar con 0 puntos
-            puntosJ10.push({
-              usuario_id: pron.usuario_id,
-              jornada_numero: 10,
-              equipo_clasificado: campeonPronosticado,
-              equipo_oficial: campeonReal,
-              fase_clasificado: 'CAMPEON',
-              puntos: 0
-            });
-          }
+          // Se inserta SIEMPRE una fila de CAMPEON y una de SUBCAMPEON (igual
+          // que FINALISTA más arriba y que el patrón ya usado en J9) aunque
+          // el usuario haya pronosticado un empate sin penales para la final
+          // (campeonPronosticado/subcampeonPronosticado null) -- si no, esa
+          // fila directamente desaparece de "Equipos Clasificados" en vez de
+          // mostrarse con 0 pts.
+          const aciertoCampeon = campeonPronosticado && campeonReal && partidoCoincide && campeonPronosticado === campeonReal;
+          puntosJ10.push({
+            usuario_id: pron.usuario_id,
+            jornada_numero: 10,
+            equipo_clasificado: campeonPronosticado || 'Sin definir (empate sin penales)',
+            equipo_oficial: campeonReal,
+            fase_clasificado: 'CAMPEON',
+            puntos: aciertoCampeon ? 15 : 0
+          });
 
-          // Puntos por subcampeón (8pts) - Solo si el partido coincide
-          if (subcampeonPronosticado && subcampeonReal && partidoCoincide) {
-            const aciertoSubcampeon = subcampeonPronosticado === subcampeonReal;
-            puntosJ10.push({
-              usuario_id: pron.usuario_id,
-              jornada_numero: 10,
-              equipo_clasificado: subcampeonPronosticado,
-              equipo_oficial: subcampeonReal,
-              fase_clasificado: 'SUBCAMPEON',
-              puntos: aciertoSubcampeon ? 8 : 0
-            });
-          } else if (subcampeonPronosticado) {
-            // Si el partido no coincide, guardar con 0 puntos
-            puntosJ10.push({
-              usuario_id: pron.usuario_id,
-              jornada_numero: 10,
-              equipo_clasificado: subcampeonPronosticado,
-              equipo_oficial: subcampeonReal,
-              fase_clasificado: 'SUBCAMPEON',
-              puntos: 0
-            });
-          }
+          const aciertoSubcampeon = subcampeonPronosticado && subcampeonReal && partidoCoincide && subcampeonPronosticado === subcampeonReal;
+          puntosJ10.push({
+            usuario_id: pron.usuario_id,
+            jornada_numero: 10,
+            equipo_clasificado: subcampeonPronosticado || 'Sin definir (empate sin penales)',
+            equipo_oficial: subcampeonReal,
+            fase_clasificado: 'SUBCAMPEON',
+            puntos: aciertoSubcampeon ? 8 : 0
+          });
         }
 
         // Guardar puntos
