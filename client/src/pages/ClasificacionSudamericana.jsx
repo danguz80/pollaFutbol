@@ -1351,7 +1351,13 @@ export default function ClasificacionSudamericana() {
                   const pronosticosPartidos = grupo.pronosticos.filter(p => !p.esClasificado);
                   const pronosticosClasificados = grupo.pronosticos.filter(p => p.esClasificado);
                   const puntosPartidos = pronosticosPartidos.reduce((sum, p) => sum + (p.puntos || 0), 0);
-                  const puntosClasificados = pronosticosClasificados.reduce((sum, p) => sum + (p.puntos || 0), 0);
+                  // Para Jornadas 7-10 la tabla "Equipos Clasificados" se arma a
+                  // partir de grupo.clasificacion (no de grupo.pronosticos, que es
+                  // de donde sale pronosticosClasificados) -- si ese es el caso,
+                  // el total tiene que sumar esos mismos puntos, o siempre da 0.
+                  const puntosClasificados = pronosticosClasificados.length > 0
+                    ? pronosticosClasificados.reduce((sum, p) => sum + (p.puntos || 0), 0)
+                    : (grupo.clasificacion || []).reduce((sum, c) => sum + (c.puntos || 0), 0);
                   
                   return (
                     <React.Fragment key={`grupo-${grupo.usuario_id}-${grupoIndex}`}>
