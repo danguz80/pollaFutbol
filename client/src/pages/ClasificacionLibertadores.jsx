@@ -166,15 +166,23 @@ export default function ClasificacionLibertadores() {
 
       // LÓGICA ESPECIAL PARA J10: Si el usuario no tiene pronóstico para el partido 456 (FINAL),
       // pero SÍ tiene datos de final_virtual, agregar el partido sintético
+      // Esta llamada va en su propio try/catch: si el partido 456 no existe (404),
+      // no debe cortar la carga del resto de los pronósticos de la jornada.
       if (filtroJornada == 10) {
-        // Obtener partido FINAL real (456)
-        const partidoFinalReal = await axios.get(`${API_URL}/api/libertadores/partidos/456`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
+        let partidoFinalReal = null;
+        try {
+          partidoFinalReal = await axios.get(`${API_URL}/api/libertadores/partidos/456`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (errPartidoFinal) {
+          console.error('No se pudo obtener el partido FINAL (id 456) de Jornada 10:', errPartidoFinal);
+        }
+
         // Obtener usuarios únicos en J10
-        const usuariosJ10 = [...new Set(response.data.filter(p => p.jornada.numero == 10).map(p => p.usuario.id))];
-        
+        const usuariosJ10 = partidoFinalReal
+          ? [...new Set(response.data.filter(p => p.jornada.numero == 10).map(p => p.usuario.id))]
+          : [];
+
         for (const usuarioId of usuariosJ10) {
           // Verificar si el usuario tiene pronóstico para el partido 456
           const tienePartido456 = response.data.some(p => p.usuario.id == usuarioId && p.partido.id == 456);
