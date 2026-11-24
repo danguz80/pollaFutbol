@@ -459,11 +459,17 @@ router.get('/todos/jornada/:numero', verifyToken, async (req, res) => {
         lp.goles_visita,
         p.nombre_local,
         p.nombre_visita,
-        p.bonus
+        p.bonus,
+        lpfv.equipo_local AS final_virtual_local,
+        lpfv.equipo_visita AS final_virtual_visita,
+        lpfv.goles_local AS final_virtual_goles_local,
+        lpfv.goles_visita AS final_virtual_goles_visita
       FROM libertadores_pronosticos lp
       JOIN usuarios u ON lp.usuario_id = u.id
       JOIN libertadores_partidos p ON lp.partido_id = p.id
       JOIN libertadores_jornadas lj ON lp.jornada_id = lj.id
+      LEFT JOIN libertadores_pronosticos_final_virtual lpfv
+        ON lpfv.usuario_id = lp.usuario_id AND lpfv.jornada_id = lj.id
       WHERE lj.numero = $1
         AND u.rol != 'admin'
       ORDER BY u.nombre, p.id
