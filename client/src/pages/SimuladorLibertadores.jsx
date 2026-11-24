@@ -118,24 +118,59 @@ export default function SimuladorLibertadores() {
 
     const golesLocalReal = resultado.golesLocal;
     const golesVisitaReal = resultado.golesVisita;
-    const golesLocalPron = pronostico.goles_local;
-    const golesVisitaPron = pronostico.goles_visita;
+    let golesLocalPron = pronostico.goles_local;
+    let golesVisitaPron = pronostico.goles_visita;
+    let puntosExacto = 5;
+    let puntosDiferencia = 3;
+    let puntosSigno = 1;
+
+    // El partido FINAL (id 456) se guarda de forma genérica: el marcador
+    // almacenado en libertadores_pronosticos corresponde a los finalistas
+    // que ESE usuario pronosticó (final_virtual), no necesariamente a los
+    // finalistas reales -- y puede quedar una fila vieja sin actualizar si
+    // antes coincidían y dejaron de hacerlo. Si sus equipos pronosticados no
+    // son los dos que juegan la final real, no corresponde sumar (ni mover)
+    // puntos por este partido pase lo que pase con el marcador simulado.
+    // Además la FINAL usa una escala de puntos más alta (10/7/4) que el
+    // resto de los partidos, igual que en calcularPuntosLibertadores.js.
+    if (partido.id === 456) {
+      const equipoLocalPron = pronostico.final_virtual_local;
+      const equipoVisitaPron = pronostico.final_virtual_visita;
+
+      if (!equipoLocalPron || !equipoVisitaPron) return 0;
+
+      const mismoOrden = equipoLocalPron === partido.nombre_local && equipoVisitaPron === partido.nombre_visita;
+      const ordenInvertido = equipoLocalPron === partido.nombre_visita && equipoVisitaPron === partido.nombre_local;
+
+      if (!mismoOrden && !ordenInvertido) return 0;
+
+      golesLocalPron = ordenInvertido ? pronostico.final_virtual_goles_visita : pronostico.final_virtual_goles_local;
+      golesVisitaPron = ordenInvertido ? pronostico.final_virtual_goles_local : pronostico.final_virtual_goles_visita;
+
+      puntosExacto = 10;
+      puntosDiferencia = 7;
+      puntosSigno = 4;
+    }
+
+    if (golesLocalPron === null || golesLocalPron === undefined || golesVisitaPron === null || golesVisitaPron === undefined) {
+      return 0;
+    }
 
     // Resultado exacto
     if (golesLocalPron === golesLocalReal && golesVisitaPron === golesVisitaReal) {
-      return 5 * (partido.bonus || 1);
+      return puntosExacto * (partido.bonus || 1);
     }
 
     // Misma diferencia (y mismo signo)
     const difReal = golesLocalReal - golesVisitaReal;
     const difPron = golesLocalPron - golesVisitaPron;
     if (Math.abs(difPron) === Math.abs(difReal) && Math.sign(difPron) === Math.sign(difReal)) {
-      return 3 * (partido.bonus || 1);
+      return puntosDiferencia * (partido.bonus || 1);
     }
 
     // Solo ganador/empate (signo)
     if (Math.sign(difPron) === Math.sign(difReal)) {
-      return 1 * (partido.bonus || 1);
+      return puntosSigno * (partido.bonus || 1);
     }
 
     return 0;
