@@ -464,7 +464,9 @@ router.get('/todos/jornada/:numero', verifyToken, async (req, res) => {
         lpfv.equipo_local AS final_virtual_local,
         lpfv.equipo_visita AS final_virtual_visita,
         lpfv.goles_local AS final_virtual_goles_local,
-        lpfv.goles_visita AS final_virtual_goles_visita
+        lpfv.goles_visita AS final_virtual_goles_visita,
+        lpfv.penales_local AS final_virtual_penales_local,
+        lpfv.penales_visita AS final_virtual_penales_visita
       FROM libertadores_pronosticos lp
       JOIN usuarios u ON lp.usuario_id = u.id
       JOIN libertadores_partidos p ON lp.partido_id = p.id
