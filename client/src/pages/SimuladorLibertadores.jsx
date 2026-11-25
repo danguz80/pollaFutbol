@@ -113,7 +113,7 @@ export default function SimuladorLibertadores() {
     }));
   };
 
-  const calcularPuntos = (pronostico, partido, resultado) => {
+  const calcularPuntos = (pronostico, partido, resultado, partidoFinalId) => {
     if (resultado.golesLocal === "" || resultado.golesVisita === "") return 0;
 
     const golesLocalReal = resultado.golesLocal;
@@ -124,16 +124,21 @@ export default function SimuladorLibertadores() {
     let puntosDiferencia = 3;
     let puntosSigno = 1;
 
-    // El partido FINAL (id 456) se guarda de forma genérica: el marcador
-    // almacenado en libertadores_pronosticos corresponde a los finalistas
-    // que ESE usuario pronosticó (final_virtual), no necesariamente a los
-    // finalistas reales -- y puede quedar una fila vieja sin actualizar si
-    // antes coincidían y dejaron de hacerlo. Si sus equipos pronosticados no
-    // son los dos que juegan la final real, no corresponde sumar (ni mover)
-    // puntos por este partido pase lo que pase con el marcador simulado.
-    // Además la FINAL usa una escala de puntos más alta (10/7/4) que el
-    // resto de los partidos, igual que en calcularPuntosLibertadores.js.
-    if (partido.id === 456) {
+    // El partido FINAL de Jornada 10 se guarda de forma genérica: el
+    // marcador almacenado en libertadores_pronosticos corresponde a los
+    // finalistas que ESE usuario pronosticó (final_virtual), no
+    // necesariamente a los finalistas reales -- y puede quedar una fila
+    // vieja sin actualizar si antes coincidían y dejaron de hacerlo. Si sus
+    // equipos pronosticados no son los dos que juegan la final real, no
+    // corresponde sumar (ni mover) puntos por este partido pase lo que pase
+    // con el marcador simulado. Además la FINAL usa una escala de puntos
+    // más alta (10/7/4) que el resto de los partidos, igual que en
+    // calcularPuntosLibertadores.js.
+    // Se identifica el partido FINAL por posición (el último de los 5 de
+    // J10, igual que JornadaLibertadores.jsx) y no por un id fijo: el id
+    // "456" usado en el resto del sistema puede no ser el real para esta
+    // edición (ver bug de 404 en /api/libertadores/partidos/456).
+    if (partidoFinalId && partido.id === partidoFinalId) {
       const equipoLocalPron = pronostico.final_virtual_local;
       const equipoVisitaPron = pronostico.final_virtual_visita;
 
@@ -196,12 +201,16 @@ export default function SimuladorLibertadores() {
     // Calcular puntos de la jornada simulada
     const puntosJornada = {};
 
+    // Jornada 10 = 4 partidos de semifinal (IDA+VUELTA x2) + 1 Final, en ese
+    // orden (fecha, id) -- igual criterio que JornadaLibertadores.jsx.
+    const partidoFinalId = partidos.length === 5 ? partidos[partidos.length - 1].id : null;
+
     pronosticos.forEach(pron => {
       const partido = partidos.find(p => p.id === pron.partido_id);
       if (!partido) return;
 
       const resultado = resultadosSimulados[partido.id];
-      const puntos = calcularPuntos(pron, partido, resultado);
+      const puntos = calcularPuntos(pron, partido, resultado, partidoFinalId);
 
       const nombre = pron.usuario;
 
