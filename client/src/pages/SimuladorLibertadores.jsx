@@ -19,6 +19,12 @@ export default function SimuladorLibertadores() {
   const [rankingJornadaSimulado, setRankingJornadaSimulado] = useState([]);
   const [rankingAcumuladoSimulado, setRankingAcumuladoSimulado] = useState([]);
 
+  // Solo para Jornada 10: puntos reales ya guardados de Campeón/Subcampeón
+  // (por nombre de jugador, para poder restarlos antes de simular) y las
+  // reglas de puntuación configuradas para esa fase (no asumir 15/8 fijo).
+  const [puntosClasificacionRealJ10, setPuntosClasificacionRealJ10] = useState({});
+  const [reglasCampeonSubcampeon, setReglasCampeonSubcampeon] = useState({ puntosCampeon: 15, puntosSubcampeon: 8 });
+
   // Cargar jornadas al montar
   useEffect(() => {
     const cargarJornadas = async () => {
@@ -98,6 +104,31 @@ export default function SimuladorLibertadores() {
       const dataRankingAcumulado = await resRankingAcumulado.json();
       setRankingAcumulado(dataRankingAcumulado);
       setRankingAcumuladoSimulado(dataRankingAcumulado);
+
+      // Para J10: puntos reales de Campeón/Subcampeón ya guardados (para
+      // restarlos antes de simular) y las reglas de puntuación de esa fase.
+      if (Number(jornadaSeleccionada) === 10) {
+        const resClasificacion = await fetch(
+          `${API_BASE_URL}/api/libertadores-clasificacion/puntos-clasificacion?jornada_numero=10`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const dataClasificacion = await resClasificacion.json();
+        const totales = {};
+        (dataClasificacion || []).forEach(row => {
+          if (row.fase_clasificado === 'CAMPEON' || row.fase_clasificado === 'SUBCAMPEON') {
+            totales[row.usuario_nombre] = (totales[row.usuario_nombre] || 0) + (Number(row.puntos) || 0);
+          }
+        });
+        setPuntosClasificacionRealJ10(totales);
+
+        const resReglas = await fetch(`${API_BASE_URL}/api/libertadores-puntuacion/reglas`);
+        const dataReglas = await resReglas.json();
+        const puntosCampeon = (dataReglas || []).find(r => r.fase === 'CAMPEÓN' && r.concepto.includes('Campeón'))?.puntos ?? 15;
+        const puntosSubcampeon = (dataReglas || []).find(r => r.fase === 'CAMPEÓN' && r.concepto.includes('Subcampeón'))?.puntos ?? 8;
+        setReglasCampeonSubcampeon({ puntosCampeon, puntosSubcampeon });
+      } else {
+        setPuntosClasificacionRealJ10({});
+      }
     } catch (err) {
       console.error("Error cargando datos:", err);
     }
@@ -241,14 +272,77 @@ export default function SimuladorLibertadores() {
       .sort((a, b) => b.puntos_jornada - a.puntos_jornada);
     setRankingJornadaSimulado(nuevoRankingJornada);
 
+    // Puntos de Campeón/Subcampeón simulados (solo J10): se evalúan de forma
+    // independiente por equipo -- acertar un finalista y su puesto (campeón o
+    // subcampeón) suma esos puntos aunque el OTRO finalista pronosticado no
+    // sea el real (no son excluyentes), igual que ya corrige
+    // calcularPuntosLibertadores.js. Se usa el campeón/subcampeón que
+    // resultaría del marcador SIMULADO de la Final (sin penales, el
+    // simulador no tiene esos inputs), comparado contra lo que cada usuario
+    // pronosticó en su propio final_virtual.
+    const puntosClasificacionSimulado = {};
+    if (partidoFinalId) {
+      const partidoFinal = partidos.find(p => p.id === partidoFinalId);
+      const resultadoFinal = resultadosSimulados[partidoFinalId];
+
+      let campeonSimulado = null;
+      let subcampeonSimulado = null;
+      if (partidoFinal && resultadoFinal && resultadoFinal.golesLocal !== "" && resultadoFinal.golesVisita !== "") {
+        if (resultadoFinal.golesLocal > resultadoFinal.golesVisita) {
+          campeonSimulado = partidoFinal.nombre_local;
+          subcampeonSimulado = partidoFinal.nombre_visita;
+        } else if (resultadoFinal.golesVisita > resultadoFinal.golesLocal) {
+          campeonSimulado = partidoFinal.nombre_visita;
+          subcampeonSimulado = partidoFinal.nombre_local;
+        }
+        // Empate: el simulador no tiene inputs de penales, no se define
+        // campeón/subcampeón simulado (igual que "Pendiente").
+      }
+
+      if (campeonSimulado || subcampeonSimulado) {
+        const finalVirtualPorUsuario = {};
+        pronosticos.forEach(pron => {
+          if (!finalVirtualPorUsuario[pron.usuario] && pron.final_virtual_local && pron.final_virtual_visita) {
+            finalVirtualPorUsuario[pron.usuario] = pron;
+          }
+        });
+
+        Object.entries(finalVirtualPorUsuario).forEach(([nombre, pron]) => {
+          const golesLocalPron = (Number(pron.final_virtual_goles_local) || 0) + (Number(pron.final_virtual_penales_local) || 0);
+          const golesVisitaPron = (Number(pron.final_virtual_goles_visita) || 0) + (Number(pron.final_virtual_penales_visita) || 0);
+
+          let campeonPronosticado = null;
+          let subcampeonPronosticado = null;
+          if (golesLocalPron > golesVisitaPron) {
+            campeonPronosticado = pron.final_virtual_local;
+            subcampeonPronosticado = pron.final_virtual_visita;
+          } else if (golesVisitaPron > golesLocalPron) {
+            campeonPronosticado = pron.final_virtual_visita;
+            subcampeonPronosticado = pron.final_virtual_local;
+          }
+
+          const aciertoCampeon = campeonSimulado && campeonPronosticado === campeonSimulado;
+          const aciertoSubcampeon = subcampeonSimulado && subcampeonPronosticado === subcampeonSimulado;
+
+          puntosClasificacionSimulado[nombre] =
+            (aciertoCampeon ? reglasCampeonSubcampeon.puntosCampeon : 0) +
+            (aciertoSubcampeon ? reglasCampeonSubcampeon.puntosSubcampeon : 0);
+        });
+      }
+    }
+
     // Ranking acumulado simulado
     const nuevoRankingAcumulado = rankingAcumulado.map(jugador => {
       const puntosRealesJornada = rankingJornada.find(j => j.nombre === jugador.nombre)?.puntos_jornada || 0;
       const puntosSimuladosJornada = puntosJornada[jugador.nombre]?.puntos_jornada || 0;
+      const puntosClasificacionReal = puntosClasificacionRealJ10[jugador.nombre] || 0;
+      const puntosClasificacionSimuladoUsuario = puntosClasificacionSimulado[jugador.nombre] || 0;
 
       return {
         ...jugador,
-        puntos_acumulados: jugador.puntos_acumulados - puntosRealesJornada + puntosSimuladosJornada
+        puntos_acumulados: jugador.puntos_acumulados
+          - puntosRealesJornada + puntosSimuladosJornada
+          - puntosClasificacionReal + puntosClasificacionSimuladoUsuario
       };
     }).sort((a, b) => b.puntos_acumulados - a.puntos_acumulados);
 

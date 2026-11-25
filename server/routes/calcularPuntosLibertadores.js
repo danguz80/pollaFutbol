@@ -621,14 +621,15 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
             subcampeonPronosticado = pron.equipo_local;
           }
 
-          // IMPORTANTE: Solo dar puntos si el partido pronosticado coincide con el partido real
-          const partidoCoincide = finalistasReales.length === 2 && (
-            (pron.equipo_local === finalistasReales[0] && pron.equipo_visita === finalistasReales[1]) ||
-            (pron.equipo_local === finalistasReales[1] && pron.equipo_visita === finalistasReales[0])
-          );
-
+          // Campeón/Subcampeón se evalúan de forma independiente por equipo:
+          // si el usuario acertó el finalista X y además predijo correctamente
+          // en qué puesto (campeón o subcampeón) terminaría, suma esos puntos,
+          // sin que dependa de si también acertó el OTRO finalista. No son
+          // excluyentes entre sí (a diferencia de una versión anterior que
+          // exigía "partidoCoincide": que ambos finalistas pronosticados
+          // coincidieran con los dos reales antes de dar cualquier punto acá).
           if (campeonPronosticado) {
-            const aciertoCampeon = campeonReal && partidoCoincide && campeonPronosticado === campeonReal;
+            const aciertoCampeon = campeonReal && campeonPronosticado === campeonReal;
             puntosJ10.push({
               usuario_id: pron.usuario_id,
               jornada_numero: 10,
@@ -640,7 +641,7 @@ router.post('/puntos', verifyToken, authorizeRoles('admin'), async (req, res) =>
           }
 
           if (subcampeonPronosticado) {
-            const aciertoSubcampeon = subcampeonReal && partidoCoincide && subcampeonPronosticado === subcampeonReal;
+            const aciertoSubcampeon = subcampeonReal && subcampeonPronosticado === subcampeonReal;
             puntosJ10.push({
               usuario_id: pron.usuario_id,
               jornada_numero: 10,
