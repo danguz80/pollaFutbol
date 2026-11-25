@@ -210,7 +210,19 @@ export default function SimuladorLibertadores() {
       if (!partido) return;
 
       const resultado = resultadosSimulados[partido.id];
-      const puntos = calcularPuntos(pron, partido, resultado, partidoFinalId);
+
+      // Los partidos con resultado REAL (ya jugados, inputs deshabilitados)
+      // no se recalculan con la fórmula genérica del simulador -- se
+      // reutiliza el puntaje ya guardado por el cálculo real, que usa
+      // reglas de puntuación configurables por fase (pueden no ser 5/3/1).
+      // Si se recalculara aquí, cualquier partido real cuya regla difiera
+      // del default quedaría con un puntaje distinto apenas se dispara el
+      // recálculo (al tocar cualquier input), y esa diferencia no se
+      // revierte aunque luego se borren los inputs. Solo se calcula con
+      // calcularPuntos() el/los partido(s) aún pendientes (ej. la Final).
+      const puntos = resultado.esReal
+        ? Number(pron.puntos_reales) || 0
+        : calcularPuntos(pron, partido, resultado, partidoFinalId);
 
       const nombre = pron.usuario;
 

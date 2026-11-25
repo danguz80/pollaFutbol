@@ -457,6 +457,7 @@ router.get('/todos/jornada/:numero', verifyToken, async (req, res) => {
         lp.partido_id,
         lp.goles_local,
         lp.goles_visita,
+        lp.puntos AS puntos_reales,
         p.nombre_local,
         p.nombre_visita,
         p.bonus,
